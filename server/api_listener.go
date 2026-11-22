@@ -34,6 +34,7 @@ import (
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/clients/storedtunnels"
+	"github.com/openrport/openrport/server/pairing"
 	"github.com/openrport/openrport/server/script"
 
 	"github.com/openrport/openrport/server/api"
@@ -81,6 +82,7 @@ type APIListener struct {
 	tokenManager   *authorization.Manager
 	commandManager *command.Manager
 	storedTunnels  *storedtunnels.Manager
+	pairing        *pairing.Service
 
 	notificationsStorage   notificationsSQLite.Repository
 	notificationsProcessor notifications.Processor
@@ -254,6 +256,11 @@ func NewAPIListener(
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
+
+	if config.Pairing.Enabled {
+		a.initPairing()
+		a.Logger.Infof("built-in pairing service enabled, codes are valid for %s", config.Pairing.CodeTTL)
+	}
 
 	if config.API.IsTwoFAOn() {
 		var msgSrv message.Service

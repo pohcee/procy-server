@@ -351,6 +351,8 @@ func init() {
 	viperCfg.SetDefault("server.client_login_wait", 2)
 	viperCfg.SetDefault("server.max_failed_login", 5)
 	viperCfg.SetDefault("server.pairing_url", DefaultPairingURL)
+	viperCfg.SetDefault("pairing.enabled", false)
+	viperCfg.SetDefault("pairing.code_ttl", chconfig.DefaultPairingCodeTTL)
 	viperCfg.SetDefault("server.ban_time", 3600)
 	viperCfg.SetDefault("server.jobs_max_results", 10000)
 	viperCfg.SetDefault("server.tls_min", "1.3")

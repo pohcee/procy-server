@@ -253,6 +253,8 @@ func (al *APIListener) initRouter() {
 		api.HandleFunc(oauth.DefaultDeviceLoginURI, al.handleGetDeviceAuth).Methods(http.MethodGet)
 	}
 
+	al.registerPairingRoutes(r)
+
 	docRoot := al.config.API.DocRoot
 	if docRoot != "" {
 		// Start a http file server with proper Vue.js HTML5 history mode (aka rewrite to /) for the following paths

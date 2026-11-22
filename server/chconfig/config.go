@@ -337,6 +337,7 @@ type Config struct {
 	SMTP          SMTPConfig           `mapstructure:"smtp"`
 	Monitoring    MonitoringConfig     `mapstructure:"monitoring"`
 	Notifications NotificationsConfig  `mapstructure:"notifications"`
+	Pairing       PairingConfig        `mapstructure:"pairing"`
 	PlusConfig    rportplus.PlusConfig `mapstructure:",squash"`
 }
 
@@ -452,6 +453,10 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 
 	if err := c.Notifications.parseAndValidateAndSetDefaults(); err != nil {
 		return err
+	}
+
+	if err := c.parseAndValidatePairing(mLog); err != nil {
+		return fmt.Errorf("pairing: %v", err)
 	}
 
 	return nil
