@@ -9,21 +9,17 @@
 
 ## Coming from RPort.io? Check this out!
 
-As a community that supports open source software, we were surprised by the move RealVNC made with RPort.  As mentioned on their website, support as well as all subsequent updates of RPort from version 1.0.0 will require a license.  Using the latest public opensource versions of RPort, we continue to support and develop RPort in the spirit of opensource.  We are currently working on major improvements to the software so that it is fully decoupled from RealVNC.  We created a new pairing system for running RPort servers.  You can use it as follows:
+As a community that supports open source software, we were surprised by the move RealVNC made with RPort.  As mentioned on their website, support as well as all subsequent updates of RPort from version 1.0.0 will require a license.  Using the latest public opensource versions of RPort, we continue to support and develop RPort in the spirit of opensource.  We are currently working on major improvements to the software so that it is fully decoupled from RealVNC.  Pairing (the "Install client" one-liners) is built into rportd. Enable it in `/etc/rport/rportd.conf`:
 
 ```
-sudo systemctl stop rportd.service
+[pairing]
+  enabled = true
+  url = "https://rport.example.com"
+  downloads_url = "https://rport.example.com/downloads"
 ```
-Go to line 43-47 in `/etc/rport/rportd.conf`, change
 
-```
-pairing_url = "https://pairing.openrport.io"
-```
-Restart the rport server
-
-```
-sudo systemctl start rportd.service
-```
+and restart the rport server: `sudo systemctl restart rportd.service`. See the `[pairing]` section of
+`rportd.example.conf` for all options.
 
 ## At a glance
 

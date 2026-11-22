@@ -46,7 +46,6 @@ const (
 	DefaultLogLevel                         = "info"
 	DefaultRunRemoteCmdTimeoutSec           = 60
 	DefaultMonitoringDataStorageDuration    = "7d"
-	DefaultPairingURL                       = "https://pairing.openrport.io"
 )
 
 var (
@@ -350,7 +349,6 @@ func init() {
 	viperCfg.SetDefault("server.run_remote_cmd_timeout_sec", DefaultRunRemoteCmdTimeoutSec)
 	viperCfg.SetDefault("server.client_login_wait", 2)
 	viperCfg.SetDefault("server.max_failed_login", 5)
-	viperCfg.SetDefault("server.pairing_url", DefaultPairingURL)
 	viperCfg.SetDefault("pairing.enabled", false)
 	viperCfg.SetDefault("pairing.code_ttl", chconfig.DefaultPairingCodeTTL)
 	viperCfg.SetDefault("server.ban_time", 3600)
