@@ -343,7 +343,8 @@ func (c *Client) handleConnectionError(backoff *backoff.Backoff, connerr error) 
 		// Timeout means the server isn't offline, so reset the backoff and use an initial short retry duration
 		backoff.Reset()
 		rand.Seed(time.Now().UnixNano())
-		d = time.Duration(rand.Intn(int(backoff.Attempt()))) * BackoffOnServerTimeoutMaxDuration
+		// After Reset() Attempt() is 0, and rand.Intn(0) panics; retry within (0, max] instead.
+		d = time.Duration(rand.Int63n(int64(BackoffOnServerTimeoutMaxDuration))) + time.Millisecond
 	}
 	msg := fmt.Sprintf("Retrying in %s...", d)
 	c.Infof(msg)

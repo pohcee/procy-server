@@ -84,8 +84,11 @@ type CommandsConfig struct {
 	Deny          []string  `json:"deny" mapstructure:"deny"`
 	Order         [2]string `json:"order" mapstructure:"order"`
 
-	AllowRegexp []*regexp.Regexp `json:"allow_regexp"`
-	DenyRegexp  []*regexp.Regexp `json:"deny_regexp"`
+	// Compiled from Allow/Deny on the client and only used there. Not sent to the server:
+	// Go 1.21+ encodes regexp.Regexp as a string, which servers built with older Go
+	// (e.g. rportd 0.9.14) cannot decode, so they would drop the whole connection request.
+	AllowRegexp []*regexp.Regexp `json:"-"`
+	DenyRegexp  []*regexp.Regexp `json:"-"`
 }
 
 type ScriptsConfig struct {
