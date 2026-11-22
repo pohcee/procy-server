@@ -414,6 +414,9 @@ func (al *APIListener) lookupUser(r *http.Request, isBearerOnly bool) (authorize
 		if err != nil {
 			return isAuthorized, "", err
 		}
+		if token == nil {
+			return false, "", nil
+		}
 
 		return isAuthorized, token.AppClaims.Username, nil
 	}
@@ -498,8 +501,10 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 func (al *APIListener) checkBearerToken(ctx context.Context, bearerToken, uri, method string) (bool, *bearer.TokenContext, error) {
 	tokenCtx, err := bearer.ParseToken(bearerToken, al.config.API.JWTSecret)
 	if err != nil {
+		// A malformed, wrongly signed or expired token means "not authenticated": respond
+		// 401 (so clients send the user to the login page), not 500.
 		al.Debugf("failed to parse jwt token: %v", err)
-		return false, nil, err
+		return false, nil, nil
 	}
 
 	if al.bannedUsers.IsBanned(tokenCtx.AppClaims.Username) {

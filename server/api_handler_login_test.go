@@ -393,6 +393,10 @@ func TestWrapWithAuthMiddleware(t *testing.T) {
 	al.initRouter()
 	jwt, err := bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, time.Hour, user.Username, []bearer.Scope{}, "", "")
 	require.NoError(t, err)
+	expiredJWT, err := bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, -time.Hour, user.Username, []bearer.Scope{}, "", "")
+	require.NoError(t, err)
+	otherSecretJWT, err := bearer.CreateAuthToken(ctx, al.apiSessions, "another-secret", time.Hour, user.Username, []bearer.Scope{}, "", "")
+	require.NoError(t, err)
 
 	testCases := []struct {
 		Name           string
@@ -466,6 +470,21 @@ func TestWrapWithAuthMiddleware(t *testing.T) {
 			Name:           "bearer token",
 			ExpectedStatus: http.StatusOK,
 			Bearer:         jwt,
+		},
+		{
+			Name:           "malformed bearer token",
+			ExpectedStatus: http.StatusUnauthorized,
+			Bearer:         "not-a-jwt",
+		},
+		{
+			Name:           "expired bearer token",
+			ExpectedStatus: http.StatusUnauthorized,
+			Bearer:         expiredJWT,
+		},
+		{
+			Name:           "bearer token signed with another secret",
+			ExpectedStatus: http.StatusUnauthorized,
+			Bearer:         otherSecretJWT,
 		},
 	}
 
