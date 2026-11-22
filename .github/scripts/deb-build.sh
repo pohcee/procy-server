@@ -39,7 +39,7 @@ PKG_NAME=rport
 PKG_ROOT=/tmp/deb-build
 test -e $PKG_ROOT && sudo rm -rf $PKG_ROOT
 mkdir -p ${PKG_ROOT}/etc/rport
-mkdir -p ${PKG_ROOT}/lib/systemd/system
+mkdir -p ${PKG_ROOT}/usr/lib/systemd/system
 mkdir -p ${PKG_ROOT}/var/lib/rport
 mkdir -p ${PKG_ROOT}/var/log/rport
 mkdir -p ${PKG_ROOT}/usr/bin
@@ -56,7 +56,7 @@ find ${PKG_ROOT} -type f -exec chmod 0644 {} \;
 #
 cp ${BIN_FILE} ${PKG_ROOT}/usr/bin/rport
 cp ./rport.example.conf ${PKG_ROOT}/etc/rport/rport.conf
-cp ./opt/systemd/rport.service ${PKG_ROOT}/lib/systemd/system/rport.service
+cp ./opt/systemd/rport.service ${PKG_ROOT}/usr/lib/systemd/system/rport.service
 
 #
 # Prepare for packaging
