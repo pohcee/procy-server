@@ -220,6 +220,38 @@ func (s *Store) List(ctx context.Context, includeDeleted bool) ([]Entry, error) 
 	return entries, nil
 }
 
+// ListLive returns the live entries with their active version's implementations, ordered by name.
+func (s *Store) ListLive(ctx context.Context) ([]Entry, error) {
+	cols := strings.Split(entryColumns, ", ")
+	for i, c := range cols {
+		cols[i] = "e." + c
+	}
+	var rows []struct {
+		entryRow
+		Content string `db:"content"`
+	}
+	q := "SELECT " + strings.Join(cols, ", ") + ", v.`content` AS `content` FROM `entries` e" +
+		" JOIN `entry_versions` v ON v.`entry_id` = e.`id` AND v.`version` = e.`active_version`" +
+		" WHERE e.`deleted_at` IS NULL ORDER BY e.`name` COLLATE NOCASE, e.`id`"
+	if err := s.db.SelectContext(ctx, &rows, q); err != nil {
+		return nil, err
+	}
+	entries := make([]Entry, 0, len(rows))
+	for _, r := range rows {
+		e, err := r.entry()
+		if err != nil {
+			return nil, err
+		}
+		var c Content
+		if err := json.Unmarshal([]byte(r.Content), &c); err != nil {
+			return nil, err
+		}
+		e.Implementations = c.Implementations
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
 type versionRow struct {
 	EntryID   string    `db:"entry_id"`
 	Version   int       `db:"version"`
@@ -337,4 +369,9 @@ func (s *Store) Meta(ctx context.Context, key string) (string, bool, error) {
 func (s *Store) SetMeta(ctx context.Context, tx *sqlx.Tx, key, value string) error {
 	_, err := tx.ExecContext(ctx, "INSERT INTO `library_meta` (`key`, `value`) VALUES (?, ?) ON CONFLICT(`key`) DO UPDATE SET `value` = excluded.`value`", key, value)
 	return err
+}
+
+// Close closes the underlying database.
+func (s *Store) Close() error {
+	return s.db.Close()
 }

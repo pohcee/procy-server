@@ -316,3 +316,8 @@ func (m *Manager) Prune(ctx context.Context, keep, days int) (int64, error) {
 	}
 	return m.store.Prune(ctx, keep, olderThan)
 }
+
+// Close closes the underlying database.
+func (m *Manager) Close() error {
+	return m.store.Close()
+}

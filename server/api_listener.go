@@ -35,11 +35,9 @@ import (
 	"github.com/openrport/openrport/server/clients/storedtunnels"
 	libraryentries "github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/pairing"
-	"github.com/openrport/openrport/server/script"
 
 	rportplus "github.com/openrport/openrport/plus"
 	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/command"
 	"github.com/openrport/openrport/server/api/message"
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/bearer"
@@ -79,9 +77,7 @@ type APIListener struct {
 
 	userService    UserService
 	vaultManager   *vault.Manager
-	scriptManager  *script.Manager
 	tokenManager   *authorization.Manager
-	commandManager *command.Manager
 	libraryManager *libraryentries.Manager
 	storedTunnels  *storedtunnels.Manager
 	pairing        *pairing.Service
@@ -205,13 +201,6 @@ func NewAPIListener(
 		return nil, fmt.Errorf("failed init api_token DB instance: %w", err)
 	}
 
-	scriptLogger := logger.NewLogger("scripts", config.Logging.LogOutput, config.Logging.LogLevel)
-	scriptProvider := script.NewSqliteProvider(libraryDb)
-	scriptManager := script.NewManager(scriptProvider, scriptLogger)
-
-	commandProvider := command.NewSqliteProvider(libraryDb)
-	commandManager := command.NewManager(commandProvider)
-
 	libraryStore := libraryentries.NewStore(libraryDb)
 	libraryManager := libraryentries.NewManager(libraryStore, time.Now)
 
@@ -250,8 +239,6 @@ func NewAPIListener(
 		bannedUsers:            security.NewBanList(time.Duration(config.API.UserLoginWait) * time.Second),
 		userService:            userService,
 		vaultManager:           vault.NewManager(vaultDBProviderFactory, &vault.Aes256PassManager{}, vaultLogger),
-		scriptManager:          scriptManager,
-		commandManager:         commandManager,
 		libraryManager:         libraryManager,
 		tokenManager:           tokenManager,
 		storedTunnels:          storedtunnels.New(server.clientDB),
@@ -389,11 +376,9 @@ func (al *APIListener) Close() error {
 	if al.vaultManager != nil {
 		g.Go(al.vaultManager.Close)
 	}
-	if al.scriptManager != nil {
-		g.Go(al.scriptManager.Close)
-	}
-	if al.commandManager != nil {
-		g.Go(al.commandManager.Close)
+
+	if al.libraryManager != nil {
+		g.Go(al.libraryManager.Close)
 	}
 
 	if al.apiSessions != nil {
