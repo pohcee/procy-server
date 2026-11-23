@@ -1,6 +1,6 @@
 module github.com/openrport/openrport
 
-go 1.19
+go 1.26.0
 
 require (
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d
