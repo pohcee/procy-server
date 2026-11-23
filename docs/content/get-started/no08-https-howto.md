@@ -131,7 +131,7 @@ Now set up your `rportd.conf` like this.
 ```
 
 Restart rportd after any changes to the configuration file. Check your SSL setup is working properly by executing  
-`curl -Iv -u admin:foobaz https://$DOMAIN:3000/api/v1/status`.  
+`curl -Iv -u admin:$PASSWORD https://$DOMAIN:3000/api/v1/status`.  
 You should not get any errors.
 
 ### Auto renewal

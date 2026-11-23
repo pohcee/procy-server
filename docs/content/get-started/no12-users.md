@@ -33,7 +33,7 @@ Passwords will be hashed automatically before adding them to file or database.
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/users' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
     "username": "user1",
@@ -52,7 +52,7 @@ You can provide any parameters that you want to change.
 
 ```shell
 curl -X PUT 'http://localhost:3000/api/v1/users/user1' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
     "password": "1234567"
@@ -83,7 +83,7 @@ If you change a password, user will still be able to login with an old JWT token
 ### List all users
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/users
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/users
 ```
 
 ```json
@@ -111,5 +111,5 @@ Because of security consideration, users list won't return hashed passwords.
 ### Delete
 
 ```shell
-curl -u admin:foobaz -X DELETE 'http://localhost:3000/api/v1/users/user1'
+curl -u admin:$PASSWORD -X DELETE 'http://localhost:3000/api/v1/users/user1'
 ```

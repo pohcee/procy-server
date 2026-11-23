@@ -71,6 +71,8 @@ func TestParseAndValidatePairing(t *testing.T) {
 	} {
 		t.Run(tc.Name, func(t *testing.T) {
 			c := Config{Server: defaultValidMinServerConfig, API: tc.API, Pairing: tc.Pairing}
+			// A generated JWT secret is saved in the data dir; keep it out of the source tree.
+			c.Server.DataDir = t.TempDir()
 			err := c.ParseAndValidate(&Mlog)
 			if tc.ExpectedError != "" {
 				require.EqualError(t, err, tc.ExpectedError)

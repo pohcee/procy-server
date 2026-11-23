@@ -21,7 +21,7 @@ To create a script, provide following input:
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/library/scripts' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
  "name": "current_directory",
@@ -57,7 +57,7 @@ You can use scripts list API to find ID of a corresponding script.
 
 ```shell
 curl -X PUT 'http://localhost:3000/api/v1/library/scripts/4943d682-7874-4f7a-999c-b4ff5493fc3f' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
  "name": "current_directory",
@@ -76,7 +76,7 @@ This API allows to list all stored scripts.
 
 ```shell
 curl -X GET 'http://localhost:3000/api/v1/library/scripts' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json'
 ```
 
@@ -148,7 +148,7 @@ You should know the script unique id to delete it e.g. `4943d682-7874-4f7a-999c-
 You can use scripts list API to find ID of a corresponding script.
 
 ```shell
-curl -u admin:foobaz -X DELETE \
+curl -u admin:$PASSWORD -X DELETE \
 'http://localhost:3000/api/v1/library/scripts/4943d682-7874-4f7a-999c-b4ff5493fc3f'
 ```
 
@@ -158,7 +158,7 @@ To show a single script you need to know it's id e.g. `4943d682-7874-4f7a-999c-b
 You can use scripts list API to find ID of a corresponding script.
 
 ```shell
-curl -u admin:foobaz -XGET \
+curl -u admin:$PASSWORD -XGET \
 'http://localhost:3000/api/v1/library/scripts/4943d682-7874-4f7a-999c-b4ff5493fc3f'
 ```
 

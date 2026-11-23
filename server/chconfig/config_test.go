@@ -638,6 +638,8 @@ func TestParseAndValidateAPI(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			tc.Config.Server = defaultValidMinServerConfig
+			// A generated JWT secret is saved in the data dir; keep it out of the source tree.
+			tc.Config.Server.DataDir = t.TempDir()
 			err := tc.Config.ParseAndValidate(&Mlog)
 			if tc.ExpectedError != "" {
 				assert.EqualError(t, err, tc.ExpectedError)
