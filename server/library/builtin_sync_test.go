@@ -30,7 +30,7 @@ func TestSyncCreatesBuiltins(t *testing.T) {
 	bs, err := Builtins()
 	require.NoError(t, err)
 
-	created, updated, err := SyncBuiltins(context.Background(), s, bs, "1.2.3", t0)
+	created, updated, _, err := SyncBuiltins(context.Background(), s, bs, "1.2.3", t0)
 	require.NoError(t, err)
 	assert.Equal(t, 2, created)
 	assert.Equal(t, 0, updated)
@@ -51,9 +51,9 @@ func TestSyncCreatesBuiltins(t *testing.T) {
 func TestSyncIdempotent(t *testing.T) {
 	s := newTestStore(t)
 	bs := []Builtin{testBuiltin("a", "A", "echo 1")}
-	_, _, err := SyncBuiltins(context.Background(), s, bs, "1", t0)
+	_, _, _, err := SyncBuiltins(context.Background(), s, bs, "1", t0)
 	require.NoError(t, err)
-	created, updated, err := SyncBuiltins(context.Background(), s, bs, "1", t0)
+	created, updated, _, err := SyncBuiltins(context.Background(), s, bs, "1", t0)
 	require.NoError(t, err)
 	assert.Equal(t, 0, created)
 	assert.Equal(t, 0, updated)
@@ -63,10 +63,10 @@ func TestSyncIdempotent(t *testing.T) {
 func TestSyncUpdatesChangedBuiltin(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
-	_, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 1")}, "1", t0)
+	_, _, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 1")}, "1", t0)
 	require.NoError(t, err)
 
-	created, updated, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 2")}, "2", t0.Add(time.Hour))
+	created, updated, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 2")}, "2", t0.Add(time.Hour))
 	require.NoError(t, err)
 	assert.Equal(t, 0, created)
 	assert.Equal(t, 1, updated)
@@ -95,7 +95,7 @@ func TestSyncNameClash(t *testing.T) {
 	require.NoError(t, s.Insert(ctx, e, v))
 
 	bs := []Builtin{testBuiltin("a", "A", "echo 1")}
-	created, _, err := SyncBuiltins(ctx, s, bs, "1", t0)
+	created, _, _, err := SyncBuiltins(ctx, s, bs, "1", t0)
 	require.NoError(t, err)
 	assert.Equal(t, 1, created)
 	b := entryByKey(t, s, "a")
@@ -105,12 +105,12 @@ func TestSyncNameClash(t *testing.T) {
 	u, err := s.Get(ctx, "user1")
 	require.NoError(t, err)
 	assert.Equal(t, "A", u.Name)
-	created, updated, err := SyncBuiltins(ctx, s, bs, "1", t0)
+	created, updated, _, err := SyncBuiltins(ctx, s, bs, "1", t0)
 	require.NoError(t, err)
 	assert.Equal(t, 0, created+updated)
 
 	// an update keeps the suffixed name too
-	_, updated, err = SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 2")}, "2", t0)
+	_, updated, _, err = SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 2")}, "2", t0)
 	require.NoError(t, err)
 	assert.Equal(t, 1, updated)
 	assert.Equal(t, "A (built-in)", entryByKey(t, s, "a").Name)
@@ -119,19 +119,60 @@ func TestSyncNameClash(t *testing.T) {
 func TestSyncKeepsDeletedBuiltinDeleted(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
-	_, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 1")}, "1", t0)
+	_, _, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 1")}, "1", t0)
 	require.NoError(t, err)
 	e := entryByKey(t, s, "a")
 	at := t0.Add(time.Hour)
 	require.NoError(t, s.SetDeleted(ctx, e.ID, &at, "admin"))
 
-	created, updated, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 2")}, "2", t0)
+	created, updated, skipped, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 2")}, "2", t0)
 	require.NoError(t, err)
 	assert.Equal(t, 0, created+updated)
+	assert.Equal(t, []string{"a"}, skipped)
 	e = entryByKey(t, s, "a")
 	require.NotNil(t, e.DeletedAt)
 	assert.Equal(t, 1, e.ActiveVersion)
 	live, err := s.ListLive(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, live)
+}
+
+func TestSyncOneFailureDoesNotStopTheRest(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	for i, n := range []string{"A", "A (built-in)"} {
+		e, v := testEntry("u"+string(rune('1'+i)), n)
+		require.NoError(t, s.Insert(ctx, e, v))
+	}
+	bs := []Builtin{testBuiltin("a", "A", "x"), testBuiltin("b", "B", "y")}
+	created, _, _, err := SyncBuiltins(ctx, s, bs, "1", t0)
+	require.Error(t, err)
+	assert.Equal(t, 1, created)
+	assert.Nil(t, entryByKey(t, s, "a"))
+	assert.NotNil(t, entryByKey(t, s, "b"))
+}
+
+func TestSyncUpdateNeverRenamesIntoClash(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	_, _, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "Old", "x")}, "1", t0)
+	require.NoError(t, err)
+	e, v := testEntry("u1", "New")
+	require.NoError(t, s.Insert(ctx, e, v))
+
+	_, updated, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "New", "x")}, "2", t0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, updated)
+	assert.Equal(t, "New (built-in)", entryByKey(t, s, "a").Name)
+}
+
+func TestSyncIdempotentRealBuiltins(t *testing.T) {
+	s := newTestStore(t)
+	bs, err := Builtins()
+	require.NoError(t, err)
+	_, _, _, err = SyncBuiltins(context.Background(), s, bs, "1", t0)
+	require.NoError(t, err)
+	created, updated, _, err := SyncBuiltins(context.Background(), s, bs, "1", t0)
+	require.NoError(t, err)
+	assert.Equal(t, 0, created+updated)
 }

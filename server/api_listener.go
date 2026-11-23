@@ -259,10 +259,17 @@ func NewAPIListener(
 	// Built-ins are a convenience: a failure here must not stop rportd.
 	if builtins, err := libraryentries.Builtins(); err != nil {
 		allog.Errorf("library: failed to load built-in entries: %v", err)
-	} else if created, updated, err := libraryentries.SyncBuiltins(context.Background(), libraryStore, builtins, chshare.BuildVersion, time.Now()); err != nil {
-		allog.Errorf("library: failed to sync built-in entries: %v", err)
-	} else if created > 0 || updated > 0 {
-		allog.Infof("library: added %d, updated %d built-in entries", created, updated)
+	} else {
+		created, updated, skipped, err := libraryentries.SyncBuiltins(context.Background(), libraryStore, builtins, chshare.BuildVersion, time.Now())
+		if err != nil {
+			allog.Errorf("library: failed to sync built-in entries: %v", err)
+		}
+		if created > 0 || updated > 0 {
+			allog.Infof("library: added %d, updated %d built-in entries", created, updated)
+		}
+		for _, key := range skipped {
+			allog.Infof("library: built-in %s was deleted; not restoring it", key)
+		}
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")

@@ -31,31 +31,56 @@ func builtinSuffixed(name string) string { return name + " (built-in)" }
 // created, changed ones get a new version. Deleted built-ins stay deleted and
 // user entries are never touched. A user entry using a built-in's name makes
 // the built-in "<name> (built-in)".
-func SyncBuiltins(ctx context.Context, store *Store, builtins []Builtin, version string, now time.Time) (created, updated int, err error) {
+func SyncBuiltins(ctx context.Context, store *Store, builtins []Builtin, version string, now time.Time) (created, updated int, skipped []string, err error) {
+	var errs []error
 	for _, b := range builtins {
-		existing, err := store.ByBuiltinKey(ctx, b.Key)
-		if err != nil {
-			return created, updated, fmt.Errorf("built-in %s: %w", b.Key, err)
+		existing, gerr := store.ByBuiltinKey(ctx, b.Key)
+		if gerr != nil {
+			errs = append(errs, fmt.Errorf("built-in %s: %w", b.Key, gerr))
+			continue
 		}
 		switch {
 		case existing == nil:
-			if err := createBuiltin(ctx, store, b, version, now); err != nil {
-				return created, updated, fmt.Errorf("built-in %s: %w", b.Key, err)
+			if cerr := createBuiltin(ctx, store, b, version, now); cerr != nil {
+				errs = append(errs, fmt.Errorf("built-in %s: %w", b.Key, cerr))
+				continue
 			}
 			created++
 		case existing.DeletedAt != nil:
-			continue
+			skipped = append(skipped, b.Key)
 		default:
-			ok, err := updateBuiltin(ctx, store, existing, b, version, now)
-			if err != nil {
-				return created, updated, fmt.Errorf("built-in %s: %w", b.Key, err)
+			ok, uerr := updateBuiltin(ctx, store, existing, b, version, now)
+			if uerr != nil {
+				errs = append(errs, fmt.Errorf("built-in %s: %w", b.Key, uerr))
+				continue
 			}
 			if ok {
 				updated++
 			}
 		}
 	}
-	return created, updated, nil
+	return created, updated, skipped, errors.Join(errs...)
+}
+
+// freeName picks the first of the candidates no other live entry uses; "" if none.
+func freeName(ctx context.Context, store *Store, id string, candidates ...string) (string, error) {
+	live, err := store.ListLive(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, c := range candidates {
+		taken := false
+		for _, o := range live {
+			if o.ID != id && o.Name == c {
+				taken = true
+				break
+			}
+		}
+		if !taken {
+			return c, nil
+		}
+	}
+	return "", nil
 }
 
 func createBuiltin(ctx context.Context, store *Store, b Builtin, version string, now time.Time) error {
@@ -88,7 +113,16 @@ func createBuiltin(ctx context.Context, store *Store, b Builtin, version string,
 func updateBuiltin(ctx context.Context, store *Store, e *Entry, b Builtin, version string, now time.Time) (bool, error) {
 	for attempt := 0; attempt < 2; attempt++ {
 		shipped := b.Content
-		if e.Name == builtinSuffixed(shipped.Name) {
+		if e.Name != shipped.Name && e.Name != builtinSuffixed(shipped.Name) {
+			name, err := freeName(ctx, store, e.ID, shipped.Name, builtinSuffixed(shipped.Name))
+			if err != nil {
+				return false, err
+			}
+			if name == "" {
+				name = e.Name
+			}
+			shipped.Name = name
+		} else {
 			shipped.Name = e.Name
 		}
 		changed := Changed(contentOf(*e), shipped)
