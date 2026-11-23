@@ -417,15 +417,11 @@ ON "groups" (
   "username" ASC,
   "group" ASC
 );
-CREATE TABLE "group_details" (name TEXT, permissions TEXT);
-CREATE UNIQUE INDEX "main"."group_details_name" ON "group_details" ("name" ASC);
 CREATE TABLE "group_details" (
     "name" TEXT(150) NOT NULL,
     "permissions" TEXT DEFAULT "{}"
-    "tunnels_restricted" TEXT DEFAULT "{}"
-    "commands_restricted" TEXT DEFAULT "{}"
 );
-CREATE UNIQUE INDEX "main"."name" ON "group_details" (
+CREATE UNIQUE INDEX "main"."group_details_name" ON "group_details" (
     "name" ASC
 );
 ```
@@ -470,17 +466,6 @@ INSERT INTO groups VALUES('admin','Administrators');
 
 This creates a user `admin` with the password `password`. To use another password, create the appropriate bcrypt hash
 with a [bcrypt generator](https://bcrypt-generator.com/) or use `htpasswd` on the command line.
-
-### Extended group permissions additional fields
-
-To enable the extended group permissions feature, the database must be upgraded with the following SQL statement:
-
-```sql
-ALTER TABLE `group_details` ADD COLUMN `tunnels_restricted` TEXT DEFAULT '{}';
-ALTER TABLE `group_details` ADD COLUMN `commands_restricted` TEXT DEFAULT '{}';
-```
-
-Upon start, the "Extended group permissions" feature will be in trial mode, if the fields are present in the database, but there is no Plus license installed.
 
 ### API Usage examples
 
