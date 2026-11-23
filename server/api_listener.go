@@ -256,6 +256,15 @@ func NewAPIListener(
 		allog.Infof("imported %d scripts and commands into the library", imported)
 	}
 
+	// Built-ins are a convenience: a failure here must not stop rportd.
+	if builtins, err := libraryentries.Builtins(); err != nil {
+		allog.Errorf("library: failed to load built-in entries: %v", err)
+	} else if created, updated, err := libraryentries.SyncBuiltins(context.Background(), libraryStore, builtins, chshare.BuildVersion, time.Now()); err != nil {
+		allog.Errorf("library: failed to sync built-in entries: %v", err)
+	} else if created > 0 || updated > 0 {
+		allog.Infof("library: added %d, updated %d built-in entries", created, updated)
+	}
+
 	a.errResponseLogger = allog.Fork("error-response")
 
 	logGroupPermissionsNotice(userService, a.Logger)

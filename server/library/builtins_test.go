@@ -3,6 +3,7 @@ package library
 import (
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,5 +39,26 @@ func TestBuiltinsValid(t *testing.T) {
 	require.NoError(t, err)
 	for _, b := range bs {
 		assert.NoError(t, Validate(b.Content), b.Key)
+	}
+}
+
+func TestLoadBuiltinsRejectsBadManifests(t *testing.T) {
+	good := `{"key":"a","name":"A","implementations":{"linux":{"file":"linux.sh","kind":"script","interpreter":"sh"}}}`
+	mk := func(dir, manifest string) fstest.MapFS {
+		return fstest.MapFS{
+			"builtin/" + dir + "/manifest.json": {Data: []byte(manifest)},
+			"builtin/" + dir + "/linux.sh":      {Data: []byte("echo hi")},
+		}
+	}
+	_, err := loadBuiltins(mk("a", good))
+	require.NoError(t, err)
+
+	for name, fsys := range map[string]fstest.MapFS{
+		"empty key":     mk("a", strings.Replace(good, `"key":"a"`, `"key":""`, 1)),
+		"key vs dir":    mk("b", good),
+		"unknown field": mk("a", strings.Replace(good, `"name"`, `"nmae":"x","name"`, 1)),
+	} {
+		_, err := loadBuiltins(fsys)
+		assert.Error(t, err, name)
 	}
 }
