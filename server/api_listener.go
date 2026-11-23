@@ -257,6 +257,8 @@ func NewAPIListener(
 
 	a.errResponseLogger = allog.Fork("error-response")
 
+	logGroupPermissionsNotice(userService, a.Logger)
+
 	if config.Pairing.Enabled {
 		a.initPairing()
 		a.Logger.Infof("built-in pairing service enabled, codes are valid for %s", config.Pairing.CodeTTL)
@@ -654,5 +656,16 @@ func (al *APIListener) wsAuth(f http.Handler) http.HandlerFunc {
 
 		newCtx := api.WithUser(r.Context(), username)
 		f.ServeHTTP(w, r.WithContext(newCtx))
+	}
+}
+
+// logGroupPermissionsNotice tells admins when permission-protected features are limited to Administrators.
+func logGroupPermissionsNotice(userService *users.APIService, log *logger.Logger) {
+	if userService == nil || userService.Provider == nil {
+		return // no API users configured (API disabled)
+	}
+	if !userService.SupportsGroupPermissions() {
+		log.Infof("the configured user store has no group permissions (auth_group_details_table): " +
+			"only Administrators can use commands, scripts, tunnels, vault and other permission-protected features")
 	}
 }
