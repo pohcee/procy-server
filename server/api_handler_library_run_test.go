@@ -171,6 +171,20 @@ func TestRunEntryNoTargets400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 }
 
+func TestRunEntryNoImplementationForAnyTarget400(t *testing.T) {
+	e := newLibraryRunEnv(t)
+	entry := e.createEntry(t, runEntryBody)
+
+	// c-mac is the only target and the entry has no macOS implementation
+	w := e.do(t, http.MethodPost, "/library/entries/"+entry.ID+"/run", `{"client_ids":["c-mac"]}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `entry \"up\" has no implementation for any target (targets darwin: 1)`)
+
+	// a mixed run still starts, the unsupported device is skipped
+	w = e.do(t, http.MethodPost, "/library/entries/"+entry.ID+"/run", `{"client_ids":["c-mac","c-linux"]}`)
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+}
+
 func TestResultKeepsLibraryFields(t *testing.T) {
 	jp := makeJobsProvider(t, DataSourceOptions, testLog)
 	t.Cleanup(func() { jp.Close() })

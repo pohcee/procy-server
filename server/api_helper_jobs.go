@@ -5,8 +5,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
+	"sort"
+	"strings"
 	"time"
 
+	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/library"
@@ -219,6 +223,31 @@ func (al *APIListener) prepareLibraryMultiJob(ctx context.Context, entryID strin
 	}
 	if len(req.OrderedClients) == 0 {
 		return nil, nil, fmt.Errorf("no clients for execution")
+	}
+
+	// a run where no target can execute the entry fails instead of recording
+	// only skipped jobs
+	counts := map[string]int{}
+	resolved := 0
+	for _, c := range req.OrderedClients {
+		osKernel := c.GetOSKernel()
+		counts[strings.ToLower(osKernel)]++
+		if _, ok := library.SpecFor(*entry, osKernel); ok {
+			resolved++
+		}
+	}
+	if resolved == 0 {
+		oses := make([]string, 0, len(counts))
+		for k := range counts {
+			oses = append(oses, k)
+		}
+		sort.Strings(oses)
+		parts := make([]string, 0, len(oses))
+		for _, k := range oses {
+			parts = append(parts, fmt.Sprintf("%s: %d", k, counts[k]))
+		}
+		msg := fmt.Sprintf("entry %q has no implementation for any target (targets %s)", entry.Name, strings.Join(parts, ", "))
+		return nil, nil, errors2.APIError{Message: msg, Err: errors.New(msg), HTTPStatus: http.StatusBadRequest}
 	}
 
 	timeoutSec := library.MaxTimeout(*entry)

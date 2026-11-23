@@ -342,9 +342,9 @@ func (al *APIListener) handleRunLibraryEntry(w http.ResponseWriter, req *http.Re
 	resp := newJobResponse{JID: multiJob.JID}
 	al.auditLog.Entry(auditlog.ApplicationLibraryEntry, auditlog.ActionRun).
 		WithHTTPRequest(req).
-		WithRequest(reqBody).
+		WithRequest(libraryRunWSRequest{EntryID: id, MultiJobRequest: reqBody}).
 		WithResponse(resp).
-		WithID(id).
+		WithID(multiJob.JID).
 		SaveForMultipleClients(reqBody.OrderedClients)
 
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(resp))

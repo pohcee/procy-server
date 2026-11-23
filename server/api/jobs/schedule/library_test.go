@@ -178,6 +178,15 @@ func TestLibraryScheduleDeletedEntryRecordsError(t *testing.T) {
 	require.Len(t, saver.saved, 1)
 	assert.Equal(t, "no clients for execution", saver.saved[0].Error)
 	assert.Equal(t, 3, saver.saved[0].LibraryVersion)
+
+	// no target has an implementation for its OS
+	saver.saved = nil
+	r.startErr = errors.New(`entry "up" has no implementation for any target (targets darwin: 1)`)
+	m = newLibManager(p, r, testEntry(), saver)
+	m.run(context.Background(), "s1")
+	require.Len(t, saver.saved, 1)
+	assert.Contains(t, saver.saved[0].Error, "no implementation for any target")
+	assert.Equal(t, "e1", saver.saved[0].LibraryEntryID)
 }
 
 func lastExecution(t *testing.T, scheduleID string, build func(jp *jobs.SqliteProvider)) *Execution {
@@ -217,6 +226,19 @@ func TestLastExecutionExcludesSkippedJobs(t *testing.T) {
 	assert.Equal(t, 1, *ex.ClientCount)
 	assert.Equal(t, 1, *ex.SuccessCount)
 	assert.Nil(t, ex.Error)
+}
+
+func TestLastExecutionSkippedDoesNotMaskSuccess(t *testing.T) {
+	ex := lastExecution(t, "1", func(jp *jobs.SqliteProvider) {
+		mj := jb.NewMulti(t).ScheduleID("1").Build()
+		require.NoError(t, jp.SaveMultiJob(mj))
+		require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status("successful").Result(&models.JobResult{Summary: "all good"}).Build()))
+		require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status("skipped").Result(&models.JobResult{Summary: "no macOS implementation"}).Build()))
+	})
+	require.NotNil(t, ex)
+	assert.Equal(t, "successful", *ex.Status)
+	require.NotNil(t, ex.Summary)
+	assert.Equal(t, "all good", *ex.Summary)
 }
 
 func TestLastExecutionTypedUnchanged(t *testing.T) {
