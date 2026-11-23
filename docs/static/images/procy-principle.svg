@@ -238,7 +238,7 @@
         </g>
         <g transform="matrix(1,0,0,1,-157.259,842.003)">
             <text x="1521.57px" y="486.242px" style="font-family:'DINAlternate-Bold', 'DIN Alternate', sans-serif;font-weight:700;font-size:50px;">self-hosted instance</text>
-            <text x="1583.14px" y="548.242px" style="font-family:'DINAlternate-Bold', 'DIN Alternate', sans-serif;font-weight:700;font-size:50px;">of rport serv<tspan x="1840.12px 1865.12px " y="548.242px 548.242px ">er</tspan></text>
+            <text x="1583.14px" y="548.242px" style="font-family:'DINAlternate-Bold', 'DIN Alternate', sans-serif;font-weight:700;font-size:50px;">of Procy serv<tspan x="1840.12px 1865.12px " y="548.242px 548.242px ">er</tspan></text>
         </g>
         <g transform="matrix(1,0,0,1,134.101,3.43311)">
             <g transform="matrix(1.99146,0,0,2.0293,2023.09,270.483)">
@@ -572,7 +572,7 @@
             </g>
         </g>
         <g transform="matrix(1,0,0,1,693.77,-274.361)">
-            <text x="1360.21px" y="1605.8px" style="font-family:'DINAlternate-Bold', 'DIN Alternate', sans-serif;font-weight:700;font-size:50px;">rport clients</text>
+            <text x="1360.21px" y="1605.8px" style="font-family:'DINAlternate-Bold', 'DIN Alternate', sans-serif;font-weight:700;font-size:50px;">Procy clients</text>
         </g>
         <g transform="matrix(1,0,0,1,-364.31,71.1141)">
             <text x="977.953px" y="92.343px" style="font-family:'DINAlternate-Bold', 'DIN Alternate', sans-serif;font-weight:700;font-size:40px;">r<tspan x="992.797px 1012.8px " y="92.343px 92.343px ">em</tspan>ote log in</text>

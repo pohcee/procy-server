@@ -1,6 +1,12 @@
-/* Light mode theming */
+/* Procy theming: the header uses the brand navy (app-nav) in both themes. */
 :root,
 :root[color-theme="light"] {
-    --header-background: #00528d;
+    --header-background: #10161F;
+    --header-font-color: #E6EBF2;
     --body-font-color: black;
+}
+
+:root[color-theme="dark"] {
+    --header-background: #10161F;
+    --header-font-color: #E6EBF2;
 }
