@@ -73,13 +73,13 @@ echo "👷 Building debian package from $BIN_FILE for $DST_ARCH"
 cat <<EOF >${PKG_ROOT}/DEBIAN/control
 Package: rport
 Version: ${VERSION}
-Maintainer: OpenRport <info@openrport.io>
+Maintainer: Procy <maintainers@procy.sh>
 Depends: libc6, sudo, passwd
 Installed-Size: ${INSTALLED_SIZE}
 Architecture: ${DST_ARCH}
 Section: misc
 Priority: optional
-Homepage: https://github.com/openrport/openrport/
+Homepage: https://procy.sh/
 Description: Remote access and remote management of heterogeneous IT infrastructures
  RPort provides remote access to and script execution on systems
  behind firewalls and NAT
@@ -99,13 +99,13 @@ cat <<EOF | gzip -n --best -c >${PKG_ROOT}/usr/share/doc/${PKG_NAME}/changelog.D
 rport (${VERSION}); urgency=low
 
   * new version created by GitHub action
-  * Full changelog https://github.com/openrport/openrport/releases/tag/${GITHUB_REF_NAME}
+  * Full changelog https://github.com/pohcee/openrport/releases/tag/${GITHUB_REF_NAME}
 EOF
 chmod 0644 ${PKG_ROOT}/usr/share/doc/${PKG_NAME}/changelog.Debian.gz
 
 cat <<EOF >${PKG_ROOT}/usr/share/doc/${PKG_NAME}/copyright
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Source: https://github.com/openrport/openrport/releases/tag/${GITHUB_REF_NAME}
+Source: https://github.com/pohcee/openrport/releases/tag/${GITHUB_REF_NAME}
 Copyright: $(date +%Y)
 License: MIT
 

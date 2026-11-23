@@ -56,11 +56,11 @@ cat << EOF > ~/rpmbuild/SPECS/rport.spec
 Name:           rport
 Version:        ${VERSION}
 Release:        1
-Summary:        Remote Management Client for the RPort-Server
+Summary:        Remote management client for the Procy server
 
 License:        MIT
-URL:            https://github.com/openrport/openrport
-Source0:        https://github.com/openrport/openrport/releases/tag/${GITHUB_REF_NAME}
+URL:            https://procy.sh/
+Source0:        https://github.com/pohcee/openrport/releases/tag/${GITHUB_REF_NAME}
 
 Requires:       passwd
 
@@ -113,9 +113,9 @@ systemctl enable rport.service
 systemctl stop rport.service || true
 
 %changelog
-* $(date) RealVNC Ltd. <developers@rport.io> - ${VERSION}-1
+* $(date) Procy maintainers <maintainers@procy.sh> - ${VERSION}-1
 - RPM created by GitHub Action
-- Full changelog https://github.com/openrport/openrport/releases/tag/${GITHUB_REF_NAME}
+- Full changelog https://github.com/pohcee/openrport/releases/tag/${GITHUB_REF_NAME}
 EOF
 rpmlint ~/rpmbuild/SPECS/rport.spec
 echo "👷 Building RPM package now ..."

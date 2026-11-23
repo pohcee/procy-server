@@ -33,18 +33,17 @@ jobs:
           bash .github/scripts/start_rportd.sh
           bash .github/scripts/start_rport.sh
 
-      - name: Upload Build to downloads.openrport.io
-        env:
-          UPLOAD_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
+      - name: Package build
         shell: bash
         run: |
           VERSION=$(cat version.txt | cut -d" " -f1)
-          echo "🚚 Packaging Build $VERSION ..."
-          TAR=rport_${VERSION}_linux_x86_64.tar.gz
-          tar czf ${TAR} version.txt rport rportd
-          echo "✅ Successfully created package $TAR"
-          ls -lh $TAR
-          FOLDER=rport-test-builds
-          echo "🚚 Uploading $TAR to $FOLDER downloads"
-          curl -f https://download.openrport.io/exec/upload.php -H "Authentication: $UPLOAD_TOKEN" -F file=@${TAR} -F dest_dir="${FOLDER}"
+          echo "TAR=rport_${VERSION}_linux_x86_64.tar.gz" >> "$GITHUB_ENV"
+          tar czf rport_${VERSION}_linux_x86_64.tar.gz version.txt rport rportd
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TAR }}
+          path: ${{ env.TAR }}
+          retention-days: 14
 # trigger workflow registration
