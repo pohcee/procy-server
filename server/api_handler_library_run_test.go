@@ -26,6 +26,7 @@ import (
 type libraryRunEnv struct {
 	*libraryEntriesEnv
 	jp    *jobs.SqliteProvider
+	store *library.Store
 	conns []*test.ConnMock
 }
 
@@ -55,11 +56,12 @@ func newLibraryRunEnv(t *testing.T) *libraryRunEnv {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	al.libraryManager = library.NewManager(library.NewStore(db), func() time.Time { now = now.Add(time.Minute); return now })
+	store := library.NewStore(db)
+	al.libraryManager = library.NewManager(store, func() time.Time { now = now.Add(time.Minute); return now })
 
 	r := mux.NewRouter()
 	al.addLibraryEntriesRoutes(r)
-	return &libraryRunEnv{libraryEntriesEnv: &libraryEntriesEnv{router: r, al: al}, jp: jp, conns: conns}
+	return &libraryRunEnv{libraryEntriesEnv: &libraryEntriesEnv{router: r, al: al}, jp: jp, store: store, conns: conns}
 }
 
 const runEntryBody = `{"name":"up","message":"m","implementations":{` +
@@ -219,4 +221,46 @@ func TestResultKeepsLibraryFields(t *testing.T) {
 	// unknown job: nothing to keep, still saved
 	_, err = cl.saveCmdResult([]byte(`{"jid":"j9","client_id":"c1","status":"successful"}`))
 	require.NoError(t, err)
+}
+
+func (e *libraryRunEnv) syncBuiltins(t *testing.T) *library.Entry {
+	t.Helper()
+	builtins, err := library.Builtins()
+	require.NoError(t, err)
+	_, _, _, err = library.SyncBuiltins(context.Background(), e.store, builtins, "test", time.Now())
+	require.NoError(t, err)
+	entry, err := e.store.ByBuiltinKey(context.Background(), "client-update")
+	require.NoError(t, err)
+	require.NotNil(t, entry)
+	return entry
+}
+
+func TestBuiltinWithoutServerURLFails(t *testing.T) {
+	e := newLibraryRunEnv(t)
+	entry := e.syncBuiltins(t)
+
+	w := e.do(t, http.MethodPost, "/library/entries/"+entry.ID+"/run", `{"client_ids":["c-linux"]}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `set [pairing] url (or api.base_url) to use the built-in \"Client update\" entry`)
+
+	// a target without an implementation does not need the URL
+	w = e.do(t, http.MethodPost, "/library/entries/"+entry.ID+"/run", `{"client_ids":["c-mac"]}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "no implementation for any target")
+}
+
+func TestBuiltinWithServerURLRuns(t *testing.T) {
+	e := newLibraryRunEnv(t)
+	e.al.config.Pairing.URL = "https://rport.example.com/"
+	entry := e.syncBuiltins(t)
+
+	w := e.do(t, http.MethodPost, "/library/entries/"+entry.ID+"/run", `{"client_ids":["c-linux"]}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var resp struct {
+		JID string `json:"jid"`
+	}
+	e.data(t, w, &resp)
+	got := e.waitJobs(t, resp.JID, 1)
+	assert.Contains(t, got.Jobs[0].Command, "https://rport.example.com/pairing/update")
+	assert.NotContains(t, got.Jobs[0].Command, "{{server_url}}")
 }

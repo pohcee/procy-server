@@ -19,15 +19,23 @@ type JobSpec struct {
 }
 
 // SpecFor resolves the entry's implementation for osKernel (case-insensitive).
-// It returns false when the entry has none for that OS.
-func SpecFor(e Entry, osKernel string) (JobSpec, bool) {
+// It returns false when the entry has none for that OS. For built-in entries
+// every {{key}} with a key in vars is replaced in the code; user entries are
+// returned verbatim.
+func SpecFor(e Entry, osKernel string, vars map[string]string) (JobSpec, bool) {
 	key := strings.ToLower(osKernel)
 	impl, ok := e.Implementations[key]
 	if !ok {
 		return JobSpec{}, false
 	}
+	code := impl.Code
+	if e.BuiltinKey != nil {
+		for k, v := range vars {
+			code = strings.ReplaceAll(code, "{{"+k+"}}", v)
+		}
+	}
 	return JobSpec{
-		Command:        impl.Code,
+		Command:        code,
 		Interpreter:    NormalizeInterpreter(impl.Interpreter),
 		Cwd:            impl.Cwd,
 		TimeoutSec:     impl.TimeoutSec,

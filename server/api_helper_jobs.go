@@ -179,6 +179,9 @@ func (al *APIListener) executeMultiClientJob(
 	al.runMultiClientJob(nil, job, orderedClients, sameSpecForAll(typedJobSpec(job)))
 }
 
+// serverURLPlaceholder is filled with the public server URL in built-in entries.
+const serverURLPlaceholder = "{{server_url}}"
+
 // StartLibraryMultiJob starts a run of a library entry. The entry's active
 // version is resolved once, here, and every client runs it; a client whose OS
 // has no implementation gets a skipped job. The username is taken from the
@@ -229,11 +232,16 @@ func (al *APIListener) prepareLibraryMultiJob(ctx context.Context, entryID strin
 	// only skipped jobs
 	counts := map[string]int{}
 	resolved := 0
+	serverURL := strings.TrimRight(al.config.PairingPublicURL(), "/")
+	needsServerURL := false
 	for _, c := range req.OrderedClients {
 		osKernel := c.GetOSKernel()
 		counts[strings.ToLower(osKernel)]++
-		if _, ok := library.SpecFor(*entry, osKernel); ok {
+		if spec, ok := library.SpecFor(*entry, osKernel, nil); ok {
 			resolved++
+			if entry.BuiltinKey != nil && strings.Contains(spec.Command, serverURLPlaceholder) {
+				needsServerURL = true
+			}
 		}
 	}
 	if resolved == 0 {
@@ -249,6 +257,12 @@ func (al *APIListener) prepareLibraryMultiJob(ctx context.Context, entryID strin
 		msg := fmt.Sprintf("entry %q has no implementation for any target (targets %s)", entry.Name, strings.Join(parts, ", "))
 		return nil, nil, errors2.APIError{Message: msg, Err: errors.New(msg), HTTPStatus: http.StatusBadRequest}
 	}
+
+	if needsServerURL && serverURL == "" {
+		msg := fmt.Sprintf("set [pairing] url (or api.base_url) to use the built-in %q entry", entry.Name)
+		return nil, nil, errors2.APIError{Message: msg, Err: errors.New(msg), HTTPStatus: http.StatusBadRequest}
+	}
+	vars := map[string]string{"server_url": serverURL}
 
 	timeoutSec := library.MaxTimeout(*entry)
 	if timeoutSec <= 0 {
@@ -277,7 +291,7 @@ func (al *APIListener) prepareLibraryMultiJob(ctx context.Context, entryID strin
 	defaultTimeout := al.config.Server.RunRemoteCmdTimeoutSec
 	specFor := func(c *clientdata.Client) (library.JobSpec, string) {
 		osKernel := c.GetOSKernel()
-		spec, ok := library.SpecFor(*entry, osKernel)
+		spec, ok := library.SpecFor(*entry, osKernel, vars)
 		if !ok {
 			return library.JobSpec{
 				LibraryEntryID: entry.ID,
