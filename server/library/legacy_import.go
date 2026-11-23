@@ -82,16 +82,21 @@ func ImportLegacy(ctx context.Context, db *sqlx.DB, s *Store) (int, error) {
 				return err
 			}
 		}
-		name := r.Name
-		if isCommand {
-			if _, taken := names[name]; taken {
-				name += " (command)"
+		base := strings.TrimSpace(r.Name)
+		name := base
+		if _, taken := names[name]; taken {
+			if isCommand {
+				name = base + " (command)"
 			}
 			for n := 2; ; n++ {
 				if _, taken := names[name]; !taken {
 					break
 				}
-				name = r.Name + " (command " + strconv.Itoa(n) + ")"
+				if isCommand {
+					name = base + " (command " + strconv.Itoa(n) + ")"
+				} else {
+					name = base + " (" + strconv.Itoa(n) + ")"
+				}
 			}
 		}
 		c := Content{Name: name, Tags: r.tags(), Implementations: map[string]Implementation{osKey: impl}}

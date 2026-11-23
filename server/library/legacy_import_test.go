@@ -156,3 +156,56 @@ func TestImportLegacyEmptyStillMarksDone(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "0", v)
 }
+
+func TestImportLegacyNameClashWhitespaceAndScripts(t *testing.T) {
+	db, s := newLegacyDB(t)
+	seedScript(t, db, "s1", "a", "", false, "[]")
+	seedScript(t, db, "s2", "a ", "", false, "[]")
+	seedScript(t, db, "s3", " a", "", false, "[]")
+	seedCommand(t, db, "c1", "a", "ls")
+	seedCommand(t, db, "c2", "a ", "ls")
+	seedCommand(t, db, "c3", "a (command)", "ls")
+
+	n, err := ImportLegacy(context.Background(), db, s)
+	require.NoError(t, err)
+	assert.Equal(t, 6, n)
+
+	names := map[string]string{}
+	for _, id := range []string{"s1", "s2", "s3", "c1", "c2", "c3"} {
+		e, err := s.Get(context.Background(), id)
+		require.NoError(t, err)
+		require.NotNil(t, e)
+		names[id] = e.Name
+	}
+	assert.ElementsMatch(t, []string{"a", "a (2)", "a (3)"}, []string{names["s1"], names["s2"], names["s3"]})
+	assert.Equal(t, "a (command)", names["c1"])
+	assert.Equal(t, "a (command 2)", names["c2"])
+	assert.NotEmpty(t, names["c3"])
+	seen := map[string]bool{}
+	for _, nm := range names {
+		assert.False(t, seen[nm], "duplicate name %q", nm)
+		seen[nm] = true
+	}
+}
+
+func TestImportLegacyMixedCaseInterpreterAndNulls(t *testing.T) {
+	db, s := newLegacyDB(t)
+	seedScript(t, db, "s1", "ps", "PowerShell", false, "[]")
+	_, err := db.Exec("INSERT INTO `scripts` (`id`, `name`, `created_at`, `created_by`, `updated_at`, `updated_by`, `interpreter`, `is_sudo`, `cwd`, `script`, `tags`, `timeout_sec`) VALUES ('s2', 'nulls', ?, 'a', ?, 'b', NULL, 0, NULL, 'echo', '[]', 0)", created, updated)
+	require.NoError(t, err)
+
+	n, err := ImportLegacy(context.Background(), db, s)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+
+	e, err := s.Get(context.Background(), "s1")
+	require.NoError(t, err)
+	assert.Equal(t, []string{OSWindows}, e.OS)
+	e, err = s.Get(context.Background(), "s2")
+	require.NoError(t, err)
+	assert.Equal(t, []string{OSLinux}, e.OS)
+	impl := e.Implementations[OSLinux]
+	assert.Equal(t, "", impl.Interpreter)
+	assert.Equal(t, "", impl.Cwd)
+	assert.False(t, impl.IsSudo)
+}
