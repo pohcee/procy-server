@@ -3,8 +3,10 @@ package myip
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,7 +16,14 @@ import (
 
 const port = 23985
 
+var serverOnce sync.Once
+
+// startServer starts the test API once for the package; both tests use it.
 func startServer(t *testing.T) {
+	serverOnce.Do(func() { listenAndServe(t) })
+}
+
+func listenAndServe(t *testing.T) {
 	http.HandleFunc("/good", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, userAgent, r.UserAgent())
 		if strings.HasPrefix(r.RemoteAddr, "127.0.0.1") {
@@ -31,16 +40,17 @@ func startServer(t *testing.T) {
 	})
 
 	server := &http.Server{
-		Addr:              fmt.Sprintf(":%d", port),
 		ReadHeaderTimeout: 3 * time.Second,
 	}
 
-	err := server.ListenAndServe()
+	// Listen before returning so the test's first request can't race the server start.
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	require.NoError(t, err)
+	go func() { _ = server.Serve(ln) }()
 }
 
 func TestGetMyIps(t *testing.T) {
-	go startServer(t)
+	startServer(t)
 	ctx := context.Background()
 	ips, err := GetMyIPs(ctx, fmt.Sprintf("http://localhost:%d/good", port))
 
@@ -50,6 +60,7 @@ func TestGetMyIps(t *testing.T) {
 }
 
 func TestGetMyIpsFailing(t *testing.T) {
+	startServer(t)
 	ctx := context.Background()
 	_, err := GetMyIPs(ctx, fmt.Sprintf("http://localhost:%d/bad", port))
 
