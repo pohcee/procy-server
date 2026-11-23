@@ -84,3 +84,17 @@ func TestRejectsExampleClientCredentials(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "example")
 }
+
+func TestTrustedProxiesAreParsed(t *testing.T) {
+	cfg := apiConfigWith(t.TempDir(), APIConfig{TrustedProxies: []string{"10.0.0.0/8", "192.0.2.1"}})
+	require.NoError(t, cfg.ParseAndValidate(&Mlog))
+	require.Len(t, cfg.API.ParsedTrustedProxies, 2)
+	assert.Equal(t, "10.0.0.0/8", cfg.API.ParsedTrustedProxies[0].String())
+}
+
+func TestInvalidTrustedProxyIsRejected(t *testing.T) {
+	cfg := apiConfigWith(t.TempDir(), APIConfig{TrustedProxies: []string{"proxy.example.com"}})
+	err := cfg.ParseAndValidate(&Mlog)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "trusted proxy")
+}

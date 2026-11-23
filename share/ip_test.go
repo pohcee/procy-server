@@ -2,12 +2,13 @@ package chshare
 
 import (
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRemoteIP(t *testing.T) {
+func TestRemoteIPBehindTrustedProxy(t *testing.T) {
 
 	testCases := []struct {
 		Name          string
@@ -49,7 +50,8 @@ func TestRemoteIP(t *testing.T) {
 			if tc.XForwardedFor != "" {
 				req.Header.Set("X-Forwarded-For", tc.XForwardedFor)
 			}
-			ip := RemoteIP(req)
+			// These cases describe a deployment behind a reverse proxy on the private network.
+			ip := ClientIP(req, []netip.Prefix{netip.MustParsePrefix("192.168.0.0/16")})
 
 			assert.Equal(t, tc.ExpectedIP, ip)
 		})

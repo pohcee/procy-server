@@ -97,6 +97,9 @@ type ServerOpts struct {
 func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (*Server, error) {
 	var err error
 
+	// X-Forwarded-For is only believed from these proxies; see share.RemoteIP.
+	chshare.SetTrustedProxies(config.API.ParsedTrustedProxies)
+
 	s := &Server{
 		Logger:           logger.NewLogger("server", config.Logging.LogOutput, config.Logging.LogLevel),
 		config:           config,
