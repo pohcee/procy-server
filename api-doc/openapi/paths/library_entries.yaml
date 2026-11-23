@@ -7,12 +7,12 @@ get:
   parameters:
     - {name: 'filter[name]', in: query, description: Case-insensitive substring of the name, schema: {type: string}}
     - {name: 'filter[tags]', in: query, description: Entries having this tag, schema: {type: string}}
-    - {name: 'filter[os]', in: query, description: 'linux, windows or darwin', schema: {type: string}}
+    - {name: 'filter[os]', in: query, description: 'linux, windows or darwin; other values give 400', schema: {type: string}}
     - {name: 'filter[builtin]', in: query, schema: {type: boolean}}
     - {name: 'filter[deleted]', in: query, description: 'true lists only deleted entries', schema: {type: boolean}}
     - {name: sort, in: query, description: 'name (default) or -updated_at', schema: {type: string}}
     - {name: 'page[offset]', in: query, schema: {type: integer}}
-    - {name: 'page[limit]', in: query, schema: {type: integer}}
+    - {name: 'page[limit]', in: query, description: 'Page size, default 100, maximum 500', schema: {type: integer, default: 100, maximum: 500}}
   responses:
     '200':
       description: Successful Operation

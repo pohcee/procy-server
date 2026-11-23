@@ -3,6 +3,7 @@ package chserver
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -179,4 +180,35 @@ func TestLibraryEntriesListFiltersAndErrors(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, e.do(t, http.MethodGet, "/library/entries/nope/versions/abc", "").Code)
 	assert.Equal(t, http.StatusBadRequest, e.do(t, http.MethodGet, "/library/entries?filter[deleted]=maybe", "").Code)
 	assert.Equal(t, http.StatusBadRequest, e.do(t, http.MethodPost, "/library/entries", `{"name":"x"}`).Code)
+}
+
+func TestLibraryEntriesPageLimitAndOSFilter(t *testing.T) {
+	e := newLibraryEntriesEnv(t)
+	for i := 0; i < 501; i++ {
+		body := fmt.Sprintf(`{"name":"e%03d","implementations":{"linux":{"kind":"command","code":"ls"}}}`, i)
+		require.Equal(t, http.StatusCreated, e.do(t, http.MethodPost, "/library/entries", body).Code)
+	}
+	list := func(q string) (int, int) {
+		w := e.do(t, http.MethodGet, "/library/entries?"+q, "")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		var l struct {
+			Data []library.Entry `json:"data"`
+			Meta struct {
+				Count int `json:"count"`
+			} `json:"meta"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &l))
+		return len(l.Data), l.Meta.Count
+	}
+	n, total := list("")
+	assert.Equal(t, 100, n)
+	assert.Equal(t, 501, total)
+	n, _ = list("page[limit]=500")
+	assert.Equal(t, 500, n)
+	n, _ = list("page[limit]=501")
+	assert.Equal(t, 500, n)
+
+	w := e.do(t, http.MethodGet, "/library/entries?filter[os]=beos", "")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "beos")
 }

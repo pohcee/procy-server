@@ -3,6 +3,7 @@ package chserver
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -15,11 +16,10 @@ import (
 )
 
 const (
-	entriesPath    = "/library/entries"
-	entryPath      = entriesPath + "/{" + routes.ParamEntryID + "}"
-	entryVersions  = entryPath + "/versions"
-	entryVersionN  = entryVersions + "/{" + routes.ParamEntryVersion + "}"
-	maxEntriesPage = 100
+	entriesPath   = "/library/entries"
+	entryPath     = entriesPath + "/{" + routes.ParamEntryID + "}"
+	entryVersions = entryPath + "/versions"
+	entryVersionN = entryVersions + "/{" + routes.ParamEntryVersion + "}"
 )
 
 // addLibraryEntriesRoutes registers the /library/entries endpoints on r.
@@ -113,8 +113,9 @@ func (al *APIListener) handleListLibraryEntries(w http.ResponseWriter, req *http
 		al.jsonError(w, err)
 		return
 	}
-	if opts.Limit > maxEntriesPage {
-		opts.Limit = maxEntriesPage
+	if opts.OS != "" && !slices.Contains(library.AllOS, opts.OS) {
+		al.jsonError(w, badRequest("filter[os] has unsupported value "+strconv.Quote(opts.OS)+": use linux, windows or darwin"))
+		return
 	}
 
 	entries, count, err := al.libraryManager.List(req.Context(), opts)
