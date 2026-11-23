@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	jobsmigration "github.com/openrport/openrport/db/migration/jobs"
+	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/server/test/jb"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
@@ -174,4 +178,82 @@ func TestLibraryScheduleDeletedEntryRecordsError(t *testing.T) {
 	require.Len(t, saver.saved, 1)
 	assert.Equal(t, "no clients for execution", saver.saved[0].Error)
 	assert.Equal(t, 3, saver.saved[0].LibraryVersion)
+}
+
+func lastExecution(t *testing.T, scheduleID string, build func(jp *jobs.SqliteProvider)) *Execution {
+	t.Helper()
+	db, err := sqlite.New(":memory:", jobsmigration.AssetNames(), jobsmigration.Asset, DataSourceOptions)
+	require.NoError(t, err)
+	prov := newSQLiteProvider(db)
+	defer prov.Close()
+	require.NoError(t, addTestData(db))
+	build(jobs.NewSqliteProvider(db, logger.NewLogger("t", logger.LogOutput{}, logger.LogLevelError)))
+	s, err := prov.Get(context.Background(), scheduleID)
+	require.NoError(t, err)
+	return s.LastExecution
+}
+
+func TestLastExecutionOfFailedLibraryRun(t *testing.T) {
+	ex := lastExecution(t, "1", func(jp *jobs.SqliteProvider) {
+		mj := jb.NewMulti(t).ScheduleID("1").Build()
+		mj.Error = "entry deleted"
+		require.NoError(t, jp.SaveMultiJob(mj))
+	})
+	require.NotNil(t, ex)
+	assert.Equal(t, "failed", *ex.Status)
+	assert.Equal(t, "entry deleted", *ex.Error)
+	assert.Equal(t, 0, *ex.ClientCount)
+}
+
+func TestLastExecutionExcludesSkippedJobs(t *testing.T) {
+	ex := lastExecution(t, "1", func(jp *jobs.SqliteProvider) {
+		mj := jb.NewMulti(t).ScheduleID("1").Build()
+		require.NoError(t, jp.SaveMultiJob(mj))
+		for _, st := range []string{"successful", "skipped", "skipped"} {
+			require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status(st).Build()))
+		}
+	})
+	require.NotNil(t, ex)
+	assert.Equal(t, 1, *ex.ClientCount)
+	assert.Equal(t, 1, *ex.SuccessCount)
+	assert.Nil(t, ex.Error)
+}
+
+func TestLastExecutionTypedUnchanged(t *testing.T) {
+	ex := lastExecution(t, "1", func(jp *jobs.SqliteProvider) {
+		// a multi-job without jobs and without error is not an execution
+		require.NoError(t, jp.SaveMultiJob(jb.NewMulti(t).ScheduleID("1").StartedAt(time.Now().Add(time.Minute)).Build()))
+		mj := jb.NewMulti(t).ScheduleID("1").Build()
+		require.NoError(t, jp.SaveMultiJob(mj))
+		require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status("failed").Build()))
+		require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status("successful").Build()))
+	})
+	require.NotNil(t, ex)
+	assert.Equal(t, 2, *ex.ClientCount)
+	assert.Equal(t, 1, *ex.SuccessCount)
+	assert.Nil(t, ex.Status, "status only for single-client runs")
+	assert.Nil(t, ex.Error)
+}
+
+func TestUpdateLibrarySchedule(t *testing.T) {
+	p := &fakeProvider{schedule: libSchedule()}
+	m := newLibManager(p, &fakeRunner{}, testEntry(), &fakeSaver{})
+
+	s := libSchedule()
+	s.Details.LibraryEntryID = "missing"
+	_, err := m.Update(context.Background(), "s1", s)
+	assert.Error(t, err)
+
+	s = libSchedule()
+	s.Schedule = "bad"
+	_, err = m.Update(context.Background(), "s1", s)
+	assert.Error(t, err)
+
+	s = libSchedule()
+	s.Details.Command = "ls"
+	got, err := m.Update(context.Background(), "s1", s)
+	require.NoError(t, err)
+	assert.Equal(t, "e1", got.Details.LibraryEntryID)
+	assert.Equal(t, "s1", s.ID)
+	assert.Empty(t, s.Details.Command)
 }

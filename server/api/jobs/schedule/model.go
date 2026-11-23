@@ -111,6 +111,8 @@ type Execution struct {
 	ClientCount  *int       `db:"last_client_count" json:"client_count"`
 	SuccessCount *int       `db:"last_success_count" json:"success_count"`
 	Status       *string    `db:"last_status" json:"status"`
+	// Error is set when the last run could not be started, e.g. its library entry was deleted
+	Error *string `db:"last_error" json:"error,omitempty"`
 
 	Details *jobs.JobDetails `db:"last_details" json:"-"`
 	Summary *string          `json:"summary"`
@@ -119,6 +121,14 @@ type Execution struct {
 func (e *Execution) ToLastExecution() *Execution {
 	if e.StartedAt == nil {
 		return nil
+	}
+
+	if e.Error != nil && *e.Error == "" {
+		e.Error = nil
+	}
+	if e.Error != nil {
+		// the run never started, keep the failed status
+		return e
 	}
 
 	if e.ClientCount != nil {

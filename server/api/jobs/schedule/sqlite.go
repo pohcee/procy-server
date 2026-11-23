@@ -18,7 +18,8 @@ SELECT
 	mj.last_client_count,
 	mj.last_success_count,
 	mj.last_status,
-	mj.last_details
+	mj.last_details,
+	mj.last_error
 FROM schedules s
 LEFT JOIN (
 	SELECT
@@ -26,12 +27,14 @@ LEFT JOIN (
 		mj.started_at AS last_started_at,
 		COUNT(j.jid) FILTER (WHERE j.status != '` + models.JobStatusSkipped + `') AS last_client_count,
 		COUNT(j.jid) FILTER (WHERE j.status = '` + models.JobStatusSuccessful + `') AS last_success_count,
-		MIN(j.status) AS last_status,
+		COALESCE(MIN(j.status), CASE WHEN COALESCE(json_extract(mj.details, '$.error'), '') <> '' THEN '` + models.JobStatusFailed + `' END) AS last_status,
+		COALESCE(json_extract(mj.details, '$.error'), '') AS last_error,
 		MIN(j.details) AS last_details,
 		ROW_NUMBER() OVER (PARTITION BY mj.schedule_id ORDER BY mj.started_at DESC) AS rn
 	FROM multi_jobs mj
-	JOIN jobs j ON j.multi_job_id = mj.jid
+	LEFT JOIN jobs j ON j.multi_job_id = mj.jid
 	GROUP BY mj.jid
+	HAVING COUNT(j.jid) > 0 OR COALESCE(json_extract(mj.details, '$.error'), '') <> ''
 
 ) mj ON s.id = mj.schedule_id AND mj.rn = 1
 `
