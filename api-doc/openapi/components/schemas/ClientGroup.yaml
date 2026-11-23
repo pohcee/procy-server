@@ -90,7 +90,7 @@ properties:
        3. matches with logical operators (only for tags searching). For example, `"tags": { "and": ["linux*", "SMP"] }`
 
       For more details please see
-      https://oss.rport.io/get-started/client-groups/
+      https://procy.sh/get-started/client-groups/
   allowed_user_groups:
     type: array
     items:
@@ -99,4 +99,4 @@ properties:
       List of user groups that are allowed to access the client.
       
       For more details please see
-      https://oss.rport.io/get-started/permissions-model/
+      https://procy.sh/get-started/permissions-model/

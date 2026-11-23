@@ -53,7 +53,7 @@ properties:
       by running a multi-client job
   error:
     type: string
-    description: is non-empty when it wasn't able to execute a command on rport client
+    description: is non-empty when it wasn't able to execute a command on Procy client
   result:
     type: object
     properties:

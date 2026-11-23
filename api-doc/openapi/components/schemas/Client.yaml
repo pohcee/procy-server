@@ -105,7 +105,7 @@ properties:
     format: data-time
   client_auth_id:
     type: string
-    description: rport client authentication ID that was used to connect to server
+    description: Procy client authentication ID that was used to connect to server
   allowed_user_groups:
     type: array
     description: >-

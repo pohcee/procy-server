@@ -7,5 +7,5 @@ properties:
       type: object
   two_fa:
     type: object
-    description: null when used with the Rport Plus OAuth plugin
-description: Response returned by the `/oauth/login` endpoint when Rport Plus OAuth is enabled
+    description: null when used with the RPort Plus OAuth plugin
+description: Response returned by the `/oauth/login` endpoint when RPort Plus OAuth is enabled

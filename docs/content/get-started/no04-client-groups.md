@@ -10,15 +10,15 @@ aliases:
 
 ## Define client groups
 
-Rport client group can be created by:
+Procy client group can be created by:
 
 1. adding single clients to it;
 2. dynamic criteria using wildcards.
 
-Managing client groups is done via the [API](https://apidoc.openrport.io/master/#tag/Client-Groups).
+Managing client groups is done via the [API](https://procy.sh/api/).
 The `/client-groups` endpoints allow you to create, update, delete and list them.
 
-As listed in the [API docs](https://apidoc.openrport.io/master/#tag/Client-Groups) Client Group is defined by:
+As listed in the [API docs](https://procy.sh/api/) Client Group is defined by:
 
 * `id` - unique group identifier
 * `description` - group description

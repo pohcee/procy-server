@@ -1,5 +1,5 @@
 ---
-title: "Run RPortd API with HTTPS"
+title: "Run the rportd API with HTTPS"
 weight: 08
 slug: securing-rportd-with-https
 aliases:
@@ -36,10 +36,10 @@ If the IP address of your server has a public domain name you can generate a fre
 
 ## Use the built-in ACME
 
-Starting with version 0.9.11 the rport server comes with a built-in automatic certificate management environment (ACME).
-This ACME can create and renew all certificates needed for a secure operation of the rport server.
+Starting with version 0.9.11 the Procy server comes with a built-in automatic certificate management environment (ACME).
+This ACME can create and renew all certificates needed for a secure operation of the Procy server.
 
-To enable the ACME for the rport API look for the following setting in the `rport.conf`:
+To enable the ACME for the Procy API look for the following setting in the `rportd.conf`:
 
 ```text
 [api]
@@ -58,9 +58,9 @@ To enable the ACME for the rport API look for the following setting in the `rpor
 ```
 
 Using a hostname inside the `base_url` is mandatory. This hostname must be registered on a public DNS before starting
-the rport server.
+the Procy server.
 
-The above settings will enable the rport server to create and renew the certificates without stopping and restarting
+The above settings will enable the Procy server to create and renew the certificates without stopping and restarting
 the server.
 
 {{< hint type=warning title="API not on port 443" >}}
@@ -92,7 +92,7 @@ information.
 ### Create certificates using certbot
 
 Make sure no other software is using the TCP port 80 during the certificate generation and your firewall is not blocking
-access to TCP 80. If you run RPort on port 80, stop it while generating the certificates.
+access to TCP 80. If you run Procy on port 80, stop it while generating the certificates.
 
 ```shell
 DOMAIN=<YOUR_DOMAIN>
@@ -142,6 +142,6 @@ cron manually that executes `certbot -q renew` every 12 hours.
 
 {{< hint type=Important title="Hooks are missing">}}
 **Without proper hook scripts, the renewal will fail.**  
-Follow [this guide](https://kb.rport.io/digging-deeper/server-maintenance/renewing-certificates) to properly set up the
-needed Let's encrypt hooks.
+Add a certbot deploy hook (for example in `/etc/letsencrypt/renewal-hooks/deploy/`) that makes the renewed
+certificates readable by the `rport` user and restarts `rportd`.
 {{< /hint >}}

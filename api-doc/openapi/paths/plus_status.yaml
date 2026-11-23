@@ -1,7 +1,7 @@
 get:
   tags:
     - Plus
-  summary: Get status information for the Rport Plus plug-in
+  summary: Get status information for the RPort Plus plug-in
   operationId: PlusStatusGet
   security: []
   description: >

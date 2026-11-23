@@ -1,8 +1,9 @@
 ---
-title: "Install and run an rport client"
+title: "Install and run a Procy client"
 weight: 5
-slug: install-and-run-rport-client
+slug: install-and-run-a-client
 aliases:
+- /get-started/install-and-run-rport-client/
 - /docs/no05-client-on-other-os.html
 ---
 {{< toc >}}
@@ -14,7 +15,9 @@ aliases:
 Open the terminal and as an unprivileged user download the binary and put it in `/usr/local/bin`
 
 ```shell
-curl -L "https://downloads.openrport.io/rport/stable/latest.php?filter=darwin_$(uname -m)" -o rport-mac.tar.gz
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -L -o rport-mac.tar.gz \
+  "https://github.com/pohcee/openrport/releases/download/${VERSION}/rport_${VERSION}_darwin_$(uname -m).tar.gz"
 test -e /usr/local/bin/||sudo mkdir /usr/local/bin
 sudo tar xzf rport-mac.tar.gz -C /usr/local/bin/ rport
 rport --version
@@ -60,7 +63,7 @@ For registering the service you have three options.
 The third option is not recommended if you want to run scripts with sudo privileges because you would give to many
 rights to the `daemon` user. It's better to create a dedicated user `rport`.
 
-### Create an rport system users
+### Create the `rport` system user
 
 ```bash
 cat<<"EOF"|sudo bash
@@ -109,14 +112,14 @@ sudo rport --service start
 ```
 
 If you are in doubt the service has been created run `sudo launchctl list|grep rport`. It should list the pid on the
-first column to indicate rport is running.
+first column to indicate `rport` is running.
 
 ```shell
 $ sudo launchctl list|grep "rport$"
 9942 0 rport
 ```
 
-If you get an output like this, the installation of the service has succeeded but rport cannot start.
+If you get an output like this, the installation of the service has succeeded but `rport` cannot start.
 
 ```shell
 $ sudo launchctl list|grep "rport$"
@@ -165,7 +168,7 @@ Open `/Library/LaunchDaemons/rport.plist` with an editor and use `tmp` as log di
 </plist>
 ```
 
-Now reload the service definition and check if rport starts.
+Now reload the service definition and check if `rport` starts.
 
 ```shell
 sudo launchctl unload /Library/LaunchDaemons/rport.plist
@@ -174,4 +177,4 @@ sudo launchctl start rport
 sudo launchctl list|grep "rport$"
 ```
 
-By default, rport starts at boot.
+By default, `rport` starts at boot.

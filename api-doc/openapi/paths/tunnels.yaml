@@ -1,7 +1,7 @@
 get:
   tags:
     - Clients and Tunnels
-  summary: Returns all active tunnels of rport clients that current user has access to
+  summary: Returns all active tunnels of Procy clients that current user has access to
   operationId: TunnelsGet
   responses:
     '200':

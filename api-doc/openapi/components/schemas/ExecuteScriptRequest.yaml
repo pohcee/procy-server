@@ -2,7 +2,7 @@ type: object
 properties:
   script:
     type: string
-    description: script to execute by rport client(s) in base64 format.
+    description: script to execute by Procy client(s) in base64 format.
   cwd:
     type: string
     description: current working directory where the script will be executed
@@ -32,7 +32,7 @@ properties:
       by default on Windows, and '/bin/sh' on Unix. 
        For tacoscript interpreter you should install tacoscript binary from here: https://github.com/realvnc-labs/tacoscript#installation. 
        It should also be available in the system path.
-       Additionally, you can use interpreter aliases or full absolute paths to an interpreter of your choice (see https://oss.rport.io/docs/no14-scripts.html#scripts-execution for details).
+       Additionally, you can use interpreter aliases or full absolute paths to an interpreter of your choice (see https://procy.sh/get-started/scripts/#scripts-execution for details).
     enum:
       - cmd
       - powershell
@@ -55,5 +55,5 @@ properties:
       'execute_concurrently' is false. If true - abort the entire cycle if the
       execution fails on some client. By default is true
 description: >-
-  Request that contains a remote script to execute by rport client(s) and other
+  Request that contains a remote script to execute by Procy client(s) and other
   related properties

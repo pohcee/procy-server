@@ -18,7 +18,7 @@ properties:
     description: | 
       Are group permissions enabled. 
       Requires a database for the user authentication and a `group_details` table.
-      [read more](https://oss.rport.io/docs/no02-api-auth.html#database)
+      [read more](https://procy.sh/get-started/api-authentication/#database)
   effective_user_permissions:
       type: object
       description: The effective user right inherited from the group permissions
@@ -51,7 +51,6 @@ properties:
     type: object
     description: |
       The effective extended user permissions inherited from the extended group permissions.
-      [Read more](https://plus.rport.io/extended-permissions/ext-permissions-introduction/)
     properties:
       tunnels_restricted:
         type: object

@@ -1,7 +1,7 @@
 type: object
 description: >-
   External IP addresses of the client fetched from an IP API.
-  [Read More](https://oss.rport.io/advanced/ip-address-determination/)
+  [Read More](https://procy.sh/advanced/ip-address-determination/)
 properties:
   ipv4:
     type: string

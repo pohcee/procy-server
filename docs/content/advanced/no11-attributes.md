@@ -37,7 +37,7 @@ The following example shows how to activate attributes read from a file.
 
 ```toml
 ## A list of of tags and labels to give your clients attributes maintained in a separate file.
-## See https://oss.openrport.io/advanced/attributes/
+## See https://procy.sh/advanced/attributes/
 attributes_file_path = "/var/lib/rport/client_attributes.yaml"
 #attributes_file_path = "C:\Program Files\rport\client_attributes.(yaml|json|toml)"
 ```
@@ -56,7 +56,7 @@ The attributes file could look like the below example.
 
 ```
 
-The file is read only on rport client start. On every file change a restart of the rport client is required.
+The file is read only on Procy client start. On every file change a restart of the Procy client is required.
 
 ### 3. Using the API or UI
 
@@ -75,7 +75,7 @@ To update attributes via the API you need to send a __PUT__ request with the ent
 `/api/v1/client/{client_id}/attributes`.
 
 Partial updates, aka PATCH requests, are not supported.  
-Read more on the [API documentation](https://apidoc.openrport.io/master/#tag/Clients-and-Tunnels/operation/ClientAttributesUpdate).
+Read more on the [API documentation](https://procy.sh/api/).
 
 ## Filtering
 
@@ -91,4 +91,4 @@ with the possible use of wildcards
 
 Though remember to url-encode space (" ") into `%20`.
 
-Read more on the [API documentation](https://apidoc.openrport.io/master/#tag/Clients-and-Tunnels/operation/ClientsGet).
+Read more on the [API documentation](https://procy.sh/api/).

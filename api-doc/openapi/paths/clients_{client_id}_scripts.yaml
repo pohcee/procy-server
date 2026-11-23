@@ -1,14 +1,14 @@
 post:
   tags:
     - Scripts
-  summary: Execute a script by a rport client.
+  summary: Execute a script by a Procy client.
   operationId: ClientScriptsPost
   description: >-
-    Rport server will copy script contents to a temp folder on an rport client.
+    Procy server will copy script contents to a temp folder on a Procy client.
     Then it will implicitly execute shell script as a command e.g. sh
     /tmp/script.sh.
-     NOTE: if command limitation is enabled by an rport client then it should allow execution commands like sh script.sh or cmd script.bat or powershell -executionpolicy bypass -file script.ps1.
-     See https://oss.rport.io/docs/no06-command-execution.html#securing-your-environment for more details
+     NOTE: if command limitation is enabled by a Procy client then it should allow execution commands like sh script.sh or cmd script.bat or powershell -executionpolicy bypass -file script.ps1.
+     See https://procy.sh/get-started/command-execution/#securing-your-environment for more details
   parameters:
     - name: client_id
       in: path
@@ -18,7 +18,7 @@ post:
         type: string
   requestBody:
     description: >-
-      script to execute by the rport client, the format depends on the client's
+      script to execute by the Procy client, the format depends on the client's
       OS
     content:
       application/json:
@@ -36,7 +36,7 @@ post:
                 command interpreter to use to execute the script. If not set
                 'cmd' is used by default on Windows and /bin/sh on Linux.
                  For tacoscript interpreter you should install tacoscript binary from here: https://github.com/realvnc-labs/tacoscript#installation. It should also be available in the system path.
-                 Additionally, you can use interpreter aliases or full absolute paths to an interpreter of your choice (see https://oss.rport.io/docs/no14-scripts.html#scripts-execution for details).
+                 Additionally, you can use interpreter aliases or full absolute paths to an interpreter of your choice (see https://procy.sh/get-started/scripts/#scripts-execution for details).
               enum:
                 - cmd
                 - powershell

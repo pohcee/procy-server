@@ -5,14 +5,14 @@ get:
   operationId: AuthProviderGet
   security: []
   description: >
-    This API allows clients to determine how to login to Rport.
+    This API allows clients to determine how to login to Procy.
 
 
-    * If the `auth_provider` is `built-in` then the regular OSS Rport login API can be
+    * If the `auth_provider` is `built-in` then the regular OSS Procy login API can be
     used.
 
 
-    * If the `auth_provider` is one of the Rport Plus OAuth providers
+    * If the `auth_provider` is one of the RPort Plus OAuth providers
     (e.g. `github`, `microsoft` or `google`) then either the `settings_uri` or
     `device_settings_uri` endpoint must be must be queried for login related
     links/info. Which uri should be used depends on whether the api client is

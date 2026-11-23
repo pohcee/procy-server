@@ -12,8 +12,8 @@ The command and the response are transferred through the web socket connection. 
 
 Command can be executed via:
 
-* [REST API](https://apidoc.openrport.io/master/#tag/Commands)
-* [WebSocket API](https://apidoc.openrport.io/master/#operation/WsCommandsGet)
+* [REST API](https://procy.sh/api/)
+* [WebSocket API](https://procy.sh/api/)
 
 Here we would show examples how to do it via REST API.
 
@@ -60,7 +60,7 @@ curl -s -u admin:foobaz http://localhost:3000/api/v1/clients/$CLIENTID/commands/
 }
 ```
 
-The rport client supervises the command for the given {timeout_sec} seconds. If the timeout is exceeded the command
+The Procy client supervises the command for the given {timeout_sec} seconds. If the timeout is exceeded the command
 state is considered 'unknown' but the command keeps running.
 
 ## Execute on multiple hosts
@@ -213,9 +213,9 @@ Now execute the same query that is in a previous example to get the result of th
 
 ## Securing your environment
 
-The commands are executed from the account that runs rport.
-On Linux this by default an unprivileged user. Do not run rport as root.
-On Windows, rport runs as a local service account that by default has administrative rights.
+The commands are executed from the account that runs the `rport` client.
+On Linux this by default an unprivileged user. Do not run `rport` as root.
+On Windows, `rport` runs as a local service account that by default has administrative rights.
 
 On the client using the `rport.conf` you can configure and limit the execution of remote commands.
 

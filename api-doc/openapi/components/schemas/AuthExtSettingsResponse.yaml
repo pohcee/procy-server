@@ -7,7 +7,7 @@ properties:
   authorize_url:
     type: string
     description: >-
-      This is the URL that must be used to authorize a user for subsequent login to Rport.
+      This is the URL that must be used to authorize a user for subsequent login to Procy.
       It must be opened in a browser as the user may be redirected to auth provider login
       and permission pages if necessary. On completion the auth provider will most likely
       redirect to a `redirect_url` where `code` and `state` values can be found for use 
@@ -16,7 +16,7 @@ properties:
   login_uri:
     type: string
     description: >-
-      This URI can be used to obtain an Rport JWT bearer token. For OAuth providers this
+      This URI can be used to obtain a Procy JWT bearer token. For OAuth providers this
       involves exchanging the authorization `code` received via the `authorize_url`. Other types
       of provider may have alternative implementations.
   state:

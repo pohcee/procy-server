@@ -6,19 +6,19 @@ aliases:
   - /docs/no12-users.html
 ---
 {{< toc >}}
-Rport users are provided from JSON file or DB as described in [authentication section](/docs/get-started/no03-client-auth.md).
+Procy users are provided from JSON file or DB as described in [authentication section](/docs/get-started/no03-client-auth.md).
 
-You can manage users with the [REST API](https://apidoc.openrport.io/master/#tag/Users).
+You can manage users with the [REST API](https://procy.sh/api/).
 
 ## API Limitations
 
-Before using the [User Management API](https://apidoc.openrport.io/master/#tag/Users), you should provide at least one user
+Before using the [User Management API](https://procy.sh/api/), you should provide at least one user
 belonging `Administrators` group either in a JSON file or DB.
 
-If rport is started with static credentials [auth mode](no03-client-auth.md#using-a-static-credential), user management
+If `rportd` is started with static credentials [auth mode](no03-client-auth.md#using-a-static-credential), user management
 API won't be usable.
 
-If rport is started with JSON file credentials, changes to the users list won't be refreshed until rport is restarted
+If `rportd` is started with JSON file credentials, changes to the users list won't be refreshed until `rportd` is restarted
 since there is a [limitation](/docs/get-started/no02-api-auth.md#user-file).
 
 ## API Usage

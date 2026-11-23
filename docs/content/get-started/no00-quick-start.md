@@ -5,10 +5,10 @@ slug: quick-start
 ---
 
 {{< hint type=warning title="This is not an installation tutorial!" >}}
-If you want to **install and run rport (server and client), switch to the [installation tutorial](https://kb.openrport.io/install-the-rport-server)**.  
-Our end-user knowledge [kb.rport.io](https://kb.openrport.io) base focuses on installation and server maintenance from a user's perspective.
+If you want to **install and run Procy (server and client)**, download the packages from the
+[latest release](https://github.com/pohcee/openrport/releases/latest) and follow the installation steps below.
 
-The below documentation is a practical demonstration of the rport concepts.
+The below documentation is a practical demonstration of the Procy concepts.
 It's intended to be read by developers and experienced users who want to learn what happens behind the scenes.
 {{< /hint>}}
 
@@ -16,7 +16,7 @@ It's intended to be read by developers and experienced users who want to learn w
 
 ### Binaries
 
-We provide pre-compiled binaries. You can download them [here](https://github.com/openrport/openrport/releases).
+We provide pre-compiled binaries. Download them from the [releases page](https://github.com/pohcee/openrport/releases).
 
 ### From source
 
@@ -62,11 +62,12 @@ See `./rportd --help` and `./rport --help` for more options, like:
 
 ## Run the server without installation
 
-If you quickly want to run the rport server without installation, run the following commands from any unprivileged user account.
+If you quickly want to run the Procy server without installation, run the following commands from any unprivileged user account.
 
 ```shell
-curl -LOJ https://downloads.openrport.io/rport/stable/latest.php?arch=Linux_x86_64
-tar vxzf rport_*_Linux_x86_64.tar.gz rportd
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rportd_${VERSION}_linux_x86_64.tar.gz"
+tar vxzf rportd_${VERSION}_linux_x86_64.tar.gz rportd
 KEY=$(openssl rand -hex 18)
 ./rportd --log-level info --data-dir /var/tmp/ --key $KEY --auth user1:1234
 ```
@@ -74,7 +75,7 @@ KEY=$(openssl rand -hex 18)
 Rportd will be listening on the default port 8080 for client connections.
 Grab the generated fingerprint from `/var/tmp/rportd-fingerprint.txt` and use it for secure client connections.
 
-## Install and run the rport server
+## Install and run the Procy server
 
 On a machine connected to the public internet and ideally with an FQDN registered to a public DNS install and run the server.
 Assume, the server is called `node1.example.com`.
@@ -85,15 +86,15 @@ Assume, the server is called `node1.example.com`.
 **Do not run the server as root!** This is an unnecessary risk. Rportd should always use an unprivileged user.
 {{< /hint >}}
 
-While using rport without a **fingerprint** is possible, it's highly recommended to not skip this part.
+While using Procy without a **fingerprint** is possible, it's highly recommended to not skip this part.
 The fingerprint ensures you connect only to trusted servers. If you omit this step a man in the middle can bring up a
-rport server and hijack your tunnels. If you do ssh or rdp through the tunnel, a hijacked tunnel will not expose your
-credentials because the data inside the tunnel is still encrypted. But if you use rport for unencrypted protocols like
+Procy server and hijack your tunnels. If you do ssh or rdp through the tunnel, a hijacked tunnel will not expose your
+credentials because the data inside the tunnel is still encrypted. But if you use Procy for unencrypted protocols like
 HTTP, sniffing credentials would be possible.
 
-You might wonder why the rport server does not provide encryption on the transport layer (TLS, SSL, HTTPS).
+You might wonder why the Procy server does not provide encryption on the transport layer (TLS, SSL, HTTPS).
 **Encryption is always enabled.** Your connections are encrypted and secured by SSH over HTTP. When you start up the
-rport server, it will generate an in-memory ECDSA public/private key pair. Adding TLS by putting an SSL
+Procy server, it will generate an in-memory ECDSA public/private key pair. Adding TLS by putting an SSL
 reverse proxy is possible so you get SSH over HTTPS.
 
 ### Install the server
@@ -101,13 +102,14 @@ reverse proxy is possible so you get SSH over HTTPS.
 For a proper installation execute the following steps.
 
 ```bash
-curl -LOJ https://downloads.openrport.io/rportd/stable/latest.php?arch=Linux_x86_64
-sudo tar vxzf rportd_*_Linux_x86_64.tar.gz -C /usr/local/bin/ rportd
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rportd_${VERSION}_linux_x86_64.tar.gz"
+sudo tar vxzf rportd_${VERSION}_linux_x86_64.tar.gz -C /usr/local/bin/ rportd
 sudo useradd -d /var/lib/rport -m -U -r -s /bin/false rport
 sudo mkdir /etc/rport/
 sudo mkdir /var/log/rport/
 sudo chown rport /var/log/rport/
-sudo tar vxzf rportd_*_Linux_x86_64.tar.gz -C /etc/rport/ rportd.example.conf
+sudo tar vxzf rportd_${VERSION}_linux_x86_64.tar.gz -C /etc/rport/ rportd.example.conf
 sudo cp /etc/rport/rportd.example.conf /etc/rport/rportd.conf
 ```
 
@@ -123,7 +125,7 @@ sed -i "s/key_seed = .*/key_seed =\"${KEY_SEED}\"/g" /etc/rport/rportd.conf
 
 All other default settings are suitable for a quick and secure start.
 
-Change to the rport user account and check your rportd starts without errors.
+Change to the `rport` user account and check your rportd starts without errors.
 
 ```shell
 ubuntu@node1:~$ sudo -u rport -s /bin/bash
@@ -135,7 +137,7 @@ Copy the generated fingerprint from `/var/lib/rport/rportd-fingerprint.txt` to y
 
 ## Run the server with systemd
 
-If all works fine stop the rport server and integrate it into systemd.
+If all works fine stop the Procy server and integrate it into systemd.
 
 ```shell
 sudo rportd --service install --service-user rport --config /etc/rport/rportd.conf
@@ -154,8 +156,9 @@ Assume, the client is called `client1.local.localdomain`.
 On your client just install the client binary
 
 ```shell
-curl -LOJ https://downloads.openrport.io/rport/stable/latest.php?arch=Linux_x86_64
-sudo tar vxzf rport_*_Linux_x86_64.tar.gz -C /usr/local/bin/ rport
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rport_${VERSION}_linux_x86_64.tar.gz"
+sudo tar vxzf rport_${VERSION}_linux_x86_64.tar.gz -C /usr/local/bin/ rport
 ```
 
 Create an ad hoc tunnel that will forward the port 2222 of `node1.example.com` to the to local port 22 of `client1.local.localdomain`.
@@ -174,19 +177,20 @@ come out on the machine where the tunnel has been initiated.
 For a proper and permanent installation of the client execute the following steps.
 
 ```shell
-curl -LOJ https://downloads.openrport.io/rport/stable/latest.php?arch=Linux_x86_64
-sudo tar vxzf rport_*_Linux_x86_64.tar.gz -C /usr/local/bin/ rport
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rport_${VERSION}_linux_x86_64.tar.gz"
+sudo tar vxzf rport_${VERSION}_linux_x86_64.tar.gz -C /usr/local/bin/ rport
 sudo useradd -d /var/lib/rport -U -m -r -s /bin/false rport
 sudo mkdir /etc/rport/
 sudo mkdir /var/log/rport/
 sudo chown rport /var/log/rport/
-sudo tar vxzf rport_*_Linux_x86_64.tar.gz -C /etc/rport/ rport.example.conf
+sudo tar vxzf rport_${VERSION}_linux_x86_64.tar.gz -C /etc/rport/ rport.example.conf
 sudo cp /etc/rport/rport.example.conf /etc/rport/rport.conf
 sudo rport --service install --service-user rport --config /etc/rport/rport.conf
 ```
 
 Open the config file `/etc/rport/rport.conf` and adjust it to your needs. (See below.)
-Finally, start the rport client and optionally register it in the auto-start.
+Finally, start the Procy client and optionally register it in the auto-start.
 
 ```shell
 systemctl start rport
@@ -203,11 +207,11 @@ auth = "user1:1234"
 remotes = ['2222:22']
 ```
 
-This will establish a permanent tunnel and the local port 22 (SSH) of the client becomes available on port 2222 of the rport server.
+This will establish a permanent tunnel and the local port 22 (SSH) of the client becomes available on port 2222 of the Procy server.
 
 ## Run a Windows client
 
-On Microsoft Windows [download the latest client binary](https://downloads.openrport.io/rport/stable/latest.php?arch=Windows_x86_64)
+On Microsoft Windows [download the latest client](https://github.com/pohcee/openrport/releases/latest) (`rport_<version>_windows_x86_64.zip`)
 and extract it ideally to `C:\Program Files\rport`.
 Rename the `rport.example.conf` to `rport.conf` and store it in `C:\Program Files\rport` too.
 Open the `rport.conf` file with a text editor. On older Windows use an editor that supports unix line breaks,
@@ -224,9 +228,9 @@ remotes = ['3300:3389']
 ```
 
 This will establish a permanent tunnel and the local port 3389 (remote desktop) of the client becomes available on port
-3300 of the rport server.
+3300 of the Procy server.
 
-Before registering rport as a windows service, check your connection manually.
+Before registering the `rport` client as a Windows service, check your connection manually.
 
 Open a command prompt with administrative rights and type in:
 
@@ -235,7 +239,7 @@ cd "C:\Program Files\rport"
 rport.exe -c rport.conf
 ```
 
-If you don't get errors on the console, try a remote desktop connection to the rport server on port 3300.
+If you don't get errors on the console, try a remote desktop connection to the Procy server on port 3300.
 Stop the client with CTRL-C and register it as a service and start it.
 
 ```shell
@@ -244,7 +248,7 @@ sc query rport
 sc start rport
 ```
 
-The windows service will be created with "Startup type = automatic". If you don't want the rport client to start on boot,
+The windows service will be created with "Startup type = automatic". If you don't want the Procy client to start on boot,
 you must manually disable it using for example `sc config rport start=disabled`.
 
 ## Run clients on other operating systems
@@ -253,10 +257,10 @@ Please refer to [clients on other operating systems](no05-client-on-other-os.md)
 
 ## Configuration files
 
-Config files can be used to set up both the rport server and clients. In order to use it an arg `--config`(or `-c`)
+Config files can be used to set up both the Procy server and clients. In order to use it an arg `--config`(or `-c`)
 should be passed to a command with a path to the file. Configuration examples `rportd.example.conf`
-([view online](https://github.com/realvnc-labs/rport/blob/master/rportd.example.conf)) and `rport.example.conf`
-([view online](https://github.com/realvnc-labs/rport/blob/master/rport.example.conf)) can be found in the
+([view online](https://github.com/pohcee/openrport/blob/main/rportd.example.conf)) and `rport.example.conf`
+([view online](https://github.com/pohcee/openrport/blob/main/rport.example.conf)) can be found in the
 release archive or in the source.
 
 NOTE: command arguments and env variables will override values from the config file.
@@ -270,11 +274,11 @@ rport -c /etc/rport/rport.conf
 
 ## Using authentication
 
-To prevent anyone who knows the address and the port of your rport server to use it for tunneling, using client
+To prevent anyone who knows the address and the port of your Procy server to use it for tunneling, using client
 authentication is required.
 
 Using a static username password pair is the most basic option. See the comments in the
-[rportd.example.conf](https://github.com/realvnc-labs/rport/blob/master/rportd.example.conf) and read more about
+[rportd.example.conf](https://github.com/pohcee/openrport/blob/main/rportd.example.conf) and read more about
 all supported [authentication options](no03-client-auth.md).
 
 On the client start the tunnel this way
@@ -287,7 +291,7 @@ rport --auth user1:1234 --fingerprint <YOUR_FINGERPRINT> node1.example.com:8080 
 
 ## Install a web-based frontend
 
-Rport comes with a user-friendly web-based frontend. The frontend has it's own none-open-source repository.
+Procy comes with a user-friendly web-based frontend. The frontend has it's own none-open-source repository.
 The installation is quick and easy. [Learn more](/docs/content/get-started/no07-frontend.md)
 
 ## Install the command-line interface
@@ -295,5 +299,5 @@ The installation is quick and easy. [Learn more](/docs/content/get-started/no07-
 You can also manage clients, tunnels, and command from a user-friendly command-line utility. It's available as a
 stand-alone static binary for Windows and Linux.
 See [https://github.com/openrport/rportcli](https://github.com/openrport/rportcli).
-The command-line utility does not cover all API capabilities yet. But it's already a very useful tool making rport even
+The command-line utility does not cover all API capabilities yet. But it's already a very useful tool making Procy even
 more powerful.

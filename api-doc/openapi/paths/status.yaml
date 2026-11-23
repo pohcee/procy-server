@@ -1,7 +1,7 @@
 get:
   tags:
     - Profile & Info
-  summary: Get information about rport server
+  summary: Get information about Procy server
   operationId: StatusGet
   description: Show health status, server version, etc
   responses:

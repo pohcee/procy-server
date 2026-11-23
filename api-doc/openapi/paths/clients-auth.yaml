@@ -2,7 +2,7 @@ get:
   tags:
     - Client Auth Credentials
   summary: >-
-    Return all rport clients authentication credentials. 
+    Return all Procy clients authentication credentials. 
     Sorted by ID in asc order. Require admin access
   operationId: ClientsauthsGet
   parameters:
@@ -58,7 +58,7 @@ get:
 post:
   tags:
     - Client Auth Credentials
-  summary: Add new rport client authentication credentials. Require admin access
+  summary: Add new Procy client authentication credentials. Require admin access
   operationId: ClientsauthsPost
   requestBody:
     description: Client auth credentials to add

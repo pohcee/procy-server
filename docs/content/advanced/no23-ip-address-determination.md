@@ -7,17 +7,17 @@ slug: "ip-address-determination"
 
 ## Introduction
 
-Starting with version 0.9.13 the rport client can determine its external IP addresses (ipV4 and ipV6) by asking an
+Starting with version 0.9.13 the Procy client can determine its external IP addresses (ipV4 and ipV6) by asking an
 external API.  
 This is more reliable than extracting it from the TCP headers on the server. You will get correct external IP addresses
-even if the rport server runs behind a reverse proxy.
+even if the Procy server runs behind a reverse proxy.
 
 Using an external API comes with downsides:
 
 * It creates additional network traffic.
 * The API might log your request making the identification of your network possible.
 
-The latter is mitigated by sending an empty user agent that will not identify the rport client on first sight.
+The latter is mitigated by sending an empty user agent that will not identify the Procy client on first sight.
 
 For privacy reasons the feature is disabled by default.
 
@@ -33,10 +33,8 @@ Additional fields in the response don't harm. They are ignored.
 
 The following API URLs are known to be compatible:
 
-* `https://api.my-ip.io/ip.json`
-* `https://api.myip.com`
 * `https://api.seeip.org/jsonip`
-* `https://myip.rport.io`
+* `https://api64.ipify.org?format=json`
 
 {{< hint type=note title="ipv4 and ipv6" >}}
 Before entering the API URL to the `rport.conf` make sure they accept ipv4 **and ipv6** requests.  

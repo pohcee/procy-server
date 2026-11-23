@@ -1,7 +1,7 @@
 get:
   tags:
     - Client Auth Credentials
-  summary: Get rport client authentication credentials. Require admin access
+  summary: Get Procy client authentication credentials. Require admin access
   operationId: ClientsauthGet
   parameters:
     - name: client_auth_id
@@ -32,7 +32,7 @@ get:
 delete:
   tags:
     - Client Auth Credentials
-  summary: Delete rport client authentication credentials. Require admin access
+  summary: Delete Procy client authentication credentials. Require admin access
   operationId: ClientsauthDelete
   parameters:
     - name: client_auth_id

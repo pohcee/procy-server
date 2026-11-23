@@ -17,7 +17,7 @@ properties:
   plus_version:
     type: string
     description: >-
-      The current product version of the Rport Plus plug-in
+      The current product version of the RPort Plus plug-in
   build_time:
     type: string
     description: >-
@@ -25,7 +25,7 @@ properties:
   local_build:
     type: string
     description: >-
-      Whether the build was local to Rport
+      Whether the build was local to Procy
   rport_git_ref:
     type: string
     description: >-

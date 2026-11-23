@@ -13,7 +13,7 @@ put:
     - name: local
       in: query
       description: >-
-        local refers to the local port of the rport server to use for a new
+        local refers to the local port of the Procy server to use for a new
         tunnel, e.g. '3390' or '0.0.0.0:3390'. If local is not specified, a
         random free server port will be selected automatically
       schema:

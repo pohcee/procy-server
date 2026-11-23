@@ -1,13 +1,13 @@
 openapi: 3.0.1
 info:
-  title: rportd HTTP(S) API
+  title: Procy server API (rportd)
   description: >-
     To run API, use `--api-addr=yourserver:3000` CLI argument or enable it in
     config file
   version: 1.0.0
   license:
     name: MIT
-    url: https://raw.githubusercontent.com/openrport/openrport/master/LICENSE
+    url: https://raw.githubusercontent.com/pohcee/openrport/main/LICENSE
 servers:
   - url: http://yourserver:3000/api/v1
   - url: https://yourserver:3000/api/v1
@@ -17,22 +17,22 @@ security:
 tags:
   - name: Login
     description: |
-      For more details https://oss.openrport.io/docs/no02-api-auth.html
+      For more details https://procy.sh/get-started/api-authentication/
   - name: Auth
     description: |
-      For more details https://oss.openrport.io
+      For more details https://procy.sh/
   - name: Profile & Info
     description: Profile and System Information
   - name: Clients and Tunnels
-    description: For more details https://oss.openrport.io/docs/no09-managing-tunnels.html
+    description: For more details https://procy.sh/get-started/managing-tunnels/
   - name: Client Groups
-    description: For more details https://oss.openrport.io/docs/no04-client-groups.html
+    description: For more details https://procy.sh/get-started/client-groups/
   - name: Client Auth Credentials
-    description: For more details https://oss.openrport.io/docs/no03-client-auth.html
+    description: For more details https://procy.sh/get-started/client-authentication/
   - name: Commands
-    description: For more details https://oss.openrport.io/docs/no06-command-execution.html
+    description: For more details https://procy.sh/get-started/command-execution/
   - name: Users
-    description: For more details https://oss.openrport.io/docs/no12-user.html
+    description: For more details https://procy.sh/get-started/users/
 paths:
   /login:
     $ref: paths/login.yaml

@@ -9,7 +9,7 @@ aliases:
 
 Initializing the creation of a tunnel from the client is nice but not a perfect solution for secure and reliable remote
 access to a large number of machines. Most of the time the tunnel wouldn't be used. Network resources would be wasted
-and a port is exposed to the internet for an unnecessarily long time. Rport provides the option to establish tunnels
+and a port is exposed to the internet for an unnecessarily long time. Procy provides the option to establish tunnels
 from the server only when you need them.
 
 ## Activate the API
@@ -47,8 +47,8 @@ Test if you set up the API properly by querying its status with `curl -s -u admi
 {{< hint type=tip >}}
 The API always returns a minified json formatted response. The large output is hard to read. In all further examples,
 we use the command-line tool [jq](https://stedolan.github.io/jq/) to reformat the json with line breaks and indentation
-for better readability. `jq`is included in almost any distribution, for Windows you can download it
-[here](https://stedolan.github.io/jq/download/).
+for better readability. `jq`is included in almost any distribution, for Windows you can download it from the
+[jq download page](https://stedolan.github.io/jq/download/).
 {{< /hint >}}
 
 Example of a human-readable API status
@@ -68,7 +68,7 @@ Example of a human-readable API status
 
 ## Connect a client without a tunnel
 
-Invoke the rport client without specifying a tunnel but with some extra data.
+Invoke the Procy client without specifying a tunnel but with some extra data.
 
 ```shell
 rport --id my-client-1 \
@@ -170,11 +170,11 @@ curl -s -u admin:foobaz http://localhost:3000/api/v1/clients|jq
 
 There is one client connected with an active tunnel. The second client is in standby mode.
 Read more about the [management of tunnel via the API](/docs/content/get-started/no09-managing-tunnels.md)
-or read the [API docs](https://apidoc.openrport.io/master/).
+or read the [API docs](https://procy.sh/api/).
 
 ## Running the API on a privileged port
 
-For security reasons the rport server runs as an unprivileged user and you should not change this. But unprivileged
+For security reasons the Procy server runs as an unprivileged user and you should not change this. But unprivileged
 users are not allowed to open port below 1024. Instead of changing user privileges you can change the capabilities of
 the rportd binary and allow it to use any port even when not running as root.
 

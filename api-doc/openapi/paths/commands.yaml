@@ -68,14 +68,14 @@ get:
 post:
   tags:
     - Commands
-  summary: Execute a command on multiple rport clients
+  summary: Execute a command on multiple Procy clients
   operationId: CommandsPost
   description: >-
-    NOTE: if command limitation is enabled by an rport client then a full path
+    NOTE: if command limitation is enabled by a Procy client then a full path
     command can be required to use. See
-    https://oss.rport.io/docs/no06-command-execution.html for more details
+    https://procy.sh/get-started/command-execution/ for more details
   requestBody:
-    description: properties and remote command to execute by rport clients
+    description: properties and remote command to execute by Procy clients
     content:
       '*/*':
         schema:
@@ -84,10 +84,10 @@ post:
             command:
               type: string
               description: >-
-                remote command to execute by rport clients. NOTE: if command
-                limitation is enabled by an rport client then a full path
+                remote command to execute by Procy clients. NOTE: if command
+                limitation is enabled by a Procy client then a full path
                 command can be required to use. See
-                https://oss.rport.io/docs/no06-command-execution.html for more
+                https://procy.sh/get-started/command-execution/ for more
                 details
             client_ids:
               type: array

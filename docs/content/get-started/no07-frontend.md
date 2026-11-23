@@ -1,34 +1,23 @@
 ---
-title: "Rport Frontend"
+title: "Web UI"
 weight: 07
-slug: rport-frontend
+slug: web-ui
 aliases:
   - /docs/no07-frontend.html
   - /docs/content/get-started/no07-frontend.md
+  - /get-started/rport-frontend/
 ---
 {{< toc >}}
-Rport comes with a web-based graphical user interface (frontend) which is distributed as a separate bundle.
+Procy comes with a web-based user interface, distributed as a separate bundle. Like the server and client, it is open
+source: the code is in the [openrport-ui repository](https://github.com/pohcee/openrport-ui) and released under the
+GNU Affero General Public License v3.
 
-{{< hint type=warning >}}
-Only the rport command-line tools – rport server and rport client – are released under the open-source MIT license.
-The optional graphical user interface **is NOT open-source**, and free to use only under certain circumstances.
-{{< /hint >}}
+## Installing the web UI
 
-In short, the following is not covered by the [license](https://downloads.rport.io/frontend/license.html) and requires
-acquiring a commercial license.
+The web UI comes as a bundle of static HTML, JavaScript and assets. It does not require any server-side scripting
+support; `rportd` serves it from its doc root.
 
-* Building a SaaS product or offering a hosted version of rport, either paid or free.
-* Running rport and the UI and granting customers access to it, either paid or free.
-
-Free usage in a company is allowed, as long as only employees of the company have access to rport.  
-[Read the full license](https://downloads.rport.io/frontend/license.html). The uncompressed source code is not published.
-
-## Installing the frontend
-
-The frontend comes as a minified and compressed bundle of Javascript files and all needed assets. The frontend does not
-require any server-side scripting support. The rport server provides static file serving for that purpose.
-
-By default, the built-in web server listens only on localhost. Serving a web frontend on localhost is not very useful.
+By default, the built-in web server listens only on localhost. Serving the web UI on localhost is not very useful.
 Change the listen address of the API to "0.0.0.0:3000" or any port you like.
 
 Make sure you have the below options enabled in `[api]` section of the `rportd.conf`.
@@ -40,20 +29,22 @@ Make sure you have the below options enabled in `[api]` section of the `rportd.c
 ```
 
 {{< hint type=warning >}}
-Usually you run rportd and the web frontend on a public server directly exposed to the internet. Running the API and
-serving the frontend on unencrypted HTTP is dangerous. Always use HTTPs. The built-in web server supports HTTPs.
+Usually you run rportd and the web UI on a public server directly exposed to the internet. Running the API and
+serving the web UI on unencrypted HTTP is dangerous. Always use HTTPs. The built-in web server supports HTTPs.
 To quickly generate certificates, follow [this guide](/docs/get-started/no08-https-howto.md).
 {{< /hint >}}
 
 * Create the doc root folder. Usually `/var/lib/rport/docroot` is used.
-* Download the latest release of the frontend from [https://downloads.rport.io/frontend/stable](https://downloads.rport.io/frontend/stable/?sort=time&order=desc).
+* Download the latest release of the web UI from [GitHub](https://github.com/pohcee/openrport-ui/releases/latest)
+  (`openrport-frontend-<version>.zip`).
 * Unpack to the doc root folder.
 
 ```bash
 mkdir /var/lib/rport/docroot
 cd /var/lib/rport/docroot
-wget -q https://downloads.rport.io/frontend/stable/latest.php -O rport-frontend.zip
-unzip -qq rport-frontend.zip && rm -f rport-frontend.zip
+UI_TAG=$(curl -fsSL https://api.github.com/repos/pohcee/openrport-ui/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -fsSL "https://github.com/pohcee/openrport-ui/releases/download/${UI_TAG}/openrport-frontend-${UI_TAG#v}.zip" -o procy-ui.zip
+unzip -qq procy-ui.zip && rm -f procy-ui.zip
 cd ~
 chown -R rport:rport /var/lib/rport/docroot
 ```

@@ -6,28 +6,28 @@ aliases:
   - /docs/no13-vault.html
 ---
 {{< toc >}}
-Rport provides a secure storage which allows to persist arbitrary data related to the clients and the environment.
+Procy provides a secure storage which allows to persist arbitrary data related to the clients and the environment.
 All data is stored encrypted so user can safely store passwords used for log in to remote systems there.
 Typical vault workflow looks as following:
 
-- Administrator initialises vault by calling [vault init api](https://apidoc.openrport.io/master/#tag/Vault)
-  and giving a password in input. RPort stores password in a secure place. From this moment Rport vault will remain
+- Administrator initialises vault by calling [vault init api](https://procy.sh/api/)
+  and giving a password in input. Procy stores password in a secure place. From this moment Procy vault will remain
   unlocked and can accept requests for reading or changing data.
 
-- Administrator can lock vault by using [vault lock api](https://apidoc.openrport.io/master/#operation/VaultAdminSesamDelete).
-  RPort removes password and rejects all access requests to the vault. The same happens when server restarts.
+- Administrator can lock vault by using [vault lock api](https://procy.sh/api/).
+  Procy removes password and rejects all access requests to the vault. The same happens when server restarts.
   The vault database is persisted to hdd, so it will remain after server restarts. However, we would also recommend to
   back up the vault database additionally to survive also possible disk failures.
 
-- Administrator can unlock vault by using [vault unlock api](https://apidoc.openrport.io/master/#operation/VaultAdminSesamPost).
-  He should provide password which he used on init stage. If a wrong password is provided, RPort will reject the vault access.
+- Administrator can unlock vault by using [vault unlock api](https://procy.sh/api/).
+  He should provide password which he used on init stage. If a wrong password is provided, Procy will reject the vault access.
   In case of a correct password vault will be unlocked and can be used for reading or changing secure data.
   
-- Any authorized user can store new key value pairs by calling [vault store api](https://apidoc.openrport.io/master/#operation/VaultPost)
+- Any authorized user can store new key value pairs by calling [vault store api](https://procy.sh/api/)
 
-- Any authorized user can list or search for stored vault entries by calling [vault list api](https://apidoc.openrport.io/master/#operation/VaultGet)
+- Any authorized user can list or search for stored vault entries by calling [vault list api](https://procy.sh/api/)
 
-- Any authorized user can get the stored secure value by provided id [vault get api](https://apidoc.openrport.io/master/#operation/VaultItemGet)
+- Any authorized user can get the stored secure value by provided id [vault get api](https://procy.sh/api/)
 
 Any user belonging to the Administrators group can init, lock and unlock Vault. Any authorized user can read, store,
 delete values in an unlocked and initialized Vault. The only exception from this rule is if a value is stored with a
@@ -36,7 +36,7 @@ non-empty `required_group` field, in this case the access will be allowed only t
 
 ## Admin API Usage
 
-The `/vault-admin` endpoints allow you to initialize, lock, unlock and read status of RPort vault.
+The `/vault-admin` endpoints allow you to initialize, lock, unlock and read status of Procy vault.
 
 ### Initialize
 
@@ -54,11 +54,11 @@ curl -X POST 'http://localhost:3000/api/v1/vault-admin/init' \
 
 Password length must be between 4 and 32 bytes, shorter and longer passwords are rejected.
 
-You need to init database every time when the rport server is restarted.
+You need to init database every time when the Procy server is restarted.
 
 ### Status
 
-This API allows to read the current status of the RPort vault:
+This API allows to read the current status of the Procy vault:
 
 ```shell
 curl -X GET 'http://localhost:3000/api/v1/vault-admin' \
@@ -96,7 +96,7 @@ curl -X DELETE 'http://localhost:3000/api/v1/vault-admin/sesame' \
 ### Unlock
 
 This operation unlocks the vault. Administrator has to provide same password he used for the vault initialization.
-Rport will check the password validity and reject the request if a wrong password is provided. If administrator loses
+Procy will check the password validity and reject the request if a wrong password is provided. If administrator loses
 the password, all access to the data will be lost, so it should be kept in a secure place. If a correct password is
 provided, the vault will become fully functional.
 

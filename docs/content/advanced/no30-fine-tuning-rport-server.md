@@ -1,18 +1,20 @@
 ---
-title: "Fine-tuning the Rport Server: Understanding `max_concurrent_ssh_handshake`"
+title: "Fine-tuning the Procy server: Understanding `max_concurrent_ssh_handshake`"
 weight: 30
-slug: "fine-tuing-rport-server"
+slug: fine-tuning-the-server
+aliases:
+  - /advanced/fine-tuing-rport-server/
 ---
 {{< toc >}}
 
-The `max_concurrent_ssh_handshake` parameter is a pivotal configuration detail in the rport server.
+The `max_concurrent_ssh_handshake` parameter is a pivotal configuration detail in the Procy server.
 Here, we delve deep into what it represents and its implications, especially when dealing with a large client base.
 
 ---
 
 ## What is `max_concurrent_ssh_handshake`?
 
-The `max_concurrent_ssh_handshake` parameter in the rport server was introduced as a defensive measure against
+The `max_concurrent_ssh_handshake` parameter in the Procy server was introduced as a defensive measure against
 the "thundering herd" effect. This effect becomes notably pronounced post server downtimes,
 when a deluge of clients try to reestablish their SSH connections simultaneously.
 Handling numerous connection attempts and the extensive data associated with each handshake
@@ -45,7 +47,8 @@ However, it's crucial to remain wary of potential server resource saturation, pa
 - **Tuning:**
   - Modify the `max_concurrent_ssh_handshake` based on past data,
  anticipated load patterns, and server performance metrics post-downtimes.
-  - **Binary Search Tuning**: Begin with the total client count and methodically halve the `max_concurrent_ssh_handshake` value until a stable configuration is pinpointed.
+  - **Binary Search Tuning**: Begin with the total client count and methodically halve the
+    `max_concurrent_ssh_handshake` value until a stable configuration is pinpointed.
   - **Number of cores**: from our experimentation one of the limits was CPU and in this scenario
   we found the total number of cores divided by 2 to yield most stable results.
 

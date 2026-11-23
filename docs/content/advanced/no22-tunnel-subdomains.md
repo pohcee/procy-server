@@ -7,7 +7,7 @@ slug: tunnels-on-subdomains
 
 ## Introduction
 
-Starting with rport version 0.9.5 you can access http-based tunnels on subdomains.
+Starting with version 0.9.5 you can access http-based tunnels on subdomains.
 
 This feature was introduced to comply with strict firewall rules that block outgoing connections to none-default ports.
 After a tunnel has been created you access it on a random port according to the port range reserved for tunnels.
@@ -118,7 +118,7 @@ For any kind of setup, add a configuration like this to your `/etc/rport/rportd.
 ```toml
 [caddy-integration]
   ## Enable https tunnels on random subdomains. 
-  ## See https://oss.openrport.io/advanced/tunnels-on-subdomains/
+  ## See https://procy.sh/advanced/tunnels-on-subdomains/
   ## Note: no defaults currently.
 
   ## Specifies the path to the caddy executable. mandatory.
@@ -136,7 +136,7 @@ For any kind of setup, add a configuration like this to your `/etc/rport/rportd.
   `rport.example.com`.
 * Make sure the port of the `address` does not conflict with the port of the address in the `[api]` section.
 
-If you want to run the subdomains managed by caddy and the rport API/UI on different TCP ports, you can stop here and
+If you want to run the subdomains managed by caddy and the Procy API/UI on different TCP ports, you can stop here and
 restart rportd.
 
 ### Shared port setup
@@ -173,13 +173,13 @@ For the above example the corresponding `[api]` config is:
 ```
 
 {{< hint type=caution title="Attention to hostname changes">}}
-If you change the hostname of your rport server in the `rportd.conf` file you very likely must change it in the
+If you change the hostname of your Procy server in the `rportd.conf` file you very likely must change it in the
 email-based two-factor sender script too. Check `/usr/local/bin/2fa-sender.sh`.
 {{< /hint>}}
 
 ### Troubleshoot
 
-1. If rport doesn't start with the new configuration, inspect the start errors with
+1. If `rportd` doesn't start with the new configuration, inspect the start errors with
 
    ```bash
    journalctl -u rportd.service --no-pager -e
@@ -202,4 +202,4 @@ email-based two-factor sender script too. Check `/usr/local/bin/2fa-sender.sh`.
 
 All the above tunnel settings will trigger the creation of a subdomain. After tunnel creation you will notice that the
 API returns a field `tunnel_url`. The "access tunnel" button of the UI will point to that URL instead of pointing to the
-random port on the main domain of the rport server.
+random port on the main domain of the Procy server.

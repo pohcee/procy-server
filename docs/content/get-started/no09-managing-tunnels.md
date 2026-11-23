@@ -20,7 +20,7 @@ Alternatively add tunnels to the configuration file `rport.conf`.
 
 ## Manage tunnel server-side
 
-On the server, you can supervise and manage the attached clients through the [API](https://apidoc.openrport.io/master/#tag/Clients-and-Tunnels).
+On the server, you can supervise and manage the attached clients through the [API](https://procy.sh/api/).
 
 ### List
 
@@ -74,8 +74,8 @@ curl -u admin:foobaz -X PUT \
 "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?local=$LOCAL_PORT&remote=$REMOTE_PORT"|jq
 ```
 
-The ports are defined from the servers' perspective. "Local" refers to the local ports of the rport server.
-"Remote" refers to the ports and interfaces of the client. The above example opens port 4000 on the rport server and
+The ports are defined from the servers' perspective. "Local" refers to the local ports of the Procy server.
+"Remote" refers to the ports and interfaces of the client. The above example opens port 4000 on the Procy server and
 forwards to the port 22 of the client.
 
 Using
@@ -109,7 +109,7 @@ confirms the tunnel has been established.
 
 The above example makes the tunnel available without restrictions. Learn more about access control (ACL) below.
 
-If you omit the local port a random free port on the rport server is selected. For example,
+If you omit the local port a random free port on the Procy server is selected. For example,
 
 ```shell
 curl -s -u admin:foobaz -X PUT "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?remote=22"|jq
@@ -128,7 +128,7 @@ curl -s -u admin:foobaz -X PUT "http://localhost:3000/api/v1/clients/$CLIENTID/t
 }
 ```
 
-The rport client is not limited to establish tunnels only to the system it runs on. You can use it as a jump host to
+The Procy client is not limited to establish tunnels only to the system it runs on. You can use it as a jump host to
 create tunnels to foreign systems too.
 
 ```shell
@@ -139,7 +139,7 @@ curl -u admin:foobaz -X PUT \
 "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?local=$LOCAL_PORT&remote=$REMOTE_PORT"
 ```
 
-This example forwards port 4001 of the rport server to port 80 of `192.168.178.1` using the rport client in the middle.
+This example forwards port 4001 of the Procy server to port 80 of `192.168.178.1` using the Procy client in the middle.
 
 ```json
 {
@@ -211,22 +211,22 @@ curl -u admin:foobaz -X DELETE \
 
 ## Reverse proxy for http(s) based tunnels
 
-Starting with RPort version 0.5 the server comes with a built-in http reverse proxy. The reverse proxy runs on top of
+Starting with Procy version 0.5 the server comes with a built-in http reverse proxy. The reverse proxy runs on top of
 tunnels pointing to remote http or https backend.
 
 {{< mermaid class="text-center">}}
 flowchart LR
-  0[your browser] --> 1[Reverse Proxyon RPort server] --> 2[Tunnel endpoint] --> 3[Tunnel] --> 4[RPort Client] --> 5[Target]
+  0[your browser] --> 1[Reverse Proxyon Procy server] --> 2[Tunnel endpoint] --> 3[Tunnel] --> 4[Procy client] --> 5[Target]
 {{< /mermaid >}}
 Using the reverse tunnel allows you to access remote web servers (web-based configuration of switches, routers, NAS)
 through a secure https communication with valid ssl certificates on the public side.
 
-To enable this feature the rport server needs a key and a certificate in the `[server]` section of the `rportd.conf`
+To enable this feature the Procy server needs a key and a certificate in the `[server]` section of the `rportd.conf`
 file. If you run the server and API on the same DNS hostname, you can use the same key and certificate for the server and the API.
 
 Running the built-in http proxy without encryption is not supported.
 
-If you have upgraded your RPort server from an older version, insert the following lines into the `[server]` section
+If you have upgraded your Procy server from an older version, insert the following lines into the `[server]` section
 of `rportd.conf` manually.
 
 ```text
@@ -236,20 +236,20 @@ of `rportd.conf` manually.
   #tunnel_proxy_key_file = "/var/lib/rport/server.key" 
 ```
 
-By using `http_proxy=1` on [tunnel creation](https://apidoc.openrport.io/master/#operation/ClientTunnelsPut), the proxy will
-come up together with the tunnel. The rport server will then use two tcp ports. One for the raw tcp tunnel and one for
+By using `http_proxy=1` on [tunnel creation](https://procy.sh/api/), the proxy will
+come up together with the tunnel. The Procy server will then use two tcp ports. One for the raw tcp tunnel and one for
 the http proxy. ACLs are applied to proxy also. The raw tcp tunnel is bound to localhost only, and therefore it's not
 accessible from the outside.
 
 {{< hint type=warning >}}
-If you want to use the built-in tunnel proxy, accessing your rport server via an FQDN – and not via IP address – is
+If you want to use the built-in tunnel proxy, accessing your Procy server via an FQDN – and not via IP address – is
 mandatory. Otherwise, you will always get warnings about invalid SSL certificates.
 {{< /hint >}}
 
 ### Manipulating the host header
 
 The http header `host` is taken from the client request and passed without modification to the backend (remote target).
-If you use your browser for accessing the tunnel proxy, the host is usually set to the FQDN of your rport server.
+If you use your browser for accessing the tunnel proxy, the host is usually set to the FQDN of your Procy server.
 If the remote side requires a specific header `host` to jump into the right virtual host, you can specify a host header
 that will be used for the proxy connection. For example `http_proxy=1&host_header=www.example.com`.
 

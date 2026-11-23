@@ -9,9 +9,9 @@ aliases:
 
 ## Preface
 
-Starting with version 0.3 the rport client can fetch a list of pending updates for the underlying operating system.
-The summary is sent to the RPort server. This allows you to supervise the patch level of a large number of machines
-from a central place. On the RPort server API each client will contain an `update_status` object that contains data as
+Starting with version 0.3 the Procy client can fetch a list of pending updates for the underlying operating system.
+The summary is sent to the Procy server. This allows you to supervise the patch level of a large number of machines
+from a central place. On the Procy server API each client will contain an `update_status` object that contains data as
 shown in the example below.
 
 ```json
@@ -58,7 +58,7 @@ the `rport.conf` file.
 ## Rport can constantly summarize pending updates and
 ## make that summary available on the rport server.
 ## On Debian/Ubuntu and SuSE Linux sudo rules are needed.
-## https://oss.openrport.io/docs/no16-update-status.html
+## https://procy.sh/advanced/supervising-update-status/
 ## How often after the rport client has started pending updates are summarized
 ## Set 0 to disable.
 ## Supported time units: h (hours), m (minutes)
@@ -70,7 +70,7 @@ Setting `updates_interval = '0'` disables the feature. Triggering a manual refre
 
 ## Sudo rules
 
-On some Linux distributions, only the root user is allowed to look for pending updates. Because the rport client runs
+On some Linux distributions, only the root user is allowed to look for pending updates. Because the Procy client runs
 with its own unprivileged users, sudo rules are needed.
 
 ### Debian and Ubuntu

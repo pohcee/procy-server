@@ -7,11 +7,11 @@ aliases:
 ---
 
 {{< toc >}}
-Rport allows to store your scripts for later reuse, so you can share them with your teammates and to have access to them from anywhere.
+Procy allows to store your scripts for later reuse, so you can share them with your teammates and to have access to them from anywhere.
 
 ## Scripts management
 
-You can manage script with the [REST API](https://apidoc.openrport.io/master/#tag/Scripts).
+You can manage script with the [REST API](https://procy.sh/api/).
 
 The `/library/scripts` endpoints allow you to create, update, delete and list scripts.
 
@@ -197,7 +197,7 @@ Please note that scripts execution requires commands execution to be enabled
 Similar to command execution, you can run scripts both by calling a REST or websocket interface.
 In all cases the scripts are executed by the following algorithm:
 
-- Rport server calls each client to create a script file. The script file will get a random unique
+- Procy server calls each client to create a script file. The script file will get a random unique
   name and will be placed in the folder specified as `data_dir` from configuration + `scripts`:
 
   ```text
@@ -205,7 +205,7 @@ In all cases the scripts are executed by the following algorithm:
   data_dir = '/var/lib/rport/scripts'
   ```
 
-- Rport calls the existing command API to execute the script on the target client, e.g.:
+- Procy calls the existing command API to execute the script on the target client, e.g.:
 
   ```text
    #Linux/macOS
@@ -218,7 +218,7 @@ In all cases the scripts are executed by the following algorithm:
   powershell -executionpolicy bypass -file C:\Users\me\AppData\Local\Temp\68a779d-1d46-414a-b165-d8d2df5f348c.ps1
   ```
 
-- Rport deletes the temp script file in any case disregard if script execution fails or not.
+- Procy deletes the temp script file in any case disregard if script execution fails or not.
 
 **NOTE**
 To execute scripts you need to allow execution of the corresponding script command
@@ -273,7 +273,7 @@ curl -X POST 'http://localhost:3000/api/v1/clients/4943d682-7874-4f7a-999c-b4ff5
 ```
 
 you can check the status of the command execution by calling
-[client commands API](https://apidoc.openrport.io/master/#operation/ClientCommandsJobGet).
+[client commands API](https://procy.sh/api/).
 
 You can execute a script on multiple clients by calling `scripts` API, in this case you should provide client ids in
 the input body:
@@ -324,7 +324,7 @@ allows you to use `pwsh7` or `latestbash` as interpreter in the script execution
 
 ### Script execution via websocket interface
 
-You can use [our testing API for Websockets](https://apidoc.openrport.io/master/#operation/WsCommandsGet).
+You can use [our testing API for Websockets](https://procy.sh/api/).
 To use this API, enable testing endpoints by setting `enable_ws_test_endpoints` flag to true in the `[server]`
 section of configuration file:
 
@@ -334,7 +334,7 @@ section of configuration file:
   enable_ws_test_endpoints = true
 ```
 
-Restart Rport server and go to: `{YOUR_RPORT_ADDRESS}/api/v1/test/scripts/ui`
+Restart Procy server and go to: `{YOUR_RPORT_ADDRESS}/api/v1/test/scripts/ui`
 
 Put an access token and a client ids in the corresponding fields. You can also provide `interpreter`, `is_sudo`, `cwd`,
 `timeout` parameters as described above.

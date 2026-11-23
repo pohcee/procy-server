@@ -3,9 +3,9 @@ properties:
   command:
     type: string
     description: >-
-      remote command to execute by rport client(s). NOTE: if command limitation
-      is enabled by an rport client then a full path command can be required to
-      use. See https://oss.rport.io/docs/no06-command-execution.html for more
+      remote command to execute by Procy client(s). NOTE: if command limitation
+      is enabled by a Procy client then a full path command can be required to
+      use. See https://procy.sh/get-started/command-execution/ for more
       details
   cwd:
     type: string
@@ -45,5 +45,5 @@ properties:
       'execute_concurrently' is false. If true - abort the entire cycle if the
       execution fails on some client. By default is true
 description: >-
-  Request that contains a remote command to execute by rport client(s) and other
+  Request that contains a remote command to execute by Procy client(s) and other
   related properties

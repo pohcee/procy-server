@@ -6,7 +6,7 @@ aliases:
   - /docs/no11-multi-tenancy.html
 ---
 {{< toc >}}
-Multi tenancy can be achieved by running multiple isolated instances of the RPort server on a single host.
+Multi tenancy can be achieved by running multiple isolated instances of the Procy server on a single host.
 By invoking `rportd` multiple time with different configuration files, you get completely isolated server instances.
 
 ## Run it with systemd

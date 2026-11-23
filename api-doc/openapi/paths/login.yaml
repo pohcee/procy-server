@@ -14,7 +14,7 @@ get:
     `/verify-2fa` endpoint and also to create and read a totp secret for the
     first time (see `/me/totp-secret`)
 
-    * If Rport Plus OAuth is enabled, then this API will be disabled and a 403
+    * If RPort Plus OAuth is enabled, then this API will be disabled and a 403
     status response will be returned. Login using the `/auth/provider` and
     `/auth/ext/settings` or `/auth/ext/settings/device` endpoints instead.
   parameters:

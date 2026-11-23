@@ -8,11 +8,11 @@ slug: watchdog-integration
 
 ## Watchdog integration
 
-Starting with RPort version 0.8.3 you can enable a watchdog integration on the rport client.
+Starting with Procy version 0.8.3 you can enable a watchdog integration on the Procy client.
 
-The rport client works stable and reliable and broken connections are always resumed.
+The Procy client works stable and reliable and broken connections are always resumed.
 There is no need to enable watchdog integration by default.
-It should only be activated in exceptional cases when you notice the rport client process is running, but no connection
+It should only be activated in exceptional cases when you notice the Procy client process is running, but no connection
 attempts are made.
 
 On the `rport.conf` go the the `[connection]` section and set `watchdog_integration = true`.
@@ -20,7 +20,7 @@ Also make sure you have `max_retry_count` disabled and `keep_alive` must be enab
 
 ## State.json file
 
-With the watchdog integration enabled, the rport client will create and constantly update a file `state.json` in the
+With the watchdog integration enabled, the Procy client will create and constantly update a file `state.json` in the
 data directory. The file looks like the following example:
 
 ```json
@@ -34,18 +34,18 @@ data directory. The file looks like the following example:
 
 The first two fields indicate when the file has been updated for the last time. These are the most important field,
 and your supervisor logic must be based one of the update times. As long as the last_update constantly increases,
-the rport client is working correctly.
+the Procy client is working correctly.
 
 The field `last_state` can have one of the following values:
 
 `initialized`
-: the watchdog integration was started but no rport client state is yet known.
+: the watchdog integration was started but no Procy client state is yet known.
 
 `connected`
-: the rport client is connected to the server.
+: the Procy client is connected to the server.
 
 `reconnecting`
-: the rport client is not connected but trying to reconnect.
+: the Procy client is not connected but trying to reconnect.
 
 The field `last_message` can have one of the following values:
 
@@ -72,7 +72,7 @@ interval set by `max_retry_interval`.
 
 ## Implement your watchdog
 
-Your watchdog implementation should restart the rport client when is "hangs". Either the last update is older than
+Your watchdog implementation should restart the Procy client when is "hangs". Either the last update is older than
 the current time minus the keep alive interval or older than the max retry interval.
 
 ### Simple PowerShell example
@@ -95,8 +95,8 @@ if ($diff -gt $threshHoldSec){
 }
 ```
 
-🐶 A fully-featured rport watchdog for Windows implemented in PowerShell can be
-[downloaded here](https://github.com/realvnc-labs/rport-win-watchdog). It comes ready-to-use with an easy
+🐶 A fully-featured Procy watchdog for Windows implemented in PowerShell can be
+[downloaded here](https://github.com/openrport/rport-win-watchdog). It comes ready-to-use with an easy
 installation.
 
 ### Using the systemd watchdog
@@ -106,17 +106,17 @@ so you can observe what's happening behind the scenes.
 
 To enable the systemd watchdog you must enter a line `WatchdogSec=N` to the service file
 `/etc/systemd/system/rport.service`. This causes systemd to create a unix socket where watchdog updates can be pushed to.
-The rport client will automatically recognize the presence of the socket and updates will be pushed on the events listed
+The Procy client will automatically recognize the presence of the socket and updates will be pushed on the events listed
 above.
 
 If you enable debug logging, you will get a confirmation like `Using NOTIFY_SOCKET /run/systemd/notify for systemd watchdog integration` in the log file.
 
-If systemd does not detect any updates on the socket within the `WatchdogSec` period, it will restart the rport client.
+If systemd does not detect any updates on the socket within the `WatchdogSec` period, it will restart the Procy client.
 This means you must set `WatchdogSec` a bit longer than `max_retry_interval` and `keep_alive`. See above.
 
 Setting `keep_alive` and `max_retry_interval` both the 3 minutes and `WatchdocSec` to 200 are good values.
 The shorter you set `keep_alive` and `max_retry_interval` the faster the watchdog can act. But the more bandwidth the
-rport client consumes in idle mode.
+Procy client consumes in idle mode.
 
 Full systemd service example:
 

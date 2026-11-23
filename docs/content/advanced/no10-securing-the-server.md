@@ -1,12 +1,13 @@
 ---
-title: "Securing the rport server"
+title: "Securing the Procy server"
 weight: 10
-slug: securing-the-rport-server
+slug: securing-the-server
 aliases:
+  - /advanced/securing-the-rport-server/
   - /docs/no10-securing-the-server.html
 ---
 {{< toc >}}
-Your rport server usually exposes two TCP ports to the public internet:
+Your Procy server usually exposes two TCP ports to the public internet:
 
 * one for the client connections
 * one for the API and the web frontend
@@ -30,7 +31,7 @@ By default, the following options are activated for the client connection listen
 ##    'client-listener: Failed login attempt for client auth id "abc", forcing to wait for {client_login_wait}s ({ip})'
 ## is logged to the info log.
 ## Consider changing the log_level to 'info' to trace failed login attempts.
-## Learn more https://oss.openrport.io/docs/no10-securing-the-server.html
+## Learn more https://procy.sh/advanced/securing-the-server/
 ## Defaults: 2.0
 #client_login_wait = 2.0
 
@@ -41,7 +42,7 @@ By default, the following options are activated for the client connection listen
 ## is logged to the info log.
 ## Banning happens on HTTP level.
 ## Consider banning on network level using fail2ban.
-## Learn more https://oss.openrport.io/docs/no10-securing-the-server.html
+## Learn more https://procy.sh/advanced/securing-the-server/
 ## Defaults: max_failed_login = 5, ban_time = 3600
 #max_failed_login = 5
 #ban_time = 3600
@@ -68,7 +69,7 @@ failed logins and to eventually activate fail2ban.
 
 After a short period, you will notice HTTP requests to arbitrary files and folders on the client connect port that are
 answered with HTTP 404. The internet is full of scanners searching for vulnerable web applications.
-You can safely ban any IP address that produces HTTP 404. A rport client will never do this.
+You can safely ban any IP address that produces HTTP 404. A Procy client will never do this.
 
 Search your log file for the following pattern:
 `egrep " 404 [0-9]+\w+ \(.*\)" /var/log/rport/rportd.log`
@@ -76,7 +77,7 @@ Search your log file for the following pattern:
 #### Fail2ban configuration
 
 {{< hint type=tip >}} Remember
-All fail2ban rules require running rport with `log_level = 'info'`.
+All fail2ban rules require running `rportd` with `log_level = 'info'`.
 {{< /hint >}}
 
 To create rules and filters to ban both, password guessers and scanners, proceed with the following setup.

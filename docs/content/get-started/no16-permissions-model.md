@@ -12,8 +12,8 @@ hosts and all functions.
 
 ## User group permissions aka. function permissions
 
-A none-admin user has no effective rights on rport unless via at least one user group, permissions are granted.
-Currently, rport is subdivided into the following functions:
+A none-admin user has no effective rights in Procy unless via at least one user group, permissions are granted.
+Currently, Procy is subdivided into the following functions:
 
 * tunnels
 * scripts
@@ -26,7 +26,7 @@ Currently, rport is subdivided into the following functions:
 
 The permissions are stored on the `group_details` table of
 your [API access database](/get-started/api-authentication/#database). They are managed through
-the [update user groups API endpoint](https://apidoc.openrport.io/master/#tag/User-Groups/operation/UserGroupPut).
+the [update user groups API endpoint](https://procy.sh/api/).
 
 In addition to one of the above function permissions client permissions are needed. In other words, the function
 permissions define only what a user can do, but not on which clients he/she can do it.
@@ -37,13 +37,13 @@ group has a permission, you cannot revoke it through a second user group. {{< /h
 ## Client permissions
 
 A user that has at least one of the above function permission needs at least access to one client to effectively use
-rport.
+Procy.
 
 ### Per client
 
 You can grant access to a single client to one or many user groups. The allowed user groups are stored on the clients'
 table inside the `details` object. The so-called client ACLs are managed through
-the [client ACL API endpoint](https://apidoc.openrport.io/master/#tag/Clients-and-Tunnels/operation/ClientAclPost)
+the [client ACL API endpoint](https://procy.sh/api/)
 
 ### Client group permissions
 
@@ -51,7 +51,7 @@ You can grant access to a client group to one or many user groups. This makes ma
 flexible.
 
 Client group access is managed through
-the [client groups API endpoint](https://apidoc.openrport.io/master/#tag/Client-Groups). The underlying data is stored on
+the [client groups API endpoint](https://procy.sh/api/). The underlying data is stored on
 the `client_groups` database.
 
 {{< hint type=caution title="Permissions are additive only">}} There is no option to revoke a permission. If permission
@@ -86,9 +86,6 @@ or denied commands.
 {{< hint type=caution title="License">}} Please note that using this feature requires a valid rport-plus license,
 otherwise the extended permissions feature will run in trial mode.
 {{< /hint >}}
-
-Please refer to the [extended permissions documentation in RPort Plus](https://docs.rport.io/plus/extended-permissions/)
-for more information.
 
 ### Trial Mode
 

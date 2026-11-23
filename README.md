@@ -1,60 +1,44 @@
 <!-- markdownlint-disable -->
-[![linuxserver.io](https://github.com/openrport/openrport/blob/0.9.14/openrport.png)](https://linuxserver.io)
-[![Button Launch RPort  Now](https://img.shields.io/badge/Discord-Join_Now-brightgreen?style=for-the-badge&logo=discord)](https://discord.gg/HQ4wMQmzcu)
-> This a repo in an effort to continue an opensource version of original cloudradar-monitoring rport. 
-> We are working to bring back all the component to opensource. Some documentation might be inconsistent
-> but will still be usable.
-> 
-> While we are working on the new website you can join the discord server to get help [Join Discord](https://discord.gg/HQ4wMQmzcu)
+![Procy: the clever raccoon sneaking a secure tunnel under a firewall to a server](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-hero.svg)
 
-## Coming from RPort.io? Check this out!
+[![Discord](https://img.shields.io/badge/Discord-Join_Now-brightgreen?style=for-the-badge&logo=discord)](https://discord.gg/HQ4wMQmzcu)
 
-As a community that supports open source software, we were surprised by the move RealVNC made with RPort.  As mentioned on their website, support as well as all subsequent updates of RPort from version 1.0.0 will require a license.  Using the latest public opensource versions of RPort, we continue to support and develop RPort in the spirit of opensource.  We are currently working on major improvements to the software so that it is fully decoupled from RealVNC.  Pairing (the "Install client" one-liners) is built into rportd. Enable it in `/etc/rport/rportd.conf`:
-
-```
-[pairing]
-  enabled = true
-  url = "https://rport.example.com"
-  downloads_url = "https://rport.example.com/downloads"
-```
-
-and restart the rport server: `sudo systemctl restart rportd.service`. See the `[pairing]` section of
-`rportd.example.conf` for all options.
+> Procy continues the open-source rport project, originally built by CloudRadar and carried on by the community as
+> [OpenRPort](https://github.com/openrport/openrport) after rport moved to a commercial licence. The programs, packages and config files still
+> use the `rport` names (`rportd`, `rport`, `/etc/rport/rportd.conf`); they will be renamed in a later release.
 
 ## At a glance
 
 <!-- markdownlint-restore -->
 
-Rport helps you to manage your remote servers without the hassle of VPNs, chained SSH connections, jump-hosts, or the
-use of commercial tools like TeamViewer and its clones.
+Procy helps you manage remote servers without the hassle of VPNs, chained SSH connections, jump hosts, or
+commercial tools like TeamViewer and its clones.
 
-Rport acts as server and client establishing permanent or on-demand secure tunnels to devices inside protected intranets
-behind a firewall.
+Procy consists of a server (`rportd`) and a client (`rport`) that establish permanent or on-demand secure tunnels to
+devices inside protected intranets behind a firewall.
 
-All operating systems provide secure and well-established mechanisms for remote management, being SSH and Remote Desktop
-the most widely used. Rport makes them accessible easily and securely.
+All operating systems provide secure and well-established mechanisms for remote management, SSH and Remote Desktop
+being the most widely used. Procy makes them accessible easily and securely.
 
-Watch our short [explainer video](https://player.vimeo.com/video/573085727).
-
-**Is Rport a replacement for TeamViewer?**
+**Is Procy a replacement for TeamViewer?**
 Yes and no. It depends on your needs.
 TeamViewer and a couple of similar products are focused on giving access to a remote graphical desktop bypassing the
 Remote Desktop implementation of Microsoft. They fall short in a heterogeneous environment where access to headless
 Linux machines is needed. But they are without alternatives for Windows Home Editions.
-Apart from remote management, they offer supplementary services like Video Conferences, desktop sharing, screen
+Apart from remote management, they offer supplementary services like video conferences, desktop sharing, screen
 mirroring, or spontaneous remote assistance for desktop users.
 
-**Goal of Rport**
-Rport focuses only on remote management of those operating systems where an existing login mechanism can be used.
+**Goal of Procy**
+Procy focuses only on remote management of those operating systems where an existing login mechanism can be used.
 It can be used for Linux and Windows, but also appliances and IoT devices providing a web-based configuration.
 From a technological perspective, [Ngrok](https://ngrok.com/) and [openport.io](https://openport.io) are similar
-products. Rport differs from them in many aspects.
+products. Procy differs from them in many aspects.
 
-* Rport is 100% open source. Client and Server. Remote management is a matter of trust and security. Rport is fully transparent.
-* Rport will come with a user interface making the management of remote systems easy and user-friendly.
-* Rport is made for all operating systems with native and small binaries. No need for Python or similar heavyweights.
-* Rport allows you to self-host the server.
-* Rport allows clients to wait in standby mode without an active tunnel. Tunnels can be requested on-demand by the user remotely.
+* Procy is 100% open source. Client and Server. Remote management is a matter of trust and security. Procy is fully transparent.
+* Procy comes with a [web UI](https://github.com/pohcee/openrport-ui) that makes managing remote systems easy.
+* Procy is made for all operating systems with native and small binaries. No need for Python or similar heavyweights.
+* Procy lets you self-host the server.
+* Procy lets clients wait in standby mode without an active tunnel. Tunnels can be requested on demand by the user remotely.
 
 **Supported operating systems**
 For the client almost all operating systems are supported, and we provide binaries for a variety of Linux architectures
@@ -62,55 +46,73 @@ and Microsoft Windows.
 Also, the server can run on any operating system supported by the golang compiler. At the moment we provide server
 binaries only for Linux X64 because this is the ideal platform for running it securely and cost-effective.
 
-![Rport Principle](https://raw.githubusercontent.com/openrport/openrport/master/docs/static/images/rport-principle.svg 'Rport Principle')
+![Procy Principle](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-principle.svg 'Procy Principle')
 
-## Instantly launch an RPort server
+## Why Procy?
 
-[![Button Launch RPort  Now](https://img.shields.io/badge/RPort_Server-Launch_Now-brightgreen?style=for-the-badge&logo=Windows%20Terminal)](https://kb.openrport.io/install-the-rport-server)
+Every project needs a mascot, and ours is a raccoon: good with its hands, busy at night, and very good at getting into
+places it was never meant to reach. That is the job of a remote tunnel.
 
-🚀 If you are curious and want to try RPort, install your server now in no time. Use our
-[server installation script](https://kb.openrport.io/install-the-rport-server).
+The first name on the table was **Cannie**. It sounds like *canny*, which is exactly what a raccoon is, and it also
+sounds like *can*, the garbage can every raccoon knows how to open. Unfortunately, half the internet had the same idea.
+
+So we went to Latin. The raccoon's genus is *Procyon*, and *callidus* means clever or skilled: ***Procyon callidus***,
+the clever raccoon. As a bonus, Procyon is also the brightest star in *Canis Minor*, so a little of Cannie lives on in
+the night sky.
+
+*Procyon callidus* is a mouthful, so it became **Procy** (say "PRO-see"). It sounds a lot like *proxy*, which for a
+tunnel and remote access tool we decided is a feature, not a bug.
+
+## Install
+
+Download the server and client packages from the [latest release](https://github.com/pohcee/openrport/releases/latest),
+then follow the [quick start](https://procy.sh/get-started/quick-start/).
+
+### Client pairing
+
+Pairing (the "Install client" one-liners in the web UI) is built into `rportd`. Enable it in `/etc/rport/rportd.conf`:
+
+```text
+[pairing]
+  enabled = true
+  url = "https://rport.example.com"
+  downloads_url = "https://rport.example.com/downloads"
+```
+
+and restart the server: `sudo systemctl restart rportd.service`. See the `[pairing]` section of
+`rportd.example.conf` for all options.
 
 ## 📖 Documentation
 
-### End-User documentation
-
-[![end-user-documentation](https://img.shields.io/badge/End--User_Documentation-Read_Now-green?style=for-the-badge&logo=Gitbook)](https://kb.openrport.io)
-
-our [end-user documentation](https://kb.openrport.io) with articles on user-friendly installation, settings and secure operation of RPort.
-
-### Technical documentation
-
-[![technical-documentation](https://img.shields.io/badge/Technical_Documentation-Read_Now-orange?style=for-the-badge&logo=Github)](https://oss.openrport.io/)
-
-our [technical documentation](https://oss.openrport.io) with all background information and underlying concepts
+The [documentation](https://procy.sh/) covers installation, configuration, secure operation and the concepts behind
+Procy. The REST API is described in the [API reference](https://procy.sh/api/).
 
 ## Feedback and Help
 
 **We need your feedback**.
-Our vision is to establish Rport as a serious alternative to all the black box software for remote management.
+Our vision is to establish Procy as a serious alternative to all the black box software for remote management.
 To make it a success, please share your feedback.
 
 ### Report bugs
 
-If you encounter errors while installing or using Rport, please let us know.
-[File an issue report](https://github.com/openrport/openrport/issues) here on GitHub.
+If you encounter errors while installing or using Procy, please let us know.
+[File an issue report](https://github.com/pohcee/openrport/issues) here on GitHub.
 
 ### Ask question
 
-If you have difficulties installing or using rport, don't hesitate to ask us anything. Often questions give us a hint
+If you have difficulties installing or using Procy, don't hesitate to ask us anything. Often questions give us a hint
 on how to improve the documentation. Do not use issue reports for asking questions.
-Use the [discussion forum](https://github.com/openrport/openrport/discussions) instead.
+Use the [discussion forum](https://github.com/pohcee/openrport/discussions) instead.
 
 ### Positive Feedback
 
 Please share positive feedback also. Give us a star. Write a review. Share our project page on your social media.
-Contribute to the [discussion](https://github.com/openrport/openrport/discussions). Is Rport suitable for your
+Contribute to the [discussion](https://github.com/pohcee/openrport/discussions). Is Procy suitable for your
 needs? What is missing?
 
 ### Stay tuned
 
-Click on the Watch button in the top right corner of the [Repository Page](https://github.com/openrport/openrport).
+Click on the Watch button in the top right corner of the [Repository Page](https://github.com/pohcee/openrport).
 This way you won't miss any updates and the upcoming features.
 
 ## Credits
@@ -120,4 +122,4 @@ This way you won't miss any updates and the upcoming features.
 
 ## Versioning model
 
-rport uses `<major>.<minor>.<buildnumber>` version pattern for compatibility with a maximum number of package managers.
+Procy uses `<major>.<minor>.<buildnumber>` version pattern for compatibility with a maximum number of package managers.

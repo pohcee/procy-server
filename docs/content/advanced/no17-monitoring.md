@@ -10,7 +10,7 @@ aliases:
 
 ## Preface
 
-Starting with version 0.5 RPort comes with basic monitoring capabilities. The RPort client can collect the following
+Starting with version 0.5 Procy comes with basic monitoring capabilities. The Procy client can collect the following
 metrics from the underlying operating system:
 
 * CPU usage (percent)
@@ -19,11 +19,11 @@ metrics from the underlying operating system:
 * List of running processes
 * Fill level of hard disks and mount points
 
-To use the built-in monitoring both – server and client – must run at least RPort 0.5.0.
+To use the built-in monitoring both – server and client – must run at least Procy 0.5.0.
 
 The monitoring is enabled by default. If newer clients are connected to an old server the client disables the monitoring
 automatically. All monitoring data is stored on the server in a sqlite3 database file `monitoring.db` inside the data dir
-of the RPort server.
+of the Procy server.
 
 ## Server configuration options
 
@@ -35,16 +35,16 @@ file outside the data dir.
 ## Client configuration options
 
 If you client configuration after an update does not contain a `[monitoring]` section, copy it from the
-[rport.example.conf](https://github.com/openrport/openrport/blob/master/rport.example.conf).
+[rport.example.conf](https://github.com/pohcee/openrport/blob/main/rport.example.conf).
 To save bandwidth and disk space on the server, you can disable the monitoring for clients completely.
 Please refer to the documentation inside the configuration example to explore all options of the monitoring.
 
 ## Fetching monitoring data
 
 All collected monitoring data can be fetched using the API. Please refer to our
-[API docs](https://apidoc.openrport.io/master/#tag/Monitoring).
+[API docs](https://procy.sh/api/).
 
 ## Processing monitoring data
 
 At the moment, either the client nor the server processes the monitoring data in any way. Sending alerts based on
-thresholds is on our roadmap. Be patient and [stay tuned](https://subscribe.openrport.io).
+thresholds is on our roadmap. Watch the [releases](https://github.com/pohcee/openrport/releases) for updates.

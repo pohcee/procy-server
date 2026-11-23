@@ -31,7 +31,7 @@ But you can create an API token per user (see below) to activate HTTP basic auth
 
 ### Bearer Token Auth
 
-Using HTTP Basic auth you can request a token at [`login` endpoint](https://apidoc.rport.io/master/#tag/Login) to
+Using HTTP Basic auth you can request a token at [`login` endpoint](https://procy.sh/api/) to
 authenticate further requests with a token.
 Example:
 
@@ -61,13 +61,13 @@ Tokens are based on JWT. For your security, you should enter a unique `jwt_secre
 the provided sample secret in a production environment.
 
 Tokens can be issued only for certain pages. If you have 2fa enabled (either with a deliverable code or an Authenticator
-app), rport issues a token, which can be used only in the `/verify-2fa` API. This ensures that your login attempt is
+app), Procy issues a token, which can be used only in the `/verify-2fa` API. This ensures that your login attempt is
 connected to the 2fa code verification. On the other hand, tokens which are issued after successful 2fa code validation
 cannot be used to call the `/verify-2fa` API.
 
 ### HTTP Basic Auth with username and personal API Token
 
-For the integration of third-party applications or for the development of scripts RPort supports the creation of
+For the integration of third-party applications or for the development of scripts Procy supports the creation of
 personal API tokens. These tokens can be used for HTTP basic authentication.
 
 Users must submit the personal API token instead of the password, for example:
@@ -76,11 +76,11 @@ Users must submit the personal API token instead of the password, for example:
 curl -s -u admin:e83d40e4-e237-43d6-bb99-35972ded631b http://localhost:3000/api/v1/clients|jq
 ```
 
-Prior to RPort 0.9.11 each user could have only a single API token. Starting with 0.9.11 users can have an unlimited
+Prior to Procy 0.9.11 each user could have only a single API token. Starting with 0.9.11 users can have an unlimited
 number of API token. Tokens have a scope and an expiry date.
 
 To generate personal API token navigate to the `Settings` -> `API Tokens` on the user interface, or generate tokens
-[using the API](https://apidoc.openrport.io/master/#tag/Profile-and-Info/operation/MetTokenPost).
+[using the API](https://procy.sh/api/).
 
 ## Two-Factor Auth
 
@@ -131,7 +131,7 @@ Note: 2FA is not available if you use [a single static user-password pair](/docs
 
 #### How to use it?
 
-1. Using 2FA will disable HTTP basic auth on all API endpoints except [`/login`](https://apidoc.openrport.io/master/#tag/Login).
+1. Using 2FA will disable HTTP basic auth on all API endpoints except [`/login`](https://procy.sh/api/).
    Login endpoints trigger sending 2FA verification code to a user. For example,
 
 ```shell
@@ -157,10 +157,10 @@ The login token has a limited time validity, which is defined in the `[api]` sec
 Verification code: 05Nfqm (valid 10m0s)
 ```
 
-1. Verify this code using [`/verify-2fa`](https://apidoc.openrport.io/master/#operation/Verify2faPost) endpoint and provide
+1. Verify this code using [`/verify-2fa`](https://procy.sh/api/) endpoint and provide
    token that you received after login as Bearer Auth header (e.g. `Authorization: Bearer eyJhbGciOiJIUz...SNIP...SNAP`).
 2. If login token is valid and the provided code is correct, this API returns an auth JWT token that can be further used
-   for any requests as listed in [here](no02-api-auth.md#bearer-token-auth). For example:
+   for any requests as described in [Bearer token auth](no02-api-auth.md#bearer-token-auth). For example:
 
 ```shell
 curl -s http://localhost:3000/api/v1/verify-2fa -H "Content-Type: application/json" -X POST \
@@ -292,14 +292,14 @@ Copy the second part after the colon to the `api-auth.json` file. This is the ha
 
 ### Database
 
-If you want to integrate rport into and existing user base or if you want to implement some kind of registration,
-reading credentials from a database might be handy. Rport has no special demands on the database or the table layout.
+If you want to integrate Procy into an existing user base or if you want to implement some kind of registration,
+reading credentials from a database might be handy. Procy has no special demands on the database or the table layout.
 
 The password must be bcrypt-hashed.
 
 To use the database authentication you must set up a global database connection in the `[database]` section of `rportd.config` first.
 Only MySQL/MariaDB and SQLite3 are supported at the moment.
-The [example config](https://github.com/openrport/openrport/blob/master/rportd.example.conf) contains all
+The [example config](https://github.com/pohcee/openrport/blob/main/rportd.example.conf) contains all
 explanations on how to set up the database connection.
 
 Having the database set up, enter the following two lines to the `[api]` section of the `rportd.config` to specify the table names.
@@ -377,7 +377,7 @@ Enter the following line to the `rportd.conf` file in `[database]` section:
   db_name = "/var/lib/rport/database.sqlite3"
 ```
 
-Create the database and set the ownership. Restart rport afterwards.
+Create the database and set the ownership. Restart `rportd` afterwards.
 
 ```shell
 touch /var/lib/rport/database.sqlite3
@@ -468,7 +468,7 @@ INSERT INTO groups VALUES('admin','Administrators');
 {{< /tabs >}}
 
 This creates a user `admin` with the password `password`. To use another password, create the appropriate bcrypt hash
-[here](https://bcrypt-generator.com/) or use `htpasswd` on the command line.
+with a [bcrypt generator](https://bcrypt-generator.com/) or use `htpasswd` on the command line.
 
 ### Extended group permissions additional fields
 
@@ -525,7 +525,7 @@ curl -Ss -X PUT https://localhost/api/v1/users/Willy \
 
 ### Manage user from the command line
 
-Starting with RPort 0.9.11 the ability to manage users from the command line has been introduced. The allows adding
+Starting with Procy 0.9.11 the ability to manage users from the command line has been introduced. The allows adding
 users or changing passwords independent of the underlying storage mechanism.
 
 {{< hint type=important title="don't execute from root account" >}}
@@ -645,7 +645,7 @@ open qr.png
 ```
 
 You can open `gr.png` image and scan it with your authenticator app. If everything works well, you will see one time
-passwords generated every 30 seconds. After activation, you will see Rport account in your Authenticator app. You can
+passwords generated every 30 seconds. After activation, you will see Procy account in your Authenticator app. You can
 change this name by changing configuration key `totp_account_name` to a name of your choice.
 
 ### (3) send one-time tokens
@@ -722,12 +722,12 @@ Staring with rportd 0.5.0 you can delegate the authentication to a reverse proxy
 authentication backends for example such supported by Netscaler, Keycloak, the
 [Apache Auth Plugins](https://httpd.apache.org/docs/2.4/howto/auth.html) or by the [Caddy Auth Portal](https://github.com/greenpau/caddy-auth-portal).
 
-If the reverse proxy sends a specific header and a header that includes a username in the value, rport considers the
+If the reverse proxy sends a specific header and a header that includes a username in the value, Procy considers the
 user as authenticated.
 Using the delegated authentication does not liberate you from performing a `/api/v1/login` request to retrieve the JWT
 and sending this JWT on all requests.
 
-If you are using the RPort frontend, you can send authenticated useser directly to
+If you are using the Procy frontend, you can send authenticated useser directly to
 `https://<SERVER-FQDN>/auth/?auto-login=1&remember-me=24h`. This caused the login form to be auto-submitted.
 
 To enable the delegated authentication, activate the following settings in your `rportd.conf`.
@@ -773,7 +773,7 @@ The rportd user backend is not asked.
 
 If you do the request via the web user interface you also need to enter the username and password specified by the proxy.
 
-In this example, you must log in as user "jomama" but rport treats you as "jopapa" because the reverse proxy sends a
+In this example, you must log in as user "jomama" but Procy treats you as "jopapa" because the reverse proxy sends a
 static hard coded username in the `My-User` header.
 
 {{< hint type=warning >}}
