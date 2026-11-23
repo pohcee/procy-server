@@ -40,6 +40,40 @@ type ListOptions struct {
 type Manager struct {
 	store *Store
 	now   func() time.Time
+	refs  ReferenceChecker
+}
+
+// Reference identifies something (a schedule) that uses an entry.
+type Reference struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// ReferenceChecker finds the schedules that use an entry; implemented by the
+// schedule manager (library can't import it).
+type ReferenceChecker interface {
+	SchedulesUsing(ctx context.Context, entryID string) ([]Reference, error)
+}
+
+// SetReferenceChecker enables delete protection and UsedBy.
+func (m *Manager) SetReferenceChecker(rc ReferenceChecker) { m.refs = rc }
+
+// UsedBy lists the schedules using the entry.
+func (m *Manager) UsedBy(ctx context.Context, id string) ([]Reference, error) {
+	if _, err := m.get(ctx, id, true); err != nil {
+		return nil, err
+	}
+	if m.refs == nil {
+		return []Reference{}, nil
+	}
+	refs, err := m.refs.SchedulesUsing(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if refs == nil {
+		refs = []Reference{}
+	}
+	return refs, nil
 }
 
 func NewManager(store *Store, now func() time.Time) *Manager {
@@ -285,6 +319,17 @@ func (m *Manager) Delete(ctx context.Context, id, user string) error {
 	e, err := m.editable(ctx, id)
 	if err != nil {
 		return err
+	}
+	refs, err := m.UsedBy(ctx, e.ID)
+	if err != nil {
+		return err
+	}
+	if len(refs) > 0 {
+		names := make([]string, len(refs))
+		for i, r := range refs {
+			names[i] = r.Name
+		}
+		return apiErr(http.StatusConflict, "entry %q is used by schedules: %s", e.Name, strings.Join(names, ", "))
 	}
 	at := m.now().UTC()
 	return m.store.SetDeleted(ctx, e.ID, &at, user)

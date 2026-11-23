@@ -90,3 +90,9 @@ delete:
         application/json:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: Schedules use the entry; the message names them and GET /library/entries/{entry_id}/used-by lists them
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

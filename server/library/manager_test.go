@@ -237,3 +237,51 @@ func TestListFiltersByOS(t *testing.T) {
 	require.Len(t, list, 1)
 	assert.Equal(t, "Beta", list[0].Name)
 }
+
+type fakeRefs struct{ refs []Reference }
+
+func (f fakeRefs) SchedulesUsing(_ context.Context, _ string) ([]Reference, error) {
+	return f.refs, nil
+}
+
+func TestDeleteRefusedWhenScheduled(t *testing.T) {
+	m, _ := newTestManager(t)
+	ctx := context.Background()
+	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
+	require.NoError(t, err)
+	m.SetReferenceChecker(fakeRefs{[]Reference{{ID: "s1", Name: "nightly"}, {ID: "s2", Name: "weekly"}}})
+
+	err = m.Delete(ctx, e.ID, "bob")
+	apiErr := requireStatus(t, err, http.StatusConflict)
+	assert.Equal(t, `entry "Disk" is used by schedules: nightly, weekly`, apiErr.Message)
+	got, err := m.Get(ctx, e.ID, false)
+	require.NoError(t, err)
+	assert.Nil(t, got.DeletedAt)
+}
+
+func TestUsedByListsSchedules(t *testing.T) {
+	m, _ := newTestManager(t)
+	ctx := context.Background()
+	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
+	require.NoError(t, err)
+	refs, err := m.UsedBy(ctx, e.ID)
+	require.NoError(t, err)
+	assert.Empty(t, refs)
+
+	m.SetReferenceChecker(fakeRefs{[]Reference{{ID: "s1", Name: "nightly"}}})
+	refs, err = m.UsedBy(ctx, e.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []Reference{{ID: "s1", Name: "nightly"}}, refs)
+
+	_, err = m.UsedBy(ctx, "nope")
+	requireStatus(t, err, http.StatusNotFound)
+}
+
+func TestDeleteAllowedWithoutReferences(t *testing.T) {
+	m, _ := newTestManager(t)
+	ctx := context.Background()
+	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
+	require.NoError(t, err)
+	m.SetReferenceChecker(fakeRefs{})
+	require.NoError(t, m.Delete(ctx, e.ID, "bob"))
+}

@@ -120,6 +120,21 @@ func (m *Manager) SetLibrary(entries EntryLookup, saver MultiJobSaver) {
 	m.saver = saver
 }
 
+// SchedulesUsing lists the library schedules that run the entry.
+func (m *Manager) SchedulesUsing(ctx context.Context, entryID string) ([]library.Reference, error) {
+	all, err := m.provider.List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	refs := []library.Reference{}
+	for _, s := range all {
+		if s.Type == TypeLibrary && s.Details.LibraryEntryID == entryID {
+			refs = append(refs, library.Reference{ID: s.ID, Name: s.Name})
+		}
+	}
+	return refs, nil
+}
+
 func (m *Manager) List(ctx context.Context, r *http.Request) (*api.SuccessPayload, error) {
 	listOptions := query.GetListOptions(r)
 

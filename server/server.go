@@ -290,6 +290,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		return nil, err
 	}
 	s.scheduleManager.SetLibrary(s.apiListener.libraryManager, s.jobProvider)
+	s.apiListener.libraryManager.SetReferenceChecker(s.scheduleManager)
 
 	if s.config.CaddyEnabled() {
 		cfg := s.config

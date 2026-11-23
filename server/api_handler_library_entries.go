@@ -30,6 +30,7 @@ func (al *APIListener) addLibraryEntriesRoutes(r *mux.Router) {
 	r.HandleFunc(entryPath, al.handleGetLibraryEntry).Methods(http.MethodGet)
 	r.HandleFunc(entryPath, al.handleSaveLibraryEntry).Methods(http.MethodPut).Name(routes.LibraryEntryWriteRouteName + "-put")
 	r.HandleFunc(entryPath, al.handleDeleteLibraryEntry).Methods(http.MethodDelete)
+	r.HandleFunc(entryPath+"/used-by", al.handleLibraryEntryUsedBy).Methods(http.MethodGet)
 	r.HandleFunc(entryPath+"/undelete", al.handleUndeleteLibraryEntry).Methods(http.MethodPost)
 	r.HandleFunc(entryPath+"/run", al.handleRunLibraryEntry).Methods(http.MethodPost)
 	r.HandleFunc(entryVersions, al.handleListLibraryEntryVersions).Methods(http.MethodGet)
@@ -347,4 +348,13 @@ func (al *APIListener) handleRunLibraryEntry(w http.ResponseWriter, req *http.Re
 		SaveForMultipleClients(reqBody.OrderedClients)
 
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(resp))
+}
+
+func (al *APIListener) handleLibraryEntryUsedBy(w http.ResponseWriter, req *http.Request) {
+	refs, err := al.libraryManager.UsedBy(req.Context(), mux.Vars(req)[routes.ParamEntryID])
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(refs))
 }

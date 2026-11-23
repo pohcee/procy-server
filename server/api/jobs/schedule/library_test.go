@@ -257,3 +257,29 @@ func TestUpdateLibrarySchedule(t *testing.T) {
 	assert.Equal(t, "s1", s.ID)
 	assert.Empty(t, s.Details.Command)
 }
+
+type listProvider struct {
+	fakeProvider
+	all []*Schedule
+}
+
+func (l *listProvider) List(context.Context, *query.ListOptions) ([]*Schedule, error) {
+	return l.all, nil
+}
+
+func TestSchedulesUsing(t *testing.T) {
+	a := libSchedule()
+	a.ID, a.Name = "s1", "nightly"
+	b := libSchedule()
+	b.ID, b.Name, b.Details.LibraryEntryID = "s2", "other", "e2"
+	c := &Schedule{Base: Base{ID: "s3", Name: "typed", Type: TypeCommand}}
+	m := &Manager{provider: &listProvider{all: []*Schedule{a, b, c}}}
+
+	refs, err := m.SchedulesUsing(context.Background(), "e1")
+	require.NoError(t, err)
+	assert.Equal(t, []library.Reference{{ID: "s1", Name: "nightly"}}, refs)
+
+	refs, err = m.SchedulesUsing(context.Background(), "none")
+	require.NoError(t, err)
+	assert.Empty(t, refs)
+}

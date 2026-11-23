@@ -1,0 +1,28 @@
+get:
+  tags:
+    - Library
+  summary: List the schedules that use a library entry
+  operationId: LibraryEntryUsedByGet
+  parameters:
+    - {name: entry_id, in: path, required: true, schema: {type: string}}
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: string}
+                    name: {type: string}
+    '404':
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
