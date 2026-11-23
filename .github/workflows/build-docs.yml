@@ -1,5 +1,5 @@
 name: Build and deploy docs
-# Publishes https://procy.sh (Hugo site in docs/) with the API reference at /api/.
+# Publishes https://docs.procy.sh (Hugo site in docs/) with the API reference at /api/.
 on:
   push:
     branches:

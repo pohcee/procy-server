@@ -66,7 +66,7 @@ tunnel and remote access tool we decided is a feature, not a bug.
 ## Install
 
 Download the server and client packages from the [latest release](https://github.com/pohcee/openrport/releases/latest),
-then follow the [quick start](https://procy.sh/get-started/quick-start/).
+then follow the [quick start](https://docs.procy.sh/get-started/quick-start/).
 
 ### Client pairing
 
@@ -84,8 +84,8 @@ and restart the server: `sudo systemctl restart rportd.service`. See the `[pairi
 
 ## 📖 Documentation
 
-The [documentation](https://procy.sh/) covers installation, configuration, secure operation and the concepts behind
-Procy. The REST API is described in the [API reference](https://procy.sh/api/).
+The [documentation](https://docs.procy.sh/) covers installation, configuration, secure operation and the concepts behind
+Procy. The REST API is described in the [API reference](https://docs.procy.sh/api/).
 
 ## Feedback and Help
 

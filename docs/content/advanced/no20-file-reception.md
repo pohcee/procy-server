@@ -28,7 +28,7 @@ flowchart TD
 
 ## Data flow
 
-- The Procy administrator uploads a file to the Procy server by using [UPLOAD API](https://procy.sh/api/).
+- The Procy administrator uploads a file to the Procy server by using [UPLOAD API](https://docs.procy.sh/api/).
   With the file, he provides all required information: target file path on client, list of client IDs or group IDs,
   desired file mode, owner/group etc.
 - The Procy server copies the file to a temporary folder `[server] {data_dir}/filepush/xxx`, where `[server] data_dir`
@@ -51,7 +51,7 @@ flowchart TD
 
 ## Upload API
 
-You can use [UPLOAD API](https://procy.sh/api/) to upload a file to a Procy server.
+You can use [UPLOAD API](https://docs.procy.sh/api/) to upload a file to a Procy server.
 
 JSON API is not well suited for uploading files, so you need to use the
 [multipart form data format](https://en.wikipedia.org/wiki/MIME#Multipart_messages).
@@ -145,7 +145,7 @@ wait for it. Therefore, the Procy server will respond with success information o
 This doesn't mean, that the distribution to the given clients was successful too.
 
 If you want to track upload process in real time, you can use a websocket API
-[our testing API for Websockets](https://procy.sh/api/) similar to commands websocket API.
+[our testing API for Websockets](https://docs.procy.sh/api/) similar to commands websocket API.
 
 You can also use our sandbox interface to play with the upload websocket API.
 First, enable testing endpoints by setting `enable_ws_test_endpoints` flag to true in the `[server]` section of the

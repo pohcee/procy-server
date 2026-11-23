@@ -17,22 +17,22 @@ security:
 tags:
   - name: Login
     description: |
-      For more details https://procy.sh/get-started/api-authentication/
+      For more details https://docs.procy.sh/get-started/api-authentication/
   - name: Auth
     description: |
-      For more details https://procy.sh/
+      For more details https://docs.procy.sh/
   - name: Profile & Info
     description: Profile and System Information
   - name: Clients and Tunnels
-    description: For more details https://procy.sh/get-started/managing-tunnels/
+    description: For more details https://docs.procy.sh/get-started/managing-tunnels/
   - name: Client Groups
-    description: For more details https://procy.sh/get-started/client-groups/
+    description: For more details https://docs.procy.sh/get-started/client-groups/
   - name: Client Auth Credentials
-    description: For more details https://procy.sh/get-started/client-authentication/
+    description: For more details https://docs.procy.sh/get-started/client-authentication/
   - name: Commands
-    description: For more details https://procy.sh/get-started/command-execution/
+    description: For more details https://docs.procy.sh/get-started/command-execution/
   - name: Users
-    description: For more details https://procy.sh/get-started/users/
+    description: For more details https://docs.procy.sh/get-started/users/
 paths:
   /login:
     $ref: paths/login.yaml

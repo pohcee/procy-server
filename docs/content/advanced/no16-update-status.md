@@ -58,7 +58,7 @@ the `rport.conf` file.
 ## Rport can constantly summarize pending updates and
 ## make that summary available on the rport server.
 ## On Debian/Ubuntu and SuSE Linux sudo rules are needed.
-## https://procy.sh/advanced/supervising-update-status/
+## https://docs.procy.sh/advanced/supervising-update-status/
 ## How often after the rport client has started pending updates are summarized
 ## Set 0 to disable.
 ## Supported time units: h (hours), m (minutes)

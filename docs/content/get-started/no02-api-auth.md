@@ -31,7 +31,7 @@ But you can create an API token per user (see below) to activate HTTP basic auth
 
 ### Bearer Token Auth
 
-Using HTTP Basic auth you can request a token at [`login` endpoint](https://procy.sh/api/) to
+Using HTTP Basic auth you can request a token at [`login` endpoint](https://docs.procy.sh/api/) to
 authenticate further requests with a token.
 Example:
 
@@ -80,7 +80,7 @@ Prior to Procy 0.9.11 each user could have only a single API token. Starting wit
 number of API token. Tokens have a scope and an expiry date.
 
 To generate personal API token navigate to the `Settings` -> `API Tokens` on the user interface, or generate tokens
-[using the API](https://procy.sh/api/).
+[using the API](https://docs.procy.sh/api/).
 
 ## Two-Factor Auth
 
@@ -131,7 +131,7 @@ Note: 2FA is not available if you use [a single static user-password pair](/docs
 
 #### How to use it?
 
-1. Using 2FA will disable HTTP basic auth on all API endpoints except [`/login`](https://procy.sh/api/).
+1. Using 2FA will disable HTTP basic auth on all API endpoints except [`/login`](https://docs.procy.sh/api/).
    Login endpoints trigger sending 2FA verification code to a user. For example,
 
 ```shell
@@ -157,7 +157,7 @@ The login token has a limited time validity, which is defined in the `[api]` sec
 Verification code: 05Nfqm (valid 10m0s)
 ```
 
-1. Verify this code using [`/verify-2fa`](https://procy.sh/api/) endpoint and provide
+1. Verify this code using [`/verify-2fa`](https://docs.procy.sh/api/) endpoint and provide
    token that you received after login as Bearer Auth header (e.g. `Authorization: Bearer eyJhbGciOiJIUz...SNIP...SNAP`).
 2. If login token is valid and the provided code is correct, this API returns an auth JWT token that can be further used
    for any requests as described in [Bearer token auth](no02-api-auth.md#bearer-token-auth). For example:

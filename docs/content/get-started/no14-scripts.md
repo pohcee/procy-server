@@ -11,7 +11,7 @@ Procy allows to store your scripts for later reuse, so you can share them with y
 
 ## Scripts management
 
-You can manage script with the [REST API](https://procy.sh/api/).
+You can manage script with the [REST API](https://docs.procy.sh/api/).
 
 The `/library/scripts` endpoints allow you to create, update, delete and list scripts.
 
@@ -273,7 +273,7 @@ curl -X POST 'http://localhost:3000/api/v1/clients/4943d682-7874-4f7a-999c-b4ff5
 ```
 
 you can check the status of the command execution by calling
-[client commands API](https://procy.sh/api/).
+[client commands API](https://docs.procy.sh/api/).
 
 You can execute a script on multiple clients by calling `scripts` API, in this case you should provide client ids in
 the input body:
@@ -324,7 +324,7 @@ allows you to use `pwsh7` or `latestbash` as interpreter in the script execution
 
 ### Script execution via websocket interface
 
-You can use [our testing API for Websockets](https://procy.sh/api/).
+You can use [our testing API for Websockets](https://docs.procy.sh/api/).
 To use this API, enable testing endpoints by setting `enable_ws_test_endpoints` flag to true in the `[server]`
 section of configuration file:
 

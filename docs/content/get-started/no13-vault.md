@@ -10,24 +10,24 @@ Procy provides a secure storage which allows to persist arbitrary data related t
 All data is stored encrypted so user can safely store passwords used for log in to remote systems there.
 Typical vault workflow looks as following:
 
-- Administrator initialises vault by calling [vault init api](https://procy.sh/api/)
+- Administrator initialises vault by calling [vault init api](https://docs.procy.sh/api/)
   and giving a password in input. Procy stores password in a secure place. From this moment Procy vault will remain
   unlocked and can accept requests for reading or changing data.
 
-- Administrator can lock vault by using [vault lock api](https://procy.sh/api/).
+- Administrator can lock vault by using [vault lock api](https://docs.procy.sh/api/).
   Procy removes password and rejects all access requests to the vault. The same happens when server restarts.
   The vault database is persisted to hdd, so it will remain after server restarts. However, we would also recommend to
   back up the vault database additionally to survive also possible disk failures.
 
-- Administrator can unlock vault by using [vault unlock api](https://procy.sh/api/).
+- Administrator can unlock vault by using [vault unlock api](https://docs.procy.sh/api/).
   He should provide password which he used on init stage. If a wrong password is provided, Procy will reject the vault access.
   In case of a correct password vault will be unlocked and can be used for reading or changing secure data.
   
-- Any authorized user can store new key value pairs by calling [vault store api](https://procy.sh/api/)
+- Any authorized user can store new key value pairs by calling [vault store api](https://docs.procy.sh/api/)
 
-- Any authorized user can list or search for stored vault entries by calling [vault list api](https://procy.sh/api/)
+- Any authorized user can list or search for stored vault entries by calling [vault list api](https://docs.procy.sh/api/)
 
-- Any authorized user can get the stored secure value by provided id [vault get api](https://procy.sh/api/)
+- Any authorized user can get the stored secure value by provided id [vault get api](https://docs.procy.sh/api/)
 
 Any user belonging to the Administrators group can init, lock and unlock Vault. Any authorized user can read, store,
 delete values in an unlocked and initialized Vault. The only exception from this rule is if a value is stored with a

@@ -79,7 +79,7 @@ Installed-Size: ${INSTALLED_SIZE}
 Architecture: ${DST_ARCH}
 Section: misc
 Priority: optional
-Homepage: https://procy.sh/
+Homepage: https://docs.procy.sh/
 Description: Remote access and remote management of heterogeneous IT infrastructures
  RPort provides remote access to and script execution on systems
  behind firewalls and NAT

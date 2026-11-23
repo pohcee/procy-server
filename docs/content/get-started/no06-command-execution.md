@@ -12,8 +12,8 @@ The command and the response are transferred through the web socket connection. 
 
 Command can be executed via:
 
-* [REST API](https://procy.sh/api/)
-* [WebSocket API](https://procy.sh/api/)
+* [REST API](https://docs.procy.sh/api/)
+* [WebSocket API](https://docs.procy.sh/api/)
 
 Here we would show examples how to do it via REST API.
 

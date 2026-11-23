@@ -20,7 +20,7 @@ Alternatively add tunnels to the configuration file `rport.conf`.
 
 ## Manage tunnel server-side
 
-On the server, you can supervise and manage the attached clients through the [API](https://procy.sh/api/).
+On the server, you can supervise and manage the attached clients through the [API](https://docs.procy.sh/api/).
 
 ### List
 
@@ -236,7 +236,7 @@ of `rportd.conf` manually.
   #tunnel_proxy_key_file = "/var/lib/rport/server.key" 
 ```
 
-By using `http_proxy=1` on [tunnel creation](https://procy.sh/api/), the proxy will
+By using `http_proxy=1` on [tunnel creation](https://docs.procy.sh/api/), the proxy will
 come up together with the tunnel. The Procy server will then use two tcp ports. One for the raw tcp tunnel and one for
 the http proxy. ACLs are applied to proxy also. The raw tcp tunnel is bound to localhost only, and therefore it's not
 accessible from the outside.

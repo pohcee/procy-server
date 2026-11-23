@@ -59,7 +59,7 @@ Release:        1
 Summary:        Remote management client for the Procy server
 
 License:        MIT
-URL:            https://procy.sh/
+URL:            https://docs.procy.sh/
 Source0:        https://github.com/pohcee/openrport/releases/tag/${GITHUB_REF_NAME}
 
 Requires:       passwd

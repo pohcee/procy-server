@@ -37,7 +37,7 @@ The following example shows how to activate attributes read from a file.
 
 ```toml
 ## A list of of tags and labels to give your clients attributes maintained in a separate file.
-## See https://procy.sh/advanced/attributes/
+## See https://docs.procy.sh/advanced/attributes/
 attributes_file_path = "/var/lib/rport/client_attributes.yaml"
 #attributes_file_path = "C:\Program Files\rport\client_attributes.(yaml|json|toml)"
 ```
@@ -75,7 +75,7 @@ To update attributes via the API you need to send a __PUT__ request with the ent
 `/api/v1/client/{client_id}/attributes`.
 
 Partial updates, aka PATCH requests, are not supported.  
-Read more on the [API documentation](https://procy.sh/api/).
+Read more on the [API documentation](https://docs.procy.sh/api/).
 
 ## Filtering
 
@@ -91,4 +91,4 @@ with the possible use of wildcards
 
 Though remember to url-encode space (" ") into `%20`.
 
-Read more on the [API documentation](https://procy.sh/api/).
+Read more on the [API documentation](https://docs.procy.sh/api/).

@@ -42,7 +42,7 @@ Please refer to the documentation inside the configuration example to explore al
 ## Fetching monitoring data
 
 All collected monitoring data can be fetched using the API. Please refer to our
-[API docs](https://procy.sh/api/).
+[API docs](https://docs.procy.sh/api/).
 
 ## Processing monitoring data
 
