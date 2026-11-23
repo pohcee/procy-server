@@ -3,6 +3,14 @@ on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach the MSI to (e.g. 0.9.31)"
+        required: true
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   release:
@@ -28,4 +36,3 @@ jobs:
           MSI_UPLOAD_TOKEN: ${{ secrets.MSI_UPLOAD_TOKEN }}
           DOWNLOAD_SERVER: ${{ secrets.DOWNLOAD_SERVER }}
         run: .github/scripts/msi-publish.ps1
-# trigger workflow registration

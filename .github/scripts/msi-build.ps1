@@ -2,9 +2,9 @@ param (
     [switch]$SignMsi = $false,
     [string]$msiFileName = "rport-client.msi"
 )
-$versionParts = $env:GITHUB_REF_NAME -replace '^[^\d]+','' -split '\.'
+$versionParts = $env:RELEASE_TAG -replace '^[^\d]+','' -split '\.'
 if ($versionParts.Length -ne 3 -or -not ($versionParts[0] -as [int] -is [int]) -or -not ($versionParts[1] -as [int] -is [int]) -or -not ($versionParts[2] -as [int] -is [int])) {
-    throw "Version information could not be parsed from GITHUB_REF_NAME: $env:GITHUB_REF_NAME"
+    throw "Version information could not be parsed from RELEASE_TAG: $env:RELEASE_TAG"
 }
 [int]$major = $versionParts[0]
 [int]$minor = $versionParts[1]
