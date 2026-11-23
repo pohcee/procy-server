@@ -28,6 +28,10 @@ The permissions are stored on the `group_details` table of
 your [API access database](/get-started/api-authentication/#database). They are managed through
 the [update user groups API endpoint](https://procy.sh/docs/api/).
 
+Without a `group_details` table (`auth_group_details_table`), for example with a JSON `auth_file` or a single user,
+permissions can't be evaluated. In that case only members of `Administrators` can use these functions; other users
+are denied.
+
 In addition to one of the above function permissions client permissions are needed. In other words, the function
 permissions define only what a user can do, but not on which clients he/she can do it.
 

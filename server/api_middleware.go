@@ -135,6 +135,7 @@ func (al *APIListener) wrapClientAccessMiddleware(next http.Handler) http.Handle
 		clientGroups, err := al.clientGroupProvider.GetAll(r.Context())
 		if err != nil {
 			al.jsonError(w, err)
+			return
 		}
 		err = al.clientService.CheckClientAccess(clientID, curUser, clientGroups)
 		if err != nil {
@@ -190,8 +191,15 @@ func (al *APIListener) permissionsMiddleware(permission string) mux.MiddlewareFu
 				return
 			}
 
-			if al.userService.SupportsGroupPermissions() {
-				// Check group permissions only if supported otherwise let pass.
+			if !al.userService.SupportsGroupPermissions() {
+				// The user store can't evaluate group permissions (JSON auth_file, or a database
+				// without auth_group_details_table): deny by default, only administrators pass.
+				if !currUser.IsAdmin() {
+					al.jsonErrorResponseWithTitle(w, http.StatusForbidden,
+						fmt.Sprintf("permission %q requires group permissions, which the configured user store does not support", permission))
+					return
+				}
+			} else {
 				err = al.userService.CheckPermission(currUser, permission)
 				if err != nil {
 					al.jsonError(w, err)

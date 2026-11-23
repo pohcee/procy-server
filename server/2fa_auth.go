@@ -36,11 +36,15 @@ func NewTwoFAService(tokenTTLSeconds int, sendTimeout time.Duration, userSrv Use
 }
 
 type expirableToken struct {
-	token  string
-	expiry time.Time
+	token    string
+	expiry   time.Time
+	attempts int
 }
 
 const twoFATokenLength = 6
+
+// maxTwoFAAttempts is how many wrong codes are accepted before a sent code is discarded.
+const maxTwoFAAttempts = 5
 
 func (srv *TwoFAService) SendToken(ctx context.Context, username string, userAgent string, remoteAddress string) (sendTo string, err error) {
 	ctx, cancel := context.WithTimeout(ctx, srv.SendTimeout)
@@ -110,9 +114,10 @@ func (srv *TwoFAService) SetTotPLoginSession(username string, loginSessionTTL ti
 }
 
 func (srv *TwoFAService) ValidateTotPCode(user *users.User, code string) error {
-	srv.mu.RLock()
+	// Write lock for the whole check: a successful code removes the login session below.
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	t := srv.tokensByUser[user.Username]
-	defer srv.mu.RUnlock()
 
 	if t == nil {
 		return errors2.APIError{
@@ -149,18 +154,18 @@ func (srv *TwoFAService) ValidateTotPCode(user *users.User, code string) error {
 		}
 	}
 
-	srv.mu.RLock()
 	delete(srv.tokensByUser, user.Username)
-	defer srv.mu.RUnlock()
 
 	return nil
 }
 
+// ValidateToken checks a sent 2FA code. A code works once, and is discarded after
+// maxTwoFAAttempts wrong guesses or when it expires.
 func (srv *TwoFAService) ValidateToken(username, token string) error {
-	srv.mu.RLock()
-	t := srv.tokensByUser[username]
-	defer srv.mu.RUnlock()
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 
+	t := srv.tokensByUser[username]
 	if t == nil {
 		return errors2.APIError{
 			Message:    "2fa token not found for provided username",
@@ -169,6 +174,7 @@ func (srv *TwoFAService) ValidateToken(username, token string) error {
 	}
 
 	if time.Now().After(t.expiry) {
+		delete(srv.tokensByUser, username)
 		return errors2.APIError{
 			Message:    "2fa token expired",
 			HTTPStatus: http.StatusUnauthorized,
@@ -176,11 +182,16 @@ func (srv *TwoFAService) ValidateToken(username, token string) error {
 	}
 
 	if subtle.ConstantTimeCompare([]byte(t.token), []byte(token)) != 1 {
+		t.attempts++
+		if t.attempts >= maxTwoFAAttempts {
+			delete(srv.tokensByUser, username)
+		}
 		return errors2.APIError{
 			Message:    "invalid token",
 			HTTPStatus: http.StatusUnauthorized,
 		}
 	}
 
+	delete(srv.tokensByUser, username)
 	return nil
 }

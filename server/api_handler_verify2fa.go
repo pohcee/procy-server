@@ -3,6 +3,7 @@ package chserver
 import (
 	"net/http"
 
+	"github.com/openrport/openrport/server/api"
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/bearer"
 )
@@ -90,5 +91,13 @@ func (al *APIListener) parseAndValidate2FATokenRequest(req *http.Request) (usern
 		return token.AppClaims.Username, al.twoFASrv.ValidateTotPCode(user, reqBody.Token)
 	}
 
-	return reqBody.Username, al.twoFASrv.ValidateToken(reqBody.Username, reqBody.Token)
+	// The code must verify the login that the scoped token belongs to, not a username from the body.
+	username = api.GetUser(req.Context(), al.Logger)
+	if username == "" {
+		return "", errors2.APIError{
+			HTTPStatus: http.StatusUnauthorized,
+			Message:    "login session required",
+		}
+	}
+	return username, al.twoFASrv.ValidateToken(username, reqBody.Token)
 }

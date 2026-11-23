@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -153,6 +154,12 @@ func (al *APIListener) handleDeleteUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 
+	// A deleted user must not keep access through existing sessions or API tokens.
+	if err := al.revokeUserAccess(req.Context(), userID); err != nil {
+		al.jsonError(w, err)
+		return
+	}
+
 	al.auditLog.Entry("user", auditlog.ActionDelete).
 		WithHTTPRequest(req).
 		WithID(userID).
@@ -270,4 +277,21 @@ func (al *APIListener) handleDeleteAllUserAPISessions(w http.ResponseWriter, req
 		Save()
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// revokeUserAccess deletes all API sessions and API tokens of a user.
+func (al *APIListener) revokeUserAccess(ctx context.Context, username string) error {
+	if err := al.apiSessions.DeleteAllByUser(ctx, username); err != nil {
+		return fmt.Errorf("failed to revoke sessions of %s: %w", username, err)
+	}
+	tokens, err := al.tokenManager.GetAll(ctx, username)
+	if err != nil {
+		return fmt.Errorf("failed to list API tokens of %s: %w", username, err)
+	}
+	for _, t := range tokens {
+		if err := al.tokenManager.Delete(ctx, username, t.Prefix); err != nil {
+			return fmt.Errorf("failed to revoke API token %s of %s: %w", t.Prefix, username, err)
+		}
+	}
+	return nil
 }
