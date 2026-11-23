@@ -33,4 +33,5 @@ const (
 	TotPRoutes                  = "/me/totp-secret"
 	Verify2FaRoute              = "/verify-2fa"
 	FilesUploadRouteName        = "files"
+	LibraryEntryWriteRouteName  = "library-entry-write"
 )

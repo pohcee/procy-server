@@ -2,6 +2,7 @@ package chserver
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -206,14 +207,7 @@ func (al *APIListener) initRouter() {
 	}
 
 	// add max bytes middleware
-	_ = api.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
-		if route.GetName() == routes.FilesUploadRouteName {
-			route.HandlerFunc(middleware.MaxBytes(route.GetHandler(), al.config.API.MaxFilePushSize))
-		} else {
-			route.HandlerFunc(middleware.MaxBytes(route.GetHandler(), al.config.API.MaxRequestBytes))
-		}
-		return nil
-	})
+	al.applyMaxBytes(api)
 
 	plusRouter := api.PathPrefix("/plus").Subrouter()
 	plusRouter.HandleFunc("/status", al.handlePlusStatus).Methods(http.MethodGet)
@@ -296,4 +290,26 @@ func (al *APIListener) initRouter() {
 	))
 
 	al.router = r
+}
+
+// applyMaxBytes limits the request body of every route of r. File uploads and
+// library entry writes have their own limits, all other routes use
+// api.max_request_bytes.
+func (al *APIListener) applyMaxBytes(r *mux.Router) {
+	_ = r.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		name := route.GetName()
+		switch {
+		case name == routes.FilesUploadRouteName:
+			route.HandlerFunc(middleware.MaxBytes(route.GetHandler(), al.config.API.MaxFilePushSize))
+		case strings.HasPrefix(name, routes.LibraryEntryWriteRouteName):
+			limit := al.config.API.MaxRequestBytesLibrary
+			if limit <= 0 {
+				limit = al.config.API.MaxRequestBytes
+			}
+			route.HandlerFunc(middleware.MaxBytes(route.GetHandler(), limit))
+		default:
+			route.HandlerFunc(middleware.MaxBytes(route.GetHandler(), al.config.API.MaxRequestBytes))
+		}
+		return nil
+	})
 }

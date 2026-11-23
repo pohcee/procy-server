@@ -72,6 +72,7 @@ type APIConfig struct {
 	EnableWsTestEndpoints  bool           `mapstructure:"enable_ws_test_endpoints"`
 	MaxRequestBytes        int64          `mapstructure:"max_request_bytes"`
 	MaxFilePushSize        int64          `mapstructure:"max_filepush_size"`
+	MaxRequestBytesLibrary int64          `mapstructure:"max_request_bytes_library"`
 	CORS                   []string       `mapstructure:"cors"`
 
 	TwoFATokenDelivery       string                 `mapstructure:"two_fa_token_delivery"`

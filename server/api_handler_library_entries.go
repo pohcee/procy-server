@@ -25,14 +25,14 @@ const (
 // addLibraryEntriesRoutes registers the /library/entries endpoints on r.
 func (al *APIListener) addLibraryEntriesRoutes(r *mux.Router) {
 	r.HandleFunc(entriesPath, al.handleListLibraryEntries).Methods(http.MethodGet)
-	r.HandleFunc(entriesPath, al.handleCreateLibraryEntry).Methods(http.MethodPost)
+	r.HandleFunc(entriesPath, al.handleCreateLibraryEntry).Methods(http.MethodPost).Name(routes.LibraryEntryWriteRouteName)
 	r.HandleFunc(entryPath, al.handleGetLibraryEntry).Methods(http.MethodGet)
-	r.HandleFunc(entryPath, al.handleSaveLibraryEntry).Methods(http.MethodPut)
+	r.HandleFunc(entryPath, al.handleSaveLibraryEntry).Methods(http.MethodPut).Name(routes.LibraryEntryWriteRouteName + "-put")
 	r.HandleFunc(entryPath, al.handleDeleteLibraryEntry).Methods(http.MethodDelete)
 	r.HandleFunc(entryPath+"/undelete", al.handleUndeleteLibraryEntry).Methods(http.MethodPost)
 	r.HandleFunc(entryVersions, al.handleListLibraryEntryVersions).Methods(http.MethodGet)
 	r.HandleFunc(entryVersionN, al.handleGetLibraryEntryVersion).Methods(http.MethodGet)
-	r.HandleFunc(entryVersionN+"/restore", al.handleRestoreLibraryEntryVersion).Methods(http.MethodPost)
+	r.HandleFunc(entryVersionN+"/restore", al.handleRestoreLibraryEntryVersion).Methods(http.MethodPost).Name(routes.LibraryEntryWriteRouteName + "-restore")
 }
 
 func badRequest(msg string) error {

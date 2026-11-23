@@ -37,6 +37,7 @@ const (
 	DefaultCheckClientsConnectionInterval   = 5 * time.Minute
 	DefaultCheckClientsConnectionTimeout    = 30 * time.Second
 	DefaultMaxRequestBytes                  = 10 * 1024       // 10 KB
+	DefaultMaxRequestBytesLibrary           = 256 * 1024      // 256KB
 	DefaultMaxRequestBytesClient            = 512 * 1024      // 512KB
 	DefaultMaxFilePushBytes                 = int64(10 << 20) // 10M
 	DefaultCheckPortTimeout                 = 2 * time.Second
@@ -369,6 +370,7 @@ func init() {
 	viperCfg.SetDefault("monitoring.data_storage_duration", DefaultMonitoringDataStorageDuration)
 	viperCfg.SetDefault("monitoring.enabled", true)
 	viperCfg.SetDefault("api.max_request_bytes", DefaultMaxRequestBytes)
+	viperCfg.SetDefault("api.max_request_bytes_library", DefaultMaxRequestBytesLibrary)
 	viperCfg.SetDefault("api.max_filepush_size", DefaultMaxFilePushBytes)
 	viperCfg.SetDefault("api.enable_ws_test_endpoints", false)
 	viperCfg.SetDefault("api.totp_login_session_ttl", time.Minute*10)

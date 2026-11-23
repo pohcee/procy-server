@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,11 +18,13 @@ import (
 	librarymigration "github.com/openrport/openrport/db/migration/library"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/server/api"
+	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/library"
 )
 
 type libraryEntriesEnv struct {
 	router *mux.Router
+	al     *APIListener
 }
 
 func newLibraryEntriesEnv(t *testing.T) *libraryEntriesEnv {
@@ -38,7 +41,7 @@ func newLibraryEntriesEnv(t *testing.T) *libraryEntriesEnv {
 	}
 	r := mux.NewRouter()
 	al.addLibraryEntriesRoutes(r)
-	return &libraryEntriesEnv{router: r}
+	return &libraryEntriesEnv{router: r, al: al}
 }
 
 func (e *libraryEntriesEnv) do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
@@ -211,4 +214,40 @@ func TestLibraryEntriesPageLimitAndOSFilter(t *testing.T) {
 	w := e.do(t, http.MethodGet, "/library/entries?filter[os]=beos", "")
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "beos")
+}
+
+func TestLibraryEntryWriteBodyLimit(t *testing.T) {
+	e := newLibraryEntriesEnv(t)
+	e.al.config = &chconfig.Config{API: chconfig.APIConfig{MaxRequestBytes: 10 * 1024, MaxRequestBytesLibrary: 256 * 1024}}
+	e.al.applyMaxBytes(e.router)
+
+	big := func(name string, size int) string {
+		return `{"name":"` + name + `","message":"m","implementations":{"linux":{"kind":"script","code":"` + strings.Repeat("a", size) + `"}}}`
+	}
+	form := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req = req.WithContext(api.WithUser(req.Context(), "admin"))
+		w := httptest.NewRecorder()
+		e.router.ServeHTTP(w, req)
+		return w
+	}
+
+	// 50 KB is over the generic limit but under the library limit
+	w := e.do(t, http.MethodPost, "/library/entries", big("fifty", 50*1024))
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	var created library.Entry
+	e.data(t, w, &created)
+
+	w = e.do(t, http.MethodPut, "/library/entries/"+created.ID, strings.Replace(big("fifty", 60*1024), `"message"`, `"base_version":1,"message"`, 1))
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	// over the library limit gives the same error as the generic limit
+	w = form(http.MethodPost, "/library/entries", big("huge", 300*1024))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "Request data exceeds the limit of 262144 bytes")
+
+	w = e.do(t, http.MethodPost, "/library/entries", big("huge", 300*1024))
+	assert.GreaterOrEqual(t, w.Code, 400)
+	assert.Contains(t, w.Body.String(), "request body too large")
 }
