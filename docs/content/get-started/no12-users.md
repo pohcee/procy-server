@@ -6,7 +6,8 @@ aliases:
   - /docs/no12-users.html
 ---
 {{< toc >}}
-Procy users are provided from JSON file or DB as described in [authentication section](/docs/get-started/no03-client-auth.md).
+Procy API users are stored in a JSON file or a database, as described in
+[API authentication](/docs/get-started/api-authentication/#storing-credentials-managing-users).
 
 You can manage users with the [REST API](https://procy.sh/docs/api/).
 
@@ -15,11 +16,11 @@ You can manage users with the [REST API](https://procy.sh/docs/api/).
 Before using the [User Management API](https://procy.sh/docs/api/), you should provide at least one user
 belonging `Administrators` group either in a JSON file or DB.
 
-If `rportd` is started with static credentials [auth mode](no03-client-auth.md#using-a-static-credential), user management
-API won't be usable.
+If `rportd` is started with a [single static user](/docs/get-started/api-authentication/#hardcoded-single-user), the
+user management API can't be used.
 
 If `rportd` is started with JSON file credentials, changes to the users list won't be refreshed until `rportd` is restarted
-since there is a [limitation](/docs/get-started/no02-api-auth.md#user-file).
+since there is a [limitation](/docs/get-started/api-authentication/#user-file).
 
 ## API Usage
 
@@ -29,7 +30,8 @@ As listed in the API docs Users are defined by `username`
 
 ### Create
 
-Passwords will be hashed automatically before adding them to file or database.
+Passwords are hashed before they are stored. They need at least 14 characters (`password_min_length`) and must pass a
+check against common words and patterns (`password_zxcvbn_minscore`).
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/users' \
@@ -37,7 +39,7 @@ curl -X POST 'http://localhost:3000/api/v1/users' \
 -H 'Content-Type: application/json' \
 --data-raw '{
     "username": "user1",
-    "password": "123456"
+    "password": "<NEW_PASSWORD>",
     "groups":
     [
         "Users",
@@ -55,7 +57,7 @@ curl -X PUT 'http://localhost:3000/api/v1/users/user1' \
 -u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
-    "password": "1234567"
+    "password": "<NEW_PASSWORD>",
     "groups":
     [
         "Users"
@@ -113,3 +115,5 @@ Because of security consideration, users list won't return hashed passwords.
 ```shell
 curl -u admin:$PASSWORD -X DELETE 'http://localhost:3000/api/v1/users/user1'
 ```
+
+Deleting a user also revokes their API sessions and API tokens right away.

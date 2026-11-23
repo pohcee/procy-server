@@ -11,7 +11,7 @@ aliases:
 
 ## Authentication Mechanisms
 
-The Rportd API support three ways of authentication.
+The API supports three ways of authentication.
 
 1. HTTP Basic Auth with username and password
 2. Bearer Token Auth
@@ -77,8 +77,7 @@ Users must submit the personal API token instead of the password, for example:
 curl -s -u admin:e83d40e4-e237-43d6-bb99-35972ded631b http://localhost:3000/api/v1/clients|jq
 ```
 
-Prior to Procy 0.9.11 each user could have only a single API token. Starting with 0.9.11 users can have an unlimited
-number of API token. Tokens have a scope and an expiry date.
+Each user can have any number of API tokens. Tokens have a scope and an expiry date.
 
 To generate personal API token navigate to the `Settings` -> `API Tokens` on the user interface, or generate tokens
 [using the API](https://procy.sh/docs/api/).
@@ -90,16 +89,16 @@ sent by a chosen delivery method.
 
 Supported delivery methods:
 
-1. email (requires [SMTP setup](/docs/content/get-started/no15-messaging.md#smtp))
-2. [pushover.net](https://pushover.net) (requires [Pushover setup](/docs/content/get-started/no15-messaging.md#pushover))
-3. Custom [script](/docs/content/get-started/no15-messaging.md#script)
-4. Custom [URL](/docs/content/get-started/no15-messaging.md#url)
+1. email (requires [SMTP setup](/docs/get-started/2fa-messaging/#smtp))
+2. [pushover.net](https://pushover.net) (requires [Pushover setup](/docs/get-started/2fa-messaging/#pushover))
+3. Custom [script](/docs/get-started/2fa-messaging/#script)
+4. Custom [URL](/docs/get-started/2fa-messaging/#url)
 
 By default, 2FA is disabled.
 
 ### How to enable 2FA?
 
-Note: 2FA is not available if you use [a single static user-password pair](/docs/content/get-started/no02-api-auth.md#hardcoded-single-user).
+Note: 2FA is not available if you use [a single static user-password pair](/docs/get-started/api-authentication/#hardcoded-single-user).
 
 1. Choose the desired delivery method. Enter the following lines to the `rportd.config` in the `[api]` section, for example:
 
@@ -112,20 +111,20 @@ Note: 2FA is not available if you use [a single static user-password pair](/docs
 
    `two_fa_token_ttl_seconds` is an optional param for a lifetime of 2FA verification code. By default, 600 seconds.
 
-2. Set up a valid [SMTP](/docs/content/get-started/no15-messaging.md#smtp) or [Pushover](/docs/content/get-started/no15-messaging.md#pushover) config.
-3. Your user-password store ([json file](/docs/content/get-started/no02-api-auth.md#user-file) or
-   [DB table](/docs/content/get-started/no02-api-auth.md#database)) needs an additional field `two_fa_send_to`.
+2. Set up a valid [SMTP](/docs/get-started/2fa-messaging/#smtp) or [Pushover](/docs/get-started/2fa-messaging/#pushover) config.
+3. Your user-password store ([json file](/docs/get-started/api-authentication/#user-file) or
+   [DB table](/docs/get-started/api-authentication/#database)) needs an additional field `two_fa_send_to`.
    It should hold an email or pushover user key that is used to send 2FA verification code to a user.
 4. Your user's `two_fa_send_to` field needs to contain a valid email or pushover user key.
 
    When using an executable for delivery, `two_fa_send_to_type` can be used to specify how the `two_fa_send_to` is validated on changes.
    This setting is ignored when using SMTP or Pushover for token delivery.
-   Use `2fa_send_to_type = 'email'` to accept only valid email address.
+   Use `two_fa_send_to_type = 'email'` to accept only valid email address.
    Or use a regular expression, for example
 
    ```text
-   2fa_send_to_type = 'regex'
-   2fa_send_to_regex = '[a-z0-9]{10}'
+   two_fa_send_to_type = 'regex'
+   two_fa_send_to_regex = '[a-z0-9]{10}'
    ```
 
 5. Restart the server.
@@ -152,7 +151,7 @@ Copy the login token. Please note, that it cannot be used as a bearer token auth
 The login token has a limited time validity, which is defined in the `[api]` section of the `rportd.config` as
 `totp_login_session_ttl` (default value is 10 minutes).
 
-1. Wait for an email with `Rport 2FA` subject with a content like:
+1. Wait for the message with the verification code, for example:
 
 ```shell
 Verification code: 05Nfqm (valid 10m0s)
@@ -160,8 +159,9 @@ Verification code: 05Nfqm (valid 10m0s)
 
 1. Verify this code using [`/verify-2fa`](https://procy.sh/docs/api/) endpoint and provide
    token that you received after login as Bearer Auth header (e.g. `Authorization: Bearer eyJhbGciOiJIUz...SNIP...SNAP`).
+   A code works only once, and only together with the login token it was sent for.
 2. If login token is valid and the provided code is correct, this API returns an auth JWT token that can be further used
-   for any requests as described in [Bearer token auth](no02-api-auth.md#bearer-token-auth). For example:
+   for any requests as described in [Bearer token auth](/docs/get-started/api-authentication/#bearer-token-auth). For example:
 
 ```shell
 curl -s http://localhost:3000/api/v1/verify-2fa -H "Content-Type: application/json" -X POST \
@@ -182,7 +182,7 @@ Please note that this token cannot be used to call `/verify-2fa` which requires 
 
 ## Storing credentials, managing users
 
-The Rportd can read user credentials from three different sources.
+`rportd` can read API users from three different sources.
 
 1. A "hardcoded" single user with a plaintext password
 2. A user file with bcrypt encoded passwords
@@ -192,6 +192,13 @@ Which one you chose is an either-or decision. A mixed-mode is not supported.
 
 If you are planning to manage API users through the API or if you want to manage users comfortably using the graphical
 frontend, you must store users in a database.
+
+{{< hint type=important title="Permissions need a database" >}}
+Only a database with a `group_details` table (`auth_group_details_table`) can store
+[user group permissions](/docs/get-started/permissions-model/). With a single user or a user file, permissions can't
+be evaluated, so only members of `Administrators` can run commands and scripts, create tunnels, or use the vault,
+scheduler and uploads; all other users get "403 Forbidden". `rportd` logs a notice about this at startup.
+{{< /hint >}}
 
 ### Hardcoded single user
 
@@ -309,9 +316,8 @@ Having the database set up, enter the following two lines to the `[api]` section
 [api]
   #auth = "admin:<your-password>" <-- Must be disabled
   auth_user_table = "users"
-  auth_user_table = "users"
   auth_group_table = "groups"
-  group_details_table = "group_details"
+  auth_group_details_table = "group_details"
 ```
 
 Reload rportd to apply all changes.
@@ -362,7 +368,7 @@ CREATE TABLE `group_details` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 ```
 
-If your database was created prior to Version 0.9.1
+If your database was created before rport 0.9.1, add the `password_expired` column:
 
 ```sql
 ALTER TABLE `users` ADD `password_expired` bool NOT NULL DEFAULT(false);
@@ -417,20 +423,16 @@ ON "groups" (
   "username" ASC,
   "group" ASC
 );
-CREATE TABLE "group_details" (name TEXT, permissions TEXT);
-CREATE UNIQUE INDEX "main"."group_details_name" ON "group_details" ("name" ASC);
 CREATE TABLE "group_details" (
     "name" TEXT(150) NOT NULL,
     "permissions" TEXT DEFAULT "{}"
-    "tunnels_restricted" TEXT DEFAULT "{}"
-    "commands_restricted" TEXT DEFAULT "{}"
 );
-CREATE UNIQUE INDEX "main"."name" ON "group_details" (
+CREATE UNIQUE INDEX "main"."group_details_name" ON "group_details" (
     "name" ASC
 );
 ```
 
-If your database was created prior to Version 0.9.1
+If your database was created before rport 0.9.1, add the `password_expired` column:
 
 ```sql
 ALTER TABLE `users` ADD `password_expired` BOOLEAN NOT NULL CHECK (password_expired IN (0, 1)) DEFAULT 0;
@@ -453,7 +455,7 @@ Insert the first user:
 {{< tab "2FA off" >}}
 
 ```sql
-INSERT INTO users VALUES('admin','$2y$05$zfvuP4PvjsNWTqRFLdswEeRzETE2KiZONJQyVn7T3ZV5qcYAlmNWO');
+INSERT INTO users (username, password) VALUES('admin','$2y$05$zfvuP4PvjsNWTqRFLdswEeRzETE2KiZONJQyVn7T3ZV5qcYAlmNWO');
 INSERT INTO groups VALUES('admin','Administrators');
 ```
 
@@ -461,33 +463,24 @@ INSERT INTO groups VALUES('admin','Administrators');
 {{< tab "2FA on" >}}
 
 ```sql
-INSERT INTO users VALUES('admin','$2y$05$zfvuP4PvjsNWTqRFLdswEeRzETE2KiZONJQyVn7T3ZV5qcYAlmNWO','my.email@gmail.com');
+INSERT INTO users (username, password, two_fa_send_to)
+VALUES('admin','$2y$05$zfvuP4PvjsNWTqRFLdswEeRzETE2KiZONJQyVn7T3ZV5qcYAlmNWO','my.email@gmail.com');
 INSERT INTO groups VALUES('admin','Administrators');
 ```
 
 {{< /tab >}}
 {{< /tabs >}}
 
-This creates a user `admin` with the password `password`. To use another password, create the appropriate bcrypt hash
-with a [bcrypt generator](https://bcrypt-generator.com/) or use `htpasswd` on the command line.
-
-### Extended group permissions additional fields
-
-To enable the extended group permissions feature, the database must be upgraded with the following SQL statement:
-
-```sql
-ALTER TABLE `group_details` ADD COLUMN `tunnels_restricted` TEXT DEFAULT '{}';
-ALTER TABLE `group_details` ADD COLUMN `commands_restricted` TEXT DEFAULT '{}';
-```
-
-Upon start, the "Extended group permissions" feature will be in trial mode, if the fields are present in the database, but there is no Plus license installed.
+This creates a user `admin` with the password `password`. Only use it to test: create the bcrypt hash of a strong
+password with `htpasswd -nbB admin '<password>'` and use that instead, or change the password right after the first
+login.
 
 ### API Usage examples
 
 To verify the user is able to authenticate execute:
 
 ```shell
-curl -Ss http://localhost:3000/api/v1/users -u admin:password|jq
+curl -Ss http://localhost:3000/api/v1/users -u admin:$PASSWORD|jq
 {
   "data": [
     {
@@ -504,11 +497,11 @@ Create a new user:
 
 ```shell
 curl -Ss -X POST http://localhost:3000/api/v1/users \
--u admin:password \
+-u admin:$PASSWORD \
 -H "content-type:application/json" \
 --data-raw '{
   "username": "Willy",
-  "password": "pass1234",
+  "password": "<NEW_PASSWORD>",
   "groups": [
     "Administrators"
   ]
@@ -518,16 +511,18 @@ curl -Ss -X POST http://localhost:3000/api/v1/users \
 Change the password of an existing user:
 
 ```shell
-curl -Ss -X PUT https://localhost/api/v1/users/Willy \
--u admin:password \
+curl -Ss -X PUT http://localhost:3000/api/v1/users/Willy \
+-u admin:$PASSWORD \
 -H "content-type:application/json" \
---data-raw '{"password": "4321ssap"}'
+--data-raw '{"password": "<NEW_PASSWORD>"}'
 ```
+
+New passwords need at least 14 characters (`password_min_length`) and must pass a check against common words and
+patterns (`password_zxcvbn_minscore`).
 
 ### Manage user from the command line
 
-Starting with Procy 0.9.11 the ability to manage users from the command line has been introduced. The allows adding
-users or changing passwords independent of the underlying storage mechanism.
+`rportd user` adds users or changes passwords from the command line, whatever user store you use.
 
 {{< hint type=important title="don't execute from root account" >}}
 When managing users from the command line, rportd will directly write to the configured files or databases. The command
@@ -584,7 +579,7 @@ To activate 2FA based on [Time-based One Time Password](https://en.wikipedia.org
 you should set `totp_enabled` option to true in the `[api]` configuration section.
 Please note, that `totp_enabled` option cannot be combined with the email or sms based 2FA auth enabled (see `two_fa_token_delivery` option).
 
-Another limitation is that you cannot use this auth method with [a single static user-password pair](no02-api-auth.md#hardcoded-single-user).
+Another limitation is that you cannot use this auth method with [a single static user-password pair](/docs/get-started/api-authentication/#hardcoded-single-user).
 
 If you use a mysql/sqlite database for storing users data, you should also have `totp_secret` column there
 (see the sql queries above).
@@ -693,7 +688,7 @@ curl -s http://localhost:3000/api/v1/me/totp-secret -H "Content-Type: applicatio
 -H "Authorization: Bearer eyJhbGciOiJIUz...snip...snap"
 ```
 
-Read an existing totP secret of the current user:
+Create a new totP secret for the current user:
 
 ```shell
 curl -s http://localhost:3000/api/v1/me/totp-secret -H "Content-Type: application/json" -X POST \
@@ -719,16 +714,18 @@ curl -s http://localhost:3000/api/v1/users/no@mail.com/totp-secret -H "Content-T
 
 ## Delegated authentication
 
-Staring with rportd 0.5.0 you can delegate the authentication to a reverse proxy. This allows you to use a variety of
+You can delegate the authentication to a reverse proxy. This allows you to use a variety of
 authentication backends for example such supported by Netscaler, Keycloak, the
 [Apache Auth Plugins](https://httpd.apache.org/docs/2.4/howto/auth.html) or by the [Caddy Auth Portal](https://github.com/greenpau/caddy-auth-portal).
 
 If the reverse proxy sends a specific header and a header that includes a username in the value, Procy considers the
-user as authenticated.
+user as authenticated. `rportd` accepts these headers only from the proxies listed in `trusted_proxies`, and refuses
+to start with `auth_header` but without `trusted_proxies`. Otherwise, anyone who can reach `rportd` directly could log
+in as any user.
 Using the delegated authentication does not liberate you from performing a `/api/v1/login` request to retrieve the JWT
 and sending this JWT on all requests.
 
-If you are using the Procy frontend, you can send authenticated useser directly to
+If you are using the Procy web UI, you can send authenticated users directly to
 `https://<SERVER-FQDN>/auth/?auto-login=1&remember-me=24h`. This caused the login form to be auto-submitted.
 
 To enable the delegated authentication, activate the following settings in your `rportd.conf`.
@@ -740,11 +737,13 @@ To enable the delegated authentication, activate the following settings in your 
   ## Inside the same or a different header, the username must be submitted.
   auth_header = "My-User"
   user_header = "My-User"
+  ## Header auth is only accepted from these reverse proxies (IPs or CIDRs). Required.
+  trusted_proxies = ["127.0.0.1/32"]
   ## If the user doesn't exist yet, it can be created on-the-fly.
   ## Disabled by default
   create_missing_users = true
-  ## If users are created on-the-fly to which user group do they belong?
-  default_user_group = "Administrators"
+  ## If users are created on-the-fly, which user group do they belong to? None by default.
+  default_user_group = "Users"
 ```
 
 ### Simple example with Caddy basic authentication

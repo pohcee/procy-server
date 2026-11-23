@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 540" role="img" aria-labelledby="t d">
+  <title id="t">Pairing a new client</title>
+  <desc id="d">1. An admin adds a client in the web UI and rportd keeps its credentials behind a one-time pairing code.
+    2. On the device, the Linux or Windows one-liner downloads the installer from /pairing/code. 3. The installer
+    downloads rport from your downloads URL, checks SHA256SUMS, writes rport.conf and installs the service.
+    4. The client connects out with its own credentials and appears in the web UI.</desc>
+  <style>
+    text { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .h { font-weight: 700; fill: #E6EBF2; }
+    .n { font-size: 15px; font-weight: 700; fill: #FFFFFF; }
+    .card { fill: #121821; stroke: #2E3947; stroke-width: 2; }
+    .body { font-size: 15px; fill: #C2CAD6; }
+    .led { animation: blink 2.4s ease-in-out infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+    @media (prefers-reduced-motion: reduce) { .led { animation: none; } }
+  </style>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B0F14"/>
+      <stop offset="1" stop-color="#1A222D"/>
+    </linearGradient>
+    <g id="mark">
+      <path d="M9 27 13 6l16 11z" fill="#6B7280" stroke="#6B7280" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M55 27 51 6 35 17z" fill="#6B7280" stroke="#6B7280" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M14 22l2-10 8 6z" fill="#1F2937"/>
+      <path d="M50 22l-2-10-8 6z" fill="#1F2937"/>
+      <ellipse cx="32" cy="37" rx="25" ry="21" fill="#9CA3AF"/>
+      <path d="M32 18v12" stroke="#4B5563" stroke-width="5" stroke-linecap="round"/>
+      <path d="M12 31q9-8 17-3" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M52 31q-9-8-17-3" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M8 36q10-10 21-4 3 2 6 0 11-6 21 4-4 10-15 9-6-1-9-5-3 4-9 5-11 1-15-9z" fill="#1F2937"/>
+      <circle cx="22.5" cy="37" r="4" fill="#FFFFFF"/>
+      <circle cx="41.5" cy="37" r="4" fill="#FFFFFF"/>
+      <circle cx="23.3" cy="37.6" r="2" fill="#111827"/>
+      <circle cx="42.3" cy="37.6" r="2" fill="#111827"/>
+      <ellipse cx="32" cy="49" rx="11" ry="7.5" fill="#F3F4F6"/>
+      <ellipse cx="32" cy="45.5" rx="4" ry="3" fill="#111827"/>
+    </g>
+    <path id="chev" d="M0 0l12 14-12 14" fill="none" stroke="#93B8FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </defs>
+
+  <rect width="1200" height="540" rx="24" fill="url(#sky)"/>
+
+  <text x="56" y="72" class="h" font-size="30">Pairing a new client</text>
+  <text x="56" y="104" font-size="17" fill="#8E99A8">Built into rportd. Enable it in the [pairing] section of rportd.conf.</text>
+
+  <!-- cards -->
+  <rect class="card" x="40" y="140" width="255" height="316" rx="16"/>
+  <rect class="card" x="325" y="140" width="255" height="316" rx="16"/>
+  <rect class="card" x="610" y="140" width="255" height="316" rx="16"/>
+  <rect class="card" x="895" y="140" width="255" height="316" rx="16"/>
+  <use href="#chev" x="304" y="286"/>
+  <use href="#chev" x="589" y="286"/>
+  <use href="#chev" x="874" y="286"/>
+
+  <!-- 1: create a code in the web UI -->
+  <circle cx="72" cy="178" r="15" fill="#2563EB"/><text x="72" y="183" class="n" text-anchor="middle">1</text>
+  <text x="98" y="184" class="h" font-size="18">Create a code</text>
+  <g>
+    <rect x="80" y="210" width="175" height="104" rx="8" fill="#1A222D" stroke="#3B4452" stroke-width="2"/>
+    <rect x="88" y="218" width="159" height="14" rx="4" fill="#2E3947"/>
+    <circle cx="96" cy="225" r="2.5" fill="#8E99A8"/><circle cx="105" cy="225" r="2.5" fill="#8E99A8"/><circle cx="114" cy="225" r="2.5" fill="#8E99A8"/>
+    <rect x="94" y="244" width="96" height="9" rx="3" fill="#2E3947"/>
+    <rect x="94" y="260" width="72" height="9" rx="3" fill="#2E3947"/>
+    <rect x="94" y="280" width="122" height="24" rx="6" fill="#2563EB"/>
+    <text x="155" y="297" font-size="13" font-weight="600" fill="#FFFFFF" text-anchor="middle">Install client</text>
+  </g>
+  <text x="64" y="356" class="body">An admin adds a client in</text>
+  <text x="64" y="380" class="body">the web UI. rportd keeps its</text>
+  <text x="64" y="404" class="body">credentials behind a</text>
+  <text x="64" y="428" class="body">one-time pairing code.</text>
+
+  <!-- 2: run the one-liner on the device -->
+  <circle cx="357" cy="178" r="15" fill="#2563EB"/><text x="357" y="183" class="n" text-anchor="middle">2</text>
+  <text x="383" y="184" class="h" font-size="18">Run the one-liner</text>
+  <g>
+    <rect x="352" y="210" width="201" height="104" rx="8" fill="#0B0F14" stroke="#3B4452" stroke-width="2"/>
+    <rect x="360" y="218" width="185" height="14" rx="4" fill="#2E3947"/>
+    <circle cx="368" cy="225" r="2.5" fill="#8E99A8"/><circle cx="377" cy="225" r="2.5" fill="#8E99A8"/><circle cx="386" cy="225" r="2.5" fill="#8E99A8"/>
+    <text x="364" y="256" class="mono" font-size="13" fill="#7DB2FF">$ curl …/pairing/7KxQ…</text>
+    <text x="364" y="276" class="mono" font-size="13" fill="#7DB2FF">$ sudo sh rport-inst…</text>
+    <text x="364" y="298" class="mono" font-size="13" fill="#8E99A8">installing rport…</text>
+  </g>
+  <text x="349" y="356" class="body">On the device, paste the</text>
+  <text x="349" y="380" class="body">Linux or Windows one-liner.</text>
+  <text x="349" y="404" class="body">It fetches the installer</text>
+  <text x="349" y="428" class="body">from /pairing/&lt;code&gt;.</text>
+
+  <!-- 3: the installer -->
+  <circle cx="642" cy="178" r="15" fill="#2563EB"/><text x="642" y="183" class="n" text-anchor="middle">3</text>
+  <text x="668" y="184" class="h" font-size="18">Install</text>
+  <g>
+    <path d="M737 214l52 22v58l-52 22-52-22v-58z" fill="#3B4452"/>
+    <path d="M685 236l52 22 52-22" fill="none" stroke="#1A222D" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M737 258v58" stroke="#1A222D" stroke-width="3"/>
+    <path d="M685 236l52-22 52 22-52 22z" fill="#6B7280"/>
+    <circle cx="786" cy="296" r="18" fill="#16A34A"/>
+    <path d="M777 296l6 6 12-12" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="634" y="356" class="body">The installer downloads rport</text>
+  <text x="634" y="380" class="body">from your downloads_url,</text>
+  <text x="634" y="404" class="body">checks SHA256SUMS, writes</text>
+  <text x="634" y="428" class="body">rport.conf, starts the service.</text>
+
+  <!-- 4: connected -->
+  <circle cx="927" cy="178" r="15" fill="#2563EB"/><text x="927" y="183" class="n" text-anchor="middle">4</text>
+  <text x="953" y="184" class="h" font-size="18">Connected</text>
+  <g>
+    <use href="#mark" transform="translate(986 214) scale(1.15)"/>
+    <circle class="led" cx="1074" cy="296" r="10" fill="#4ADE80"/>
+  </g>
+  <text x="919" y="356" class="body">The client connects out</text>
+  <text x="919" y="380" class="body">with its own credentials</text>
+  <text x="919" y="404" class="body">and shows up in the</text>
+  <text x="919" y="428" class="body">web UI.</text>
+
+  <text x="600" y="502" font-size="15" fill="#C2CAD6" text-anchor="middle">Codes are random, single-use by default and expire after code_ttl (1 hour). A restart of rportd invalidates them.</text>
+</svg>

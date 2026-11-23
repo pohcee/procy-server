@@ -9,7 +9,7 @@ aliases:
 
 ## Preface
 
-Starting with version 0.3 the Procy client can fetch a list of pending updates for the underlying operating system.
+The Procy client can fetch a list of pending updates for the underlying operating system.
 The summary is sent to the Procy server. This allows you to supervise the patch level of a large number of machines
 from a central place. On the Procy server API each client will contain an `update_status` object that contains data as
 shown in the example below.

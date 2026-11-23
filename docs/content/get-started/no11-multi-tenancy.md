@@ -7,7 +7,7 @@ aliases:
 ---
 {{< toc >}}
 Multi tenancy can be achieved by running multiple isolated instances of the Procy server on a single host.
-By invoking `rportd` multiple time with different configuration files, you get completely isolated server instances.
+By invoking `rportd` multiple times with different configuration files, you get completely isolated server instances.
 
 ## Run it with systemd
 
@@ -16,7 +16,7 @@ Store the file in `/etc/systemd/system/rportd@.service`. (The `@` sign in the fi
 
 ```text
 [Unit]
-Description=Rport Server Instance %i
+Description=Procy server instance %i
 ConditionFileIsExecutable=/usr/local/bin/rportd
 
 [Service]

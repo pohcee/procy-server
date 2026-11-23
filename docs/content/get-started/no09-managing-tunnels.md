@@ -13,10 +13,11 @@ aliases:
 Specify the desired tunnel on the command line, for example
 
 ```shell
-rport --auth rport:password123 <SERVER_IP>:9999 2222:22
+rport --auth client1:<CLIENT_PASSWORD> --fingerprint <FINGERPRINT> procy.example.com:8080 2222:22
 ```
 
-Alternatively add tunnels to the configuration file `rport.conf`.
+Alternatively add tunnels to `remotes` in the configuration file `rport.conf`. To open tunnels only when you need
+them, see [on-demand tunnels](/docs/get-started/on-demand-tunnels/).
 
 ## Manage tunnel server-side
 
@@ -44,7 +45,7 @@ Shortened response:
   },
    {
     "id": "aa1210c7-1899-491e-8e71-564cacaf1df8",
-    "name": "Random Rport Client",
+    "name": "Random Procy Client",
     "os": "Linux alpine-3-10-tk-01 4.19.80-0-virt #1-Alpine ... x86_64 Linux",
     "tunnels": [
       {
@@ -211,12 +212,12 @@ curl -u admin:$PASSWORD -X DELETE \
 
 ## Reverse proxy for http(s) based tunnels
 
-Starting with Procy version 0.5 the server comes with a built-in http reverse proxy. The reverse proxy runs on top of
+The server comes with a built-in http reverse proxy. The reverse proxy runs on top of
 tunnels pointing to remote http or https backend.
 
 {{< mermaid class="text-center">}}
 flowchart LR
-  0[your browser] --> 1[Reverse Proxyon Procy server] --> 2[Tunnel endpoint] --> 3[Tunnel] --> 4[Procy client] --> 5[Target]
+  0[your browser] --> 1[Reverse proxy on the Procy server] --> 2[Tunnel endpoint] --> 3[Tunnel] --> 4[Procy client] --> 5[Target]
 {{< /mermaid >}}
 Using the reverse tunnel allows you to access remote web servers (web-based configuration of switches, routers, NAS)
 through a secure https communication with valid ssl certificates on the public side.
@@ -256,7 +257,7 @@ that will be used for the proxy connection. For example `http_proxy=1&host_heade
 ### Example
 
 ```bash
-curl -s -X PUT -G "${RPORT-SERVER}/api/v1/clients/${CLIENT_ID}/tunnels"  \
+curl -s -X PUT -G "https://procy.example.com/api/v1/clients/${CLIENT_ID}/tunnels"  \
  -d remote=192.168.249.1:443 \
  -d scheme=https \
  -d acl=87.79.148.181 \
@@ -269,7 +270,7 @@ curl -s -X PUT -G "${RPORT-SERVER}/api/v1/clients/${CLIENT_ID}/tunnels"  \
  -H 'Content-Type: application/json'|jq
  ```
 
-*The `-G` switch of curl takes all `-d` key-value-pairs and appends them to the URL concatenaited by an ampersand.*
+*The `-G` switch of curl takes all `-d` key-value-pairs and appends them to the URL, joined by an ampersand.*
 
 In the example, the client creates a bridge to the https web-interface of a router and a reverse proxy will be started automatically.
 You will get a response like this:
@@ -291,4 +292,4 @@ You will get a response like this:
 }
 ```
 
-Now you can point you browser to `https://{RPORT-SERVER}:21504` to access the web server on the remote side.
+Now you can point your browser to `https://procy.example.com:21504` to access the web server on the remote side.

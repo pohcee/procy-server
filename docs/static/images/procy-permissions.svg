@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 616" role="img" aria-labelledby="t d">
+  <title id="t">The Procy permissions model</title>
+  <desc id="d">Members of Administrators can do everything. Other users need both a function permission, granted per user
+    group, and access to the client, granted per client or per client group. If the user store has no group
+    permissions, only Administrators can use these functions.</desc>
+  <style>
+    text { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .h { font-weight: 700; fill: #E6EBF2; }
+    .box { fill: #121821; stroke: #2E3947; stroke-width: 2; }
+    .chip { fill: #1A222D; stroke: #3B4452; stroke-width: 1.5; }
+    .ct { font-size: 13px; fill: #C2CAD6; text-anchor: middle; }
+    .sub { font-size: 13px; fill: #8E99A8; }
+    .link { fill: none; stroke: #93B8FF; stroke-width: 3; }
+  </style>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B0F14"/>
+      <stop offset="1" stop-color="#1A222D"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10z" fill="#93B8FF"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10z" fill="#F5A524"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="616" rx="24" fill="url(#sky)"/>
+
+  <text x="56" y="72" class="h" font-size="30">Who can do what</text>
+  <text x="56" y="104" font-size="17" fill="#8E99A8">A user who isn't an administrator needs both: a function permission and access to the client.</text>
+
+  <g transform="translate(0 30)">
+    <!-- administrators bypass everything -->
+    <path d="M100 252 C 100 100, 1089 100, 1089 246" fill="none" stroke="#F5A524" stroke-width="3" stroke-dasharray="9 7" marker-end="url(#arrow-amber)"/>
+    <rect x="410" y="122" width="380" height="30" rx="15" fill="#0B0F14"/>
+    <text x="600" y="143" font-size="15" font-weight="600" fill="#F5A524" text-anchor="middle">Members of Administrators: always allowed</text>
+
+    <!-- the user -->
+    <circle cx="100" cy="282" r="20" fill="#9CA3AF"/>
+    <path d="M64 342q36-58 72 0z" fill="#6B7280"/>
+    <text x="100" y="374" class="h" font-size="18" text-anchor="middle">User</text>
+    <path class="link" d="M144 315H194" marker-end="url(#arrow)"/>
+
+    <!-- user groups -->
+    <rect class="box" x="200" y="250" width="210" height="130" rx="14"/>
+    <text x="220" y="282" class="h" font-size="17">User groups</text>
+    <rect class="chip" x="220" y="298" width="80" height="28" rx="14"/><text x="260" y="317" class="ct">Support</text>
+    <rect class="chip" x="310" y="298" width="80" height="28" rx="14"/><text x="350" y="317" class="ct">Ops</text>
+    <text x="220" y="358" class="sub">a user can be in several</text>
+
+    <path class="link" d="M410 290C460 290 470 236 514 236" marker-end="url(#arrow)"/>
+    <path class="link" d="M410 342C460 342 470 396 514 396" marker-end="url(#arrow)"/>
+
+    <!-- function permissions -->
+    <rect class="box" x="520" y="166" width="370" height="140" rx="14"/>
+    <text x="540" y="196" class="h" font-size="17">Function permissions</text>
+    <text x="540" y="216" class="sub">what they can do, set per user group</text>
+    <g>
+      <rect class="chip" x="540" y="230" width="78" height="26" rx="13"/><text x="579" y="248" class="ct">commands</text>
+      <rect class="chip" x="624" y="230" width="78" height="26" rx="13"/><text x="663" y="248" class="ct">scripts</text>
+      <rect class="chip" x="708" y="230" width="78" height="26" rx="13"/><text x="747" y="248" class="ct">tunnels</text>
+      <rect class="chip" x="792" y="230" width="78" height="26" rx="13"/><text x="831" y="248" class="ct">vault</text>
+      <rect class="chip" x="540" y="264" width="78" height="26" rx="13"/><text x="579" y="282" class="ct">scheduler</text>
+      <rect class="chip" x="624" y="264" width="78" height="26" rx="13"/><text x="663" y="282" class="ct">monitoring</text>
+      <rect class="chip" x="708" y="264" width="78" height="26" rx="13"/><text x="747" y="282" class="ct">uploads</text>
+      <rect class="chip" x="792" y="264" width="78" height="26" rx="13"/><text x="831" y="282" class="ct">auditlog</text>
+    </g>
+
+    <!-- client access -->
+    <rect class="box" x="520" y="336" width="370" height="114" rx="14"/>
+    <text x="540" y="366" class="h" font-size="17">Client access</text>
+    <text x="540" y="386" class="sub">on which clients, per client or per client group</text>
+    <rect class="chip" x="540" y="402" width="116" height="28" rx="14"/><text x="598" y="421" class="ct">client ACL</text>
+    <rect class="chip" x="664" y="402" width="130" height="28" rx="14"/><text x="729" y="421" class="ct">client groups</text>
+
+    <!-- both are needed -->
+    <path class="link" d="M890 236C924 236 945 250 945 282"/>
+    <path class="link" d="M890 393C924 393 945 372 945 338"/>
+    <circle cx="945" cy="310" r="28" fill="#1A222D" stroke="#93B8FF" stroke-width="3"/>
+    <text x="945" y="315" font-size="15" font-weight="700" fill="#E6EBF2" text-anchor="middle">and</text>
+    <path class="link" d="M973 310H1008" marker-end="url(#arrow)"/>
+
+    <!-- allowed -->
+    <rect x="1014" y="250" width="150" height="120" rx="14" fill="#16A34A" fill-opacity=".16" stroke="#4ADE80" stroke-width="2"/>
+    <circle cx="1089" cy="292" r="20" fill="#16A34A"/>
+    <path d="M1079 292l7 7 13-13" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1089" y="344" class="h" font-size="18" text-anchor="middle">Allowed</text>
+
+    <!-- deny by default -->
+    <path d="M72 500l16-28 16 28z" fill="#F5A524"/>
+    <path d="M88 482v9" stroke="#0B0F14" stroke-width="3" stroke-linecap="round"/><circle cx="88" cy="496" r="1.8" fill="#0B0F14"/>
+    <text x="118" y="494" font-size="15" fill="#C2CAD6"><tspan font-weight="700" fill="#F5A524">Deny by default.</tspan> If the user store has no group permissions (a JSON auth_file, a single user,</text>
+    <text x="118" y="518" font-size="15" fill="#C2CAD6">or no auth_group_details_table), only Administrators can use these functions. Everyone else gets 403.</text>
+    <text x="118" y="552" font-size="15" fill="#8E99A8">Permissions only add up. A second group can't take away what another group grants.</text>
+  </g>
+</svg>

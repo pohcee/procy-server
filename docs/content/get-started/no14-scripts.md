@@ -191,7 +191,7 @@ On the client using the `rport.conf` you can enable or disable execution of remo
 ```
 
 Please note that scripts execution requires commands execution to be enabled
-(check [securing-your-environment](/docs/get-started/no06-command-execution.md) or
+(check [securing-your-environment](/docs/get-started/command-execution/) or
 `[remote-commands]` enabled flag of configuration).
 
 Similar to command execution, you can run scripts both by calling a REST or websocket interface.
@@ -222,7 +222,7 @@ In all cases the scripts are executed by the following algorithm:
 
 **NOTE**
 To execute scripts you need to allow execution of the corresponding script command
-(see [securing-your-environment](/docs/get-started/no06-command-execution.md))
+(see [securing-your-environment](/docs/get-started/command-execution/))
 
 ### Script execution via REST interface
 
@@ -231,7 +231,7 @@ access token. The script's payload should be base64 encoded:
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/clients/4943d682-7874-4f7a-999c-b4ff5493fc3f/scripts' \
--H 'Authorization: Bearer eyJhbGcidfasjfl...snip...snap \
+-H 'Authorization: Bearer eyJhbGcidfasjfl...snip...snap' \
 -H 'Content-Type: application/javascript' \
 --data-raw '{
   "script": "cHdkCg==",
@@ -261,7 +261,7 @@ Here is an example of a script execution with all parameters enabled:
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/clients/4943d682-7874-4f7a-999c-b4ff5493fc3f/scripts' \
--H 'Authorization: Bearer Bearer eyJhbGcidfasjfl...snip...snap \
+-H 'Authorization: Bearer eyJhbGcidfasjfl...snip...snap' \
 -H 'Content-Type: application/x-www-form-urlencoded' \
 --data-raw '{
   "script": "cHdkCg==",
@@ -280,7 +280,7 @@ the input body:
 
 ```shell
 curl -X POST 'http://localhost:3000/api/scripts' \
--H 'Authorization: Bearer Bearer eyJhbGcidfasjfl...snip...snap \
+-H 'Authorization: Bearer eyJhbGcidfasjfl...snip...snap' \
 -H 'Content-Type: application/javascript' \
 --data-raw '{
   "script": "cHdkCg==",
@@ -362,7 +362,7 @@ To execute a taco script, you need to specify `tacoscript` as an interpreter, e.
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/clients/4943d6...snip...snap/scripts' \
--H 'Authorization: Bearer eyJhbGcidfasjfl...snip...snap \
+-H 'Authorization: Bearer eyJhbGcidfasjfl...snip...snap' \
 -H 'Content-Type: application/x-www-form-urlencoded' \
 --data-raw '{
   "script": "IwojIHRoZSB0YXNrLCBjYW4gYmUgYW55IHN...snip...snap",

@@ -8,7 +8,9 @@ aliases:
 ---
 {{< toc >}}
 Via the API you can execute a command on connected clients.
-The command and the response are transferred through the web socket connection. A tunnel is not needed.
+The command and the response travel over the connection the client already holds. A tunnel is not needed.
+
+![Running commands: you post a command for a client group; the server creates a job per client; each client checks the command against its own rules, runs it and sends back the result](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-commands.svg)
 
 Command can be executed via:
 
@@ -190,7 +192,7 @@ curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/commands/$JOBID|jq
 
 ### By client group IDs
 
-How to create client groups please see [the link](/docs/get-started/no04-client-groups.md).
+How to create client groups please see [the link](/docs/get-started/client-groups/).
 
 Assume we have already created a client group with `group-1` id.
 Example:
@@ -214,7 +216,7 @@ Now execute the same query that is in a previous example to get the result of th
 ## Securing your environment
 
 The commands are executed from the account that runs the `rport` client.
-On Linux this by default an unprivileged user. Do not run `rport` as root.
+On Linux, this is an unprivileged user by default. Do not run `rport` as root.
 On Windows, `rport` runs as a local service account that by default has administrative rights.
 
 On the client using the `rport.conf` you can configure and limit the execution of remote commands.

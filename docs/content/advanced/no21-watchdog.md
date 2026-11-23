@@ -8,14 +8,14 @@ slug: watchdog-integration
 
 ## Watchdog integration
 
-Starting with Procy version 0.8.3 you can enable a watchdog integration on the Procy client.
+You can enable a watchdog integration on the Procy client.
 
 The Procy client works stable and reliable and broken connections are always resumed.
 There is no need to enable watchdog integration by default.
 It should only be activated in exceptional cases when you notice the Procy client process is running, but no connection
 attempts are made.
 
-On the `rport.conf` go the the `[connection]` section and set `watchdog_integration = true`.
+In `rport.conf`, go to the `[connection]` section and set `watchdog_integration = true`.
 Also make sure you have `max_retry_count` disabled and `keep_alive` must be enabled.
 
 ## State.json file
@@ -88,16 +88,15 @@ $now = ((Get-Date -UFormat %s) - [int](get-date -Uformat %Z)*3600)
 $lastUpdate = (Get-Content $stateFile| ConvertFrom-Json).last_update_ts
 $diff = $now - $lastUpdate
 if ($diff -gt $threshHoldSec){
-    Write-Output "RPort hangs. No activity deteced for $($diff) seconds."
+    Write-Output "Procy client hangs. No activity detected for $($diff) seconds."
     Restart-Service rport
 } else {
-    Write-Output "RPort is running fine. Last activity $($diff) seconds ago."
+    Write-Output "Procy client is running fine. Last activity $($diff) seconds ago."
 }
 ```
 
-🐶 A fully-featured Procy watchdog for Windows implemented in PowerShell can be
-[downloaded here](https://github.com/openrport/rport-win-watchdog). It comes ready-to-use with an easy
-installation.
+🐶 The original OpenRPort project published a fully-featured watchdog for Windows in PowerShell,
+[rport-win-watchdog](https://github.com/openrport/rport-win-watchdog). It isn't maintained as part of Procy.
 
 ### Using the systemd watchdog
 
@@ -114,7 +113,7 @@ If you enable debug logging, you will get a confirmation like `Using NOTIFY_SOCK
 If systemd does not detect any updates on the socket within the `WatchdogSec` period, it will restart the Procy client.
 This means you must set `WatchdogSec` a bit longer than `max_retry_interval` and `keep_alive`. See above.
 
-Setting `keep_alive` and `max_retry_interval` both the 3 minutes and `WatchdocSec` to 200 are good values.
+Setting `keep_alive` and `max_retry_interval` both the 3 minutes and `WatchdogSec` to 200 are good values.
 The shorter you set `keep_alive` and `max_retry_interval` the faster the watchdog can act. But the more bandwidth the
 Procy client consumes in idle mode.
 

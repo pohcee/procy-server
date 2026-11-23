@@ -1,8 +1,6 @@
 <!-- markdownlint-disable -->
 ![Procy: the clever raccoon sneaking a secure tunnel under a firewall to a server](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-hero.svg)
 
-[![Discord](https://img.shields.io/badge/Discord-Join_Now-brightgreen?style=for-the-badge&logo=discord)](https://discord.gg/HQ4wMQmzcu)
-
 > Procy continues the open-source rport project, originally built by CloudRadar and carried on by the community as
 > [OpenRPort](https://github.com/openrport/openrport) after rport moved to a commercial licence. The programs, packages and config files still
 > use the `rport` names (`rportd`, `rport`, `/etc/rport/rportd.conf`); they will be renamed in a later release.
@@ -46,7 +44,7 @@ and Microsoft Windows.
 Also, the server can run on any operating system supported by the golang compiler. At the moment we provide server
 binaries only for Linux X64 because this is the ideal platform for running it securely and cost-effective.
 
-![Procy Principle](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-principle.svg 'Procy Principle')
+![How Procy works: admins and users reach the Procy server over HTTPS; clients on private networks dial out to it through their firewall, and tunnels ride that connection](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-principle.svg)
 
 ## Why Procy?
 
@@ -79,8 +77,8 @@ Pairing (the "Install client" one-liners in the web UI) is built into `rportd`. 
   downloads_url = "https://procy.example.com/downloads"
 ```
 
-and restart the server: `sudo systemctl restart rportd.service`. See the `[pairing]` section of
-`rportd.example.conf` for all options.
+and restart the server: `sudo systemctl restart rportd.service`. See
+[pairing clients](https://procy.sh/docs/get-started/client-pairing/) for how to serve the client packages and all options.
 
 ## 📖 Documentation
 
@@ -118,7 +116,6 @@ This way you won't miss any updates and the upcoming features.
 ## Credits
 
 * Thanks to [jpillora/chisel](https://github.com/jpillora/chisel) for the great groundwork of tunnels
-* Image by [pch.vector / Freepik](http://www.freepik.com)
 
 ## Versioning model
 

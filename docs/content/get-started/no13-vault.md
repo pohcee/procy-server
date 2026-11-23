@@ -48,13 +48,13 @@ curl -X POST 'http://localhost:3000/api/v1/vault-admin/init' \
 -u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
- "password": "1234"
+ "password": "<VAULT_PASSWORD>"
 }'
 ```
 
 Password length must be between 4 and 32 bytes, shorter and longer passwords are rejected.
 
-You need to init database every time when the Procy server is restarted.
+You initialize the vault only once. After every restart of the Procy server the vault is locked; unlock it with the same password.
 
 ### Status
 
@@ -107,7 +107,7 @@ curl -X POST 'http://localhost:3000/api/v1/vault-admin/sesame' \
 -u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
- "password": "1234"
+ "password": "<VAULT_PASSWORD>"
 }'
 ```
 

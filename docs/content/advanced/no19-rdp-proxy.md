@@ -5,12 +5,11 @@ slug: rdp-proxy
 aliases:
 - /docs/no19-rdp-proxy.html
 ---
----
 {{< toc >}}
 
 ## Preface
 
-Starting with version 0.6.0 Procy has the ability to create a tunnel to a remote RDP server with a built-in HTTPS proxy.
+Procy can create a tunnel to a remote RDP server with a built-in HTTPS proxy.
 Procy uses the Apache Guacamole Server to connect to the remote RDP Server, which brings the remote desktop into your
  browser without the need of an RDP viewer. If a rdp tunnel with https proxy is created, Procy first creates the tunnel
 to the remote machine and makes it available through the https proxy with path "/". Pointing the browser to this URL
@@ -18,7 +17,8 @@ creates a websocket tunnel to connect the browser with the guacamole server and 
 
 ## Prerequisites
 
-* Apache Guacamole Proxy Server 1.4.X has to be running on 127.0.0.1
+* The Apache Guacamole proxy daemon `guacd` (1.4.x) must be running, and `guacd_address` in the `[server]` section of
+  `rportd.conf` must point to it, for example `guacd_address = "127.0.0.1:4822"`.
 * Procy server configuration `tunnel_proxy_cert_file` and `tunnel_proxy_key_file` must be set up.
   The guacd proxy depends on the generic built-in TLS reverse proxy, which is enabled by providing a key and a certificate.
 
@@ -31,10 +31,9 @@ easy to install daemon. It does not require any configuration or special mainten
 
 To run the guacamole server `guacd` you have the following options:
 
-* Use the pre-compiled packges for Ubuntu or Debian we have perpared to run the `guacd` just for Procy.
-  [downloads and instructions](https://github.com/realvnc-labs/rport-guacamole/releases)
+* Install the `guacd` package of your distribution, if it has one.
 * Build the Guacamole Server from source and run it, as described in the
-  [Guacamole installation guide](http://guacamole.incubator.apache.org/doc/gug/installing-guacamole.html).
+  [Guacamole installation guide](https://guacamole.apache.org/doc/gug/installing-guacamole.html).
 * Use one of the provided Docker images for guacd,
   e.g. from [linuxserver.io](https://docs.linuxserver.io/images/docker-guacd)
 
