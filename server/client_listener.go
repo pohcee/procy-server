@@ -666,24 +666,9 @@ func (cl *ClientListener) saveCmdResult(respBytes []byte) (*models.Job, error) {
 		return nil, fmt.Errorf("failed to decode cmd result request: %s", err)
 	}
 
-	var wsJID string
-	if resp.MultiJobID != nil {
-		wsJID = *resp.MultiJobID
-	} else {
-		wsJID = resp.JID
-	}
-	ws := cl.server.uiJobWebSockets.Get(wsJID)
-	if ws != nil {
-		err := ws.WriteMessage(websocket.TextMessage, respBytes)
-		if err != nil {
-			cl.log().Errorf("%s, failed to write message to UI Web Socket: %v", resp.LogPrefix(), err)
-			// proceed further
-		}
-	} else {
-		cl.log().Debugf("%s, WS conn not found when saving command result. No active listeners connected", resp.LogPrefix())
-	}
-
-	// older clients don't echo the library fields back; keep the stored ones
+	// older clients don't echo the library fields back; keep the stored ones,
+	// both in the saved job and in the message forwarded to the UI
+	fwdBytes := respBytes
 	if resp.LibraryEntryID == "" || resp.LibraryVersion == 0 || resp.OS == "" {
 		if stored, getErr := cl.server.jobProvider.GetByJID(resp.ClientID, resp.JID); getErr == nil && stored != nil {
 			if resp.LibraryEntryID == "" {
@@ -695,7 +680,28 @@ func (cl *ClientListener) saveCmdResult(respBytes []byte) (*models.Job, error) {
 			if resp.OS == "" {
 				resp.OS = stored.OS
 			}
+			if stored.LibraryEntryID != "" {
+				// library jobs only: typed messages are forwarded untouched
+				fwdBytes = withLibraryFields(respBytes, &resp)
+			}
 		}
+	}
+
+	var wsJID string
+	if resp.MultiJobID != nil {
+		wsJID = *resp.MultiJobID
+	} else {
+		wsJID = resp.JID
+	}
+	ws := cl.server.uiJobWebSockets.Get(wsJID)
+	if ws != nil {
+		err := ws.WriteMessage(websocket.TextMessage, fwdBytes)
+		if err != nil {
+			cl.log().Errorf("%s, failed to write message to UI Web Socket: %v", resp.LogPrefix(), err)
+			// proceed further
+		}
+	} else {
+		cl.log().Debugf("%s, WS conn not found when saving command result. No active listeners connected", resp.LogPrefix())
 	}
 
 	err = cl.server.jobProvider.SaveJob(&resp)
@@ -851,4 +857,29 @@ func (cl *ClientListener) sendCapabilities(conn *ssh.ServerConn) {
 	if _, _, err = conn.SendRequest(comm.RequestTypePutCapabilities, false, payload); err != nil {
 		cl.log().Errorf("can't send capabilities: %v", err)
 	}
+}
+
+// withLibraryFields returns raw with the library fields of job set where raw
+// lacks them. On any decoding problem raw is returned unchanged.
+func withLibraryFields(raw []byte, job *models.Job) []byte {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return raw
+	}
+	set := func(key string, v interface{}) {
+		if cur, ok := m[key]; ok && string(cur) != "null" && string(cur) != `""` && string(cur) != "0" {
+			return
+		}
+		if b, err := json.Marshal(v); err == nil {
+			m[key] = b
+		}
+	}
+	set("library_entry_id", job.LibraryEntryID)
+	set("library_version", job.LibraryVersion)
+	set("os", job.OS)
+	out, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return out
 }

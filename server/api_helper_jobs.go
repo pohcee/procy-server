@@ -180,14 +180,25 @@ func (al *APIListener) executeMultiClientJob(
 // has no implementation gets a skipped job. The username is taken from the
 // request, like StartMultiClientJob.
 func (al *APIListener) StartLibraryMultiJob(ctx context.Context, entryID string, req *jobs.MultiJobRequest) (*models.MultiJob, error) {
-	entry, err := al.libraryManager.ActiveForRun(ctx, entryID)
+	multiJob, specFor, err := al.prepareLibraryMultiJob(ctx, entryID, req)
 	if err != nil {
 		return nil, err
+	}
+	go al.runMultiClientJob(nil, multiJob, req.OrderedClients, specFor)
+	return multiJob, nil
+}
+
+// prepareLibraryMultiJob resolves the entry's active version, saves the
+// multi-job and returns it with the per-client spec resolver. The caller runs it.
+func (al *APIListener) prepareLibraryMultiJob(ctx context.Context, entryID string, req *jobs.MultiJobRequest) (*models.MultiJob, clientSpecFunc, error) {
+	entry, err := al.libraryManager.ActiveForRun(ctx, entryID)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	jid, err := generateNewJobID()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// by default abortOnErr is true
@@ -203,11 +214,11 @@ func (al *APIListener) StartLibraryMultiJob(ctx context.Context, entryID string,
 			req.OrderedClients, err = al.getOrderedClientsByTag(req.ClientTags)
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	if len(req.OrderedClients) == 0 {
-		return nil, fmt.Errorf("no clients for execution")
+		return nil, nil, fmt.Errorf("no clients for execution")
 	}
 
 	timeoutSec := library.MaxTimeout(*entry)
@@ -231,7 +242,7 @@ func (al *APIListener) StartLibraryMultiJob(ctx context.Context, entryID string,
 		LibraryVersion: entry.ActiveVersion,
 	}
 	if err := al.jobProvider.SaveMultiJob(multiJob); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defaultTimeout := al.config.Server.RunRemoteCmdTimeoutSec
@@ -251,7 +262,5 @@ func (al *APIListener) StartLibraryMultiJob(ctx context.Context, entryID string,
 		return spec, ""
 	}
 
-	go al.runMultiClientJob(nil, multiJob, req.OrderedClients, specFor)
-
-	return multiJob, nil
+	return multiJob, specFor, nil
 }
