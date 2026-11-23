@@ -1,0 +1,10 @@
+{
+  "key": "client-update",
+  "name": "Client update",
+  "description": "Updates the Procy client to the latest stable version if newer; rolls back if it does not reconnect.",
+  "tags": ["procy", "client-update"],
+  "implementations": {
+    "linux": {"file": "linux.sh", "kind": "script", "interpreter": "sh", "is_sudo": true, "cwd": "", "timeout_sec": 300},
+    "windows": {"file": "windows.ps1", "kind": "script", "interpreter": "powershell", "is_sudo": false, "cwd": "", "timeout_sec": 300}
+  }
+}

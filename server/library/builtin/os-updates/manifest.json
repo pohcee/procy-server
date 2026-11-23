@@ -1,0 +1,10 @@
+{
+  "key": "os-updates",
+  "name": "OS updates",
+  "description": "Installs all pending OS updates and restarts the host if needed.",
+  "tags": ["procy", "os-updates"],
+  "implementations": {
+    "linux": {"file": "linux.sh", "kind": "script", "interpreter": "sh", "is_sudo": true, "cwd": "", "timeout_sec": 1800},
+    "windows": {"file": "windows.ps1", "kind": "script", "interpreter": "powershell", "is_sudo": false, "cwd": "", "timeout_sec": 3600}
+  }
+}
