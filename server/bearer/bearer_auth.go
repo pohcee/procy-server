@@ -2,10 +2,10 @@ package bearer
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
-	"math/rand"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -106,7 +106,7 @@ func CreateAuthToken(
 		Username:  username,
 		SessionID: sessionID,
 		StandardClaims: jwt.StandardClaims{
-			Id: strconv.FormatUint(rand.Uint64(), 10),
+			Id: randomTokenID(),
 		},
 		Scopes: scopes,
 	}
@@ -163,7 +163,7 @@ func ParseToken(tokenStr string, JWTSecret string) (tokCtx *TokenContext, err er
 	appClaims := &AppTokenClaims{}
 	bearerToken, err := jwt.ParseWithClaims(tokenStr, appClaims, func(token *jwt.Token) (i interface{}, err error) {
 		return []byte(JWTSecret), nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()})) // only HS256 tokens are issued
 	if err != nil {
 		// do not return error since it should respond with 401 instead of 500, just log it
 		return nil, err
@@ -209,6 +209,16 @@ func ValidateBearerToken(
 		return false, session.APISession{}, err
 	}
 
+	// The session must belong to the user named in the token; session IDs are sequential.
+	if sessionInfo.Username != tokCtx.AppClaims.Username {
+		l.Errorf(
+			"Login session %d does not belong to %s",
+			tokCtx.AppClaims.SessionID,
+			tokCtx.AppClaims.Username,
+		)
+		return false, session.APISession{}, nil
+	}
+
 	isValidByExpirationTime := sessionInfo.ExpiresAt.After(time.Now())
 	if !isValidByExpirationTime {
 		l.Errorf(
@@ -228,4 +238,11 @@ func GetBearerToken(req *http.Request) (string, bool) {
 		return "", false
 	}
 	return auth[len(prefix):], true
+}
+
+// randomTokenID returns a random JWT ID from a cryptographically secure source.
+func randomTokenID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b) // crypto/rand.Read doesn't fail on supported platforms
+	return hex.EncodeToString(b)
 }
