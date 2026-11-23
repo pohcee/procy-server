@@ -10,6 +10,7 @@ import (
 
 	"github.com/openrport/openrport/server/api"
 	errors2 "github.com/openrport/openrport/server/api/errors"
+	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/auditlog"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/routes"
@@ -30,6 +31,7 @@ func (al *APIListener) addLibraryEntriesRoutes(r *mux.Router) {
 	r.HandleFunc(entryPath, al.handleSaveLibraryEntry).Methods(http.MethodPut).Name(routes.LibraryEntryWriteRouteName + "-put")
 	r.HandleFunc(entryPath, al.handleDeleteLibraryEntry).Methods(http.MethodDelete)
 	r.HandleFunc(entryPath+"/undelete", al.handleUndeleteLibraryEntry).Methods(http.MethodPost)
+	r.HandleFunc(entryPath+"/run", al.handleRunLibraryEntry).Methods(http.MethodPost)
 	r.HandleFunc(entryVersions, al.handleListLibraryEntryVersions).Methods(http.MethodGet)
 	r.HandleFunc(entryVersionN, al.handleGetLibraryEntryVersion).Methods(http.MethodGet)
 	r.HandleFunc(entryVersionN+"/restore", al.handleRestoreLibraryEntryVersion).Methods(http.MethodPost).Name(routes.LibraryEntryWriteRouteName + "-restore")
@@ -288,4 +290,61 @@ func (al *APIListener) handleRestoreLibraryEntryVersion(w http.ResponseWriter, r
 	}
 	al.auditLibraryEntry(req, auditlog.ActionRestore, id, in, entry)
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(entry))
+}
+
+// handleRunLibraryEntry handles POST /library/entries/{entry_id}/run
+func (al *APIListener) handleRunLibraryEntry(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	id := mux.Vars(req)[routes.ParamEntryID]
+
+	var reqBody jobs.MultiJobRequest
+	if err := parseRequestBody(req.Body, &reqBody); err != nil {
+		al.jsonError(w, err)
+		return
+	}
+
+	// 404 before anything about the targets
+	if _, err := al.libraryManager.ActiveForRun(ctx, id); err != nil {
+		al.jsonError(w, err)
+		return
+	}
+
+	orderedClients, _, err := al.getOrderedClientsWithValidation(ctx, &reqBody)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	reqBody.OrderedClients = orderedClients
+
+	curUser, err := al.getUserModelForAuth(ctx)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	clientGroups, err := al.clientGroupProvider.GetAll(ctx)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	if err := al.clientService.CheckClientsAccess(reqBody.OrderedClients, curUser, clientGroups); err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	reqBody.Username = curUser.Username
+
+	multiJob, err := al.StartLibraryMultiJob(ctx, id, &reqBody)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+
+	resp := newJobResponse{JID: multiJob.JID}
+	al.auditLog.Entry(auditlog.ApplicationLibraryEntry, auditlog.ActionRun).
+		WithHTTPRequest(req).
+		WithRequest(reqBody).
+		WithResponse(resp).
+		WithID(id).
+		SaveForMultipleClients(reqBody.OrderedClients)
+
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(resp))
 }

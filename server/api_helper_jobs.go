@@ -174,3 +174,84 @@ func (al *APIListener) executeMultiClientJob(
 ) {
 	al.runMultiClientJob(nil, job, orderedClients, sameSpecForAll(typedJobSpec(job)))
 }
+
+// StartLibraryMultiJob starts a run of a library entry. The entry's active
+// version is resolved once, here, and every client runs it; a client whose OS
+// has no implementation gets a skipped job. The username is taken from the
+// request, like StartMultiClientJob.
+func (al *APIListener) StartLibraryMultiJob(ctx context.Context, entryID string, req *jobs.MultiJobRequest) (*models.MultiJob, error) {
+	entry, err := al.libraryManager.ActiveForRun(ctx, entryID)
+	if err != nil {
+		return nil, err
+	}
+
+	jid, err := generateNewJobID()
+	if err != nil {
+		return nil, err
+	}
+
+	// by default abortOnErr is true
+	abortOnErr := true
+	if req.AbortOnError != nil {
+		abortOnErr = *req.AbortOnError
+	}
+
+	if req.OrderedClients == nil {
+		if !hasClientTags(req) {
+			req.OrderedClients, _, err = al.getOrderedClients(ctx, req.ClientIDs, req.GroupIDs)
+		} else {
+			req.OrderedClients, err = al.getOrderedClientsByTag(req.ClientTags)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(req.OrderedClients) == 0 {
+		return nil, fmt.Errorf("no clients for execution")
+	}
+
+	timeoutSec := library.MaxTimeout(*entry)
+	if timeoutSec <= 0 {
+		timeoutSec = al.config.Server.RunRemoteCmdTimeoutSec
+	}
+	multiJob := &models.MultiJob{
+		MultiJobSummary: models.MultiJobSummary{
+			JID:        jid,
+			StartedAt:  time.Now(),
+			CreatedBy:  req.Username,
+			ScheduleID: req.ScheduleID,
+		},
+		ClientIDs:      req.ClientIDs,
+		GroupIDs:       req.GroupIDs,
+		ClientTags:     req.ClientTags,
+		TimeoutSec:     timeoutSec,
+		Concurrent:     req.ExecuteConcurrently,
+		AbortOnErr:     abortOnErr,
+		LibraryEntryID: entry.ID,
+		LibraryVersion: entry.ActiveVersion,
+	}
+	if err := al.jobProvider.SaveMultiJob(multiJob); err != nil {
+		return nil, err
+	}
+
+	defaultTimeout := al.config.Server.RunRemoteCmdTimeoutSec
+	specFor := func(c *clientdata.Client) (library.JobSpec, string) {
+		osKernel := c.GetOSKernel()
+		spec, ok := library.SpecFor(*entry, osKernel)
+		if !ok {
+			return library.JobSpec{
+				LibraryEntryID: entry.ID,
+				LibraryVersion: entry.ActiveVersion,
+				OS:             osKernel,
+			}, "no " + library.OSLabel(osKernel) + " implementation"
+		}
+		if spec.TimeoutSec <= 0 {
+			spec.TimeoutSec = defaultTimeout
+		}
+		return spec, ""
+	}
+
+	go al.runMultiClientJob(nil, multiJob, req.OrderedClients, specFor)
+
+	return multiJob, nil
+}

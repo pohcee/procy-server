@@ -683,6 +683,21 @@ func (cl *ClientListener) saveCmdResult(respBytes []byte) (*models.Job, error) {
 		cl.log().Debugf("%s, WS conn not found when saving command result. No active listeners connected", resp.LogPrefix())
 	}
 
+	// older clients don't echo the library fields back; keep the stored ones
+	if resp.LibraryEntryID == "" || resp.LibraryVersion == 0 || resp.OS == "" {
+		if stored, getErr := cl.server.jobProvider.GetByJID(resp.ClientID, resp.JID); getErr == nil && stored != nil {
+			if resp.LibraryEntryID == "" {
+				resp.LibraryEntryID = stored.LibraryEntryID
+			}
+			if resp.LibraryVersion == 0 {
+				resp.LibraryVersion = stored.LibraryVersion
+			}
+			if resp.OS == "" {
+				resp.OS = stored.OS
+			}
+		}
+	}
+
 	err = cl.server.jobProvider.SaveJob(&resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save job result: %s", err)

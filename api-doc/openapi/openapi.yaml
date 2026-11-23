@@ -142,6 +142,8 @@ paths:
     $ref: paths/library_entries.yaml
   /library/entries/{entry_id}:
     $ref: paths/library_entries_{entry_id}.yaml
+  /library/entries/{entry_id}/run:
+    $ref: paths/library_entries_{entry_id}_run.yaml
   /library/entries/{entry_id}/undelete:
     $ref: paths/library_entries_{entry_id}_undelete.yaml
   /library/entries/{entry_id}/versions:

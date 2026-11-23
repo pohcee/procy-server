@@ -6,6 +6,7 @@ const (
 	ActionUndelete     = "undelete"
 	ActionRestore      = "restore"
 	ActionUpdate       = "update"
+	ActionRun          = "run"
 	ActionExecuteStart = "execute.start"
 	ActionExecuteDone  = "execute.done"
 	ActionSuccess      = "success"

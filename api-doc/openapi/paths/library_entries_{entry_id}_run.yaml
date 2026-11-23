@@ -1,0 +1,56 @@
+post:
+  tags:
+    - Library
+  summary: Run a library entry on devices
+  description: >-
+    Resolves the entry's active version once, when the run starts, and runs it
+    on the targeted devices. Each device runs the implementation for its
+    `os_kernel`; a device whose OS has no implementation gets a job with status
+    `skipped` and message `no <OS> implementation`, which does not count as an
+    error for `abort_on_error`. Follow the run via `GET /commands/{jid}`.
+  operationId: LibraryEntryRun
+  parameters:
+    - {name: entry_id, in: path, required: true, schema: {type: string}}
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            client_ids: {type: array, items: {type: string}}
+            group_ids: {type: array, items: {type: string}}
+            tags:
+              $ref: ../components/schemas/Tags.yaml
+            execute_concurrently: {type: boolean, default: false}
+            abort_on_error: {type: boolean, default: true}
+  responses:
+    '200':
+      description: Run started
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  jid: {type: string, description: ID of the multi-client job}
+    '400':
+      description: No targets or invalid targets
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: No access to a targeted client
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Entry not found or deleted
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
