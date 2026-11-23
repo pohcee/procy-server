@@ -137,3 +137,12 @@ func TestNormalizeDefaults(t *testing.T) {
 		t.Errorf("explicit values changed: %+v", i)
 	}
 }
+
+func TestValidateRejectsUnknownKind(t *testing.T) {
+	c := validContent()
+	c.Implementations[OSLinux] = Implementation{Kind: "foo", Code: "/bin/ls"}
+	apiErr := requireAPIError400(t, Validate(c))
+	if !strings.Contains(apiErr.Message, OSLinux) || !strings.Contains(apiErr.Message, "foo") {
+		t.Errorf("message %q should name the OS and the kind", apiErr.Message)
+	}
+}

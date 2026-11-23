@@ -41,6 +41,11 @@ func Validate(c Content) error {
 		if !isKnownOS(os) {
 			return badRequest("unknown OS %q, expected one of: %s", os, strings.Join(AllOS, ", "))
 		}
+		switch impl.Kind {
+		case "", KindAuto, KindCommand, KindScript:
+		default:
+			return badRequest("%s: unknown kind %q, expected one of: auto, command, script", os, impl.Kind)
+		}
 		if strings.TrimSpace(impl.Code) == "" {
 			return badRequest("%s: code is required", os)
 		}
