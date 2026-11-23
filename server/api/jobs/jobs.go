@@ -188,11 +188,25 @@ func (p *SqliteProvider) CreateJob(job *models.Job) error {
 		typeErr, ok := err.(sqlite3.Error)
 		if ok && typeErr.Code == sqlite3.ErrConstraint {
 			p.log.Debugf("Job already exist with ID: %s", job.JID)
+			if job.LibraryEntryID != "" {
+				return p.patchLibraryFields(job)
+			}
 			return nil
 		}
 	} else {
 		p.log.Debugf("Job saved successfully: %v", *job)
 	}
+	return err
+}
+
+// patchLibraryFields sets the library fields of an already stored job. A fast
+// result can be saved before the job is created, without them.
+func (p *SqliteProvider) patchLibraryFields(job *models.Job) error {
+	_, err := sqlite.WithRetryWhenBusy(func() (sql.Result, error) {
+		return p.db.Exec(`UPDATE jobs SET details = json_set(details,
+			'$.library_entry_id', ?, '$.library_version', ?, '$.os', ?)
+			WHERE jid = ?`, job.LibraryEntryID, job.LibraryVersion, job.OS, job.JID)
+	}, "patchjoblibrary", p.log)
 	return err
 }
 

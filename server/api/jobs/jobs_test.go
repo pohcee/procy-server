@@ -111,3 +111,28 @@ func TestCreateJob(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, job, gotJob)
 }
+
+func TestCreateJobPatchesLibraryFieldsOfExistingJob(t *testing.T) {
+	jobsDB, err := sqlite.New(":memory:", jobs.AssetNames(), jobs.Asset, DataSourceOptions)
+	require.NoError(t, err)
+	p := NewSqliteProvider(jobsDB, testLog)
+	defer p.Close()
+
+	// a fast result saved the job first, without library fields
+	job := jb.New(t).Status(models.JobStatusSuccessful).Result(&models.JobResult{Summary: "done"}).Build()
+	require.NoError(t, p.CreateJob(job))
+
+	late := *job
+	late.Status = models.JobStatusRunning
+	late.Result = nil
+	late.LibraryEntryID, late.LibraryVersion, late.OS = "e1", 3, "linux"
+	require.NoError(t, p.CreateJob(&late))
+
+	got, err := p.GetByJID(job.ClientID, job.JID)
+	require.NoError(t, err)
+	assert.Equal(t, "e1", got.LibraryEntryID)
+	assert.Equal(t, 3, got.LibraryVersion)
+	assert.Equal(t, "linux", got.OS)
+	assert.Equal(t, models.JobStatusSuccessful, got.Status)
+	assert.Equal(t, "done", got.Result.Summary)
+}
