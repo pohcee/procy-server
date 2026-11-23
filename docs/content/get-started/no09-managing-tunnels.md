@@ -24,12 +24,12 @@ On the server, you can supervise and manage the attached clients through the [AP
 
 ### List
 
-`curl -s -u admin:foobaz http://localhost:3000/api/v1/clients`. *Use `jq` for pretty-printing json.*
+`curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients`. *Use `jq` for pretty-printing json.*
 
 Here is an example:
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/clients|jq
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients|jq
 ```
 
 Shortened response:
@@ -70,7 +70,7 @@ For example,
 CLIENTID=2ba9174e-640e-4694-ad35-34a2d6f3986b
 LOCAL_PORT=4000
 REMOTE_PORT=22
-curl -u admin:foobaz -X PUT \
+curl -u admin:$PASSWORD -X PUT \
 "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?local=$LOCAL_PORT&remote=$REMOTE_PORT"|jq
 ```
 
@@ -81,13 +81,13 @@ forwards to the port 22 of the client.
 Using
 
 ```shell
-curl -s -u admin:foobaz -X GET "http://localhost:3000/api/v1/clients"
+curl -s -u admin:$PASSWORD -X GET "http://localhost:3000/api/v1/clients"
 ```
 
 or
 
 ```shell
-curl -s -u admin:foobaz -X GET "http://localhost:3000/api/v1/clients" \
+curl -s -u admin:$PASSWORD -X GET "http://localhost:3000/api/v1/clients" \
 |jq ".data[] | select(.id==\"$CLIENTID\")|.tunnels"
 ```
 
@@ -112,7 +112,7 @@ The above example makes the tunnel available without restrictions. Learn more ab
 If you omit the local port a random free port on the Procy server is selected. For example,
 
 ```shell
-curl -s -u admin:foobaz -X PUT "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?remote=22"|jq
+curl -s -u admin:$PASSWORD -X PUT "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?remote=22"|jq
 {
   "data": {
     "success": 1,
@@ -135,7 +135,7 @@ create tunnels to foreign systems too.
 CLIENTID=2ba9174e-640e-4694-ad35-34a2d6f3986b
 LOCAL_PORT=4001
 REMOTE_PORT=192.168.178.1:80
-curl -u admin:foobaz -X PUT \
+curl -u admin:$PASSWORD -X PUT \
 "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?local=$LOCAL_PORT&remote=$REMOTE_PORT"
 ```
 
@@ -164,7 +164,7 @@ For example:
 CLIENTID=2ba9174e-640e-4694-ad35-34a2d6f3986b
 LOCAL_PORT=4000
 REMOTE_PORT=22
-curl -u admin:foobaz -X PUT \
+curl -u admin:$PASSWORD -X PUT \
 "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?local=$LOCAL_PORT&remote=$REMOTE_PORT&idle-timeout-minutes=10
 ```
 
@@ -175,7 +175,7 @@ To disable auto-closing of tunnels, you should provide `skip-idle-timeout` param
 CLIENTID=2ba9174e-640e-4694-ad35-34a2d6f3986b
 LOCAL_PORT=4000
 REMOTE_PORT=22
-curl -u admin:foobaz -X PUT \
+curl -u admin:$PASSWORD -X PUT \
 "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?local=$LOCAL_PORT&remote=$REMOTE_PORT&skip-idle-timeout=1
 ```
 
@@ -192,7 +192,7 @@ CLIENTID=2ba9174e-640e-4694-ad35-34a2d6f3986b
 LOCAL_PORT=4000
 REMOTE_PORT=22
 ACL=213.90.90.123,189.20.90.0/24
-curl -u admin:foobaz -X PUT \
+curl -u admin:$PASSWORD -X PUT \
 "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels?local=$LOCAL_PORT&remote=$REMOTE_PORT&acl=$ACL"
 ```
 
@@ -205,7 +205,7 @@ Using a DELETE request with the tunnel id allows terminating a tunnel.
 ```shell
 CLIENTID=2ba9174e-640e-4694-ad35-34a2d6f3986b
 TUNNELID=1
-curl -u admin:foobaz -X DELETE \
+curl -u admin:$PASSWORD -X DELETE \
 "http://localhost:3000/api/v1/clients/$CLIENTID/tunnels/$TUNNELID"
 ```
 

@@ -84,7 +84,7 @@ Here are some examples how to manage client groups.
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/client-groups' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
     "id": "group-1",
@@ -103,7 +103,7 @@ Note all the parameters will be overridden.
 
 ```shell
 curl -X PUT 'http://localhost:3000/api/v1/client-groups/group-1' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
     "id": "group-1",
@@ -119,7 +119,7 @@ curl -X PUT 'http://localhost:3000/api/v1/client-groups/group-1' \
 ### List all client groups
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/client-groups/group-1|jq
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/client-groups/group-1|jq
 {
   "data": {
     "id": "group-1",
@@ -157,5 +157,5 @@ curl -s -u admin:foobaz http://localhost:3000/api/v1/client-groups/group-1|jq
 ### Delete
 
 ```shell
-curl -u admin:foobaz -X DELETE 'http://localhost:3000/api/v1/client-groups/group-1'
+curl -u admin:$PASSWORD -X DELETE 'http://localhost:3000/api/v1/client-groups/group-1'
 ```

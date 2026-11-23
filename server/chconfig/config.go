@@ -2,8 +2,6 @@ package chconfig
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -392,6 +390,10 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 		mLog.Info("server setting 'enable_ws_test_endpoints' is deprecated and will be removed soon. Use the setting in api section instead.")
 	}
 
+	if err := checkNotExampleValue("key_seed", c.Server.KeySeed); err != nil {
+		return err
+	}
+
 	if err := c.Server.parseAndValidateURLs(); err != nil {
 		return err
 	}
@@ -466,6 +468,9 @@ func (c *Config) parseAndValidateClientAuth() error {
 	if c.Server.Auth == "" && c.Server.AuthFile == "" && c.Server.AuthTable == "" {
 		return errors.New("client authentication must be enabled: set either 'auth', 'auth_file' or 'auth_table'")
 	}
+	if err := checkNotExampleValue("auth", c.Server.Auth); err != nil {
+		return err
+	}
 
 	if c.Server.AuthFile != "" && c.Server.Auth != "" {
 		return errors.New("'auth_file' and 'auth' are both set: expected only one of them")
@@ -507,10 +512,12 @@ func (c *Config) parseAndValidateAPI(mLog *logger.MemLogger) error {
 			return err
 		}
 		if c.API.JWTSecret == "" {
-			c.API.JWTSecret, err = generateJWTSecret()
+			c.API.JWTSecret, err = loadOrCreateJWTSecret(c.Server.DataDir)
 			if err != nil {
 				return err
 			}
+		} else if err = validateJWTSecret(c.API.JWTSecret); err != nil {
+			return err
 		}
 		err = c.parseAndValidate2FA()
 		if err != nil {
@@ -737,6 +744,10 @@ func (c *Config) parseAndValidateAPIAuth() error {
 		return errors.New("authentication must be enabled: set either 'auth', 'auth_file' or 'auth_user_table'")
 	}
 
+	if err := checkNotExampleValue("api auth", c.API.Auth); err != nil {
+		return err
+	}
+
 	if c.API.AuthFile != "" && c.API.Auth != "" {
 		return errors.New("'auth_file' and 'auth' are both set: expected only one of them")
 	}
@@ -888,13 +899,8 @@ func (d *DatabaseConfig) DsnForLogs() string {
 	return d.Dsn
 }
 
-func generateJWTSecret() (string, error) {
-	data := make([]byte, 10)
-	if _, err := rand.Read(data); err != nil {
-		return "", fmt.Errorf("can't generate API JWT secret: %s", err)
-	}
-	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
-}
+// jwtSecretFileName holds the generated API JWT secret in the data dir when none is configured.
+const jwtSecretFileName = "rportd-jwt-secret.txt"
 
 func parseAndValidateCORS(mLog *logger.MemLogger, cors []string) []string {
 	result := []string{}

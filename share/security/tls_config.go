@@ -9,11 +9,11 @@ func TLSConfig(configTLSMin string) *tls.Config {
 		tlsMin = tls.VersionTLS12
 	}
 
+	// Curves and cipher suites are left to Go's defaults, which include X25519 and the
+	// X25519MLKEM768 post-quantum hybrid and are kept current with each Go release.
 	// #nosec G402 -- disables G402: TLS MinVersion too low. (gosec)
 	var TLSConfig = &tls.Config{
-		MinVersion:               tlsMin,
-		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-		PreferServerCipherSuites: true,
+		MinVersion: tlsMin,
 	}
 	return TLSConfig
 }

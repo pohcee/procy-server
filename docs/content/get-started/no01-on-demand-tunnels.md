@@ -24,16 +24,17 @@ Set up `[api]` config params. For example:
      # Defines the IP address and port the API server listens on
      address = "127.0.0.1:3000"
      # Defines <user:password> authentication pair for accessing API
-     auth = "admin:foobaz"
-     jwt_secret = "quei1too2Jae3xootu"
+     auth = "admin:<your-password>"
    ```
 
-This opens the API and enables HTTP basic authentication with a single user "admin:foobaz" who has access to the API.
+This opens the API and enables HTTP basic authentication with a single user `admin` who has access to the API.
+A JWT secret for API tokens is generated on first start and saved in the data directory.
 Restart the rportd after any changes to the configuration. Read more about API [authentication options](no02-api-auth.md).
 
 {{< hint type=warning >}}
-Do not run the API on public servers with the default credentials. Change the `auth=` settings and generate your own
-`jwt_secret`, e.g. by using the command `pwgen 24 1` or `openssl rand -hex 12`.
+Choose a strong password. rportd refuses to start with the sample credentials from `rportd.example.conf`
+(`admin:foobaz`, `clientAuth1:1234`) and with placeholder or too-short secrets. If you set `jwt_secret` yourself, use at
+least 16 characters, e.g. `openssl rand -hex 32`.
 {{< /hint >}}
 
 {{< hint type=tip >}}
@@ -42,7 +43,8 @@ If you expose your API to the public internet, it's highly recommended to enable
 By default the built-in web server can run the API only on ports above 1024. To circumvent this limit, refer to
 [running the API on privileged ports.](#running-the-api-on-a-privileged-port)
 
-Test if you set up the API properly by querying its status with `curl -s -u admin:foobaz http://localhost:3000/api/v1/status`.
+The examples in these docs read the password from a shell variable, so set it first: `read -rs PASSWORD`.
+Test if you set up the API properly by querying its status with `curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/status`.
 
 {{< hint type=tip >}}
 The API always returns a minified json formatted response. The large output is hard to read. In all further examples,
@@ -54,7 +56,7 @@ for better readability. `jq`is included in almost any distribution, for Windows 
 Example of a human-readable API status
 
 ```shell
-~# curl -s -u admin:foobaz http://localhost:3000/api/v1/status |jq
+~# curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/status |jq
 {
   "data": {
     "connect_url": ["http://0.0.0.0:8080"],
@@ -85,11 +87,11 @@ This attaches the client to the message queue of the server without creating a t
 ## Manage clients and tunnels through the API
 
 On the server, you can supervise the attached clients using
-`curl -s -u admin:foobaz http://localhost:3000/api/v1/clients`.
+`curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients`.
 Here is an example:
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/clients|jq
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients|jq
 [
   {
     "id": "my-client-1",

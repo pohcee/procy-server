@@ -26,7 +26,9 @@ func TestLoadingExampleConf(t *testing.T) {
 	err = chshare.DecodeViperConfig(viperCfg, cfg, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "<YOUR_SEED>", cfg.Server.KeySeed)
-	assert.Equal(t, "clientAuth1:1234", cfg.Server.Auth)
+	assert.Empty(t, cfg.Server.Auth, "the sample client credentials are commented out")
+	assert.Empty(t, cfg.API.Auth, "the sample API credentials are commented out")
+	assert.Empty(t, cfg.API.JWTSecret, "jwt_secret is generated and saved when unset")
 	assert.Equal(t, "/var/lib/rport", cfg.Server.DataDir)
 }
 

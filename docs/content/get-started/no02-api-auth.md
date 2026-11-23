@@ -23,7 +23,7 @@ The API claims to be REST compliant. Submitting credentials on each request usin
 possible, for example:
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/clients|jq
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients|jq
 ```
 
 With the two-factor authentication enabled, HTTP basic authentication with a username and user's password stops working.
@@ -36,7 +36,7 @@ authenticate further requests with a token.
 Example:
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/login|jq
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/login|jq
 {
  "data": {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMzI2MDU3MjgzMTA4OTc4NTg1OSJ9.6HSANk3aRleJbAMvfJhUc4grieupRdfU62MMX_L6wEA"
@@ -51,14 +51,15 @@ Having a valid token you can execute requests, using an `Authorization: Bearer: 
 
 ```shell
 # Get and store the token
-curl -s -u admin:foobaz http://localhost:3000/api/v1/login?token-lifetime=3600|jq -r .data.token > .token
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/login?token-lifetime=3600|jq -r .data.token > .token
 
 # Request using the stored token
 curl -s -H "Authorization: Bearer $(cat .token)" http://localhost:3000/api/v1/clients|jq
 ```
 
-Tokens are based on JWT. For your security, you should enter a unique `jwt_secret` into the `rportd.conf`. Do not use
-the provided sample secret in a production environment.
+Tokens are based on JWT. If `jwt_secret` is not set in `rportd.conf`, a random secret is generated on first start and
+saved as `rportd-jwt-secret.txt` in the data directory. Set it yourself (at least 16 characters, e.g. `openssl rand -hex 32`)
+when several servers must accept the same tokens.
 
 Tokens can be issued only for certain pages. If you have 2fa enabled (either with a deliverable code or an Authenticator
 app), Procy issues a token, which can be used only in the `/verify-2fa` API. This ensures that your login attempt is
@@ -135,7 +136,7 @@ Note: 2FA is not available if you use [a single static user-password pair](/docs
    Login endpoints trigger sending 2FA verification code to a user. For example,
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/login|jq
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/login|jq
 {
   "data": {
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFwIiwiSz.2dbLWzej7XqwAAWiQajBDPPO15Vz2VHDA",
@@ -197,10 +198,10 @@ frontend, you must store users in a database.
 To use just a single user enter the following line to the `rportd.config` in the `[api]` section.
 
 ```text
-auth = "admin:foobaz"
+auth = "admin:<your-password>"
 ```
 
-Quite simple. Now you can log in to the API using the username `admin` and the password `foobaz`.
+Quite simple. Now you can log in to the API using the username `admin` and your password.
 
 ### User File
 
@@ -306,7 +307,7 @@ Having the database set up, enter the following two lines to the `[api]` section
 
 ```toml
 [api]
-  #auth = "admin:foobaz" <-- Must be disabled
+  #auth = "admin:<your-password>" <-- Must be disabled
   auth_user_table = "users"
   auth_user_table = "users"
   auth_group_table = "groups"

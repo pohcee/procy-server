@@ -23,7 +23,7 @@ Example:
 
 ```shell
 CLIENTID=my-client
-curl -s -u admin:foobaz http://localhost:3000/api/v1/clients/$CLIENTID/commands \
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients/$CLIENTID/commands \
 -H "Content-Type: application/json" -X POST \
 --data-raw '{
   "command": "date",
@@ -36,7 +36,7 @@ Now execute a query to get the result of the command.
 
 ```shell
 JOBID=f72b69fd-f418-40c3-ab62-4ce2c2022c58
-curl -s -u admin:foobaz http://localhost:3000/api/v1/clients/$CLIENTID/commands/$JOBID|jq
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients/$CLIENTID/commands/$JOBID|jq
 {
     "data": {
         "jid": "f72b69fd-f418-40c3-ab62-4ce2c2022c58",
@@ -86,7 +86,7 @@ Execution options:
 Example:
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/commands -H "Content-Type: application/json" -X POST \
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/commands -H "Content-Type: application/json" -X POST \
 --data-raw '{
   "command": "/bin/date",
   "client_ids": ["local-test-client-2", "local-test-client-3", "local-test-client-4"],
@@ -103,7 +103,7 @@ Now execute a query to get the result of the command.
 
 ```shell
 JOBID=f206854c-af1d-4589-9adc-bdf3553ec68b
-curl -s -u admin:foobaz http://localhost:3000/api/v1/commands/$JOBID|jq
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/commands/$JOBID|jq
 {
   "data": {
     "jid": "f206854c-af1d-4589-9adc-bdf3553ec68b",
@@ -196,7 +196,7 @@ Assume we have already created a client group with `group-1` id.
 Example:
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/commands -H "Content-Type: application/json" -X POST \
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/commands -H "Content-Type: application/json" -X POST \
 --data-raw '{
   "command": "/bin/date",
   "group_ids": ["group-1"],

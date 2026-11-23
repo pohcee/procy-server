@@ -141,7 +141,7 @@ auth_write = false
 List all client auth credentials.
 
 ```shell
-curl -s -u admin:foobaz http://localhost:3000/api/v1/clients-auth|jq
+curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients-auth|jq
 {
   "data": [
     {
@@ -164,7 +164,7 @@ Add a new client auth credentials
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/clients-auth' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
     "id":"client3",

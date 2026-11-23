@@ -45,7 +45,7 @@ This operation creates a new vault database and provisions it with some status i
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/vault-admin/init' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
  "password": "1234"
@@ -62,7 +62,7 @@ This API allows to read the current status of the Procy vault:
 
 ```shell
 curl -X GET 'http://localhost:3000/api/v1/vault-admin' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json'
 ```
 
@@ -89,7 +89,7 @@ This operation locks the vault, meaning that the password will be removed from s
 
 ```shell
 curl -X DELETE 'http://localhost:3000/api/v1/vault-admin/sesame' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json'
 ```
 
@@ -104,7 +104,7 @@ provided, the vault will become fully functional.
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/vault-admin/sesame' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
  "password": "1234"
@@ -120,7 +120,7 @@ the encrypted `value` field.
 
 ```shell
 curl -X GET 'http://localhost:3000/api/v1/vault' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json'
 ```
 
@@ -170,7 +170,7 @@ Note: If you use curl to test filters, you should switch off URL globbing parser
 
 ```shell
 curl -g -X GET 'http://localhost:3000/api/v1/vault?filter[created_by]=admin' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json'
 ```
 
@@ -194,7 +194,7 @@ You can get a single document with all fields and the decrypted value.
 
 ```shell
 curl -X GET 'http://localhost:3000/api/v1/vault/1' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json'
 ```
 
@@ -227,7 +227,7 @@ You can create a new secured value:
 
 ```shell
 curl -X POST 'http://localhost:3000/api/v1/vault' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
  "client_id": "client3",
@@ -274,7 +274,7 @@ You get the id also when you store a new value.
 
 ```shell
 curl -X PUT 'http://localhost:3000/api/v1/vault/1' \
--u admin:foobaz \
+-u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
  "client_id": "client3",
@@ -305,7 +305,7 @@ Additionally, id is provided when you create a new vault entry. You can delete a
 
 ```shell
 curl -X DELETE 'http://localhost:3000/api/v1/vault/1' \
--u admin:foobaz
+-u admin:$PASSWORD
 ```
 
 If `required_group` value of the entry you want to delete is not empty, only users of this group can change this value,
