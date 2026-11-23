@@ -85,3 +85,17 @@ func isTrusted(a netip.Addr, trusted []netip.Prefix) bool {
 	}
 	return false
 }
+
+// IsTrustedPeer reports whether the request arrived directly from a configured trusted proxy.
+func IsTrustedPeer(r *http.Request) bool {
+	var trusted []netip.Prefix
+	if p := trustedProxies.Load(); p != nil {
+		trusted = *p
+	}
+	host := r.RemoteAddr
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	a, err := netip.ParseAddr(host)
+	return err == nil && isTrusted(a, trusted)
+}

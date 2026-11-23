@@ -24,7 +24,6 @@ import (
 	"github.com/openrport/openrport/db/migration/api_token"
 	"github.com/openrport/openrport/db/migration/library"
 	"github.com/openrport/openrport/db/sqlite"
-	rportplus "github.com/openrport/openrport/plus"
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/notifications/channels/rmailer"
 	"github.com/openrport/openrport/server/notifications/channels/scriptRunner"
@@ -37,6 +36,7 @@ import (
 	"github.com/openrport/openrport/server/pairing"
 	"github.com/openrport/openrport/server/script"
 
+	rportplus "github.com/openrport/openrport/plus"
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/api/command"
 	"github.com/openrport/openrport/server/api/message"
@@ -556,7 +556,9 @@ func (al *APIListener) validateCredentials(username, password string, skipPasswo
 		user = &users.User{
 			Username: username,
 			Password: pswd,
-			Groups:   []string{al.config.API.DefaultUserGroup},
+		}
+		if al.config.API.DefaultUserGroup != "" {
+			user.Groups = []string{al.config.API.DefaultUserGroup}
 		}
 		err = al.userService.Change(user, "")
 		if err != nil {
@@ -579,10 +581,12 @@ func (al *APIListener) shouldCreateMissingUser(user *users.User, skipPasswordVal
 	if user != nil || !skipPasswordValidation {
 		return false
 	}
-	if al.config.API.CreateMissingUsers || !rportplus.IsOAuthPermittedUserList(al.config.PlusConfig) {
+	if al.config.API.CreateMissingUsers {
 		return true
 	}
-	return false
+	// Plus OAuth without a permitted-user list creates users. Without Plus OAuth enabled this must
+	// not apply: IsOAuthPermittedUserList is false then, which used to let header auth create admins.
+	return rportplus.IsPlusOAuthEnabled(al.config.PlusConfig) && !rportplus.IsOAuthPermittedUserList(al.config.PlusConfig)
 }
 
 func verifyPassword(saved, provided string) bool {

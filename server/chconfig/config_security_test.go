@@ -98,3 +98,21 @@ func TestInvalidTrustedProxyIsRejected(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "trusted proxy")
 }
+
+func TestHeaderAuthRequiresTrustedProxies(t *testing.T) {
+	cfg := apiConfigWith(t.TempDir(), APIConfig{
+		AuthHeader: "Authentication-IsAuthenticated", UserHeader: "Authentication-User",
+		AuthFile: "users.json", Auth: "-",
+	})
+	cfg.API.Auth = ""
+	err := cfg.ParseAndValidate(&Mlog)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "trusted_proxies")
+
+	cfg = apiConfigWith(t.TempDir(), APIConfig{
+		AuthHeader: "Authentication-IsAuthenticated", UserHeader: "Authentication-User",
+		AuthFile: "users.json", TrustedProxies: []string{"10.0.0.0/8"},
+	})
+	cfg.API.Auth = ""
+	assert.NoError(t, cfg.ParseAndValidate(&Mlog))
+}

@@ -785,6 +785,9 @@ func (c *Config) parseAndValidateAPIAuth() error {
 		if c.API.UserHeader == "" {
 			return errors.New("'user_header' must be set when 'auth_header' is set")
 		}
+		if len(c.API.TrustedProxies) == 0 {
+			return errors.New("'trusted_proxies' must be set when 'auth_header' is set: only the reverse proxy may assert who is logged in")
+		}
 	}
 
 	return nil

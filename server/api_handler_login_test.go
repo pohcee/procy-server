@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/bearer"
 	"github.com/openrport/openrport/server/chconfig"
+	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/ptr"
 	"github.com/openrport/openrport/share/random"
 	"github.com/openrport/openrport/share/security"
@@ -702,6 +704,7 @@ func TestHandleGetLogin(t *testing.T) {
 		HeaderAuthUser    string
 		HeaderAuthEnabled bool
 		CreateMissingUser bool
+		UntrustedPeer     bool
 		ExpectedStatus    int
 	}{
 		{
@@ -743,8 +746,23 @@ func TestHandleGetLogin(t *testing.T) {
 			HeaderAuthEnabled: true,
 			CreateMissingUser: true,
 			ExpectedStatus:    http.StatusOK,
+		}, {
+			Name:              "header auth - unknown user, create_missing_users off",
+			HeaderAuthUser:    "someone-else",
+			HeaderAuthEnabled: true,
+			ExpectedStatus:    http.StatusUnauthorized,
+		}, {
+			Name:              "header auth - not from a trusted proxy",
+			HeaderAuthUser:    user.Username,
+			HeaderAuthEnabled: true,
+			UntrustedPeer:     true,
+			ExpectedStatus:    http.StatusUnauthorized,
 		},
 	}
+
+	// Header auth is only accepted from trusted reverse proxies; httptest requests come from 192.0.2.1.
+	chshare.SetTrustedProxies([]netip.Prefix{netip.MustParsePrefix("192.0.2.1/32")})
+	t.Cleanup(func() { chshare.SetTrustedProxies(nil) })
 
 	for _, tc := range testCases {
 		tc := tc
@@ -759,6 +777,9 @@ func TestHandleGetLogin(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest("GET", "/api/v1/login", nil)
+			if tc.UntrustedPeer {
+				req.RemoteAddr = "203.0.113.50:4444"
+			}
 			if tc.BasicAuthPassword != "" {
 				req.SetBasicAuth(user.Username, tc.BasicAuthPassword)
 			}

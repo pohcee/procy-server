@@ -570,10 +570,11 @@ func TestParseAndValidateAPI(t *testing.T) {
 			Name: "api enabled, auth_header ok",
 			Config: Config{
 				API: APIConfig{
-					Address:    "0.0.0.0:3000",
-					AuthHeader: "Authentication-IsAuthenticated",
-					UserHeader: "Authentication-User",
-					AuthFile:   "test.json",
+					Address:        "0.0.0.0:3000",
+					AuthHeader:     "Authentication-IsAuthenticated",
+					UserHeader:     "Authentication-User",
+					AuthFile:       "test.json",
+					TrustedProxies: []string{"10.0.0.0/8"},
 				},
 			},
 		},

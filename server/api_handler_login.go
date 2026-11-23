@@ -34,8 +34,12 @@ func (al *APIListener) handleGetLogin(w http.ResponseWriter, req *http.Request) 
 	}
 
 	if al.config.API.AuthHeader != "" && req.Header.Get(al.config.API.AuthHeader) != "" {
-		al.handleLogin(req.Header.Get(al.config.API.UserHeader), "", "", true /* skipPasswordValidation */, w, req)
-		return
+		// The header is only meaningful when a trusted reverse proxy set it; anyone else could send it.
+		if chshare.IsTrustedPeer(req) {
+			al.handleLogin(req.Header.Get(al.config.API.UserHeader), "", "", true /* skipPasswordValidation */, w, req)
+			return
+		}
+		al.Infof("ignoring %s header from %s: not a trusted proxy", al.config.API.AuthHeader, req.RemoteAddr)
 	}
 
 	basicUser, basicPwd, basicAuthProvided := req.BasicAuth()

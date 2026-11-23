@@ -355,7 +355,8 @@ func init() {
 	viperCfg.SetDefault("server.jobs_max_results", 10000)
 	viperCfg.SetDefault("server.tls_min", "1.3")
 	viperCfg.SetDefault("api.user_header", "Authentication-User")
-	viperCfg.SetDefault("api.default_user_group", "Administrators")
+	// Users created on the fly (header auth with create_missing_users) get no group unless configured.
+	viperCfg.SetDefault("api.default_user_group", "")
 	viperCfg.SetDefault("api.user_login_wait", 2)
 	viperCfg.SetDefault("api.max_failed_login", 10)
 	viperCfg.SetDefault("api.ban_time", 600)
