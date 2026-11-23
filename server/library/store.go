@@ -66,6 +66,20 @@ func insertVersion(ctx context.Context, tx *sqlx.Tx, v Version) error {
 
 // Insert stores a new entry together with its first version.
 func (s *Store) Insert(ctx context.Context, e Entry, v Version) error {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if err = insertEntry(ctx, tx, e, v); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// insertEntry stores a new entry and its first version inside the caller's transaction.
+func insertEntry(ctx context.Context, tx *sqlx.Tx, e Entry, v Version) error {
 	tags, err := toJSON(nonNilStrings(e.Tags))
 	if err != nil {
 		return err
@@ -74,12 +88,6 @@ func (s *Store) Insert(ctx context.Context, e Entry, v Version) error {
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.BeginTxx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback() //nolint:errcheck
-
 	_, err = tx.ExecContext(ctx,
 		"INSERT INTO `entries` (`id`, `name`, `description`, `tags`, `os`, `active_version`, `builtin_key`, `created_at`, `created_by`, `updated_at`, `updated_by`)"+
 			" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -90,10 +98,7 @@ func (s *Store) Insert(ctx context.Context, e Entry, v Version) error {
 	if err != nil {
 		return err
 	}
-	if err = insertVersion(ctx, tx, v); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return insertVersion(ctx, tx, v)
 }
 
 // AddVersion makes v the active version of e, provided the entry is live and its

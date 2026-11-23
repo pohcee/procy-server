@@ -33,6 +33,7 @@ import (
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/clients/storedtunnels"
+	libraryentries "github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/pairing"
 	"github.com/openrport/openrport/server/script"
 
@@ -81,6 +82,7 @@ type APIListener struct {
 	scriptManager  *script.Manager
 	tokenManager   *authorization.Manager
 	commandManager *command.Manager
+	libraryManager *libraryentries.Manager
 	storedTunnels  *storedtunnels.Manager
 	pairing        *pairing.Service
 
@@ -210,6 +212,9 @@ func NewAPIListener(
 	commandProvider := command.NewSqliteProvider(libraryDb)
 	commandManager := command.NewManager(commandProvider)
 
+	libraryStore := libraryentries.NewStore(libraryDb)
+	libraryManager := libraryentries.NewManager(libraryStore, time.Now)
+
 	tokenProvider := authorization.NewSqliteProvider(apiTokenDb)
 	tokenManager := authorization.NewManager(tokenProvider)
 
@@ -247,12 +252,21 @@ func NewAPIListener(
 		vaultManager:           vault.NewManager(vaultDBProviderFactory, &vault.Aes256PassManager{}, vaultLogger),
 		scriptManager:          scriptManager,
 		commandManager:         commandManager,
+		libraryManager:         libraryManager,
 		tokenManager:           tokenManager,
 		storedTunnels:          storedtunnels.New(server.clientDB),
 		notificationsStorage:   store,
 		notificationsProcessor: notificationProcessor,
 		notificationsDB:        db,
 		notificationsCleaner:   notificationsCleaner,
+	}
+
+	imported, err := libraryentries.ImportLegacy(context.Background(), libraryDb, libraryStore)
+	if err != nil {
+		return nil, fmt.Errorf("failed to import scripts and commands into the library: %w", err)
+	}
+	if imported > 0 {
+		allog.Infof("imported %d scripts and commands into the library", imported)
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
