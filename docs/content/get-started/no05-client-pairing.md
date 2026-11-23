@@ -128,9 +128,8 @@ Use `-t` for the unstable channel. To install a specific package, pass `-z <url 
 `rpm`; set `PKG_SHA256` to verify it) or `-pkgUrl <url or file>` on Windows.
 
 {{< hint type=note >}}
-`rportd` accepts only TLS 1.3 by default (`tls_min` in `[api]`). Windows versions before Windows 11 and Server 2022
-cannot use TLS 1.3, so they cannot download the update script or the client from the server. Set `tls_min = "1.2"`
-in `[api]` if you have such clients.
+Windows versions before Windows 11 and Server 2022 cannot use TLS 1.3. Keep `tls_min` in `[api]` at its default,
+`"1.2"`, if you have such clients; with `"1.3"` they cannot download the installer, the update script or the client.
 {{< /hint >}}
 
 ## Security notes
