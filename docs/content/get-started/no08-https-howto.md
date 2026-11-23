@@ -10,7 +10,7 @@ aliases:
 
 ## Enable encryption
 
-Rportd supports HTTPS without the need for a reverse proxy.
+`rportd` supports HTTPS without the need for a reverse proxy.
 {{< hint type=caution title="Always use encryption">}}
 Even on your local intranet. Do not run the API with unencrypted plain HTTP. Sniffing HTTP traffic is trivial.
 Your credentials might get into wrong hands easily.
@@ -36,8 +36,8 @@ If the IP address of your server has a public domain name you can generate a fre
 
 ## Use the built-in ACME
 
-Starting with version 0.9.11 the Procy server comes with a built-in automatic certificate management environment (ACME).
-This ACME can create and renew all certificates needed for a secure operation of the Procy server.
+The Procy server comes with a built-in ACME client. It can create and renew all Let's Encrypt certificates needed for a
+secure operation of the Procy server.
 
 To enable the ACME for the Procy API look for the following setting in the `rportd.conf`:
 
@@ -145,3 +145,18 @@ cron manually that executes `certbot -q renew` every 12 hours.
 Add a certbot deploy hook (for example in `/etc/letsencrypt/renewal-hooks/deploy/`) that makes the renewed
 certificates readable by the `rport` user and restarts `rportd`.
 {{< /hint >}}
+
+## Behind a reverse proxy
+
+If you put a reverse proxy such as Caddy or nginx in front of the API, list its address in `trusted_proxies`:
+
+```text
+[api]
+  ## Reverse proxies (IP addresses or CIDR ranges) in front of rportd.
+  trusted_proxies = ["127.0.0.1/32"]
+```
+
+`rportd` reads the client's IP address from the `X-Forwarded-For` header only when the request comes from one of these
+addresses; otherwise it uses the address of the connection. The IP is used for login bans, the audit log, sessions and
+pairing. Without `trusted_proxies`, every request behind a proxy seems to come from the proxy, so one user's failed
+logins can ban everyone. Don't list addresses that aren't proxies: anyone connecting from them could fake their IP.

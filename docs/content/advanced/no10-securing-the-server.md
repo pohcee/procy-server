@@ -158,4 +158,53 @@ Use `fail2ban-client status` to verify which rules are active.
 
 ## Securing the API
 
-@todo: Finish this chapter.
+### Secrets and credentials
+
+`rportd` refuses to start with the placeholders and sample values from `rportd.example.conf` and these docs: the
+`<YOUR_SEED>` and `<YOUR_SECRET>` placeholders, the documented example JWT secret, and the sample credentials
+`admin:foobaz` and `clientAuth1:1234`. A `jwt_secret` shorter than 16 characters is refused as well.
+
+If you leave `jwt_secret` empty, `rportd` generates a random secret on the first start and saves it as
+`rportd-jwt-secret.txt` (mode 0600) in the data directory. Keep that file private, and back it up with the rest of the
+data directory. Set `jwt_secret` yourself only if several servers must accept the same tokens, for example with
+`openssl rand -hex 32`.
+
+### Use HTTPS
+
+Never expose the API and the web UI over plain HTTP. Use the built-in
+[HTTPS support or ACME](/docs/get-started/securing-rportd-with-https/), or a TLS reverse proxy.
+
+### Password guessing
+
+The API has its own protection against password guessing in the `[api]` section:
+
+```text
+  ## Force users to wait N seconds (float) between unsuccessful login attempts. Per username.
+  #user_login_wait = 2.0
+  ## After X failed login-in attempts, ban the source IP address for Z seconds.
+  #max_failed_login = 5
+  #ban_time = 3600
+```
+
+Bans are per IP address. If `rportd` runs behind a reverse proxy, list the proxy in `trusted_proxies`, otherwise all
+users share the proxy's address and one user's failed logins ban everybody. `rportd` reads `X-Forwarded-For` only
+from those proxies, so a client connecting directly can't fake its address. See
+[behind a reverse proxy](/docs/get-started/securing-rportd-with-https/#behind-a-reverse-proxy).
+
+Turn on [two-factor authentication](/docs/get-started/api-authentication/#two-factor-auth) for an extra layer.
+
+### Users and permissions
+
+* Users who aren't administrators can only use what their user groups allow. If the user store can't hold group
+  permissions (a JSON `auth_file` or a single user), only administrators can run commands and scripts, create
+  tunnels, or use the vault, scheduler and uploads. See the [permissions model](/docs/get-started/permissions-model/).
+* With [delegated authentication](/docs/get-started/api-authentication/#delegated-authentication), `auth_header` is
+  only accepted from `trusted_proxies`, and users are created on the fly only with `create_missing_users = true`.
+* New passwords need at least `password_min_length` characters (14 by default) and must pass the
+  `password_zxcvbn_minscore` check.
+* Deleting a user revokes their sessions and API tokens immediately.
+
+### Audit log
+
+Each action through the API is written to the audit log (`enable_audit_log`, on by default) in the data directory.
+Set `use_ip_obfuscation = true` if storing full IP addresses conflicts with your privacy rules.

@@ -8,7 +8,7 @@ aliases:
 ---
 
 {{< toc >}}
-The Rportd can read client auth credentials from three different sources.
+`rportd` can read client credentials from three different sources.
 
 1. A "hardcoded" single credential pair
 2. A file with client credentials
@@ -32,9 +32,10 @@ config(`rportd.config`) in the `[server]` section.
 auth = "rport:a-strong-password12345"
 ```
 
-Make sure no other auth option is enabled.
-Reload rportd to activate the changes.
-Quite simple. Now you can run a client using the client-auth-id `rport` and the password `a-strong-password12345`.
+Make sure no other auth option is enabled. `rportd` refuses to start with the sample credentials `clientAuth1:1234`
+from `rportd.example.conf`.
+Restart rportd to activate the changes.
+Now you can run a client using the client-auth-id `rport` and the password `a-strong-password12345`.
 It can be done in three ways:
 
 1. Use a command arg: `--auth rport:a-strong-password12345`
@@ -58,10 +59,9 @@ If you want to have more than one credential, create a json file with the follow
 
 ```json
 {
-    "clientAuth1": "1234",
-    "admin": "123456",
-    "client1": "yienei5Ch",
-    "client2": "ieRi1Noo2"
+    "client1": "yienei5Ch-quoo3Eiv",
+    "client2": "ieRi1Noo2-Thaech4u",
+    "client3": "Oow8ooqu-ahGh2iet"
 }
 ```
 
@@ -145,16 +145,16 @@ curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients-auth|jq
 {
   "data": [
     {
-      "id": "clientAuth1",
-      "password": "1234"
-    },
-    {
       "id": "client1",
-      "password": "yienei5Ch"
+      "password": "yienei5Ch-quoo3Eiv"
     },
     {
       "id": "client2",
-      "password": "ieRi1Noo2"
+      "password": "ieRi1Noo2-Thaech4u"
+    },
+    {
+      "id": "client3",
+      "password": "Oow8ooqu-ahGh2iet"
     }
   ]
 }
@@ -167,8 +167,8 @@ curl -X POST 'http://localhost:3000/api/v1/clients-auth' \
 -u admin:$PASSWORD \
 -H 'Content-Type: application/json' \
 --data-raw '{
-    "id":"client3",
-    "password":"hase243345"
+    "id":"client4",
+    "password":"<CLIENT_PASSWORD>"
 }'
 ```
 
