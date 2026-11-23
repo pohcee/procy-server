@@ -35,6 +35,7 @@ func (al *APIListener) handleGetTunnels(w http.ResponseWriter, req *http.Request
 	clientGroups, err := al.clientGroupProvider.GetAll(req.Context())
 	if err != nil {
 		al.jsonError(w, err)
+		return
 	}
 
 	clients := al.clientService.GetUserClients(clientGroups, curUser)
