@@ -8,11 +8,11 @@ aliases:
 {{< toc >}}
 Procy users are provided from JSON file or DB as described in [authentication section](/docs/get-started/no03-client-auth.md).
 
-You can manage users with the [REST API](https://docs.procy.sh/api/).
+You can manage users with the [REST API](https://procy.sh/docs/api/).
 
 ## API Limitations
 
-Before using the [User Management API](https://docs.procy.sh/api/), you should provide at least one user
+Before using the [User Management API](https://procy.sh/docs/api/), you should provide at least one user
 belonging `Administrators` group either in a JSON file or DB.
 
 If `rportd` is started with static credentials [auth mode](no03-client-auth.md#using-a-static-credential), user management

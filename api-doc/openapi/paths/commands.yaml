@@ -73,7 +73,7 @@ post:
   description: >-
     NOTE: if command limitation is enabled by a Procy client then a full path
     command can be required to use. See
-    https://docs.procy.sh/get-started/command-execution/ for more details
+    https://procy.sh/docs/get-started/command-execution/ for more details
   requestBody:
     description: properties and remote command to execute by Procy clients
     content:
@@ -87,7 +87,7 @@ post:
                 remote command to execute by Procy clients. NOTE: if command
                 limitation is enabled by a Procy client then a full path
                 command can be required to use. See
-                https://docs.procy.sh/get-started/command-execution/ for more
+                https://procy.sh/docs/get-started/command-execution/ for more
                 details
             client_ids:
               type: array

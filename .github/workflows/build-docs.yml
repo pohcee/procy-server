@@ -1,5 +1,7 @@
-name: Build and deploy docs
-# Publishes https://docs.procy.sh (Hugo site in docs/) with the API reference at /api/.
+name: Build docs
+# Builds the docs site served at https://procy.sh/docs/ (Hugo site in docs/, API reference at
+# /docs/api/). The site is uploaded as the "procy-docs" artifact. To publish it, unpack it into a
+# folder on the Procy server and link that folder as <doc_root>/docs.
 on:
   push:
     branches:
@@ -12,18 +14,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  pages: write
-  id-token: write
-concurrency:
-  group: pages
-  cancel-in-progress: true
 jobs:
   docs:
-    name: Build and deploy docs
+    name: Build docs
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,14 +37,9 @@ jobs:
           cd docs
           ~/hugo --minify
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload the site
+        uses: actions/upload-artifact@v4
         with:
-          path: './docs/public'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          name: procy-docs
+          path: docs/public
+          retention-days: 30

@@ -32,7 +32,7 @@ properties:
       by default on Windows, and '/bin/sh' on Unix. 
        For tacoscript interpreter you should install tacoscript binary from here: https://github.com/realvnc-labs/tacoscript#installation. 
        It should also be available in the system path.
-       Additionally, you can use interpreter aliases or full absolute paths to an interpreter of your choice (see https://docs.procy.sh/get-started/scripts/#scripts-execution for details).
+       Additionally, you can use interpreter aliases or full absolute paths to an interpreter of your choice (see https://procy.sh/docs/get-started/scripts/#scripts-execution for details).
     enum:
       - cmd
       - powershell

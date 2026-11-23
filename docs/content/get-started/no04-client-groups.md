@@ -15,10 +15,10 @@ Procy client group can be created by:
 1. adding single clients to it;
 2. dynamic criteria using wildcards.
 
-Managing client groups is done via the [API](https://docs.procy.sh/api/).
+Managing client groups is done via the [API](https://procy.sh/docs/api/).
 The `/client-groups` endpoints allow you to create, update, delete and list them.
 
-As listed in the [API docs](https://docs.procy.sh/api/) Client Group is defined by:
+As listed in the [API docs](https://procy.sh/docs/api/) Client Group is defined by:
 
 * `id` - unique group identifier
 * `description` - group description

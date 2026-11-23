@@ -124,7 +124,7 @@ Reload rportd to apply all changes.
 
 ## Manage client credentials via the API
 
-The [`/clients-auth` endpoint](https://docs.procy.sh/api/) allows you to manage
+The [`/clients-auth` endpoint](https://procy.sh/docs/api/) allows you to manage
 clients and credentials through the API. This option is disabled if you use a single static clientauthid-password pair.
 If you want to delegate the management of client auth credentials to a third-party app writing directly to the auth-file
 or the database, consider turning the endpoint off by activating the following lines in the `rportd.conf`.
@@ -173,4 +173,4 @@ curl -X POST 'http://localhost:3000/api/v1/clients-auth' \
 ```
 
 This is just a simple example. The API supports filtering and pagination.
-[Read more](https://docs.procy.sh/api/)
+[Read more](https://procy.sh/docs/api/)
