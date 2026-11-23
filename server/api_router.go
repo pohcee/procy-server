@@ -58,7 +58,7 @@ func (al *APIListener) initRouter() {
 	clientDetails.HandleFunc("", al.handleGetClient).Methods(http.MethodGet)
 	clientDetails.HandleFunc("", al.handleDeleteClient).Methods(http.MethodDelete)
 	clientDetails.Handle("/acl", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handlePostClientACL))).Methods(http.MethodPost)
-	clientDetails.Handle("/scripts", al.permissionsMiddleware(users.PermissionScripts)(http.HandlerFunc(al.handleExecuteScript))).Methods(http.MethodPost)
+	clientDetails.Handle("/scripts", al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleExecuteScript))).Methods(http.MethodPost)
 
 	clientAttributes := clientDetails.PathPrefix("/attributes").Subrouter()
 	clientAttributes.Use(al.withActiveClient)
@@ -150,7 +150,7 @@ func (al *APIListener) initRouter() {
 	commands.HandleFunc("/library/commands/{"+routes.ParamCommandValueID+"}", al.handleDeleteCommand).Methods(http.MethodDelete)
 
 	scripts := secureAPI.NewRoute().Subrouter()
-	scripts.Use(al.permissionsMiddleware(users.PermissionScripts))
+	scripts.Use(al.permissionsMiddleware(users.PermissionCommands))
 	scripts.HandleFunc("/library/scripts", al.handleListScripts).Methods(http.MethodGet)
 	scripts.HandleFunc("/library/scripts", al.handleScriptCreate).Methods(http.MethodPost)
 	scripts.HandleFunc("/library/scripts/{"+routes.ParamScriptValueID+"}", al.handleScriptUpdate).Methods(http.MethodPut)
@@ -191,7 +191,7 @@ func (al *APIListener) initRouter() {
 	// web sockets
 	// common auth middleware is not used due to JS issue https://stackoverflow.com/questions/22383089/is-it-possible-to-use-bearer-authentication-for-websocket-upgrade-requests
 	api.HandleFunc("/ws/commands", al.wsAuth(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleCommandsWS)))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/scripts", al.wsAuth(al.permissionsMiddleware(users.PermissionScripts)(http.HandlerFunc(al.handleScriptsWS)))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/scripts", al.wsAuth(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleScriptsWS)))).Methods(http.MethodGet)
 	api.HandleFunc("/ws/uploads", al.wsAuth(al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.handleUploadsWS)))).Methods(http.MethodGet)
 
 	if al.config.API.EnableWsTestEndpoints {

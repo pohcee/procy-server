@@ -9,18 +9,20 @@ import (
 
 const (
 	PermissionTunnels    = "tunnels"
-	PermissionScripts    = "scripts"
 	PermissionCommands   = "commands"
 	PermissionVault      = "vault"
 	PermissionScheduler  = "scheduler"
 	PermissionMonitoring = "monitoring"
 	PermissionUploads    = "uploads"
 	PermissionsAuditLog  = "auditlog"
+
+	// PermissionScripts is deprecated: it is merged into PermissionCommands.
+	// Stored groups may still carry it, so it is honoured when read.
+	PermissionScripts = "scripts"
 )
 
 var AllPermissions = []string{
 	PermissionTunnels,
-	PermissionScripts,
 	PermissionCommands,
 	PermissionVault,
 	PermissionScheduler,
@@ -54,6 +56,10 @@ func (permissions Permissions) All() map[string]bool {
 func (permissions Permissions) Has(p string) bool {
 	if permissions.data == nil {
 		return false
+	}
+	if p == PermissionCommands || p == PermissionScripts {
+		// One right covers both; stored data may hold either key.
+		return permissions.data[PermissionCommands] || permissions.data[PermissionScripts]
 	}
 	return permissions.data[p]
 }
@@ -107,7 +113,7 @@ func (permissions *Permissions) UnmarshalJSON(data []byte) error {
 	}
 
 	for key := range result {
-		isPermission := false
+		isPermission := key == PermissionScripts
 		for _, permission := range AllPermissions {
 			if key == permission {
 				isPermission = true
@@ -118,6 +124,11 @@ func (permissions *Permissions) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("invalid permission: %v", key)
 		}
 	}
+
+	if result[PermissionScripts] {
+		result[PermissionCommands] = true
+	}
+	delete(result, PermissionScripts)
 
 	permissions.data = result
 	return nil

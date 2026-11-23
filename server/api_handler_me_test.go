@@ -55,7 +55,6 @@ func TestHandleMeStaticAuth(t *testing.T) {
 				"commands": true,
 				"monitoring": true,
 				"scheduler": true,
-				"scripts": true,
 				"tunnels": true,
 				"uploads": true,
 				"vault": true
@@ -141,7 +140,6 @@ func TestHandleMeDBAuth(t *testing.T) {
 				"commands": false,
 				"monitoring": true,
 				"scheduler": false,
-				"scripts": false,
 				"tunnels": false,
 				"uploads": false,
 				"vault": true
