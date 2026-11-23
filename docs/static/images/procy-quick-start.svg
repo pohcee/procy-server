@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="t d">
+  <title id="t">Procy quick start</title>
+  <desc id="d">1. Install rportd and set your own key_seed and client credentials. 2. Start the server and copy its
+    fingerprint. 3. Run the rport client, which connects out and maps port 2222 on the server to its port 22.
+    4. SSH to the server on port 2222 and you land on the client.</desc>
+  <style>
+    text { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 13px; }
+    .h { font-weight: 700; fill: #E6EBF2; }
+    .n { font-size: 15px; font-weight: 700; fill: #FFFFFF; }
+    .card { fill: #121821; stroke: #2E3947; stroke-width: 2; }
+    .term { fill: #0B0F14; stroke: #3B4452; stroke-width: 2; }
+    .bar { fill: #2E3947; }
+    .dot { fill: #8E99A8; }
+    .cmd { fill: #7DB2FF; }
+    .out { fill: #C2CAD6; }
+    .dim { fill: #8E99A8; }
+    .body { font-size: 15px; fill: #C2CAD6; }
+  </style>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B0F14"/>
+      <stop offset="1" stop-color="#1A222D"/>
+    </linearGradient>
+    <g id="mark">
+      <path d="M9 27 13 6l16 11z" fill="#6B7280" stroke="#6B7280" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M55 27 51 6 35 17z" fill="#6B7280" stroke="#6B7280" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M14 22l2-10 8 6z" fill="#1F2937"/>
+      <path d="M50 22l-2-10-8 6z" fill="#1F2937"/>
+      <ellipse cx="32" cy="37" rx="25" ry="21" fill="#9CA3AF"/>
+      <path d="M32 18v12" stroke="#4B5563" stroke-width="5" stroke-linecap="round"/>
+      <path d="M12 31q9-8 17-3" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M52 31q-9-8-17-3" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M8 36q10-10 21-4 3 2 6 0 11-6 21 4-4 10-15 9-6-1-9-5-3 4-9 5-11 1-15-9z" fill="#1F2937"/>
+      <circle cx="22.5" cy="37" r="4" fill="#FFFFFF"/>
+      <circle cx="41.5" cy="37" r="4" fill="#FFFFFF"/>
+      <circle cx="23.3" cy="37.6" r="2" fill="#111827"/>
+      <circle cx="42.3" cy="37.6" r="2" fill="#111827"/>
+      <ellipse cx="32" cy="49" rx="11" ry="7.5" fill="#F3F4F6"/>
+      <ellipse cx="32" cy="45.5" rx="4" ry="3" fill="#111827"/>
+    </g>
+    <g id="bar">
+      <rect class="bar" x="8" y="8" width="207" height="14" rx="4"/>
+      <circle class="dot" cx="17" cy="15" r="2.5"/><circle class="dot" cx="26" cy="15" r="2.5"/><circle class="dot" cx="35" cy="15" r="2.5"/>
+    </g>
+    <path id="chev" d="M0 0l12 14-12 14" fill="none" stroke="#93B8FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </defs>
+
+  <rect width="1200" height="520" rx="24" fill="url(#sky)"/>
+  <use href="#mark" transform="translate(1086 40) scale(.9)"/>
+
+  <text x="56" y="72" class="h" font-size="30">Quick start</text>
+  <text x="56" y="104" font-size="17" fill="#8E99A8">From a fresh server to an SSH session through a tunnel.</text>
+
+  <rect class="card" x="40" y="136" width="255" height="340" rx="16"/>
+  <rect class="card" x="325" y="136" width="255" height="340" rx="16"/>
+  <rect class="card" x="610" y="136" width="255" height="340" rx="16"/>
+  <rect class="card" x="895" y="136" width="255" height="340" rx="16"/>
+  <use href="#chev" x="304" y="282"/>
+  <use href="#chev" x="589" y="282"/>
+  <use href="#chev" x="874" y="282"/>
+
+  <!-- 1 -->
+  <circle cx="72" cy="174" r="15" fill="#2563EB"/><text x="72" y="179" class="n" text-anchor="middle">1</text>
+  <text x="98" y="180" class="h" font-size="18">Install the server</text>
+  <g transform="translate(56 200)">
+    <rect class="term" width="223" height="118" rx="8"/><use href="#bar"/>
+    <text x="14" y="46" class="mono dim"># /etc/rport/rportd.conf</text>
+    <text x="14" y="68" class="mono out">[server]</text>
+    <text x="14" y="88" class="mono cmd">key_seed = "a1f3…"</text>
+    <text x="14" y="108" class="mono cmd">auth = "client1:…"</text>
+  </g>
+  <text x="64" y="356" class="body">Unpack rportd, create the</text>
+  <text x="64" y="380" class="body">rport user and set your own</text>
+  <text x="64" y="404" class="body">key_seed and client</text>
+  <text x="64" y="428" class="body">credentials.</text>
+
+  <!-- 2 -->
+  <circle cx="357" cy="174" r="15" fill="#2563EB"/><text x="357" y="179" class="n" text-anchor="middle">2</text>
+  <text x="383" y="180" class="h" font-size="18">Start it</text>
+  <g transform="translate(341 200)">
+    <rect class="term" width="223" height="118" rx="8"/><use href="#bar"/>
+    <text x="14" y="46" class="mono cmd">$ systemctl start rportd</text>
+    <text x="14" y="68" class="mono cmd">$ cat /var/lib/rport/\</text>
+    <text x="14" y="88" class="mono cmd">&#160;&#160;rportd-fingerprint.txt</text>
+    <text x="14" y="108" class="mono out">2a:c8:79:09:80:ba:…</text>
+  </g>
+  <text x="349" y="356" class="body">Start the service and copy</text>
+  <text x="349" y="380" class="body">the fingerprint. Clients use</text>
+  <text x="349" y="404" class="body">it to make sure they talk to</text>
+  <text x="349" y="428" class="body">your server.</text>
+
+  <!-- 3 -->
+  <circle cx="642" cy="174" r="15" fill="#2563EB"/><text x="642" y="179" class="n" text-anchor="middle">3</text>
+  <text x="668" y="180" class="h" font-size="18">Connect a client</text>
+  <g transform="translate(626 200)">
+    <rect class="term" width="223" height="118" rx="8"/><use href="#bar"/>
+    <text x="14" y="46" class="mono cmd">$ rport --auth client1:… \</text>
+    <text x="14" y="68" class="mono cmd">&#160;&#160;--fingerprint 2a:c8:… \</text>
+    <text x="14" y="88" class="mono cmd">&#160;&#160;procy.example.com:8080 \</text>
+    <text x="14" y="108" class="mono cmd">&#160;&#160;2222:22</text>
+  </g>
+  <text x="634" y="356" class="body">The client dials out and</text>
+  <text x="634" y="380" class="body">maps port 2222 on the</text>
+  <text x="634" y="404" class="body">server to its own port 22.</text>
+
+  <!-- 4 -->
+  <circle cx="927" cy="174" r="15" fill="#2563EB"/><text x="927" y="179" class="n" text-anchor="middle">4</text>
+  <text x="953" y="180" class="h" font-size="18">Log in</text>
+  <g transform="translate(911 200)">
+    <rect class="term" width="223" height="118" rx="8"/><use href="#bar"/>
+    <text x="14" y="46" class="mono cmd">$ ssh -p 2222 \</text>
+    <text x="14" y="68" class="mono cmd">&#160;&#160;procy.example.com</text>
+    <text x="14" y="88" class="mono" fill="#4ADE80">you@client1:~$ _</text>
+  </g>
+  <text x="919" y="356" class="body">SSH to the server on 2222</text>
+  <text x="919" y="380" class="body">and you land on the client,</text>
+  <text x="919" y="404" class="body">behind its firewall.</text>
+</svg>
