@@ -1,99 +1,174 @@
 set -e
-#---  FUNCTION  -------------------------------------------------------------------------------------------------------
-#          NAME:  download_new_version
-#   DESCRIPTION:  Download and verify the latest client from RPORT_DOWNLOAD_BASE; print the path of the new binary
-#----------------------------------------------------------------------------------------------------------------------
-download_new_version() {
-    TEMP=$(mktemp -d)
-    DL_FILE="rport_linux_${ARCH}.tar.gz"
-    curl -fLSs "${RPORT_DOWNLOAD_BASE}/rport/${RELEASE}/${DL_FILE}" -o "${TEMP}/rport.tar.gz"
-    verify_rport_download "${TEMP}/rport.tar.gz" "${DL_FILE}" >&2
-    tar xzf "$TEMP/rport.tar.gz" -C "$TEMP" rport
-    rm -f "$TEMP/rport.tar.gz"
-    echo "$TEMP/rport"
-}
+# Updates are installed by a supervisor running detached from the rport client (see
+# update_supervisor.sh). It keeps the previous binary and config, checks that the new client
+# connects to the server and rolls back if it does not.
+UPDATE_STAGE=/var/lib/rport-update
+HEALTH_TIMEOUT=${HEALTH_TIMEOUT:-120}
+STABLE_SECS=${STABLE_SECS:-20}
 
 #---  FUNCTION  -------------------------------------------------------------------------------------------------------
-#          NAME:  install_rport_binary
-#   DESCRIPTION:  Replace the binary the service runs: /usr/bin/rport for package installs, else /usr/local/bin/rport.
-#                 A DEB-installed client is put on hold so apt does not swap in another build later.
+#          NAME:  current_binary
+#   DESCRIPTION:  Print the path of the binary the service runs: /usr/bin/rport for package installs, else /usr/local/bin/rport
 #----------------------------------------------------------------------------------------------------------------------
-install_rport_binary() {
+current_binary() {
     if [ -e /usr/bin/rport ]; then
-        RPORT_BIN=/usr/bin/rport
+        echo /usr/bin/rport
+    elif [ -e /usr/local/bin/rport ]; then
+        echo /usr/local/bin/rport
     else
-        RPORT_BIN=/usr/local/bin/rport
-    fi
-    install -m 0755 "$1" "${RPORT_BIN}.new"
-    mv -f "${RPORT_BIN}.new" "${RPORT_BIN}"
-    throw_info "Installed ${RPORT_BIN}"
-    if command -v dpkg >/dev/null 2>&1 && dpkg -s rport >/dev/null 2>&1 && command -v apt-mark >/dev/null 2>&1; then
-        apt-mark hold rport >/dev/null && throw_info "Package 'rport' put on hold so apt keeps this version."
+        throw_fatal "No rport client found in /usr/bin or /usr/local/bin. Nothing to update." >&2
     fi
 }
 
 current_version() {
-    if [ -e /usr/bin/rport ]; then
-        /usr/bin/rport --version | awk '{print $2}'
-        return 0
-    fi
-    if [ -e /usr/local/bin/rport ]; then
-        /usr/local/bin/rport --version | awk '{print $2}'
-        return 0
-    fi
-    echo "Failed to get current rport version"
-    exit 1
+    "$(current_binary)" --version | awk '{print $2}'
+}
+
+# The client's log file from rport.conf; empty if it logs to stdout (the systemd journal).
+client_log_file() {
+    sed -n "s/^[[:space:]]*log_file[[:space:]]*=[[:space:]]*[\"']\([^\"']*\)[\"'].*/\1/p" "$CONFIG_FILE" | head -n 1
 }
 
 #---  FUNCTION  -------------------------------------------------------------------------------------------------------
-#          NAME:  restart_rport()
-#   DESCRIPTION:  The restart of RPort must be detached from this process in case the update
-#                 is triggered remotely using rport. The rport client would kill the script otherwise here.
-#    PARAMETERS:  none
-#       RETURNS:
+#          NAME:  prepare_stage
+#   DESCRIPTION:  Create the root-only work dir and back up the current binary and config, before anything is changed
 #----------------------------------------------------------------------------------------------------------------------
-restart_rport() {
-    if [ -e /etc/init.d/rport ]; then
-        RESTART_CMD='/etc/init.d/rport restart'
-    else
-        RESTART_CMD='systemctl restart rport'
+prepare_stage() {
+    if [ -f "${UPDATE_STAGE}/status.json" ] && grep -q '"status": "running"' "${UPDATE_STAGE}/status.json" &&
+        pgrep -f "${UPDATE_STAGE}/supervise.sh" >/dev/null 2>&1; then
+        throw_fatal "Another update is running. See ${UPDATE_STAGE}/update.log"
     fi
-    if [ "$1" = "background" ]; then
-        if command -v at >/dev/null 2>&1; then
-            echo "$RESTART_CMD" | at now +1 minute
-            throw_info "Restart of rport scheduled via atd."
-        else
-            nohup sh -c "sleep 10;$RESTART_CMD" >/dev/null 2>&1 &
-            throw_info "Restart of rport scheduled via nohup+sleep."
-        fi
-        return 0
+    mkdir -p "$UPDATE_STAGE"
+    chown root:root "$UPDATE_STAGE"
+    chmod 0755 "$UPDATE_STAGE"
+    rm -rf "${UPDATE_STAGE}/previous" "${UPDATE_STAGE}/new" "${UPDATE_STAGE}/supervise.sh" "${UPDATE_STAGE}/env"
+    mkdir -m 0700 "${UPDATE_STAGE}/previous" "${UPDATE_STAGE}/new"
+    cp -p "$RPORT_BIN" "${UPDATE_STAGE}/previous/rport"
+    cp -p "$CONFIG_FILE" "${UPDATE_STAGE}/previous/rport.conf"
+    if [ -f /etc/systemd/system/rport.service ]; then
+        cp -p /etc/systemd/system/rport.service "${UPDATE_STAGE}/previous/rport.service"
     fi
-    throw_info "Restarting RPort using '$RESTART_CMD'"
-    $RESTART_CMD
+    throw_info "Backed up ${RPORT_BIN} (${CURRENT_VERSION}) and ${CONFIG_FILE} to ${UPDATE_STAGE}/previous"
 }
+
+#---  FUNCTION  -------------------------------------------------------------------------------------------------------
+#          NAME:  stage_download
+#   DESCRIPTION:  Download and verify the latest client from RPORT_DOWNLOAD_BASE into the stage
+#----------------------------------------------------------------------------------------------------------------------
+stage_download() {
+    TEMP=$(mktemp -d)
+    DL_FILE="rport_linux_${ARCH}.tar.gz"
+    curl -fLSs "${RPORT_DOWNLOAD_BASE}/rport/${RELEASE}/${DL_FILE}" -o "${TEMP}/rport.tar.gz"
+    verify_rport_download "${TEMP}/rport.tar.gz" "${DL_FILE}"
+    tar xzf "$TEMP/rport.tar.gz" -C "${UPDATE_STAGE}/new" rport
+    rm -rf "$TEMP"
+    PKG_KIND=tarball
+}
+
+#---  FUNCTION  -------------------------------------------------------------------------------------------------------
+#          NAME:  stage_custom_package
+#   DESCRIPTION:  Put the package given with -z (URL or local file; tar.gz, deb or rpm) into the stage.
+#                 Its checksum is verified if PKG_SHA256 is set.
+#----------------------------------------------------------------------------------------------------------------------
+stage_custom_package() {
+    case "$PKG_URL" in
+    *.tar.gz) PKG_KIND=tarball ;;
+    *.deb) PKG_KIND=deb ;;
+    *.rpm) PKG_KIND=rpm ;;
+    *) throw_fatal "-z must point to a .tar.gz, .deb or .rpm file: $PKG_URL" ;;
+    esac
+    PKG_DOWNLOAD="${UPDATE_STAGE}/new/download"
+    if [ -f "$PKG_URL" ]; then
+        cp "$PKG_URL" "$PKG_DOWNLOAD"
+    else
+        DL_AUTH=""
+        if [ -n "${RPORT_INSTALLER_DL_USERNAME:-}" ] && [ -n "${RPORT_INSTALLER_DL_PASSWORD:-}" ]; then
+            DL_AUTH="-u ${RPORT_INSTALLER_DL_USERNAME}:${RPORT_INSTALLER_DL_PASSWORD}"
+        fi
+        throw_info "Downloading ${PKG_URL} ..."
+        # shellcheck disable=SC2086
+        curl -fLSs ${DL_AUTH} "$PKG_URL" -o "$PKG_DOWNLOAD"
+    fi
+    if [ -n "${PKG_SHA256:-}" ]; then
+        [ "$(sha256sum "$PKG_DOWNLOAD" | awk '{print $1}')" = "$PKG_SHA256" ] || throw_fatal "Checksum mismatch for $PKG_URL"
+        throw_info "Checksum of $PKG_URL verified."
+    else
+        throw_warning "No PKG_SHA256 given; the checksum of $PKG_URL is not verified."
+    fi
+    case "$PKG_KIND" in
+    tarball)
+        tar xzf "$PKG_DOWNLOAD" -C "${UPDATE_STAGE}/new" rport
+        rm -f "$PKG_DOWNLOAD"
+        ;;
+    deb)
+        mv "$PKG_DOWNLOAD" "${UPDATE_STAGE}/new/rport.deb"
+        chmod 0644 "${UPDATE_STAGE}/new/rport.deb"
+        TARGET_VERSION=$(dpkg-deb -f "${UPDATE_STAGE}/new/rport.deb" Version)
+        ;;
+    rpm)
+        mv "$PKG_DOWNLOAD" "${UPDATE_STAGE}/new/rport.rpm"
+        TARGET_VERSION=$(rpm -qp --qf '%{VERSION}' "${UPDATE_STAGE}/new/rport.rpm")
+        ;;
+    esac
+}
+
+#---  FUNCTION  -------------------------------------------------------------------------------------------------------
+#          NAME:  start_supervisor
+#   DESCRIPTION:  Start the update supervisor detached from this process: restarting the client kills
+#                 everything it started, including this script when it runs as an rport command.
+#----------------------------------------------------------------------------------------------------------------------
+start_supervisor() {
+    cat >"${UPDATE_STAGE}/env" <<EOF
+STAGE='${UPDATE_STAGE}'
+RPORT_BIN='${RPORT_BIN}'
+CONFIG_FILE='${CONFIG_FILE}'
+LOG_FILE='$(client_log_file)'
+FROM_VERSION='${CURRENT_VERSION}'
+TO_VERSION='${TARGET_VERSION}'
+PKG_KIND='${PKG_KIND}'
+HEALTH_TIMEOUT='${HEALTH_TIMEOUT}'
+STABLE_SECS='${STABLE_SECS}'
+EOF
+    write_update_supervisor "${UPDATE_STAGE}/supervise.sh"
+    chmod 0600 "${UPDATE_STAGE}/env"
+    chmod 0700 "${UPDATE_STAGE}/supervise.sh"
+    rm -f "${UPDATE_STAGE}/status.json"
+    if command -v systemd-run >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        UNIT="rport-update-$(date +%s)"
+        systemd-run --unit="$UNIT" --collect --quiet /bin/sh "${UPDATE_STAGE}/supervise.sh" "${UPDATE_STAGE}/env" 2>/dev/null ||
+            systemd-run --unit="$UNIT" --quiet /bin/sh "${UPDATE_STAGE}/supervise.sh" "${UPDATE_STAGE}/env"
+        throw_info "Update supervisor started as systemd unit ${UNIT}."
+    else
+        setsid /bin/sh "${UPDATE_STAGE}/supervise.sh" "${UPDATE_STAGE}/env" </dev/null >/dev/null 2>&1 &
+        throw_info "Update supervisor started in the background."
+    fi
+}
+
+# Wait for the supervisor and print its result. Returns 0 if the new version is connected.
+wait_for_supervisor() {
+    limit=$((2 * (HEALTH_TIMEOUT + STABLE_SECS) + 120))
+    waited=0
+    while [ "$waited" -lt "$limit" ]; do
+        if [ -f "${UPDATE_STAGE}/status.json" ] && ! grep -q '"status": "running"' "${UPDATE_STAGE}/status.json"; then
+            break
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+    cat "${UPDATE_STAGE}/status.json" 2>/dev/null || echo "No result yet; see ${UPDATE_STAGE}/update.log"
+    grep -q '"status": "success"' "${UPDATE_STAGE}/status.json" 2>/dev/null
+}
+
 #---  FUNCTION  -------------------------------------------------------------------------------------------------------
 #          NAME:  update
 #   DESCRIPTION:  update to the latest version or exit if not update available
 #----------------------------------------------------------------------------------------------------------------------
 update() {
-  CURRENT_VERSION=$(current_version)
   check_prerequisites
-  # Ask (or validate switches) before anything is changed.
-  check_scripts
-  check_sudo
-  cd /tmp
-
-  if [ -n "$PKG_URL" ] && is_debian; then
-      abort_on_rport_subprocess
-      RESTART_IN="foreground"
-      throw_info "Updating DEB from custom URL. Checking current version skipped."
-      install_from_deb_download
-  elif [ -n "$PKG_URL" ] && is_rhel; then
-      abort_on_rport_subprocess
-      RESTART_IN="foreground"
-      throw_info "Updating RPM from custom URL. Checking current version skipped."
-      install_from_rpm_download
-  else
+  RPORT_BIN=$(current_binary)
+  CURRENT_VERSION=$(current_version)
+  TARGET_VERSION=""
+  if [ -z "$PKG_URL" ]; then
       require_download_base
       LATEST_VERSION=$(latest_rport_version || true)
       if [ -z "$LATEST_VERSION" ]; then
@@ -104,13 +179,25 @@ update() {
           [ "$ENABLE_TACOSCRIPT" -eq 1 ] && install_tacoscript
           exit 0
       fi
-      # Install from tar.gz
-      NEW_VERSION=$(download_new_version)
-      TARGET_VERSION=$(${NEW_VERSION} --version | awk '{print $2}')
-      throw_info "Updating from ${CURRENT_VERSION} to latest ${RELEASE} ${TARGET_VERSION}"
-      install_rport_binary "$NEW_VERSION"
-      rm -rf "$(dirname "$NEW_VERSION")"
-      RESTART_IN="background"
+  fi
+  # Back up before anything is changed, including the config questions below.
+  prepare_stage
+  check_scripts
+  check_sudo
+  cd /tmp
+
+  if [ -n "$PKG_URL" ]; then
+      throw_info "Updating from ${PKG_URL}. Checking the current version skipped."
+      stage_custom_package
+  else
+      stage_download
+  fi
+  if [ -z "$TARGET_VERSION" ]; then
+      TARGET_VERSION=$("${UPDATE_STAGE}/new/rport" --version | awk '{print $2}')
+  fi
+  throw_info "Updating from ${CURRENT_VERSION} to ${TARGET_VERSION}"
+  if command -v dpkg >/dev/null 2>&1 && dpkg -s rport >/dev/null 2>&1 && command -v apt-mark >/dev/null 2>&1 && [ "$PKG_KIND" = tarball ]; then
+      apt-mark hold rport >/dev/null && throw_info "Package 'rport' put on hold so apt keeps this version."
   fi
   create_sudoers_updates
   detect_interpreters
@@ -118,16 +205,22 @@ update() {
   enable_lan_monitoring
   enable_file_reception
   insert_watchdog
-
   [ "$ENABLE_TACOSCRIPT" -eq 1 ] && install_tacoscript
-  throw_info "You are now running $(rport --version)"
 
-  restart_rport $RESTART_IN
-  if wait_for_rport; then
+  start_supervisor
+  if is_rport_subprocess; then
+      throw_info "The update runs in the background, because this script was started by the rport client."
+      throw_info "The client restarts; if ${TARGET_VERSION} does not connect within ${HEALTH_TIMEOUT}s, ${CURRENT_VERSION} is restored."
+      throw_info "Result: ${UPDATE_STAGE}/status.json, log: ${UPDATE_STAGE}/update.log"
+      exit 0
+  fi
+  throw_info "Waiting for the new client to connect (up to ${HEALTH_TIMEOUT}s, then ${STABLE_SECS}s to confirm) ..."
+  if wait_for_supervisor; then
       finish
       return 0
   fi
   fail
+  exit 1
 }
 
 #---  FUNCTION  -------------------------------------------------------------------------------------------------------
@@ -308,41 +401,28 @@ EOF
 finish() {
   echo "
 #
-#  Update of RPort finished.
+#  Update of the Procy client (rport) finished: $(rport --version 2>/dev/null) is connected.
 #
-#  Logs are written to /var/log/rport/rport.log.
+#  Client log: $(client_log_file), update log: ${UPDATE_STAGE}/update.log
 #
-
-Thanks for using
-   ____                   _____  _____           _
-  / __ \                 |  __ \|  __ \         | |
- | |  | |_ __   ___ _ __ | |__) | |__) |__  _ __| |_
- | |  | | '_ \ / _ \ '_ \|  _  /|  ___/ _ \| '__| __|
- | |__| | |_) |  __/ | | | | \ \| |  | (_) | |  | |_
-  \____/| .__/ \___|_| |_|_|  \_\_|   \___/|_|   \__|
-        | |
-        |_|
 "
 }
 
 fail() {
-  systemctl --no-pager status rport
   echo "
 #
 # -------------!!   ERROR  !!-------------
 #
-# Update of RPort finished with errors.
+# The update did not succeed. The supervisor restores the previous version if the new one does not
+# connect; the result above says whether it did.
 #
-
-Try the following to investigate:
-1) systemctl rport status
-
-2) tail /var/log/rport/rport.log
-
+# Investigate with:
+#   cat ${UPDATE_STAGE}/update.log
+#   systemctl status rport
+#   tail /var/log/rport/rport.log
 "
   if runs_with_selinux; then
-    echo "
-3) Check your SELinux settings and create a policy for rport."
+    echo "  Also check your SELinux settings and create a policy for rport."
   fi
 }
 
@@ -367,8 +447,11 @@ Options:
 -n  do not change sudo rights (no question asked)
 -m  do not install or update tacoscript
 -p  No effect; kept for compatibility (packages always come from the downloads site).
--z  Download the rport client tar.gz|deb|rpm from the given URL instead of the downloads site.
-    See environment variables.
+-z  Install the rport client tar.gz|deb|rpm from the given URL or local file instead of the downloads site.
+    Set PKG_SHA256 to verify its checksum.
+
+The update is supervised: if the new client does not connect to the server within HEALTH_TIMEOUT
+seconds (default 120), the previous binary and config are restored. Result: /var/lib/rport-update/status.json
 EOF
   exit 0
 }
@@ -377,6 +460,7 @@ EOF
 # Read the command line options and map to a function call
 #
 ACTION=update
+PKG_URL=""
 ENABLE_TACOSCRIPT=1
 ENABLE_SUDO=2
 RELEASE=stable
@@ -399,7 +483,7 @@ while getopts "phcuxdsnmrbtz:" opt; do
   r) export ENABLE_FILEREC=1 ;;
   b) export ENABLE_FILEREC_SUDO=1 ;;
   p) NO_REPO=1 ;;
-  z) export PKG_URL="${OPTARG}" ;;
+  z) PKG_URL="${OPTARG}" ;;
 
   \?)
     echo "Option does not exist."

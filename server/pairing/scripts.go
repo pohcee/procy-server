@@ -51,6 +51,35 @@ func (s *script) include(name string) {
 	fmt.Fprintf(&s.buf, "\n# END of %s %s|\n\n", name, strings.Repeat("-", max0(108-len(name))))
 }
 
+// heredocFunction writes a shell function that saves an embedded file to the path given as its
+// first argument, so a script can carry another script.
+func (s *script) heredocFunction(funcName, name string) {
+	const marker = "RPORT_SUPERVISOR_EOF"
+	content := mustRead(name)
+	if bytes.Contains(content, []byte(marker)) {
+		// constant input, covered by tests
+		panic(fmt.Sprintf("pairing: %s contains the heredoc marker %s", name, marker))
+	}
+	fmt.Fprintf(&s.buf, "\n# %s writes %s\n%s() {\n    cat >\"$1\" <<'%s'\n", funcName, name, funcName, marker)
+	s.buf.Write(content)
+	if !bytes.HasSuffix(content, []byte("\n")) {
+		s.buf.WriteString("\n")
+	}
+	fmt.Fprintf(&s.buf, "%s\n}\n", marker)
+}
+
+// psHereStringFunction writes a PowerShell function that saves an embedded file to -Path.
+func (s *script) psHereStringFunction(funcName, name string) {
+	content := mustRead(name)
+	if bytes.Contains(content, []byte("\n'@")) {
+		// constant input, covered by tests
+		panic(fmt.Sprintf("pairing: %s contains the here-string terminator", name))
+	}
+	fmt.Fprintf(&s.buf, "\n# %s writes %s\nfunction %s\n{\n    param([string]$Path)\n    $content = @'\n", funcName, name, funcName)
+	s.buf.Write(bytes.TrimRight(content, "\n"))
+	s.buf.WriteString("\n'@\n    [IO.File]::WriteAllText($Path, $content, (New-Object System.Text.UTF8Encoding $False))\n}\n")
+}
+
 // includeRaw writes an embedded file followed by a new line.
 func (s *script) includeRaw(name string) {
 	s.buf.Write(mustRead(name))
@@ -128,6 +157,7 @@ func renderUpdate(os string, cfg scriptSettings) ([]byte, string) {
 		s.include("templates/header.txt")
 		s.downloadBase(os, cfg)
 		s.include("templates/windows/functions.ps1")
+		s.psHereStringFunction("Write-UpdateSupervisor", "templates/windows/update_supervisor.ps1")
 		s.include("templates/windows/update.ps1")
 		return s.buf.Bytes(), "rport-update.ps1"
 	}
@@ -136,6 +166,7 @@ func renderUpdate(os string, cfg scriptSettings) ([]byte, string) {
 	s.downloadBase(os, cfg)
 	s.include("templates/linux/vars.sh")
 	s.include("templates/linux/functions.sh")
+	s.heredocFunction("write_update_supervisor", "templates/linux/update_supervisor.sh")
 	s.include("templates/linux/update.sh")
 	return s.buf.Bytes(), "rport-update.sh"
 }

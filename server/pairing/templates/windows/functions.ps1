@@ -44,6 +44,20 @@ if (-not(Get-Command Write-Information -erroraction silentlycontinue))
     }
 }
 
+# Allow TLS 1.2 and, where Windows supports it, TLS 1.3: rportd accepts only TLS 1.3 by default.
+function Enable-ModernTls
+{
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    try
+    {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls13
+    }
+    catch
+    {
+        # Tls13 is unknown to older .NET versions.
+    }
+}
+
 function Get-Log
 {
     if (Test-Path $InstallerLogFile)
@@ -214,7 +228,7 @@ function Install-Tacoscript
     $url = "$( $RportDownloadBase )/tacoscript/$( $release )/tacoscript_windows_x86_64.zip"
     $Temp = [System.Environment]::GetEnvironmentVariable('TEMP', 'Machine')
     $file = $Temp + "\tacoscript.zip"
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Enable-ModernTls
     try
     {
         Invoke-WebRequest -Uri $url -OutFile $file -UseBasicParsing
@@ -492,6 +506,18 @@ function Invoke-Download
         [string]$pkgUrl
     )
     $Headers = @{ }
+    if ($pkgUrl -and (Test-Path -PathType Leaf $pkgUrl))
+    {
+        # A local package (e.g. to test an update): copy it instead of downloading.
+        $ext = [IO.Path]::GetExtension($pkgUrl).ToLower()
+        if ($ext -ne '.zip' -and $ext -ne '.msi')
+        {
+            throw "PkgUrl $( $pkgUrl ) must be a .zip or .msi file."
+        }
+        $downloadFile = "C:\Windows\temp\rport_Windows_x86_64$ext"
+        Copy-Item $pkgUrl $downloadFile -Force
+        return $downloadFile
+    }
     if ($pkgUrl)
     {
         # Download from a custom URL given by global switch
@@ -552,7 +578,7 @@ function Invoke-Download
     }
     Write-Information "* Downloading  $( $url )."
     $ProgressPreference = 'SilentlyContinue'
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Enable-ModernTls
     Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $downloadFile -Headers $Headers
     if ($verify)
     {
@@ -565,7 +591,7 @@ function Invoke-Download
 function Get-UrlText
 {
     Param([string]$Url)
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Enable-ModernTls
     $content = (Invoke-WebRequest -UseBasicParsing -Uri $Url).Content
     if ($content -is [byte[]])
     {

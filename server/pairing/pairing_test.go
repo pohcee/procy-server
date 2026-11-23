@@ -183,7 +183,7 @@ func TestUpdateOSSelection(t *testing.T) {
 	for _, tc := range []struct{ ua, file, keyword, base string }{
 		{linuxUA, "rport-update.sh", "BEGINNING of templates/linux/update.sh", `RPORT_DOWNLOAD_BASE="` + dlURL + `"`},
 		{"", "rport-update.sh", "BEGINNING of templates/linux/update.sh", `version_newer "$LATEST_VERSION" "$CURRENT_VERSION"`},
-		{"Wget/1.21", "rport-update.sh", "BEGINNING of templates/linux/update.sh", `install_rport_binary "$NEW_VERSION"`},
+		{"Wget/1.21", "rport-update.sh", "BEGINNING of templates/linux/update.sh", `start_supervisor`},
 		{windowsUA, "rport-update.ps1", "BEGINNING of templates/windows/update.ps1", `$RportDownloadBase = "` + dlURL + `"`},
 		{"Mozilla/5.0 (Windows NT 10.0; Microsoft Windows 10.0.22631; en-US) PowerShell/7.4.1", "rport-update.ps1", "Test-NewerVersion -Latest $latest -Current $gt", "Confirm-Checksum"},
 	} {

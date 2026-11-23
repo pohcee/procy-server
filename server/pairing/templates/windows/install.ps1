@@ -18,7 +18,7 @@ if (Test-Path $installDir)
     Write-Output "Try the following:"
     $updateUrl = "$( $RportPairingUrl )/update"
     Write-Output ('cd $env:temp
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Enable-ModernTls
 $url="{0}"
 Invoke-WebRequest -Uri $url -OutFile "rport-update.ps1"
 powershell -ExecutionPolicy Bypass -File .\rport-update.ps1

@@ -95,6 +95,44 @@ curl -s -u admin:$PASSWORD https://procy.example.com/pairing \
 
 The response holds `pairing_code`, `expires` and the one-liners in `installers.linux` and `installers.windows`.
 
+## Updating clients
+
+`GET /pairing/update` returns the client update script: a shell script for `curl`/`wget` and PowerShell for
+`Invoke-WebRequest`. Run it as root (Linux) or as an administrator (Windows), on the machine or as a remote command
+from the web UI:
+
+```shell
+curl -fsS https://procy.example.com/pairing/update -o rport-update.sh && sudo sh rport-update.sh -n -m
+```
+
+```powershell
+Invoke-WebRequest -UseBasicParsing https://procy.example.com/pairing/update -OutFile rport-update.ps1
+powershell -ExecutionPolicy Bypass -File .\rport-update.ps1 -m
+```
+
+The update is supervised, so a failed update does not leave a machine unreachable:
+
+1. The script downloads the latest client from `downloads_url`, verifies it against `SHA256SUMS` and backs up the
+   current binary and `rport.conf`.
+2. A supervisor, started detached from the client (a `systemd-run` unit on Linux, a scheduled task or WMI process
+   running as SYSTEM on Windows), stops the client, installs the new version and starts it again.
+3. The new client must log a connection to the server within 120 seconds and keep running for 20 more. If it does
+   not, the supervisor restores the previous binary and config and restarts the client.
+
+When the script runs as a remote command, it returns as soon as the supervisor has started; the client restarts a few
+seconds later. The outcome is written to `/var/lib/rport-update/status.json` on Linux and
+`C:\Program Files\rport\update\status.json` on Windows, next to an `update.log`. Windows also logs to the
+Application event log (source `rport-update`). `status` is `success`, `rolled_back` or `rollback_failed`.
+
+Use `-t` for the unstable channel. To install a specific package, pass `-z <url or file>` on Linux (`tar.gz`, `deb` or
+`rpm`; set `PKG_SHA256` to verify it) or `-pkgUrl <url or file>` on Windows.
+
+{{< hint type=note >}}
+`rportd` accepts only TLS 1.3 by default (`tls_min` in `[api]`). Windows versions before Windows 11 and Server 2022
+cannot use TLS 1.3, so they cannot download the update script or the client from the server. Set `tls_min = "1.2"`
+in `[api]` if you have such clients.
+{{< /hint >}}
+
 ## Security notes
 
 * A pairing code gives access to the client credentials embedded in the installer. Codes are 20 random characters,

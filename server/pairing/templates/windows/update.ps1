@@ -41,7 +41,7 @@ if (-Not(Test-Path "$( $installDir )\rport.exe"))
     exit 0
 }
 Set-Location $installDir
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Enable-ModernTls
 if ($f)
 {
     # If current version is set to 0 an update will always be forced
@@ -71,60 +71,100 @@ If ((Get-Item $downloadFile).length -eq 0)
 }
 Write-Output "* Download finished and stored to $( $downloadFile ) ."
 
-# Create an empty temp dir
-$temp = 'C:\windows\temp\rport-update\'
-if (Test-Path $temp)
+# Updates are installed by a supervisor that runs as a scheduled task, detached from the rport
+# service. It keeps the previous rport.exe and rport.conf, checks that the new client connects to the
+# server and rolls back if it does not.
+$stage = Join-Path $installDir 'update'
+$healthTimeout = 120
+$stableSecs = 20
+if ((Test-Path "$stage\status.json") -and ((Get-Content -Raw "$stage\status.json") -match '"status":"running"') -and
+        (Get-ScheduledTask -TaskName 'rport-update-*' -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Running' }))
 {
-    Remove-Item $temp -Recurse -Force
+    Remove-Item $downloadFile -Force
+    throw "Another update is running. See $stage\update.log"
 }
-New-Item -ItemType Directory -Force -Path $temp|Out-Null
-
-if ($isMsiInstallation)
+New-Item -ItemType Directory -Force -Path $stage | Out-Null
+# Not $d: that is the -d switch of this script.
+foreach ($stageDir in 'previous', 'new')
 {
-    # RPort is installed via MSI, so all updates will be handled by MSI
-    # Move the MSI to a folder from where it's picket up later
-    Move-Item $downloadFile $( $temp + 'rport.msi' )
-}
-elseif($downloadFile -match '\.msi$')
-{
-    Write-Information "* Migrating to MSI installation"
-    #$targetVersion = Get-MSIVersionInfo -Path $downloadFile
-    # RPort is currently installed via ZIP but the update comes as MSI.
-    # Move the MSI to a folder from where it's picket up later
-    Move-Item $downloadFile $( $temp + 'rport.msi' )
-    # Create a migration that will be executed after the rport client has been stopped.
-    New-PSScriptFile -Path $( $temp + 'migration.ps1' ) -ScriptBlock {
-        & "C:\Program Files\rport\rport.exe" --service uninstall
-        Remove-Item "C:\Program Files\rport\rport.exe"
-        Remove-Item "C:\Program Files\rport\uninstall.bat"
+    if (Test-Path "$stage\$stageDir")
+    {
+        Remove-Item "$stage\$stageDir" -Recurse -Force
     }
+    New-Item -ItemType Directory -Force -Path "$stage\$stageDir" | Out-Null
+}
+# Back up before anything is changed, including the config.
+Copy-Item "$installDir\rport.exe" "$stage\previous\rport.exe"
+Copy-Item $configFile "$stage\previous\rport.conf"
+Write-Output "* Backed up rport.exe ($currentVersion) and rport.conf to $stage\previous"
 
+$kind = 'exe'
+$migrate = $false
+if ($downloadFile -match '\.msi$')
+{
+    $kind = 'msi'
+    # Installed from a ZIP, updated with an MSI: the supervisor removes the old service registration first.
+    $migrate = -not $isMsiInstallation
+    Move-Item $downloadFile "$stage\new\rport.msi"
+    $targetVersion = (Get-MSIVersionInfo -Path "$stage\new\rport.msi")
+    if (-not $targetVersion)
+    {
+        $targetVersion = 'msi'
+    }
 }
 else
 {
-    # Rport is installed from a ZIP file and shall be upgraded via ZIP
-    # Extract the ZIP file and place it into a folder from where it's picked up later
-    Write-Output "* Extracting Rport.exe to $temp"
-    if (Test-Path $( $temp + 'rport.example.conf' ))
-    {
-        Remove-Item $( $temp + 'rport.example.conf' ) -Force
-    }
-    if (Test-Path $( $temp + 'rport.exe' ))
-    {
-        Remove-Item $( $temp + 'rport.exe' ) -Force
-    }
-    Expand-Zip -Path $downloadFile -DestinationPath $temp
+    Write-Output "* Extracting rport.exe to $stage\new"
+    Expand-Zip -Path $downloadFile -DestinationPath "$stage\new"
     Remove-Item $downloadFile
-    Remove-Item $( $temp + 'rport.example.conf' )
-    $targetVersion = (& "$( $temp )/rport.exe" --version) -replace "version ", ""
-    Write-Output "* New version will be $targetVersion."
-    Remove-Item $temp -Recurse -Force
-    # Now the new rport.exe is stored in a temporary directory.
-    # Because rport is still running, we cannot replace the current version yet.
-    # Changing the exe is done by Invoke-Later so the current rport connection can be closed first.
+    if (Test-Path "$stage\new\rport.example.conf")
+    {
+        Remove-Item "$stage\new\rport.example.conf"
+    }
+    if (-not (Test-Path "$stage\new\rport.exe"))
+    {
+        throw "The download does not contain rport.exe."
+    }
+    $targetVersion = (& "$stage\new\rport.exe" --version) -replace "version ", ""
+}
+Write-Output "* New version will be $targetVersion."
+
+# True if this script was started by the rport client (a remote command), whose restart would end it.
+function Test-RportSubprocess
+{
+    $id = $PID
+    for ($i = 0; $i -lt 10; $i++) {
+        $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction SilentlyContinue
+        if (-not $proc -or -not $proc.ParentProcessId)
+        {
+            return $false
+        }
+        $parent = Get-CimInstance Win32_Process -Filter "ProcessId=$( $proc.ParentProcessId )" -ErrorAction SilentlyContinue
+        if (-not $parent)
+        {
+            return $false
+        }
+        if ($parent.Name -eq 'rport.exe')
+        {
+            return $true
+        }
+        $id = $parent.ProcessId
+    }
+    return $false
 }
 
-
+# The client's log file from rport.conf.
+function Get-ClientLogFile
+{
+    foreach ($line in (Get-Content $configFile))
+    {
+        if ($line -match "^\s*log_file\s*=\s*[`"']([^`"']*)[`"']")
+        {
+            return $Matches[1]
+        }
+    }
+    return ''
+}
 
 function ExtendConfig
 {
@@ -338,60 +378,87 @@ $Utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $False
 # Set the service startup and recovery actions
 Optimize-ServiceStartup
 
-# Create a scheduled task to restart RPort.
-try
-{
-    Invoke-Later -Description "Restart RPort" -Delay 10 -ScriptBlock {
-        Stop-Service rport
-        $exeUpdate = 'C:\windows\temp\rport-update\rport.exe'
-        $msiUpdate = 'C:\windows\temp\rport-update\rport.msi'
-        $migartion = 'C:\windows\temp\rport-update\migration.ps1'
-        if (Test-Path $exeUpdate)
-        {
-            Copy-Item $exeUpdate 'C:\Program Files\rport\rport.new'
-            Move-Item 'C:\Program Files\rport\rport.new'  'C:\Program Files\rport\rport.exe' -Force
-            Remove-Item 'C:\windows\temp\rport-update' -Force -Recurse
-        }
-        if (Test-Path $migartion)
-        {
-            & $migartion
-        }
-        if (Test-Path $msiUpdate)
-        {
-            $msiLog = 'C:\windows\temp\rport-update\rport.msi-install.log'
-            Start-Process msiexec.exe -Wait -ArgumentList "/i $( $msiUpdate ) /qn /quiet /log $( $msiLog )"
-        }
-        Start-Service rport
-    }
+# Hand over to the supervisor, run as SYSTEM by a scheduled task.
+$taskName = 'rport-update-' + (Get-Date -Format 'yyyyMMddHHmmss')
+$settingsFile = "$stage\settings.json"
+$settings = [ordered]@{
+    Stage = $stage; InstallDir = $installDir; ConfigFile = $configFile; LogFile = (Get-ClientLogFile)
+    FromVersion = $currentVersion; ToVersion = $targetVersion; Kind = $kind; Migrate = $migrate
+    HealthTimeout = $healthTimeout; StableSecs = $stableSecs; TaskName = $taskName
 }
-catch
+$Utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $False
+[IO.File]::WriteAllText($settingsFile, ($settings | ConvertTo-Json), $Utf8NoBomEncoding)
+Write-UpdateSupervisor -Path "$stage\supervise.ps1"
+if (Test-Path "$stage\status.json")
 {
-    Copy-Item 'C:\windows\temp\rport-update\rport.exe' 'C:\Program Files\rport\rport.new.exe'
-    Write-Output ": Scheduling the restart of rport failed"
-    Write-Output ": Try the following on your PowerShell to activate the new version."
-    Write-Output "PS >
-    Stop-Service rport
-    Move-Item 'C:\Program Files\rport\rport.new.exe'  'C:\Program Files\rport\rport.exe' -Force
-    Start-Service rport
-
-    "
-    Write-Output ": CAUTION: **Don't do the above while connected over RPort!**"
+    Remove-Item "$stage\status.json" -Force
+}
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$stage\supervise.ps1`" -Settings `"$settingsFile`""
+$principal = New-ScheduledTaskPrincipal -UserID 'NT AUTHORITY\SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+$taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
+$task = New-ScheduledTask -Action $action -Principal $principal -Settings $taskSettings
+Register-ScheduledTask -TaskName $taskName -InputObject $task | Out-Null
+Start-ScheduledTask -TaskName $taskName
+# The supervisor writes status.json as soon as it runs. Some hosts leave the task "Queued" and
+# never run it; start the supervisor through WMI then, also as SYSTEM and outside the rport service.
+$supervisorRunning = $false
+for ($i = 0; $i -lt 20; $i++) {
+    if (Test-Path "$stage\status.json")
+    {
+        $supervisorRunning = $true
+        break
+    }
+    Start-Sleep -Seconds 1
+}
+if ($supervisorRunning)
+{
+    Write-Output "* Update supervisor started as scheduled task $taskName."
+}
+else
+{
+    Write-Output "* Scheduled task $taskName did not start; starting the supervisor through WMI."
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+    $cmdLine = "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$stage\supervise.ps1`" -Settings `"$settingsFile`""
+    $wmiResult = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $cmdLine }
+    if ($wmiResult.ReturnValue -ne 0)
+    {
+        throw "Starting the update supervisor failed (Win32_Process.Create returned $( $wmiResult.ReturnValue )). The client was not restarted; the previous config is in $stage\previous."
+    }
+    Write-Output "* Update supervisor started as process $( $wmiResult.ProcessId )."
 }
 Set-Location $myLocation
-
 Get-Log
 
-Write-Output "
-#  Update of rport finished.
-#
+if (Test-RportSubprocess)
+{
+    Write-Output "* The update runs in the background, because this script was started by the rport client."
+    Write-Output "* The client restarts; if $targetVersion does not connect within $( $healthTimeout )s, $currentVersion is restored."
+    Write-Output "* Result: $stage\status.json, log: $stage\update.log"
+    exit 0
+}
 
-Thanks for using
-   ____                   _____  _____           _
-  / __ \                 |  __ \|  __ \         | |
- | |  | |_ __   ___ _ __ | |__) | |__) |__  _ __| |_
- | |  | | '_ \ / _ \ '_ \|  _  /|  ___/ _ \| '__| __|
- | |__| | |_) |  __/ | | | | \ \| |  | (_) | |  | |_
-  \____/| .__/ \___|_| |_|_|  \_\_|   \___/|_|   \__|
-        | |
-        |_|
+Write-Output "* Waiting for the new client to connect (up to $( $healthTimeout )s, then $( $stableSecs )s to confirm) ..."
+$limit = 2 * ($healthTimeout + $stableSecs) + 120
+for ($i = 0; $i -lt $limit; $i += 2) {
+    if ((Test-Path "$stage\status.json") -and -not ((Get-Content -Raw "$stage\status.json") -match '"status":"running"'))
+    {
+        break
+    }
+    Start-Sleep -Seconds 2
+}
+$result = Get-Content -Raw "$stage\status.json" -ErrorAction SilentlyContinue
+Write-Output $result
+if ($result -match '"status":"success"')
+{
+    Write-Output "
+#  Update of the Procy client (rport) finished: $targetVersion is connected.
+#  Update log: $stage\update.log
 "
+    exit 0
+}
+Write-Output "
+# -------------!!   ERROR  !!-------------
+# The update did not succeed; see the result above and $stage\update.log.
+# If the new version did not connect, the previous version was restored.
+"
+exit 1
