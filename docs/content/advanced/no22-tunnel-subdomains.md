@@ -7,9 +7,9 @@ slug: tunnels-on-subdomains
 
 ## Introduction
 
-Starting with version 0.9.5 you can access http-based tunnels on subdomains.
+You can access http-based tunnels on subdomains.
 
-This feature was introduced to comply with strict firewall rules that block outgoing connections to none-default ports.
+This feature was introduced to comply with strict firewall rules that block outgoing connections to non-default ports.
 After a tunnel has been created you access it on a random port according to the port range reserved for tunnels.
 With the new feature an additional random subdomain is created typically on port 443 as an alternative way to access the
 tunnel.

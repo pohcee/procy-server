@@ -7,38 +7,37 @@ aliases:
 ---
 {{< toc >}}
 
-Initializing the creation of a tunnel from the client is nice but not a perfect solution for secure and reliable remote
-access to a large number of machines. Most of the time the tunnel wouldn't be used. Network resources would be wasted
-and a port is exposed to the internet for an unnecessarily long time. Procy provides the option to establish tunnels
-from the server only when you need them.
+Tunnels that a client opens on start, with `remotes` in `rport.conf`, are always up. With many machines, most of them
+sit unused, and each keeps a port open on the internet. Instead, clients can connect without a tunnel and wait. You open
+a tunnel from the server only when you need it, and close it when you are done.
+
+![On-demand tunnels: the client connects out and waits; you request a tunnel through the API; the server opens a port and tells the client over the existing connection; you connect to that port and land on the client's port 22](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-on-demand-tunnel.svg)
 
 ## Activate the API
 
-Using the provided `rportd.example.conf` the internal management API is enabled by default listening on <http://localhost:3000>.
+The `rportd.example.conf` enables the management API on port 3000. Set up the `[api]` section, for example:
 
-Set up `[api]` config params. For example:
-
-   ```yaml
-   # specify non-empty api.address to enable API support
-   [api]
-     # Defines the IP address and port the API server listens on
-     address = "127.0.0.1:3000"
-     # Defines <user:password> authentication pair for accessing API
-     auth = "admin:<your-password>"
-   ```
+```text
+[api]
+  ## Defines the IP address and port the API server listens on.
+  ## An empty address disables the API.
+  address = "127.0.0.1:3000"
+  ## Defines a <user>:<password> pair for accessing the API.
+  auth = "admin:<your-password>"
+```
 
 This opens the API and enables HTTP basic authentication with a single user `admin` who has access to the API.
 A JWT secret for API tokens is generated on first start and saved in the data directory.
-Restart the rportd after any changes to the configuration. Read more about API [authentication options](no02-api-auth.md).
+Restart the rportd after any changes to the configuration. Read more about API [authentication options](/docs/get-started/api-authentication/).
 
 {{< hint type=warning >}}
-Choose a strong password. rportd refuses to start with the sample credentials from `rportd.example.conf`
+Choose a strong password. `rportd` refuses to start with the sample credentials from `rportd.example.conf`
 (`admin:foobaz`, `clientAuth1:1234`) and with placeholder or too-short secrets. If you set `jwt_secret` yourself, use at
 least 16 characters, e.g. `openssl rand -hex 32`.
 {{< /hint >}}
 
 {{< hint type=tip >}}
-If you expose your API to the public internet, it's highly recommended to enable HTTPS. Read the [quick HTTPS howto](no08-https-howto.md).
+If you expose your API to the public internet, it's highly recommended to enable HTTPS. Read the [quick HTTPS howto](/docs/get-started/securing-rportd-with-https/).
 {{< /hint >}}
 By default the built-in web server can run the API only on ports above 1024. To circumvent this limit, refer to
 [running the API on privileged ports.](#running-the-api-on-a-privileged-port)
@@ -63,7 +62,7 @@ Example of a human-readable API status
     "fingerprint": "2a:c8:79:09:80:ba:7c:60:05:e5:2c:99:6d:75:56:24",
     "clients_connected": 3,
     "clients_disconnected": 1,
-    "version": "0.1.28"
+    "version": "0.9.31"
   }
 }
 ```
@@ -76,13 +75,13 @@ Invoke the Procy client without specifying a tunnel but with some extra data.
 rport --id my-client-1 \
   --fingerprint <YOUR_FINGERPRINT> \
   --tag Linux --tag "Office Berlin" \
-  --name "My Test VM" --auth user1:1234 \
-  node1.example.com:8080
+  --name "My Test VM" --auth client1:<CLIENT_PASSWORD> \
+  procy.example.com:8080
 ```
 
 *Add auth and fingerprint as already explained.*
 
-This attaches the client to the message queue of the server without creating a tunnel.
+The client connects to the server and waits, without a tunnel.
 
 ## Manage clients and tunnels through the API
 
@@ -122,13 +121,13 @@ curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients|jq
       "Linux",
       "Office Berlin"
     ],
-    "version": "0.1.6",
+    "version": "0.9.31",
     "address": "87.123.136.***:63552",
     "tunnels": []
   },
    {
     "id": "aa1210c7-1899-491e-8e71-564cacaf1df8",
-    "name": "Random Rport Client",
+    "name": "Random Procy Client",
     "os": "Linux alpine-3-10-tk-01 4.19.80-0-virt #1-Alpine SMP Fri Oct 18 11:51:24 UTC 2019 x86_64 Linux",
     "os_arch": "amd64",
     "os_family": "alpine",
@@ -155,7 +154,7 @@ curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients|jq
       "Linux",
       "Datacenter 1"
     ],
-    "version": "0.1.6",
+    "version": "0.9.31",
     "address": "88.198.189.***:43206",
     "tunnels": [
       {
@@ -171,20 +170,17 @@ curl -s -u admin:$PASSWORD http://localhost:3000/api/v1/clients|jq
 ```
 
 There is one client connected with an active tunnel. The second client is in standby mode.
-Read more about the [management of tunnel via the API](/docs/content/get-started/no09-managing-tunnels.md)
+Read more about [managing tunnels through the API](/docs/get-started/managing-tunnels/)
 or read the [API docs](https://procy.sh/docs/api/).
 
 ## Running the API on a privileged port
 
-For security reasons the Procy server runs as an unprivileged user and you should not change this. But unprivileged
-users are not allowed to open port below 1024. Instead of changing user privileges you can change the capabilities of
-the rportd binary and allow it to use any port even when not running as root.
+The Procy server runs as an unprivileged user, and you should keep it that way. Unprivileged users can't open ports
+below 1024, but you can give the `rportd` binary the capability to do so:
 
 ```shell
 sudo setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/rportd
 ```
 
-That's all.
-Now you can use "0.0.0.0:443" as API address.
-
-You need to run the above command everytime you change the rpotd binary, for example after every update.
+Now you can use `0.0.0.0:443` as the API address. Run the command again every time the `rportd` binary changes, for
+example after each update.

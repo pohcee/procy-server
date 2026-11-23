@@ -7,7 +7,7 @@ aliases:
   - /docs/content/get-started/no15-messaging.md
 ---
 {{< toc >}}
-Some features require the Procy server to send messages, e.g., [2FA Auth](no02-api-auth.md#two-factor-auth)
+Some features require the Procy server to send messages, e.g., [2FA Auth](/docs/get-started/api-authentication/#two-factor-auth)
 requires sending a verification code to a user.
 
 ## SMTP
@@ -117,7 +117,7 @@ BOT_TOKEN="<YOUR_BOT_TOKEN>"
 URL="https://api.telegram.org/bot${BOT_TOKEN}/sendMessage"
 curl -fs -X POST $URL \
   -d chat_id=$RPORT_2FA_SENDTO \
-  -d text="Your RPort 2fa token: $RPORT_2FA_TOKEN (valid for $RPORT_2FA_TOKEN_TTL seconds)"
+  -d text="Your Procy 2FA token: $RPORT_2FA_TOKEN (valid for $RPORT_2FA_TOKEN_TTL seconds)"
 ```
 
 ## URL

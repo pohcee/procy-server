@@ -10,8 +10,8 @@ aliases:
 
 ## Preface
 
-Starting with version 0.5 Procy comes with basic monitoring capabilities. The Procy client can collect the following
-metrics from the underlying operating system:
+Procy comes with basic monitoring. The Procy client can collect the following metrics from the underlying operating
+system:
 
 * CPU usage (percent)
 * Memory usage (percent)
@@ -19,15 +19,13 @@ metrics from the underlying operating system:
 * List of running processes
 * Fill level of hard disks and mount points
 
-To use the built-in monitoring both – server and client – must run at least Procy 0.5.0.
-
-The monitoring is enabled by default. If newer clients are connected to an old server the client disables the monitoring
-automatically. All monitoring data is stored on the server in a sqlite3 database file `monitoring.db` inside the data dir
+The monitoring is enabled by default. All monitoring data is stored on the server in a sqlite3 database file `monitoring.db` inside the data dir
 of the Procy server.
 
 ## Server configuration options
 
-Select a proper value for `data_storage_days` carefully in the `[monitoring]` section of the `rportd.conf`.
+Choose `data_storage_duration` in the `[monitoring]` section of the `rportd.conf` carefully (default `"7d"`; use the
+suffix `d` for days or `h` for hours). The older `data_storage_days` setting is deprecated.
 The more clients you have, the more data will be collected. Having hundreds of clients collecting monitoring data, the
 database file can quickly grow to 10 Gigabytes or more. Use a symbolic link, if you want to store the `monitoring.db`
 file outside the data dir.
@@ -46,5 +44,5 @@ All collected monitoring data can be fetched using the API. Please refer to our
 
 ## Processing monitoring data
 
-At the moment, either the client nor the server processes the monitoring data in any way. Sending alerts based on
-thresholds is on our roadmap. Watch the [releases](https://github.com/pohcee/openrport/releases) for updates.
+Neither the client nor the server processes the monitoring data. Procy doesn't send alerts based on thresholds;
+fetch the data through the API and feed it into your own alerting if you need that.

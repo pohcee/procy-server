@@ -17,10 +17,8 @@ GNU Affero General Public License v3.
 The web UI comes as a bundle of static HTML, JavaScript and assets. It does not require any server-side scripting
 support; `rportd` serves it from its doc root.
 
-By default, the built-in web server listens only on localhost. Serving the web UI on localhost is not very useful.
-Change the listen address of the API to "0.0.0.0:3000" or any port you like.
-
-Make sure you have the below options enabled in `[api]` section of the `rportd.conf`.
+The web UI is served on the API address, so the API must listen on an address your browser can reach, for example
+`0.0.0.0:3000`. Make sure you have the below options enabled in `[api]` section of the `rportd.conf`.
 
 ```text
 [api]
@@ -30,8 +28,8 @@ Make sure you have the below options enabled in `[api]` section of the `rportd.c
 
 {{< hint type=warning >}}
 Usually you run rportd and the web UI on a public server directly exposed to the internet. Running the API and
-serving the web UI on unencrypted HTTP is dangerous. Always use HTTPs. The built-in web server supports HTTPs.
-To quickly generate certificates, follow [this guide](/docs/get-started/no08-https-howto.md).
+serving the web UI on unencrypted HTTP is dangerous. Always use HTTPS. The built-in web server supports HTTPS.
+To quickly generate certificates, follow [this guide](/docs/get-started/securing-rportd-with-https/).
 {{< /hint >}}
 
 * Create the doc root folder. Usually `/var/lib/rport/docroot` is used.
@@ -40,16 +38,17 @@ To quickly generate certificates, follow [this guide](/docs/get-started/no08-htt
 * Unpack to the doc root folder.
 
 ```bash
-mkdir /var/lib/rport/docroot
+sudo mkdir /var/lib/rport/docroot
 cd /var/lib/rport/docroot
 UI_TAG=$(curl -fsSL https://api.github.com/repos/pohcee/openrport-ui/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-curl -fsSL "https://github.com/pohcee/openrport-ui/releases/download/${UI_TAG}/openrport-frontend-${UI_TAG#v}.zip" -o procy-ui.zip
-unzip -qq procy-ui.zip && rm -f procy-ui.zip
+sudo curl -fsSL -o procy-ui.zip \
+  "https://github.com/pohcee/openrport-ui/releases/download/${UI_TAG}/openrport-frontend-${UI_TAG#v}.zip"
+sudo unzip -qq procy-ui.zip && sudo rm -f procy-ui.zip
 cd ~
-chown -R rport:rport /var/lib/rport/docroot
+sudo chown -R rport:rport /var/lib/rport/docroot
 ```
 
 Now open the API-URL in a browser. Log in with a username and password specified for the
-[API authentication](/docs/content/get-started/no02-api-auth.md).
+[API authentication](/docs/get-started/api-authentication/).
 
 You are done.

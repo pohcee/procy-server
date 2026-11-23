@@ -9,8 +9,8 @@ aliases:
 
 ## Preface
 
-Starting with version 0.5.10 Procy has the ability to create a tunnel to a remote VNC server with a built-in VNC-to-HTTPS
-proxy. The Procy server exposes the "vnc signal" on an encrypted HTTPS port instead of using the unencrypted VNC protocol.
+Procy can create a tunnel to a remote VNC server with a built-in VNC-to-HTTPS proxy. The Procy server exposes the
+"vnc signal" on an encrypted HTTPS port instead of using the unencrypted VNC protocol.
 If a vnc tunnel with proxy is created, Procy first creates the tunnel to the remote machine, makes the remote VNC port
 available only on localhost and spawns a vnc proxy that makes the VNC signal accessible over HTTPS on the proxy port with
 path "/". Pointing the browser to this URL loads the novnc javascript app and the session starts.
@@ -20,7 +20,7 @@ path "/". Pointing the browser to this URL loads the novnc javascript app and th
 * noVNC javascript app has to be available on local filesystem
 * Procy server configuration `novnc_root` must point to the noVNC javascript app directory
 * Procy server configuration `tunnel_proxy_cert_file` and `tunnel_proxy_key_file` must be set up. NoVNC depends on the
-* generic built-in TLS reverse proxy, which is enabled by providing a key and a certificate.
+  generic built-in TLS reverse proxy, which is enabled by providing a key and a certificate.
 
 ## Install noVNC javascript app
 

@@ -58,9 +58,9 @@ For registering the service you have three options.
 
 1. You run it with your own user.
 2. You create a so-called system user on macOS, see below.
-3. You run it from the built-in `deamon` user account.
+3. You run it from the built-in `daemon` user account.
 
-The third option is not recommended if you want to run scripts with sudo privileges because you would give to many
+The third option is not recommended if you want to run scripts with sudo privileges because you would give too many
 rights to the `daemon` user. It's better to create a dedicated user `rport`.
 
 ### Create the `rport` system user

@@ -1,5 +1,5 @@
 ---
-title: "external IP Address determination"
+title: "External IP address determination"
 weight: 23
 slug: "ip-address-determination"
 ---
@@ -7,7 +7,7 @@ slug: "ip-address-determination"
 
 ## Introduction
 
-Starting with version 0.9.13 the Procy client can determine its external IP addresses (ipV4 and ipV6) by asking an
+The Procy client can determine its external IP addresses (ipV4 and ipV6) by asking an
 external API.  
 This is more reliable than extracting it from the TCP headers on the server. You will get correct external IP addresses
 even if the Procy server runs behind a reverse proxy.
