@@ -9,6 +9,7 @@ import (
 
 	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
@@ -41,26 +42,11 @@ type JobProvider interface {
 func (al *APIListener) createAndRunJob(
 	uiConnTS *ws.ConcurrentWebSocket,
 	multiJobID *string,
-	jid, cmd, interpreter, createdBy, cwd string,
-	timeoutSec int,
-	isSudo, isScript bool,
+	jid, createdBy string,
+	spec library.JobSpec,
 	client *clientdata.Client,
 ) error {
-	curJob := models.Job{
-		JID:          jid,
-		StartedAt:    time.Now(),
-		ClientID:     client.GetID(),
-		ClientName:   client.GetName(),
-		Command:      cmd,
-		Cwd:          cwd,
-		IsSudo:       isSudo,
-		IsScript:     isScript,
-		Interpreter:  interpreter,
-		CreatedBy:    createdBy,
-		TimeoutSec:   timeoutSec,
-		MultiJobID:   multiJobID,
-		StreamResult: uiConnTS != nil,
-	}
+	curJob := newJob(uiConnTS, multiJobID, jid, createdBy, spec, client)
 	logPrefix := curJob.LogPrefix()
 
 	// send the command to the client
@@ -186,70 +172,5 @@ func (al *APIListener) executeMultiClientJob(
 	job *models.MultiJob,
 	orderedClients []*clientdata.Client,
 ) {
-	// for sequential execution - create a channel to get the job result
-	var curJobDoneChannel chan *models.Job
-	if !job.Concurrent {
-		curJobDoneChannel = make(chan *models.Job)
-		al.jobsDoneChannel.Set(job.JID, curJobDoneChannel)
-		defer func() {
-			close(curJobDoneChannel)
-			al.jobsDoneChannel.Del(job.JID)
-		}()
-	}
-	for _, client := range orderedClients {
-		curJID, err := generateNewJobID()
-		if err != nil {
-			return
-		}
-		if job.Concurrent {
-			go al.createAndRunJob( //nolint:errcheck // error is logged, nothing to act on here
-				nil,
-				&job.JID,
-				curJID,
-				job.Command,
-				job.Interpreter,
-				job.CreatedBy,
-				job.Cwd,
-				job.TimeoutSec,
-				job.IsSudo,
-				job.IsScript,
-				client,
-			)
-		} else {
-			err := al.createAndRunJob(
-				nil,
-				&job.JID,
-				curJID,
-				job.Command,
-				job.Interpreter,
-				job.CreatedBy,
-				job.Cwd,
-				job.TimeoutSec,
-				job.IsSudo,
-				job.IsScript,
-				client,
-			)
-			if err != nil {
-				if job.AbortOnErr && !errors.Is(err, ErrClientNotConnected) {
-					break
-				}
-				continue
-			}
-
-			// TODO: review use of this flag as a testing hack. works but not too nice.
-			// in tests skip next part to avoid waiting
-			if al.insecureForTests {
-				continue
-			}
-
-			// wait until command is finished
-			jobResult := <-curJobDoneChannel
-			if job.AbortOnErr && jobResult.Status == models.JobStatusFailed {
-				break
-			}
-		}
-	}
-	if al.testDone != nil {
-		al.testDone <- true
-	}
+	al.runMultiClientJob(nil, job, orderedClients, sameSpecForAll(typedJobSpec(job)))
 }

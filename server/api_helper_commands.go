@@ -2,13 +2,13 @@ package chserver
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/gorilla/websocket"
 
 	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/auditlog"
+	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/validation"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/ws"
@@ -105,96 +105,37 @@ func (al *APIListener) handleCommandsExecutionWS(
 
 		uiConnTS.SetWritesBeforeClose(len(inboundMsg.OrderedClients))
 
-		// for sequential execution - create a channel to get the job result
-		var curJobDoneChannel chan *models.Job
-
-		if !multiJob.Concurrent {
-			curJobDoneChannel = make(chan *models.Job)
-			al.jobsDoneChannel.Set(multiJob.JID, curJobDoneChannel)
-			defer func() {
-				close(curJobDoneChannel)
-				al.jobsDoneChannel.Del(multiJob.JID)
-			}()
-		}
-
-		for _, client := range inboundMsg.OrderedClients {
-			curJID, err := generateNewJobID()
-			if err != nil {
-				uiConnTS.WriteError("Could not generate job id.", err)
-				return
-			}
-			if multiJob.Concurrent {
-				go al.createAndRunJob( //nolint:errcheck // error is logged, nothing to act on here
-					uiConnTS,
-					&jid,
-					curJID,
-					inboundMsg.Command,
-					multiJob.Interpreter,
-					createdBy,
-					multiJob.Cwd,
-					multiJob.TimeoutSec,
-					multiJob.IsSudo,
-					multiJob.IsScript,
-					client,
-				)
-			} else {
-				err := al.createAndRunJob(
-					uiConnTS,
-					&jid,
-					curJID,
-					inboundMsg.Command,
-					multiJob.Interpreter,
-					createdBy,
-					multiJob.Cwd,
-					multiJob.TimeoutSec,
-					multiJob.IsSudo,
-					multiJob.IsScript,
-					client,
-				)
-
-				if err != nil {
-					if multiJob.AbortOnErr && !errors.Is(err, ErrClientNotConnected) {
-						uiConnTS.Close()
-						return
-					}
-					continue
-				}
-
-				// TODO: review use of this flag as a testing hack. works but not too nice.
-				if al.insecureForTests {
-					continue
-				}
-
-				// wait until command is finished
-				jobResult := <-curJobDoneChannel
-				if multiJob.AbortOnErr && jobResult.Status == models.JobStatusFailed {
-					uiConnTS.Close()
-					return
-				}
-			}
-		}
-	} else {
-		client := inboundMsg.OrderedClients[0]
-
-		al.createAndRunJob( //nolint:errcheck // error is logged, nothing to act on here
-			uiConnTS,
-			nil,
-			jid,
-			inboundMsg.Command,
-			inboundMsg.Interpreter,
-			createdBy,
-			inboundMsg.Cwd,
-			inboundMsg.TimeoutSec,
-			inboundMsg.IsSudo,
-			inboundMsg.IsScript,
-			client,
-		)
+		al.runMultiClientJob(uiConnTS, multiJob, inboundMsg.OrderedClients, sameSpecForAll(typedJobSpec(multiJob)))
+		return
 	}
+
+	// single client, no multi-job
+	al.createAndRunJob( //nolint:errcheck // error is logged, nothing to act on here
+		uiConnTS,
+		nil,
+		jid,
+		createdBy,
+		library.JobSpec{
+			Command:     inboundMsg.Command,
+			Interpreter: inboundMsg.Interpreter,
+			Cwd:         inboundMsg.Cwd,
+			TimeoutSec:  inboundMsg.TimeoutSec,
+			IsSudo:      inboundMsg.IsSudo,
+			IsScript:    inboundMsg.IsScript,
+		},
+		inboundMsg.OrderedClients[0],
+	)
 
 	if al.testDone != nil {
 		al.testDone <- true
 	}
 
+	al.awaitUIClose(uiConnTS)
+}
+
+// awaitUIClose blocks until the UI sends a message or closes the websocket,
+// then closes it.
+func (al *APIListener) awaitUIClose(uiConnTS *ws.ConcurrentWebSocket) {
 	// check for Close message from client to close the connection
 	mt, message, err := uiConnTS.ReadMessage()
 	if err != nil {

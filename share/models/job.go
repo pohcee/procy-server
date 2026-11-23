@@ -11,6 +11,9 @@ const (
 	JobStatusRunning    = "running"
 	JobStatusFailed     = "failed"
 	JobStatusUnknown    = "unknown"
+	// JobStatusSkipped marks a job that was never sent to its client, e.g. a
+	// library entry without an implementation for the client's OS.
+	JobStatusSkipped = "skipped"
 
 	ChannelStdout = "stdout"
 	ChannelStderr = "stderr"
@@ -36,6 +39,10 @@ type Job struct {
 	IsSudo       bool       `json:"is_sudo"`
 	IsScript     bool       `json:"is_script"`
 	StreamResult bool       `json:"stream_result"`
+
+	LibraryEntryID string `json:"library_entry_id,omitempty"`
+	LibraryVersion int    `json:"library_version,omitempty"`
+	OS             string `json:"os,omitempty"`
 }
 
 type JobResult struct {
@@ -64,6 +71,9 @@ type MultiJob struct {
 	Jobs        []*Job         `json:"jobs"`
 	IsSudo      bool           `json:"is_sudo"`
 	IsScript    bool           `json:"is_script"`
+
+	LibraryEntryID string `json:"library_entry_id,omitempty"`
+	LibraryVersion int    `json:"library_version,omitempty"`
 }
 
 type MultiJobSummary struct {

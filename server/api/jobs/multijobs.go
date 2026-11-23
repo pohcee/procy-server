@@ -140,6 +140,9 @@ type multiJobDetailSqlite struct {
 	TimeoutSec  int                   `json:"timeout_sec"`
 	Concurrent  bool                  `json:"concurrent"`
 	AbortOnErr  bool                  `json:"abort_on_err"`
+
+	LibraryEntryID string `json:"library_entry_id,omitempty"`
+	LibraryVersion int    `json:"library_version,omitempty"`
 }
 
 func (d *multiJobDetailSqlite) Scan(value interface{}) error {
@@ -200,6 +203,8 @@ func (j *multiJobSqlite) convert() *models.MultiJob {
 		TimeoutSec:      d.TimeoutSec,
 		Concurrent:      d.Concurrent,
 		AbortOnErr:      d.AbortOnErr,
+		LibraryEntryID:  d.LibraryEntryID,
+		LibraryVersion:  d.LibraryVersion,
 	}
 }
 
@@ -222,6 +227,9 @@ func convertMultiJobToSqlite(job *models.MultiJob) *multiJobSqlite {
 			TimeoutSec:  job.TimeoutSec,
 			Concurrent:  job.Concurrent,
 			AbortOnErr:  job.AbortOnErr,
+
+			LibraryEntryID: job.LibraryEntryID,
+			LibraryVersion: job.LibraryVersion,
 		},
 	}
 }

@@ -225,6 +225,10 @@ type JobDetails struct {
 	Error       string            `json:"error"`
 	Result      *models.JobResult `json:"result"`
 	ClientName  string            `json:"client_name"`
+
+	LibraryEntryID string `json:"library_entry_id,omitempty"`
+	LibraryVersion int    `json:"library_version,omitempty"`
+	OS             string `json:"os,omitempty"`
 }
 
 func (d *JobDetails) Scan(value interface{}) error {
@@ -281,6 +285,9 @@ func (j *jobSqlite) convert() *models.Job {
 		res.Cwd = j.Details.Cwd
 		res.IsSudo = j.Details.IsSudo
 		res.IsScript = j.Details.IsScript
+		res.LibraryEntryID = j.Details.LibraryEntryID
+		res.LibraryVersion = j.Details.LibraryVersion
+		res.OS = j.Details.OS
 	}
 	if j.FinishedAt.Valid {
 		res.FinishedAt = &j.FinishedAt.Time
@@ -309,6 +316,10 @@ func convertToSqlite(job *models.Job) *jobSqlite {
 			Cwd:         job.Cwd,
 			IsSudo:      job.IsSudo,
 			IsScript:    job.IsScript,
+
+			LibraryEntryID: job.LibraryEntryID,
+			LibraryVersion: job.LibraryVersion,
+			OS:             job.OS,
 		},
 	}
 	if job.MultiJobID != nil {
