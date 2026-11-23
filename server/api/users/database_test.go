@@ -1,6 +1,7 @@
 package users
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -1028,4 +1029,27 @@ func assertUserTableEquals(t *testing.T, db *sqlx.DB, usersTableName string, exp
 func assertGroupTableEquals(t *testing.T, db *sqlx.DB, groupTableName string, expectedRows []map[string]interface{}) {
 	query := fmt.Sprintf("SELECT `username`, `group` FROM `%s` order by `username`, `group`", groupTableName)
 	test.AssertRowsEqual(t, db, expectedRows, query, []interface{}{})
+}
+
+func TestUpdateGroupStoresScriptsWithCommands(t *testing.T) {
+	db, err := sqlx.Connect("sqlite3", ":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+	require.NoError(t, prepareTables(db, false, false, false))
+	require.NoError(t, prepareDummyData(db, false, false, false))
+
+	d, err := NewUserDatabase(db, "users", "groups", "group_details", false, false, false, testLog)
+	require.NoError(t, err)
+	require.NoError(t, d.UpdateGroup("ops", NewGroup("ops", nil, nil, PermissionCommands)))
+
+	var raw string
+	require.NoError(t, db.Get(&raw, "SELECT permissions FROM group_details WHERE name = 'ops'"))
+	assert.JSONEq(t, `{"commands":true,"scripts":true}`, raw)
+
+	g, err := d.GetGroup("ops")
+	require.NoError(t, err)
+	assert.True(t, g.Permissions.Has(PermissionCommands))
+	b, err := json.Marshal(g.Permissions)
+	require.NoError(t, err)
+	assert.NotContains(t, string(b), "scripts")
 }

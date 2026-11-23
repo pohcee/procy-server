@@ -90,11 +90,26 @@ func (permissions *Permissions) Scan(value interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to decode 'permissions' field: %v", err)
 	}
+	// Value stores "scripts" next to "commands" for older rportd versions; it
+	// carries no extra information once both are present.
+	if permissions.data[PermissionCommands] {
+		delete(permissions.data, PermissionScripts)
+	}
 	return nil
 }
 
+// Value serialises the permissions for storage. The deprecated "scripts" key
+// is written whenever "commands" is set, so an older rportd reading the same
+// group still grants the scripts right.
 func (permissions Permissions) Value() (driver.Value, error) {
-	b, err := json.Marshal(permissions.data)
+	data := make(map[string]bool, len(permissions.data)+1)
+	for k, v := range permissions.data {
+		data[k] = v
+	}
+	if data[PermissionCommands] {
+		data[PermissionScripts] = true
+	}
+	b, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode 'permissions' field: %v", err)
 	}
