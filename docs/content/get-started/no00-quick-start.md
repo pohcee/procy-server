@@ -1,105 +1,58 @@
 ---
-title: 'Concepts practically explained'
+title: 'Quick start'
 weight: 0
 slug: quick-start
 ---
 
-{{< hint type=warning title="This is not an installation tutorial!" >}}
-If you want to **install and run Procy (server and client)**, download the packages from the
-[latest release](https://github.com/pohcee/openrport/releases/latest) and follow the installation steps below.
+{{< toc >}}
 
-The below documentation is a practical demonstration of the Procy concepts.
-It's intended to be read by developers and experienced users who want to learn what happens behind the scenes.
-{{< /hint>}}
+This page walks you through a manual installation of the Procy server (`rportd`) and a first client (`rport`). It
+also shows what happens behind the scenes, so it's a good read even if you later install clients with
+[pairing](/docs/get-started/client-pairing/) or run everything from the web UI.
 
-## Build and installation
+![Quick start: install the server, start it and copy the fingerprint, connect a client, then SSH through the tunnel](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-quick-start.svg)
 
-### Binaries
+## Get the binaries
 
-We provide pre-compiled binaries. Download them from the [releases page](https://github.com/pohcee/openrport/releases).
+Download the server and client from the [latest release](https://github.com/pohcee/openrport/releases/latest). Each
+release has `tar.gz` archives for Linux, macOS and other platforms, a `zip` for Windows, and DEB and RPM packages.
 
-### From source
+To build from source (Linux or macOS), run `make build`. The `rport` and `rportd` binaries appear in the current
+directory. `make docker-goreleaser` builds the binaries for all supported platforms into `./dist`.
 
-1. Build from source (Linux or macOS):
+## Try it without installing
 
-   ```bash
-   make all
-   ```
-
-   `rport` and `rportd` binaries will appear in directory.
-
-2. Build using Docker:
-
-   ```bash
-   make docker-goreleaser
-   ```
-
-   will create binaries for all supported platforms in `./dist` directory.
-
-## Usage
-
-`rportd` should be executed on the machine, acting as a server.
-
-`rport` is a client app which will try to establish long-running connection to the server.
-
-Minimal setup:
-
-1. Execute `./rportd --addr 0.0.0.0:9999 --auth rport:password123 --data-dir /var/tmp` on a server.
-2. Execute `./rport --auth rport:password123 <SERVER_IP>:9999 2222:22` on a client or  
-   `./rport --auth rport:password123 <SERVER_IP>:9999 22` and the server tunnel port will be randomly chosen for you.
-3. Now end-users can connect to `<SERVER_IP>:2222` (e.g. using a SSH Connection). The connection will be proxied to
-   the client machine.
-
-See `./rportd --help` and `./rport --help` for more options, like:
-
-- Specifying certificate fingerprint to validate server authority
-- Client session authentication using user:password pair
-- Restricting, which users can connect
-- Specifying additional intermediate HTTP proxy
-- Using POSIX signals to control running apps
-- Setting custom HTTP headers
-- Using IPv6 addresses when starting a server
-
-## Run the server without installation
-
-If you quickly want to run the Procy server without installation, run the following commands from any unprivileged user account.
+To see Procy work, run the server from any unprivileged account:
 
 ```shell
 VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
 curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rportd_${VERSION}_linux_x86_64.tar.gz"
 tar vxzf rportd_${VERSION}_linux_x86_64.tar.gz rportd
 KEY=$(openssl rand -hex 18)
-./rportd --log-level info --data-dir /var/tmp/ --key $KEY --auth user1:1234
+CLIENT_PASSWORD=$(openssl rand -hex 12)
+./rportd --log-level info --data-dir /var/tmp/ --key $KEY --auth client1:$CLIENT_PASSWORD
 ```
 
-Rportd will be listening on the default port 8080 for client connections.
-Grab the generated fingerprint from `/var/tmp/rportd-fingerprint.txt` and use it for secure client connections.
+`rportd` listens for client connections on port 8080. It writes its fingerprint to `/var/tmp/rportd-fingerprint.txt`;
+clients use it to check they are talking to your server.
 
-## Install and run the Procy server
+Then, on another machine, connect a client and map port 2222 of the server to port 22 of the client:
 
-On a machine connected to the public internet and ideally with an FQDN registered to a public DNS install and run the server.
-Assume, the server is called `node1.example.com`.
+```shell
+./rport --auth client1:<CLIENT_PASSWORD> --fingerprint <FINGERPRINT> <SERVER_IP>:8080 2222:22
+```
 
-### A note on security
+Now `ssh -p 2222 <SERVER_IP>` lands on the client. Leave out the server port (`./rport ... 22`) and the server picks
+a free one for you. See `./rportd --help` and `./rport --help` for all options.
+
+## Install the server
+
+Use a machine on the public internet, ideally with a DNS name. Below it's called `procy.example.com`.
 
 {{< hint type=warning >}}
-**Do not run the server as root!** This is an unnecessary risk. Rportd should always use an unprivileged user.
+**Don't run the server as root.** It doesn't need root rights, and `rportd` refuses to start as root unless you set
+`allow_root`. Use an unprivileged user, usually `rport`.
 {{< /hint >}}
-
-While using Procy without a **fingerprint** is possible, it's highly recommended to not skip this part.
-The fingerprint ensures you connect only to trusted servers. If you omit this step a man in the middle can bring up a
-Procy server and hijack your tunnels. If you do ssh or rdp through the tunnel, a hijacked tunnel will not expose your
-credentials because the data inside the tunnel is still encrypted. But if you use Procy for unencrypted protocols like
-HTTP, sniffing credentials would be possible.
-
-You might wonder why the Procy server does not provide encryption on the transport layer (TLS, SSL, HTTPS).
-**Encryption is always enabled.** Your connections are encrypted and secured by SSH over HTTP. When you start up the
-Procy server, it will generate an in-memory ECDSA public/private key pair. Adding TLS by putting an SSL
-reverse proxy is possible so you get SSH over HTTPS.
-
-### Install the server
-
-For a proper installation execute the following steps.
 
 ```bash
 VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
@@ -113,47 +66,64 @@ sudo tar vxzf rportd_${VERSION}_linux_x86_64.tar.gz -C /etc/rport/ rportd.exampl
 sudo cp /etc/rport/rportd.example.conf /etc/rport/rportd.conf
 ```
 
-Create a new unique key for the server instance. Store this key and don't change it. You will use it later. Otherwise,
-your fingerprint will change and your clients might be rejected. Open the `/etc/rport/rportd.conf` with an editor.
-Add a random string as `key_seed`. You can use `openssl rand -hex 18` to generate one.
-Or just execute the following commands to generate and enter a new key to your configuration file.
+### Set your own secrets
+
+`rportd` refuses to start with the placeholders and sample values from `rportd.example.conf` (`<YOUR_SEED>`,
+`admin:foobaz`, `clientAuth1:1234`, `<YOUR_SECRET>`). Open `/etc/rport/rportd.conf` and set:
+
+* `key_seed` in `[server]`: a random string the server's key pair is derived from. Clients pin the resulting
+  fingerprint, so keep it and never change it. Generate one with `openssl rand -hex 18`.
+* Client credentials in `[server]`, for example `auth = "client1:<a strong password>"`. See
+  [client authentication](/docs/get-started/client-authentication/) for per-client credentials.
+* API credentials in `[api]`, for example `auth = "admin:<a strong password>"`. The example config enables the API
+  on port 3000, and `rportd` won't start it without authentication. See
+  [API authentication](/docs/get-started/api-authentication/) for multi-user setups.
+
+To set the `key_seed` from the command line:
 
 ```shell
 KEY_SEED=$(openssl rand -hex 18)
-sed -i "s/key_seed = .*/key_seed =\"${KEY_SEED}\"/g" /etc/rport/rportd.conf
+sudo sed -i "s/key_seed = .*/key_seed = \"${KEY_SEED}\"/g" /etc/rport/rportd.conf
 ```
 
-All other default settings are suitable for a quick and secure start.
+You don't need to set `jwt_secret`. If it's empty, `rportd` generates one on the first start and saves it as
+`rportd-jwt-secret.txt` in the data directory, so logins survive restarts.
 
-Change to the `rport` user account and check your rportd starts without errors.
+### Check that it starts
+
+Switch to the `rport` user and start the server in the foreground:
 
 ```shell
-ubuntu@node1:~$ sudo -u rport -s /bin/bash
-rport@node1:/home/ubuntu$ rportd -c /etc/rport/rportd.conf --log-level info &
+sudo -u rport -s /bin/bash
+rportd -c /etc/rport/rportd.conf --log-level info
 ```
 
-For the first testing leave the console open and observe the log with `tail -f /var/log/rport/rportd.log`.
-Copy the generated fingerprint from `/var/lib/rport/rportd-fingerprint.txt` to your clipboard. Try your first client connection now.
+Watch the log with `tail -f /var/log/rport/rportd.log`. Copy the fingerprint from
+`/var/lib/rport/rportd-fingerprint.txt`; you need it for your clients.
 
-## Run the server with systemd
+### Run it with systemd
 
-If all works fine stop the Procy server and integrate it into systemd.
+If all works, stop `rportd` and register it with systemd:
 
 ```shell
 sudo rportd --service install --service-user rport --config /etc/rport/rportd.conf
-```
-
-A file `/etc/systemd/system/rportd.service` will be created and systemd is ready to manage rportd.
-
-```shell
 sudo systemctl start rportd
-sudo systemctl enable rportd # Optionally start rportd on boot
+sudo systemctl enable rportd # start on boot
 ```
+
+This creates `/etc/systemd/system/rportd.service`.
+
+{{< hint type=note title="Is the connection encrypted?" >}}
+Yes, always. Clients talk to the server over SSH inside HTTP, using the server's ECDSA key pair. The fingerprint
+makes sure a client only connects to your server: without it, a man in the middle could pose as your server and
+take over your tunnels. You can put a TLS reverse proxy in front to get SSH over HTTPS.
+{{< /hint >}}
 
 ## Connect a client
 
-Assume, the client is called `client1.local.localdomain`.
-On your client just install the client binary
+### Try it on the command line
+
+On the client, here `client1.example.com`, install the binary:
 
 ```shell
 VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
@@ -161,20 +131,18 @@ curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rport
 sudo tar vxzf rport_${VERSION}_linux_x86_64.tar.gz -C /usr/local/bin/ rport
 ```
 
-Create an ad hoc tunnel that will forward the port 2222 of `node1.example.com` to the to local port 22 of `client1.local.localdomain`.
+Create a tunnel that forwards port 2222 of `procy.example.com` to port 22 of the client:
 
 ```shell
-rport --auth user1:1234 --fingerprint <YOUR_FINGERPRINT> --data-dir=/tmp node1.example.com:8080 2222:0.0.0.0:22
+rport --auth client1:<CLIENT_PASSWORD> --fingerprint <FINGERPRINT> --data-dir=/tmp procy.example.com:8080 2222:0.0.0.0:22
 ```
 
-Observing the log of the server you get a confirmation about the newly created tunnel.
+The server log confirms the new tunnel. Now `ssh -p 2222 procy.example.com` takes you to the client, even though it
+sits behind a firewall.
 
-Now you can access your machine behind a firewall through the tunnel. Try `ssh -p 2222 node1.example.com` and you will
-come out on the machine where the tunnel has been initiated.
+### Run a Linux client with systemd
 
-## Run a Linux client with systemd
-
-For a proper and permanent installation of the client execute the following steps.
+For a permanent installation:
 
 ```shell
 VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
@@ -189,58 +157,51 @@ sudo cp /etc/rport/rport.example.conf /etc/rport/rport.conf
 sudo rport --service install --service-user rport --config /etc/rport/rport.conf
 ```
 
-Open the config file `/etc/rport/rport.conf` and adjust it to your needs. (See below.)
-Finally, start the Procy client and optionally register it in the auto-start.
+Edit `/etc/rport/rport.conf`. A minimal configuration looks like this:
 
-```shell
-systemctl start rport
-systemctl enable rport
-```
-
-A very minimalistic client configuration `rport.conf` can look like this:
-
-```shell
+```text
 [client]
-server = "node1.example.com:8080"
-fingerprint = "<YOUR_FINGERPRINT>"
-auth = "user1:1234"
+server = "procy.example.com:8080"
+fingerprint = "<FINGERPRINT>"
+auth = "client1:<CLIENT_PASSWORD>"
 remotes = ['2222:22']
 ```
 
-This will establish a permanent tunnel and the local port 22 (SSH) of the client becomes available on port 2222 of the Procy server.
+`remotes` sets up a permanent tunnel: port 22 (SSH) of the client becomes available on port 2222 of the server. Leave
+it out to connect without a tunnel and open tunnels [on demand](/docs/get-started/on-demand-tunnels/).
 
-## Run a Windows client
-
-On Microsoft Windows [download the latest client](https://github.com/pohcee/openrport/releases/latest) (`rport_<version>_windows_x86_64.zip`)
-and extract it ideally to `C:\Program Files\rport`.
-Rename the `rport.example.conf` to `rport.conf` and store it in `C:\Program Files\rport` too.
-Open the `rport.conf` file with a text editor. On older Windows use an editor that supports unix line breaks,
-like [notepad++](https://notepad-plus-plus.org/).
-
-A very minimalistic client configuration `rport.conf` can look like this:
+Start the client and, optionally, enable it on boot:
 
 ```shell
+sudo systemctl start rport
+sudo systemctl enable rport
+```
+
+### Run a Windows client
+
+Download `rport_<version>_windows_x86_64.zip` from the [latest release](https://github.com/pohcee/openrport/releases/latest)
+and extract it to `C:\Program Files\rport`. Rename `rport.example.conf` to `rport.conf` and edit it. A minimal
+configuration:
+
+```text
 [client]
-server = "node1.example.com:8080"
-fingerprint = "<YOUR_FINGERPRINT>"
-auth = "user1:1234"
+server = "procy.example.com:8080"
+fingerprint = "<FINGERPRINT>"
+auth = "client1:<CLIENT_PASSWORD>"
 remotes = ['3300:3389']
 ```
 
-This will establish a permanent tunnel and the local port 3389 (remote desktop) of the client becomes available on port
-3300 of the Procy server.
+This makes port 3389 (Remote Desktop) of the client available on port 3300 of the server.
 
-Before registering the `rport` client as a Windows service, check your connection manually.
-
-Open a command prompt with administrative rights and type in:
+Test the connection from a command prompt with administrative rights:
 
 ```shell
 cd "C:\Program Files\rport"
 rport.exe -c rport.conf
 ```
 
-If you don't get errors on the console, try a remote desktop connection to the Procy server on port 3300.
-Stop the client with CTRL-C and register it as a service and start it.
+If there are no errors, try a Remote Desktop connection to `procy.example.com:3300`. Then stop the client with
+CTRL-C, and register and start it as a service:
 
 ```shell
 rport.exe --service install -c rport.conf
@@ -248,56 +209,28 @@ sc query rport
 sc start rport
 ```
 
-The windows service will be created with "Startup type = automatic". If you don't want the Procy client to start on boot,
-you must manually disable it using for example `sc config rport start=disabled`.
+The service starts automatically on boot. To change that, run `sc config rport start=disabled`.
 
-## Run clients on other operating systems
+### Other operating systems
 
-Please refer to [clients on other operating systems](no05-client-on-other-os.md).
+See [install and run a Procy client](/docs/get-started/install-and-run-a-client/) for macOS. To install clients
+with a one-liner generated by the server, use [pairing](/docs/get-started/client-pairing/).
 
 ## Configuration files
 
-Config files can be used to set up both the Procy server and clients. In order to use it an arg `--config`(or `-c`)
-should be passed to a command with a path to the file. Configuration examples `rportd.example.conf`
-([view online](https://github.com/pohcee/openrport/blob/main/rportd.example.conf)) and `rport.example.conf`
-([view online](https://github.com/pohcee/openrport/blob/main/rport.example.conf)) can be found in the
-release archive or in the source.
-
-NOTE: command arguments and env variables will override values from the config file.
-
-In order to load the configuration from a file run:
+Both programs read a config file given with `--config` (or `-c`):
 
 ```shell
 rportd -c /etc/rport/rportd.conf
 rport -c /etc/rport/rport.conf
 ```
 
-## Using authentication
+The commented examples `rportd.example.conf` ([view online](https://github.com/pohcee/openrport/blob/main/rportd.example.conf))
+and `rport.example.conf` ([view online](https://github.com/pohcee/openrport/blob/main/rport.example.conf)) are in the
+release archives. Command line options and environment variables override values from the config file.
 
-To prevent anyone who knows the address and the port of your Procy server to use it for tunneling, using client
-authentication is required.
+## Next steps
 
-Using a static username password pair is the most basic option. See the comments in the
-[rportd.example.conf](https://github.com/pohcee/openrport/blob/main/rportd.example.conf) and read more about
-all supported [authentication options](no03-client-auth.md).
-
-On the client start the tunnel this way
-
-```shell
-rport --auth user1:1234 --fingerprint <YOUR_FINGERPRINT> node1.example.com:8080 2222:0.0.0.0:22
-```
-
-*Note that in this early version the order of the command line options is still important. This might change later.*
-
-## Install a web-based frontend
-
-Procy comes with a user-friendly web-based frontend. The frontend has it's own none-open-source repository.
-The installation is quick and easy. [Learn more](/docs/content/get-started/no07-frontend.md)
-
-## Install the command-line interface
-
-You can also manage clients, tunnels, and command from a user-friendly command-line utility. It's available as a
-stand-alone static binary for Windows and Linux.
-See [https://github.com/openrport/rportcli](https://github.com/openrport/rportcli).
-The command-line utility does not cover all API capabilities yet. But it's already a very useful tool making Procy even
-more powerful.
+* Install the [web UI](/docs/get-started/web-ui/) and [enable HTTPS](/docs/get-started/securing-rportd-with-https/).
+* Let clients wait without a tunnel and open [tunnels on demand](/docs/get-started/on-demand-tunnels/).
+* Read how to [secure the server](/docs/advanced/securing-the-server/).
