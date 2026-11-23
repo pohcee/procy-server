@@ -24,7 +24,7 @@ LEFT JOIN (
 	SELECT
 		mj.schedule_id,
 		mj.started_at AS last_started_at,
-		COUNT(j.jid) AS last_client_count,
+		COUNT(j.jid) FILTER (WHERE j.status != '` + models.JobStatusSkipped + `') AS last_client_count,
 		COUNT(j.jid) FILTER (WHERE j.status = '` + models.JobStatusSuccessful + `') AS last_success_count,
 		MIN(j.status) AS last_status,
 		MIN(j.details) AS last_details,

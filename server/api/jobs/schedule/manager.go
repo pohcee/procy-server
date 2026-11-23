@@ -12,6 +12,7 @@ import (
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/jobs"
+	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/validation"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
@@ -59,6 +60,17 @@ type Cron interface {
 
 type JobRunner interface {
 	StartMultiClientJob(ctx context.Context, multiJobRequest *jobs.MultiJobRequest) (*models.MultiJob, error)
+	StartLibraryMultiJob(ctx context.Context, entryID string, multiJobRequest *jobs.MultiJobRequest) (*models.MultiJob, error)
+}
+
+// EntryLookup finds a live library entry, it is satisfied by library.Manager.
+type EntryLookup interface {
+	ActiveForRun(ctx context.Context, id string) (*library.Entry, error)
+}
+
+// MultiJobSaver records a multi-job, used for runs that failed to start.
+type MultiJobSaver interface {
+	SaveMultiJob(multiJob *models.MultiJob) error
 }
 
 type Manager struct {
@@ -66,6 +78,8 @@ type Manager struct {
 	jobRunner JobRunner
 	provider  Provider
 	cron      Cron
+	entries   EntryLookup
+	saver     MultiJobSaver
 
 	runRemoteCmdTimeoutSec int
 }
@@ -98,6 +112,12 @@ func NewManager(jobRunner JobRunner, db *sqlx.DB, logger *logger.Logger, runRemo
 		runRemoteCmdTimeoutSec: runRemoteCmdTimeoutSec,
 	}
 	return m
+}
+
+// SetLibrary enables schedules of type library.
+func (m *Manager) SetLibrary(entries EntryLookup, saver MultiJobSaver) {
+	m.entries = entries
+	m.saver = saver
 }
 
 func (m *Manager) List(ctx context.Context, r *http.Request) (*api.SuccessPayload, error) {
@@ -157,6 +177,9 @@ func (m *Manager) Create(ctx context.Context, s *Schedule, user string) (*Schedu
 	s.CreatedBy = user
 
 	err = m.validate(s)
+	if err == nil {
+		err = m.validateEntry(ctx, s)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -178,6 +201,9 @@ func (m *Manager) Update(ctx context.Context, id string, s *Schedule) (*Schedule
 	s.ID = id
 
 	err := m.validate(s)
+	if err == nil {
+		err = m.validateEntry(ctx, s)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -212,10 +238,33 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 }
 
 func (m *Manager) validate(s *Schedule) error {
-	if s.Type != TypeCommand && s.Type != TypeScript {
+	if s.Type != TypeCommand && s.Type != TypeScript && s.Type != TypeLibrary {
 		return &errors.APIError{
 			Message:    "Invalid type.",
 			Err:        fmt.Errorf("type must be 'command' or 'script'"),
+			HTTPStatus: http.StatusBadRequest,
+		}
+	}
+
+	if s.Type == TypeLibrary {
+		if s.Details.LibraryEntryID == "" {
+			return &errors.APIError{
+				Message:    "Missing library entry.",
+				Err:        fmt.Errorf("library_entry_id is required for type library"),
+				HTTPStatus: http.StatusBadRequest,
+			}
+		}
+		// the entry defines what runs, store none of the typed fields
+		s.Details.Command = ""
+		s.Details.Script = ""
+		s.Details.Interpreter = ""
+		s.Details.Cwd = ""
+		s.Details.IsSudo = false
+		s.Details.TimeoutSec = 0
+	} else if s.Details.LibraryEntryID != "" {
+		return &errors.APIError{
+			Message:    "Invalid library entry.",
+			Err:        fmt.Errorf("library_entry_id is only allowed for type library"),
 			HTTPStatus: http.StatusBadRequest,
 		}
 	}
@@ -268,6 +317,24 @@ func (m *Manager) validate(s *Schedule) error {
 	return nil
 }
 
+// validateEntry checks that a library schedule references a live entry.
+func (m *Manager) validateEntry(ctx context.Context, s *Schedule) error {
+	if s.Type != TypeLibrary {
+		return nil
+	}
+	if m.entries == nil {
+		return fmt.Errorf("library entries are not available")
+	}
+	if _, err := m.entries.ActiveForRun(ctx, s.Details.LibraryEntryID); err != nil {
+		return &errors.APIError{
+			Message:    "Library entry not found.",
+			Err:        err,
+			HTTPStatus: http.StatusBadRequest,
+		}
+	}
+	return nil
+}
+
 func (m *Manager) addCron(s *Schedule) error {
 	return m.cron.Add(s.ID, s.Schedule, m.run)
 }
@@ -283,8 +350,24 @@ func (m *Manager) run(ctx context.Context, id string) {
 		return
 	}
 
+	var entry *library.Entry
+	if schedule.Type == TypeLibrary {
+		if m.entries == nil {
+			m.recordFailure(schedule, nil, fmt.Errorf("library entries are not available"))
+			return
+		}
+		entry, err = m.entries.ActiveForRun(ctx, schedule.Details.LibraryEntryID)
+		if err != nil {
+			m.recordFailure(schedule, nil, err)
+			return
+		}
+	}
+
 	if !schedule.Details.Overlaps {
 		timeoutSec := schedule.Details.TimeoutSec
+		if entry != nil {
+			timeoutSec = library.MaxTimeout(*entry)
+		}
 		if timeoutSec <= 0 {
 			timeoutSec = m.runRemoteCmdTimeoutSec
 		}
@@ -300,6 +383,22 @@ func (m *Manager) run(ctx context.Context, id string) {
 	}
 
 	m.Infof("Running schedule: %s", id)
+
+	if entry != nil {
+		_, err = m.jobRunner.StartLibraryMultiJob(ctx, entry.ID, &jobs.MultiJobRequest{
+			ScheduleID:          &schedule.ID,
+			Username:            schedule.CreatedBy,
+			ClientIDs:           schedule.Details.ClientIDs,
+			ClientTags:          schedule.Details.ClientTags,
+			GroupIDs:            schedule.Details.GroupIDs,
+			ExecuteConcurrently: schedule.Details.ExecuteConcurrently,
+			AbortOnError:        schedule.Details.AbortOnError,
+		})
+		if err != nil {
+			m.recordFailure(schedule, entry, err)
+		}
+		return
+	}
 
 	_, err = m.jobRunner.StartMultiClientJob(ctx, &jobs.MultiJobRequest{
 		ScheduleID:          &schedule.ID,
@@ -320,5 +419,38 @@ func (m *Manager) run(ctx context.Context, id string) {
 	if err != nil {
 		m.Errorf("Error running schedule %s: %v", id, err)
 		return
+	}
+}
+
+// recordFailure logs a library run that could not start and saves it as a
+// multi-job carrying the error, so it shows in the schedule's run history.
+func (m *Manager) recordFailure(schedule *Schedule, entry *library.Entry, runErr error) {
+	m.Errorf("Error running library schedule %s (entry %s): %v", schedule.ID, schedule.Details.LibraryEntryID, runErr)
+	if m.saver == nil {
+		return
+	}
+	jid, err := random.UUID4()
+	if err != nil {
+		m.Errorf("Could not record failed run of schedule %s: %v", schedule.ID, err)
+		return
+	}
+	mj := &models.MultiJob{
+		MultiJobSummary: models.MultiJobSummary{
+			JID:        jid,
+			StartedAt:  time.Now(),
+			CreatedBy:  schedule.CreatedBy,
+			ScheduleID: &schedule.ID,
+		},
+		ClientIDs:      schedule.Details.ClientIDs,
+		GroupIDs:       schedule.Details.GroupIDs,
+		ClientTags:     schedule.Details.ClientTags,
+		LibraryEntryID: schedule.Details.LibraryEntryID,
+		Error:          runErr.Error(),
+	}
+	if entry != nil {
+		mj.LibraryVersion = entry.ActiveVersion
+	}
+	if err := m.saver.SaveMultiJob(mj); err != nil {
+		m.Errorf("Could not record failed run of schedule %s: %v", schedule.ID, err)
 	}
 }

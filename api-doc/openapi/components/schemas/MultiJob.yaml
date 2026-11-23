@@ -56,3 +56,12 @@ properties:
     description: clients' jobs, limited to 100
     items:
       $ref: ./Job.yaml
+  library_entry_id:
+    type: string
+    description: library entry this run executes, when it is a library run
+  library_version:
+    type: integer
+    description: active version of the library entry resolved when the run started
+  error:
+    type: string
+    description: why the run could not be started, e.g. its library entry was deleted

@@ -74,6 +74,9 @@ type MultiJob struct {
 
 	LibraryEntryID string `json:"library_entry_id,omitempty"`
 	LibraryVersion int    `json:"library_version,omitempty"`
+
+	// Error is set when the run could not be started, e.g. its library entry is gone.
+	Error string `json:"error,omitempty"`
 }
 
 type MultiJobSummary struct {

@@ -14,6 +14,7 @@ import (
 const (
 	TypeCommand = "command"
 	TypeScript  = "script"
+	TypeLibrary = "library"
 )
 
 type Schedule struct {
@@ -78,6 +79,7 @@ type Details struct {
 	ExecuteConcurrently bool                  `json:"execute_concurrently" db:"-"`
 	AbortOnError        *bool                 `json:"abort_on_error" db:"-"`
 	Overlaps            bool                  `json:"overlaps" db:"-"`
+	LibraryEntryID      string                `json:"library_entry_id,omitempty" db:"-"`
 }
 
 func (d *Details) Scan(value interface{}) error {

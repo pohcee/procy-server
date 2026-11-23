@@ -289,6 +289,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	if err != nil {
 		return nil, err
 	}
+	s.scheduleManager.SetLibrary(s.apiListener.libraryManager, s.jobProvider)
 
 	if s.config.CaddyEnabled() {
 		cfg := s.config

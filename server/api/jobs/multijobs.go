@@ -143,6 +143,7 @@ type multiJobDetailSqlite struct {
 
 	LibraryEntryID string `json:"library_entry_id,omitempty"`
 	LibraryVersion int    `json:"library_version,omitempty"`
+	Error          string `json:"error,omitempty"`
 }
 
 func (d *multiJobDetailSqlite) Scan(value interface{}) error {
@@ -205,6 +206,7 @@ func (j *multiJobSqlite) convert() *models.MultiJob {
 		AbortOnErr:      d.AbortOnErr,
 		LibraryEntryID:  d.LibraryEntryID,
 		LibraryVersion:  d.LibraryVersion,
+		Error:           d.Error,
 	}
 }
 
@@ -230,6 +232,7 @@ func convertMultiJobToSqlite(job *models.MultiJob) *multiJobSqlite {
 
 			LibraryEntryID: job.LibraryEntryID,
 			LibraryVersion: job.LibraryVersion,
+			Error:          job.Error,
 		},
 	}
 }

@@ -23,8 +23,17 @@ properties:
     example: '* * * * *'
   type:
     type: string
-    description: '''command'' or ''script'''
+    description: '''command'', ''script'' or ''library'''
     example: command
+  library_entry_id:
+    type: string
+    description: >-
+      Library entry to run, required for type 'library' and rejected for other
+      types. The entry's implementation for each client's OS is used and
+      command, script, interpreter, cwd, is_sudo and timeout_sec are ignored.
+      The non-overlap check uses the longest timeout_sec among the entry's
+      implementations. A run whose entry was deleted is recorded as a
+      multi-job with an error.
   client_ids:
     type: array
     description: Client IDs that schedule will be executed on
