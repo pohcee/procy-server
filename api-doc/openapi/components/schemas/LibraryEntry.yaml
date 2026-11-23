@@ -1,0 +1,43 @@
+type: object
+properties:
+  id:
+    type: string
+  name:
+    type: string
+  description:
+    type: string
+  tags:
+    type: array
+    items:
+      type: string
+  active_version:
+    type: integer
+  builtin_key:
+    type: string
+    nullable: true
+    description: Set for built-in entries, which cannot be saved, restored or deleted.
+  os:
+    type: array
+    items:
+      type: string
+      enum: [linux, windows, darwin]
+  created_at:
+    type: string
+    format: date-time
+  created_by:
+    type: string
+  updated_at:
+    type: string
+    format: date-time
+  updated_by:
+    type: string
+  deleted_at:
+    type: string
+    format: date-time
+  deleted_by:
+    type: string
+  implementations:
+    description: Per OS implementation, keyed by os_kernel. Not returned by the list endpoint.
+    type: object
+    additionalProperties:
+      $ref: LibraryImplementation.yaml

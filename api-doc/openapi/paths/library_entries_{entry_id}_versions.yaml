@@ -1,0 +1,25 @@
+get:
+  tags:
+    - Library
+  summary: List the versions of a library entry, newest first
+  operationId: LibraryEntryVersionsGet
+  parameters:
+    - {name: entry_id, in: path, required: true, schema: {type: string}}
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/LibraryEntryVersion.yaml
+    '404':
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

@@ -138,6 +138,18 @@ paths:
     $ref: paths/library_commands.yaml
   /library/commands/{id}:
     $ref: paths/library_commands_{id}.yaml
+  /library/entries:
+    $ref: paths/library_entries.yaml
+  /library/entries/{entry_id}:
+    $ref: paths/library_entries_{entry_id}.yaml
+  /library/entries/{entry_id}/undelete:
+    $ref: paths/library_entries_{entry_id}_undelete.yaml
+  /library/entries/{entry_id}/versions:
+    $ref: paths/library_entries_{entry_id}_versions.yaml
+  /library/entries/{entry_id}/versions/{version}:
+    $ref: paths/library_entries_{entry_id}_versions_{version}.yaml
+  /library/entries/{entry_id}/versions/{version}/restore:
+    $ref: paths/library_entries_{entry_id}_versions_{version}_restore.yaml
   /auditlog:
     $ref: paths/auditlog.yaml
   /me/totp-secret:

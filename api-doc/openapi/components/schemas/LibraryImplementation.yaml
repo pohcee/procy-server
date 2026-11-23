@@ -1,0 +1,15 @@
+type: object
+properties:
+  kind:
+    type: string
+    enum: [auto, command, script]
+  code:
+    type: string
+  interpreter:
+    type: string
+  is_sudo:
+    type: boolean
+  cwd:
+    type: string
+  timeout_sec:
+    type: integer

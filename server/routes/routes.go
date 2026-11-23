@@ -11,6 +11,8 @@ const (
 	ParamVaultValueID     = "vault_value_id"
 	ParamScriptValueID    = "script_value_id"
 	ParamCommandValueID   = "command_value_id"
+	ParamEntryID          = "entry_id"
+	ParamEntryVersion     = "version"
 	ParamGraphName        = "graph_name"
 	ParamTemplateID       = "template_id"
 	ParamProblemID        = "problem_id"

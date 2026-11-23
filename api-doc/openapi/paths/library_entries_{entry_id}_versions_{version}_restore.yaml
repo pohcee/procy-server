@@ -1,0 +1,53 @@
+post:
+  tags:
+    - Library
+  summary: Restore a version
+  description: Creates a new version with the content of the given version and message `Restored version n`.
+  operationId: LibraryEntryVersionRestore
+  parameters:
+    - {name: entry_id, in: path, required: true, schema: {type: string}}
+    - {name: version, in: path, required: true, schema: {type: integer}}
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [base_version]
+          properties:
+            base_version:
+              type: integer
+  responses:
+    '200':
+      description: Restored
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/LibraryEntry.yaml
+    '400':
+      description: Missing base_version
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Built-in entries cannot be restored
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: base_version is not the current version
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

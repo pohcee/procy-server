@@ -148,6 +148,7 @@ func (al *APIListener) initRouter() {
 	commands.HandleFunc("/library/commands/{"+routes.ParamCommandValueID+"}", al.handleCommandUpdate).Methods(http.MethodPut)
 	commands.HandleFunc("/library/commands/{"+routes.ParamCommandValueID+"}", al.handleReadCommand).Methods(http.MethodGet)
 	commands.HandleFunc("/library/commands/{"+routes.ParamCommandValueID+"}", al.handleDeleteCommand).Methods(http.MethodDelete)
+	al.addLibraryEntriesRoutes(commands)
 
 	scripts := secureAPI.NewRoute().Subrouter()
 	scripts.Use(al.permissionsMiddleware(users.PermissionCommands))

@@ -1,0 +1,33 @@
+type: object
+properties:
+  entry_id:
+    type: string
+  version:
+    type: integer
+  created_at:
+    type: string
+    format: date-time
+  created_by:
+    type: string
+  message:
+    type: string
+  changed:
+    type: array
+    items:
+      type: string
+  content:
+    type: object
+    description: Returned when reading a single version.
+    properties:
+      name:
+        type: string
+      description:
+        type: string
+      tags:
+        type: array
+        items:
+          type: string
+      implementations:
+        type: object
+        additionalProperties:
+          $ref: LibraryImplementation.yaml

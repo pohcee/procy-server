@@ -1,0 +1,92 @@
+parameters:
+  - {name: entry_id, in: path, required: true, schema: {type: string}}
+get:
+  tags:
+    - Library
+  summary: Read a library entry with its implementations
+  operationId: LibraryEntryGet
+  parameters:
+    - {name: include_deleted, in: query, description: Also return a deleted entry, schema: {type: boolean}}
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/LibraryEntry.yaml
+    '404':
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+put:
+  tags:
+    - Library
+  summary: Save a library entry
+  description: Creates version `active_version + 1` if `base_version` equals the current active version. A save with no change creates no version.
+  operationId: LibraryEntryPut
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/LibraryEntryInput.yaml
+  responses:
+    '200':
+      description: Saved
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/LibraryEntry.yaml
+    '400':
+      description: Invalid input or missing base_version
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Built-in entries cannot be saved
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: base_version is not the current version, or the name is taken
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+delete:
+  tags:
+    - Library
+  summary: Delete a library entry
+  description: Soft delete. The entry can be undeleted.
+  operationId: LibraryEntryDelete
+  responses:
+    '204':
+      description: Deleted
+    '403':
+      description: Built-in entries cannot be deleted
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

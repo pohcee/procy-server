@@ -1,0 +1,22 @@
+type: object
+required: [name, implementations]
+properties:
+  name:
+    type: string
+  description:
+    type: string
+  tags:
+    type: array
+    items:
+      type: string
+  implementations:
+    type: object
+    description: Keys are linux, windows or darwin.
+    additionalProperties:
+      $ref: LibraryImplementation.yaml
+  message:
+    type: string
+    description: Version message.
+  base_version:
+    type: integer
+    description: Required on PUT. The active_version the edit started from. A different current version gives 409.

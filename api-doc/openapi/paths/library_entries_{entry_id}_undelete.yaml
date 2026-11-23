@@ -1,0 +1,29 @@
+post:
+  tags:
+    - Library
+  summary: Undelete a library entry
+  operationId: LibraryEntryUndelete
+  parameters:
+    - {name: entry_id, in: path, required: true, schema: {type: string}}
+  responses:
+    '200':
+      description: Restored from deletion
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/LibraryEntry.yaml
+    '404':
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: A live entry has the same name
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

@@ -1,4 +1,5 @@
 get:
+  deprecated: true
   tags:
     - Library
   summary: List commands
@@ -79,6 +80,7 @@ get:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
 post:
+  deprecated: true
   tags:
     - Library
   summary: Creates a new command

@@ -3,6 +3,8 @@ package auditlog
 const (
 	ActionCreate       = "create"
 	ActionDelete       = "delete"
+	ActionUndelete     = "undelete"
+	ActionRestore      = "restore"
 	ActionUpdate       = "update"
 	ActionExecuteStart = "execute.start"
 	ActionExecuteDone  = "execute.done"
@@ -27,6 +29,7 @@ const (
 	ApplicationClientScript    = "client.script"
 	ApplicationLibraryCommand  = "library.command"
 	ApplicationLibraryScript   = "library.script"
+	ApplicationLibraryEntry    = "library.entry"
 	ApplicationVault           = "vault"
 	ApplicationSchedule        = "schedule"
 	ApplicationUploads         = "uploads"

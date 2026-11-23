@@ -1,0 +1,78 @@
+get:
+  tags:
+    - Library
+  summary: List library entries
+  description: Lists entries without their implementations. Deleted entries are hidden unless `filter[deleted]=true`.
+  operationId: LibraryEntriesGet
+  parameters:
+    - {name: 'filter[name]', in: query, description: Case-insensitive substring of the name, schema: {type: string}}
+    - {name: 'filter[tags]', in: query, description: Entries having this tag, schema: {type: string}}
+    - {name: 'filter[os]', in: query, description: 'linux, windows or darwin', schema: {type: string}}
+    - {name: 'filter[builtin]', in: query, schema: {type: boolean}}
+    - {name: 'filter[deleted]', in: query, description: 'true lists only deleted entries', schema: {type: boolean}}
+    - {name: sort, in: query, description: 'name (default) or -updated_at', schema: {type: string}}
+    - {name: 'page[offset]', in: query, schema: {type: integer}}
+    - {name: 'page[limit]', in: query, schema: {type: integer}}
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/LibraryEntry.yaml
+              meta:
+                type: object
+                properties:
+                  count:
+                    type: integer
+    '400':
+      description: Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+post:
+  tags:
+    - Library
+  summary: Create a library entry
+  description: Creates an entry with version 1.
+  operationId: LibraryEntriesPost
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/LibraryEntryInput.yaml
+  responses:
+    '201':
+      description: Created
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/LibraryEntry.yaml
+    '400':
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: An entry with this name exists
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
