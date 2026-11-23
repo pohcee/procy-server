@@ -152,6 +152,13 @@ curl -u admin:$PASSWORD -X DELETE \
 'http://localhost:3000/api/v1/library/scripts/4943d682-7874-4f7a-999c-b4ff5493fc3f'
 ```
 
+### Versions
+
+Every save of a library entry keeps a version. You can view the history and restore an earlier version in the Library page;
+a restore creates a new version, so nothing is lost. To limit storage, set `keep_versions` (keep only the newest N versions)
+and/or `keep_versions_days` (drop versions older than N days) in the `[library]` section of `rportd.conf`.
+Both default to `0` (keep everything). The active version and version 1 are never removed.
+
 ### Show a single script
 
 To show a single script you need to know it's id e.g. `4943d682-7874-4f7a-999c-b4ff5493fc3f`.

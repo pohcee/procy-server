@@ -340,6 +340,7 @@ type Config struct {
 	Monitoring    MonitoringConfig     `mapstructure:"monitoring"`
 	Notifications NotificationsConfig  `mapstructure:"notifications"`
 	Pairing       PairingConfig        `mapstructure:"pairing"`
+	Library       LibraryConfig        `mapstructure:"library"`
 	PlusConfig    rportplus.PlusConfig `mapstructure:",squash"`
 }
 
@@ -469,6 +470,10 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 
 	if err := c.parseAndValidatePairing(mLog); err != nil {
 		return fmt.Errorf("pairing: %v", err)
+	}
+
+	if err := c.parseAndValidateLibrary(); err != nil {
+		return fmt.Errorf("library: %v", err)
 	}
 
 	return nil

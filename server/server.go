@@ -36,6 +36,7 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clientsauth"
+	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/ports"
@@ -49,10 +50,11 @@ import (
 )
 
 const (
-	cleanupMeasurementsInterval = time.Minute * 2
-	cleanupAPISessionsInterval  = time.Hour
-	cleanupJobsInterval         = time.Hour
-	LogNumGoRoutinesInterval    = time.Minute * 2
+	cleanupMeasurementsInterval  = time.Minute * 2
+	cleanupAPISessionsInterval   = time.Hour
+	cleanupJobsInterval          = time.Hour
+	pruneLibraryVersionsInterval = 24 * time.Hour
+	LogNumGoRoutinesInterval     = time.Minute * 2
 
 	DefaultMaxClientDBConnections = 50
 
@@ -425,6 +427,12 @@ func (s *Server) Run(ctx context.Context) error {
 	jobsCleanupTask := jobs.NewCleanupTask(s.jobProvider, s.config.Server.JobsMaxResults)
 	go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", jobsCleanupTask)), jobsCleanupTask, cleanupJobsInterval)
 	s.Infof("Task to cleanup jobs will run with interval %v", cleanupJobsInterval)
+
+	if keep, days := s.config.Library.KeepVersions, s.config.Library.KeepVersionsDays; keep > 0 || days > 0 {
+		libraryPruneTask := library.NewPruneTask(s.apiListener.libraryManager, keep, days, s.Logger)
+		go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", libraryPruneTask)), libraryPruneTask, pruneLibraryVersionsInterval)
+		s.Infof("Task to prune old library versions will run with interval %v", pruneLibraryVersionsInterval)
+	}
 
 	// Only on debug mode, log the number of running go routines
 	if s.config.Logging.LogLevel == logger.LogLevelDebug {
