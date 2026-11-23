@@ -14,7 +14,7 @@ After a tunnel has been created you access it on a random port according to the 
 With the new feature an additional random subdomain is created typically on port 443 as an alternative way to access the
 tunnel.
 
-That means you can access a tunnel on `https://rport.example.com:34567` or on `https://pio0toazivaeGheif2.tunnels.example.com`
+That means you can access a tunnel on `https://procy.example.com:34567` or on `https://pio0toazivaeGheif2.tunnels.example.com`
 
 Subdomains can be created for http(s) based tunnels such as RDP or VNC via browser or remote web-uis. SSH over web is
 currently not supported.
@@ -63,7 +63,7 @@ caddy being run as subprocess from rportd. You would be well advised to switch c
 To make the random subdomain available you must create a wildcard DNS record. This is usually done by entering `*.` as
 prefix for a subdomain. For example, if you want to use `*.tunnels.example.com` you must create a new host `*.tunnels`
 for the domain `example.com`. Using the API and UI inside the range of the wildcard is supported, for example `*.example.com`
-for the tunnel subdomains, and `rport.example.com`. In such case the second DNS record is not needed.
+for the tunnel subdomains, and `procy.example.com`. In such case the second DNS record is not needed.
 
 ### Wildcard SSL Certificate
 
@@ -132,8 +132,8 @@ For any kind of setup, add a configuration like this to your `/etc/rport/rportd.
   # key_file="/etc/letsencrypt/live/<YOUR-DOMAIN>/privkey.pem"
 ```
 
-* For the `subdomain_prefix` do not enter the `*` sign. If your DNS record is `*.rport.example.com` enter
-  `rport.example.com`.
+* For the `subdomain_prefix` do not enter the `*` sign. If your DNS record is `*.procy.example.com` enter
+  `procy.example.com`.
 * Make sure the port of the `address` does not conflict with the port of the address in the `[api]` section.
 
 If you want to run the subdomains managed by caddy and the Procy API/UI on different TCP ports, you can stop here and

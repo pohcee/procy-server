@@ -752,7 +752,7 @@ To enable the delegated authentication, activate the following settings in your 
 Below you have a simple configuration file for the Caddy web server. It assumes your rportd API is listening on localhost:3000.
 
 ```text
-http://rport.example.com:8080 {
+http://procy.example.com:8080 {
  # Forward all requests to Rport
  reverse_proxy * 127.0.0.1:3000 {
   header_up My-User jopapa
@@ -770,7 +770,7 @@ http://rport.example.com:8080 {
 If you request the JWT you must specify the username and password expected by the reverse proxy (`jomama` + `foobaz`).
 The rportd user backend is not asked.
 
-`curl -u jomama:foobaz "http://rport.example.com:8080/api/v1/login?token-lifetime=9999" -v -o auth.json`
+`curl -u jomama:foobaz "http://procy.example.com:8080/api/v1/login?token-lifetime=9999" -v -o auth.json`
 
 If you do the request via the web user interface you also need to enter the username and password specified by the proxy.
 

@@ -1,13 +1,14 @@
 ##
-## This is the RPort client installer script.
-## It helps you to quickly install the rport client on a variety of Linux distributions.
+## This is the Procy client installer script.
+## It helps you to quickly install the Procy client (rport) on a variety of Linux distributions.
 ## The scripts creates a initial configuration and connects the client to your server.
 ##
-## For any inquiries use our GitHub forum on
-## https://github.com/openrport/rport-pairing/discussions/
+## Documentation: https://procy.sh/docs/
+## Issues: https://github.com/pohcee/openrport/issues
 ##
 ## Copyright cloudradar GmbH, Potsdam Germany, 2022
 ## Maintainer openrport, Lille, France, 2023
+## Maintainer Procy, https://procy.sh, 2026
 ## Released under the MIT open-source license.
-## https://github.com/openrport/rport-pairing/blob/main/LICENSE
+## https://github.com/pohcee/openrport/blob/main/LICENSE
 ##

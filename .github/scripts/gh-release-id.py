@@ -19,7 +19,7 @@ except IndexError:
 
 headers = {"Authorization": "Bearer " + github_token}
 r = requests.get(
-    "https://api.github.com/repos/openrport/openrport/releases?page=1&per_page=5",
+    f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/releases?page=1&per_page=5",
     headers=headers,
 )
 if r.status_code != 200:

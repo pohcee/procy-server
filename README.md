@@ -75,8 +75,8 @@ Pairing (the "Install client" one-liners in the web UI) is built into `rportd`. 
 ```text
 [pairing]
   enabled = true
-  url = "https://rport.example.com"
-  downloads_url = "https://rport.example.com/downloads"
+  url = "https://procy.example.com"
+  downloads_url = "https://procy.example.com/downloads"
 ```
 
 and restart the server: `sudo systemctl restart rportd.service`. See the `[pairing]` section of
