@@ -139,11 +139,11 @@ db_name = %q
 	gotGroups, err := pgusers.New(pg.App).ListGroups(ctxDefault)
 	require.NoError(t, err)
 	sameJSON(t, wantGroups, gotGroups)
-	assertCredential(t, pg, ctxDefault, "dev-1", "plain-1")
+	assertCredential(ctxDefault, t, pg, "dev-1", "plain-1")
 }
 
 // assertCredential checks that the imported credentials id verify with password, stored as an argon2id hash.
-func assertCredential(t *testing.T, pg *pgtest.DB, ctx context.Context, id, password string) {
+func assertCredential(ctx context.Context, t *testing.T, pg *pgtest.DB, id, password string) {
 	t.Helper()
 	ok, err := pgclientauth.New(pg.App).Verify(ctx, id, []byte(password))
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ auth = "admin:static-pass"
 	require.NoError(t, err)
 	assert.Equal(t, []string{"dev-1", "dev-2"}, []string{got[0].ID, got[1].ID})
 	for _, c := range wantCreds[:2] {
-		assertCredential(t, pg, ctxDefault, c.ID, c.Password)
+		assertCredential(ctxDefault, t, pg, c.ID, c.Password)
 	}
 
 	// the static [api] auth user is stored with a bcrypt hash of its password
@@ -198,7 +198,7 @@ func TestImportStaticClientAuth(t *testing.T) {
 	rep := run(t, pg, Options{From: d.dir, FromConfig: conf})
 	want(t, rep, entClientAuth, 1, 1, 0, 0)
 	assert.True(t, hasWarning(rep, "no API user store"), rep.Warnings)
-	assertCredential(t, pg, tenant.WithID(ctxDefault, tenant.Default), "dev-1", "secret")
+	assertCredential(tenant.WithID(ctxDefault, tenant.Default), t, pg, "dev-1", "secret")
 }
 
 func TestImportWithoutConfig(t *testing.T) {

@@ -201,7 +201,7 @@ func TestIngestRejectsInvalidItems(t *testing.T) {
 	base := func(kv ...any) map[string]any {
 		m := map[string]any{"tenant_id": "a", "key": "k", "jid": "j", "client_id": "c1", "status": "running",
 			"started_at": t0, "created_by": "admin", "details": `{}`}
-		for i := 0; i < len(kv); i += 2 {
+		for i := 0; i+1 < len(kv); i += 2 {
 			m[kv[i].(string)] = kv[i+1]
 		}
 		return m

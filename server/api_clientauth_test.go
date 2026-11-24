@@ -573,7 +573,7 @@ type hashingAuthProvider struct {
 	hashes map[string]string
 }
 
-func (p *hashingAuthProvider) Add(ctx context.Context, c *clientsauth.ClientAuth) (bool, error) {
+func (p *hashingAuthProvider) Add(_ context.Context, c *clientsauth.ClientAuth) (bool, error) {
 	h, err := clientsauth.HashPassword(c.Password)
 	if err != nil {
 		return false, err

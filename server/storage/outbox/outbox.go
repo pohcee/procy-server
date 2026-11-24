@@ -102,7 +102,7 @@ func Open(path string, opts Options) (*Outbox, error) {
 // Close closes the file.
 func (o *Outbox) Close() error { return o.db.Close() }
 
-// Wake is signalled after an item was added.
+// Wake is signaled after an item was added.
 func (o *Outbox) Wake() <-chan struct{} { return o.wake }
 
 // Dropped is the number of items dropped because their tenant was full, since Open.
