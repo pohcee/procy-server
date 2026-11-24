@@ -125,9 +125,18 @@ func (r *ClientRepository) reconcile(tid tenant.ID, id string, cached, stored *c
 	}
 	if stored == nil {
 		delete(state, id)
-	} else {
-		state[id] = stored
+		return
 	}
+	if _, holdsNone := r.clientStore.(connectionStateKeeper); !holdsNone && stored.IsConnected() {
+		// this instance holds the client connections: a client it doesn't hold isn't connected, whatever another
+		// instance last wrote
+		at := clientdata.Now()
+		if cached != nil && cached.GetDisconnectedAt() != nil {
+			at = *cached.GetDisconnectedAt()
+		}
+		stored.SetDisconnectedAt(&at)
+	}
+	state[id] = stored
 }
 
 // connectedHere reports whether the client is connected to this server instance: it holds the live connection.
@@ -135,25 +144,15 @@ func connectedHere(c *clientdata.Client) bool {
 	return c.GetConnection() != nil && c.IsConnected()
 }
 
-// mergeAdminFields copies into the cached client the fields admins set through the API (on whichever instance
-// served the request) from the stored record: the user groups allowed to access the client (SetACL), its tags and
-// labels (the client attributes).
+// mergeAdminFields copies into the cached client the field admins set through the API (on whichever instance served
+// the request) from the stored record: the user groups allowed to access the client (SetACL). Everything else on the
+// client record (tags and labels included, which are changed through the client) comes from the client.
 func mergeAdminFields(cached, stored *clientdata.Client) {
 	stored.GetLock().RLock()
 	groups := append([]string(nil), stored.AllowedUserGroups...)
-	tags := append([]string(nil), stored.Tags...)
-	var labels map[string]string
-	if stored.Labels != nil {
-		labels = make(map[string]string, len(stored.Labels))
-		for k, v := range stored.Labels {
-			labels[k] = v
-		}
-	}
 	stored.GetLock().RUnlock()
 
 	cached.GetLock().Lock()
 	cached.AllowedUserGroups = groups
-	cached.Tags = tags
-	cached.Labels = labels
 	cached.GetLock().Unlock()
 }

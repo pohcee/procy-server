@@ -199,9 +199,9 @@ func TestRefreshConnectedHereClientMergesAdminFields(t *testing.T) {
 	assert.Same(t, f.conn, got.GetConnection())
 	assert.True(t, got.IsConnected())
 	assert.Equal(t, []string{"admins-elsewhere"}, got.GetAllowedUserGroups())
-	assert.Equal(t, []string{"tag-elsewhere"}, got.GetTags())
-	assert.Equal(t, map[string]string{"set": "elsewhere"}, got.GetLabels())
 	assert.Equal(t, wantVersion, got.GetVersion(), "device-reported fields stay as this node has them")
+	assert.NotEqual(t, []string{"tag-elsewhere"}, got.GetTags(), "tags and labels are the client's (set through it)")
+	assert.NotEqual(t, map[string]string{"set": "elsewhere"}, got.GetLabels())
 	assert.Equal(t, wantIPv4, got.GetIPv4())
 	assert.Equal(t, wantName, got.GetName())
 	assert.Equal(t, saves, f.store.saveCount(), "nothing is saved back")
@@ -297,7 +297,7 @@ func TestReload(t *testing.T) {
 	got, err = f.repo.GetByID(f.ctx, "new")
 	require.NoError(t, err)
 	require.NotNil(t, got, "a client added elsewhere is added")
-	assert.True(t, got.IsConnected(), "the reload does not mark clients disconnected")
+	assert.False(t, got.IsConnected(), "this node holds the connections: a client it doesn't hold isn't connected")
 	assert.Empty(t, f.repo.GetAllClients(c), "a client deleted elsewhere is dropped")
 	assert.Equal(t, saves, f.store.saveCount(), "nothing is saved")
 
@@ -314,4 +314,32 @@ func TestReload(t *testing.T) {
 
 	repo := NewClientRepositoryWithDB(nil, &hour, f.store, testLog)
 	require.NoError(t, repo.Reload(context.Background()), "a repository with no tenant loaded")
+}
+
+// A node holding the client connections never takes "connected" from the store for a client it doesn't hold: the
+// status check would ping (and close) a connection that isn't there.
+func TestRefreshStoredConnectedNotHeldHereIsDisconnected(t *testing.T) {
+	f := newRefreshFixture(t)
+	c, err := f.store.Get(f.ctx, "off", testLog)
+	require.NoError(t, err)
+	c.SetDisconnectedAt(nil) // another node wrote it as connected
+	f.store.put(t, tenantB, c)
+	require.NoError(t, f.repo.Refresh(f.ctx, "off"))
+	got, err := f.repo.GetByID(f.ctx, "off")
+	require.NoError(t, err)
+	assert.False(t, got.IsConnected())
+	assert.NoError(t, got.Close(), "closing a client without a connection is harmless")
+}
+
+func TestRefreshOnNodeHoldingNoConnectionsKeepsStoredState(t *testing.T) {
+	store := newMemStore()
+	hour := time.Hour
+	repo := NewClientRepositoryWithDB(nil, &hour, KeepConnectionStateOnLoad(store), testLog)
+	ctx := ctxFor(tenantB)
+	store.put(t, tenantB, New(t).ID("elsewhere").Logger(testLog).Build()) // connected to another node
+	require.Len(t, repo.GetAllClients(ctx), 1)
+	require.NoError(t, repo.Refresh(ctx, "elsewhere"))
+	got, err := repo.GetByID(ctx, "elsewhere")
+	require.NoError(t, err)
+	assert.True(t, got.IsConnected(), "an api node shows the state the connected node stored")
 }

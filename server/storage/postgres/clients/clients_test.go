@@ -145,3 +145,54 @@ func TestGetLeavesOutObsolete(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, got)
 }
+
+func TestSaveAdminFieldsWritesOnlyTheACL(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	s := New(d.App, nil)
+	a := repotest.Ctx(repotest.TenantA)
+	c := repotest.StoreClient("c1", nil) // connected, per the node holding it
+	c.Version = "2.0"
+	require.NoError(t, s.Save(a, c))
+
+	stale := repotest.StoreClient("c1", nil)
+	at := time.Now()
+	stale.SetDisconnectedAt(&at)
+	stale.Version = "1.0-stale"
+	stale.AllowedUserGroups = []string{"ops"}
+	require.NoError(t, s.SaveAdminFields(a, stale))
+
+	got, err := s.Get(a, "c1", testLog)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ops"}, got.GetAllowedUserGroups())
+	assert.Equal(t, "2.0", got.GetVersion(), "the reported fields stay as stored")
+	assert.True(t, got.IsConnected(), "the connection state stays as stored")
+
+	require.NoError(t, s.Delete(a, "c1", testLog))
+	assert.Error(t, s.SaveAdminFields(a, stale), "a deleted client is not brought back")
+	got, err = s.Get(a, "c1", testLog)
+	require.NoError(t, err)
+	assert.Nil(t, got)
+}
+
+func TestSaveKeepingACLKeepsTheStoredACL(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	s := New(d.App, nil)
+	a := repotest.Ctx(repotest.TenantA)
+	c := repotest.StoreClient("c1", nil)
+	c.AllowedUserGroups = []string{"old"}
+	require.NoError(t, s.Save(a, c))
+	// another node revokes: the ACL is now "new"
+	other := repotest.StoreClient("c1", nil)
+	other.AllowedUserGroups = []string{"new"}
+	require.NoError(t, s.SaveAdminFields(a, other))
+
+	c.Version = "3.0" // reported by the client
+	require.NoError(t, s.SaveKeepingACL(a, c))
+	got, err := s.Get(a, "c1", testLog)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"new"}, got.GetAllowedUserGroups(), "the revocation is not undone")
+	assert.Equal(t, "3.0", got.GetVersion())
+	assert.Equal(t, []string{"new"}, c.GetAllowedUserGroups(), "and the caller's copy takes it")
+
+	require.NoError(t, s.SaveKeepingACL(a, repotest.StoreClient("c2", nil)), "a new client is inserted")
+}

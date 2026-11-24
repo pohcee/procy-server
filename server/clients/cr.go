@@ -100,6 +100,10 @@ func (r *ClientRepository) GetPostSaveHandlerFn() (handlerFn func(cl *clientdata
 }
 
 func (r *ClientRepository) Save(ctx context.Context, cl *clientdata.Client) error {
+	return r.save(ctx, cl, false)
+}
+
+func (r *ClientRepository) save(ctx context.Context, cl *clientdata.Client, admin bool) error {
 	ts := time.Now()
 
 	tid, err := tenantOf(ctx)
@@ -115,7 +119,7 @@ func (r *ClientRepository) Save(ctx context.Context, cl *clientdata.Client) erro
 
 	if store != nil {
 		// the store write is not canceled with ctx (e.g. when a disconnect is saved during shutdown)
-		err := store.Save(context.WithoutCancel(ctx), cl)
+		err := storeSave(context.WithoutCancel(ctx), store, cl, admin)
 		if err != nil {
 			return fmt.Errorf("failed to save client: %w", err)
 		}

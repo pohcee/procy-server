@@ -72,3 +72,13 @@ type keepConnectionStateGetter struct {
 func (s keepConnectionStateGetter) Get(ctx context.Context, id string, l *logger.Logger) (*clientdata.Client, error) {
 	return s.getter.Get(ctx, id, l)
 }
+
+// Save of a store wrapped by KeepConnectionStateOnLoad writes only what an admin sets on a client
+// (AdminFieldsSaver) when the store supports it: the instance holding no connections must not write the connection
+// state or what the clients report, which the instance holding them owns.
+func (s keepConnectionState) Save(ctx context.Context, c *clientdata.Client) error {
+	if a, ok := s.ClientStore.(AdminFieldsSaver); ok {
+		return a.SaveAdminFields(ctx, c)
+	}
+	return s.ClientStore.Save(ctx, c)
+}
