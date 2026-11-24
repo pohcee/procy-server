@@ -56,7 +56,28 @@ func (p *Cache) Get(ctx context.Context, sessionID int64) (found bool, sessionIn
 	if err != nil {
 		return false, APISession{}, err
 	}
-	return p.getFromCache(tid, sessionID)
+	found, sessionInfo, err = p.getFromCache(tid, sessionID)
+	if err != nil || found {
+		return found, sessionInfo, err
+	}
+	return p.getFromStorage(ctx, tid, sessionID)
+}
+
+// getFromStorage reads a session missing from the cache (one this cache never loaded, e.g. of a tenant other than
+// the one it was built for, or one saved by another process) and caches it until it expires. An expired session is
+// not returned.
+func (p *Cache) getFromStorage(ctx context.Context, tid tenant.ID, sessionID int64) (found bool, sessionInfo APISession, err error) {
+	found, sessionInfo, err = p.storage.Get(ctx, sessionID)
+	if err != nil || !found {
+		return false, APISession{}, err
+	}
+	ttl := time.Until(sessionInfo.ExpiresAt)
+	if ttl <= 0 {
+		return false, APISession{}, nil
+	}
+	sessionInfo.TenantID = tid
+	p.cache.Set(cacheKey(tid, sessionID), sessionInfo, ttl)
+	return true, sessionInfo, nil
 }
 
 func (p *Cache) Save(ctx context.Context, session APISession) (sessionID int64, err error) {
