@@ -140,8 +140,20 @@ The vault values are decrypted with the old vault passphrase and encrypted again
 ## Tenants
 
 `rportd tenant add ID [NAME] --dsn <owner URL>` adds another tenant. Its users log in to the same server, and each
-login lands in its tenant. Schedules and clean-ups run for every active tenant. In this preview, devices connect
-only to the `default` tenant.
+login lands in its tenant. Schedules and clean-ups run for every active tenant.
+
+Devices of every tenant connect to the same client listener. Client auth ids are unique across all tenants, so the
+id a device logs in with tells the server its tenant; creating a credential whose id another tenant uses fails
+(HTTP 409). Everything the device does afterwards (command results, measurements, tunnels) belongs to that tenant.
+
+* A tenant that is not `active` (for example `suspended`) refuses its devices when they connect. Devices that are
+  connected at that moment stay connected until they reconnect.
+* `max_clients` in the `tenants` table limits how many clients a tenant may have (clients connected or disconnected
+  within `keep_disconnected_clients`, as the client list shows them). Empty (the default) means no limit. A client
+  the tenant already has always reconnects; a new one is refused once the limit is reached.
+
+A refused device logs the reason, for example `connection refused: the organization's limit of 10 clients is
+reached`, and the server logs a line naming the client, its client auth id and the tenant.
 
 ## Running several servers
 
