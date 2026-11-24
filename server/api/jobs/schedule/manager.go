@@ -55,8 +55,8 @@ type Provider interface {
 
 type Cron interface {
 	Validate(string) error
-	Add(string, string, func(context.Context, string)) error
-	Remove(string)
+	Add(ctx context.Context, id, schedule string, f func(context.Context, string)) error
+	Remove(ctx context.Context, id string)
 }
 
 type JobRunner interface {
@@ -71,7 +71,7 @@ type EntryLookup interface {
 
 // MultiJobSaver records a multi-job, used for runs that failed to start.
 type MultiJobSaver interface {
-	SaveMultiJob(multiJob *models.MultiJob) error
+	SaveMultiJob(ctx context.Context, multiJob *models.MultiJob) error
 }
 
 type Manager struct {
@@ -99,7 +99,7 @@ func New(ctx context.Context, logger *logger.Logger, db *sqlx.DB, jobRunner JobR
 	}
 
 	for _, cron := range existing {
-		err := m.addCron(cron)
+		err := m.addCron(ctx, cron)
 		if err != nil {
 			return nil, err
 		}
@@ -210,7 +210,7 @@ func (m *Manager) Create(ctx context.Context, s *Schedule, user string) (*Schedu
 		return nil, err
 	}
 
-	err = m.addCron(s)
+	err = m.addCron(ctx, s)
 	if err != nil {
 		return nil, err
 	}
@@ -234,8 +234,8 @@ func (m *Manager) Update(ctx context.Context, id string, s *Schedule) (*Schedule
 		return nil, err
 	}
 
-	m.cron.Remove(s.ID)
-	err = m.addCron(s)
+	m.cron.Remove(ctx, s.ID)
+	err = m.addCron(ctx, s)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +254,7 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	m.cron.Remove(id)
+	m.cron.Remove(ctx, id)
 	return nil
 }
 
@@ -356,8 +356,9 @@ func (m *Manager) validateEntry(ctx context.Context, s *Schedule) error {
 	return nil
 }
 
-func (m *Manager) addCron(s *Schedule) error {
-	return m.cron.Add(s.ID, s.Schedule, m.run)
+// addCron schedules s in ctx's tenant, the tenant s belongs to.
+func (m *Manager) addCron(ctx context.Context, s *Schedule) error {
+	return m.cron.Add(ctx, s.ID, s.Schedule, m.run)
 }
 
 func (m *Manager) run(ctx context.Context, id string) {
@@ -374,12 +375,12 @@ func (m *Manager) run(ctx context.Context, id string) {
 	var entry *library.Entry
 	if schedule.Type == TypeLibrary {
 		if m.entries == nil {
-			m.recordFailure(schedule, nil, fmt.Errorf("library entries are not available"))
+			m.recordFailure(ctx, schedule, nil, fmt.Errorf("library entries are not available"))
 			return
 		}
 		entry, err = m.entries.ActiveForRun(ctx, schedule.Details.LibraryEntryID)
 		if err != nil {
-			m.recordFailure(schedule, nil, err)
+			m.recordFailure(ctx, schedule, nil, err)
 			return
 		}
 	}
@@ -416,7 +417,7 @@ func (m *Manager) run(ctx context.Context, id string) {
 			AbortOnError:        schedule.Details.AbortOnError,
 		})
 		if err != nil {
-			m.recordFailure(schedule, entry, err)
+			m.recordFailure(ctx, schedule, entry, err)
 		}
 		return
 	}
@@ -445,7 +446,7 @@ func (m *Manager) run(ctx context.Context, id string) {
 
 // recordFailure logs a library run that could not start and saves it as a
 // multi-job carrying the error, so it shows in the schedule's run history.
-func (m *Manager) recordFailure(schedule *Schedule, entry *library.Entry, runErr error) {
+func (m *Manager) recordFailure(ctx context.Context, schedule *Schedule, entry *library.Entry, runErr error) {
 	m.Errorf("Error running library schedule %s (entry %s): %v", schedule.ID, schedule.Details.LibraryEntryID, runErr)
 	if m.saver == nil {
 		return
@@ -471,7 +472,7 @@ func (m *Manager) recordFailure(schedule *Schedule, entry *library.Entry, runErr
 	if entry != nil {
 		mj.LibraryVersion = entry.ActiveVersion
 	}
-	if err := m.saver.SaveMultiJob(mj); err != nil {
+	if err := m.saver.SaveMultiJob(ctx, mj); err != nil {
 		m.Errorf("Could not record failed run of schedule %s: %v", schedule.ID, err)
 	}
 }

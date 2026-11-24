@@ -84,5 +84,5 @@ func (al *APIListener) handleLibraryEntriesWS(w http.ResponseWriter, req *http.R
 
 	uiConnTS.SetWritesBeforeClose(len(orderedClients))
 
-	al.runMultiClientJob(uiConnTS, multiJob, orderedClients, specFor)
+	al.runMultiClientJob(ctx, uiConnTS, multiJob, orderedClients, specFor)
 }

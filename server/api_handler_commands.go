@@ -259,7 +259,7 @@ func (al *APIListener) handleGetCommand(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	job, err := al.jobProvider.GetByJID(cid, jid)
+	job, err := al.jobProvider.GetByJID(req.Context(), cid, jid)
 	if err != nil {
 		al.jsonErrorResponseWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to find a job[id=%q].", jid), err)
 		return
@@ -408,7 +408,7 @@ func (al *APIListener) handleExecuteCommand(ctx context.Context, w http.Response
 	curJob.StartedAt = sshResp.StartedAt
 	curJob.Status = models.JobStatusRunning
 
-	if err := al.jobProvider.CreateJob(&curJob); err != nil {
+	if err := al.jobProvider.CreateJob(ctx, &curJob); err != nil {
 		al.jsonErrorResponseWithError(w, http.StatusInternalServerError, "Failed to persist a new job.", err)
 		return nil
 	}

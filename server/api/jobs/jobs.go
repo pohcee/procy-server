@@ -16,6 +16,7 @@ import (
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 const (
@@ -108,9 +109,25 @@ func (p *SqliteProvider) GetDB() (db *sqlx.DB) {
 	return p.db
 }
 
-func (p *SqliteProvider) GetByJID(clientID, jid string) (*models.Job, error) {
+// tenantOf returns the tenant every query of the provider is scoped to.
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("jobs: %w", err)
+	}
+	return id, nil
+}
+
+// jobsQuery selects jobs with the schedule of their multi-job, scoped to one tenant.
+const jobsQuery = "SELECT jobs.*, schedule_id FROM jobs LEFT JOIN multi_jobs ON jobs.tenant_id = multi_jobs.tenant_id AND jobs.multi_job_id = multi_jobs.jid WHERE jobs.tenant_id = ?"
+
+func (p *SqliteProvider) GetByJID(ctx context.Context, clientID, jid string) (*models.Job, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	res := &jobSqlite{}
-	err := p.db.Get(res, "SELECT jobs.*, schedule_id FROM jobs LEFT JOIN multi_jobs ON jobs.multi_job_id = multi_jobs.jid WHERE jobs.jid=?", jid)
+	err = p.db.GetContext(ctx, res, jobsQuery+" AND jobs.jid=?", tid, jid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -121,6 +138,10 @@ func (p *SqliteProvider) GetByJID(clientID, jid string) (*models.Job, error) {
 }
 
 func (p *SqliteProvider) List(ctx context.Context, options *query.ListOptions) ([]*models.Job, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if len(options.Sorts) == 0 {
 		options.Sorts = []query.SortOption{
 			{
@@ -134,11 +155,10 @@ func (p *SqliteProvider) List(ctx context.Context, options *query.ListOptions) (
 		}
 	}
 
-	q := "SELECT jobs.*, schedule_id FROM jobs LEFT JOIN multi_jobs ON jobs.multi_job_id = multi_jobs.jid"
-	q, params := p.converter.AppendOptionsToQuery(options, q, nil)
+	q, params := p.converter.AppendOptionsToQuery(options, jobsQuery, []interface{}{tid})
 
 	var res []*jobSqlite
-	err := p.db.SelectContext(ctx, &res, q, params...)
+	err = p.db.SelectContext(ctx, &res, q, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -146,14 +166,19 @@ func (p *SqliteProvider) List(ctx context.Context, options *query.ListOptions) (
 }
 
 func (p *SqliteProvider) Count(ctx context.Context, options *query.ListOptions) (int, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
 	countOptions := *options
 	countOptions.Pagination = nil
 
-	q := "SELECT count(*) FROM (SELECT jobs.*, schedule_id FROM jobs LEFT JOIN multi_jobs ON jobs.multi_job_id = multi_jobs.jid)"
-	q, params := p.converter.AppendOptionsToQuery(&countOptions, q, nil)
+	// the tenant filter is on the outer query, so the filters appended below join it with AND
+	q := "SELECT count(*) FROM (SELECT jobs.*, schedule_id FROM jobs LEFT JOIN multi_jobs ON jobs.tenant_id = multi_jobs.tenant_id AND jobs.multi_job_id = multi_jobs.jid) WHERE tenant_id = ?"
+	q, params := p.converter.AppendOptionsToQuery(&countOptions, q, []interface{}{tid})
 
 	var result int
-	err := p.db.GetContext(ctx, &result, q, params...)
+	err = p.db.GetContext(ctx, &result, q, params...)
 	if err != nil {
 		return 0, err
 	}
@@ -161,11 +186,15 @@ func (p *SqliteProvider) Count(ctx context.Context, options *query.ListOptions) 
 }
 
 // SaveJob creates a new or updates an existing job.
-func (p *SqliteProvider) SaveJob(job *models.Job) error {
-	_, err := sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
-		result, err = p.db.NamedExec(`INSERT OR REPLACE INTO jobs (jid, status, started_at, finished_at, created_by, client_id, multi_job_id, details)
-		VALUES (:jid, :status, :started_at, :finished_at, :created_by, :client_id, :multi_job_id, :details)`,
-			convertToSqlite(job))
+func (p *SqliteProvider) SaveJob(ctx context.Context, job *models.Job) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
+		result, err = p.db.NamedExecContext(ctx, `INSERT OR REPLACE INTO jobs (tenant_id, jid, status, started_at, finished_at, created_by, client_id, multi_job_id, details)
+		VALUES (:tenant_id, :jid, :status, :started_at, :finished_at, :created_by, :client_id, :multi_job_id, :details)`,
+			convertToSqlite(tid, job))
 		return result, err
 	}, "savejob", p.log)
 
@@ -176,11 +205,15 @@ func (p *SqliteProvider) SaveJob(job *models.Job) error {
 }
 
 // CreateJob creates a new job. If already exists with the same ID - does nothing and returns nil.
-func (p *SqliteProvider) CreateJob(job *models.Job) error {
-	_, err := sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
-		result, err = p.db.NamedExec(`INSERT INTO jobs (jid, status, started_at, finished_at, created_by, client_id, multi_job_id, details)
-		VALUES (:jid, :status, :started_at, :finished_at, :created_by, :client_id, :multi_job_id, :details)`,
-			convertToSqlite(job))
+func (p *SqliteProvider) CreateJob(ctx context.Context, job *models.Job) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
+		result, err = p.db.NamedExecContext(ctx, `INSERT INTO jobs (tenant_id, jid, status, started_at, finished_at, created_by, client_id, multi_job_id, details)
+		VALUES (:tenant_id, :jid, :status, :started_at, :finished_at, :created_by, :client_id, :multi_job_id, :details)`,
+			convertToSqlite(tid, job))
 		return result, err
 	}, "createjob", p.log)
 	if err != nil {
@@ -189,7 +222,7 @@ func (p *SqliteProvider) CreateJob(job *models.Job) error {
 		if ok && typeErr.Code == sqlite3.ErrConstraint {
 			p.log.Debugf("Job already exist with ID: %s", job.JID)
 			if job.LibraryEntryID != "" {
-				return p.patchLibraryFields(job)
+				return p.patchLibraryFields(ctx, tid, job)
 			}
 			return nil
 		}
@@ -201,11 +234,11 @@ func (p *SqliteProvider) CreateJob(job *models.Job) error {
 
 // patchLibraryFields sets the library fields of an already stored job. A fast
 // result can be saved before the job is created, without them.
-func (p *SqliteProvider) patchLibraryFields(job *models.Job) error {
+func (p *SqliteProvider) patchLibraryFields(ctx context.Context, tid tenant.ID, job *models.Job) error {
 	_, err := sqlite.WithRetryWhenBusy(func() (sql.Result, error) {
-		return p.db.Exec(`UPDATE jobs SET details = json_set(details,
+		return p.db.ExecContext(ctx, `UPDATE jobs SET details = json_set(details,
 			'$.library_entry_id', ?, '$.library_version', ?, '$.os', ?)
-			WHERE jid = ?`, job.LibraryEntryID, job.LibraryVersion, job.OS, job.JID)
+			WHERE tenant_id = ? AND jid = ?`, job.LibraryEntryID, job.LibraryVersion, job.OS, tid, job.JID)
 	}, "patchjoblibrary", p.log)
 	return err
 }
@@ -217,6 +250,7 @@ func (p *SqliteProvider) Close() error {
 }
 
 type jobSqlite struct {
+	TenantID   tenant.ID      `db:"tenant_id"`
 	JID        string         `db:"jid"`
 	Status     string         `db:"status"`
 	FinishedAt sql.NullTime   `db:"finished_at"`
@@ -312,8 +346,9 @@ func (j *jobSqlite) convert() *models.Job {
 	return res
 }
 
-func convertToSqlite(job *models.Job) *jobSqlite {
+func convertToSqlite(tid tenant.ID, job *models.Job) *jobSqlite {
 	res := &jobSqlite{
+		TenantID:  tid,
 		JID:       job.JID,
 		Status:    job.Status,
 		StartedAt: job.StartedAt,

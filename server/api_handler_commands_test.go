@@ -58,7 +58,7 @@ func NewJobProviderMock() *JobProviderMock {
 	return &JobProviderMock{}
 }
 
-func (p *JobProviderMock) GetByJID(cid, jid string) (*models.Job, error) {
+func (p *JobProviderMock) GetByJID(_ context.Context, cid, jid string) (*models.Job, error) {
 	p.InputCID = cid
 	p.InputJID = jid
 	return p.ReturnJob, p.ReturnErr
@@ -73,12 +73,12 @@ func (p *JobProviderMock) Count(ctx context.Context, opts *query.ListOptions) (i
 	return len(p.ReturnJobList), p.ReturnErr
 }
 
-func (p *JobProviderMock) SaveJob(job *models.Job) error {
+func (p *JobProviderMock) SaveJob(_ context.Context, job *models.Job) error {
 	p.InputSaveJob = job
 	return p.ReturnErr
 }
 
-func (p *JobProviderMock) CreateJob(job *models.Job) error {
+func (p *JobProviderMock) CreateJob(_ context.Context, job *models.Job) error {
 	p.InputCreateJob = job
 	return p.ReturnErr
 }

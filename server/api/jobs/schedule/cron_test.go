@@ -14,14 +14,14 @@ import (
 func TestCronCallbackInheritsBaseContext(t *testing.T) {
 	c := newCron(tenant.WithID(context.Background(), tenant.Default))
 	got := make(chan tenant.ID, 1)
-	require.NoError(t, c.Add("s1", "@every 1s", func(ctx context.Context, _ string) {
+	require.NoError(t, c.Add(ctxFor(tenant.Default), "s1", "@every 1s", func(ctx context.Context, _ string) {
 		id, _ := tenant.FromContext(ctx)
 		select {
 		case got <- id:
 		default:
 		}
 	}))
-	defer c.Remove("s1")
+	defer c.Remove(ctxFor(tenant.Default), "s1")
 	select {
 	case id := <-got:
 		assert.Equal(t, tenant.Default, id)

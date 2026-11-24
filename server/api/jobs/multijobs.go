@@ -11,6 +11,7 @@ import (
 
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var MultiJobSupportedFilters = map[string]bool{
@@ -31,8 +32,12 @@ var MultiJobSupportedSorts = map[string]bool{
 
 // GetMultiJob returns a multi-client job with fetched all clients' jobs.
 func (p *SqliteProvider) GetMultiJob(ctx context.Context, jid string) (*models.MultiJob, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	res := &multiJobSqlite{}
-	err := p.db.Get(res, "SELECT * FROM multi_jobs WHERE jid=?", jid)
+	err = p.db.GetContext(ctx, res, "SELECT * FROM multi_jobs WHERE tenant_id = ? AND jid = ?", tid, jid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -62,6 +67,10 @@ func (p *SqliteProvider) GetMultiJob(ctx context.Context, jid string) (*models.M
 
 // GetMultiJobSummaries returns a list of summaries of multi-clients jobs filtered by options and sorted by started_at(desc), jid order.
 func (p *SqliteProvider) GetMultiJobSummaries(ctx context.Context, options *query.ListOptions) ([]*models.MultiJobSummary, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var res []*multiJobSummarySqlite
 
 	if len(options.Sorts) == 0 {
@@ -76,10 +85,10 @@ func (p *SqliteProvider) GetMultiJobSummaries(ctx context.Context, options *quer
 			},
 		}
 	}
-	q := "SELECT jid, started_at, created_by, schedule_id FROM multi_jobs"
-	q, params := p.converter.ConvertListOptionsToQuery(options, q)
+	q := "SELECT jid, started_at, created_by, schedule_id FROM multi_jobs WHERE tenant_id = ?"
+	q, params := p.converter.AppendOptionsToQuery(options, q, []interface{}{tid})
 
-	err := p.db.SelectContext(ctx, &res, q, params...)
+	err = p.db.SelectContext(ctx, &res, q, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -88,14 +97,18 @@ func (p *SqliteProvider) GetMultiJobSummaries(ctx context.Context, options *quer
 
 // CountMultiJobs counts multi-clients jobs filtered by options
 func (p *SqliteProvider) CountMultiJobs(ctx context.Context, options *query.ListOptions) (int, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
 	var result int
 
 	countOptions := *options
 	countOptions.Pagination = nil
-	q := "SELECT count(*) FROM multi_jobs"
-	q, params := p.converter.ConvertListOptionsToQuery(&countOptions, q)
+	q := "SELECT count(*) FROM multi_jobs WHERE tenant_id = ?"
+	q, params := p.converter.AppendOptionsToQuery(&countOptions, q, []interface{}{tid})
 
-	err := p.db.GetContext(ctx, &result, q, params...)
+	err = p.db.GetContext(ctx, &result, q, params...)
 	if err != nil {
 		return 0, err
 	}
@@ -103,14 +116,18 @@ func (p *SqliteProvider) CountMultiJobs(ctx context.Context, options *query.List
 }
 
 // SaveMultiJob creates a new or updates an existing multi-client job (without child jobs).
-func (p *SqliteProvider) SaveMultiJob(job *models.MultiJob) error {
-	_, err := p.db.NamedExec(`
+func (p *SqliteProvider) SaveMultiJob(ctx context.Context, job *models.MultiJob) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = p.db.NamedExecContext(ctx, `
 INSERT OR REPLACE INTO multi_jobs (
-	jid, started_at, created_by, schedule_id, details
+	tenant_id, jid, started_at, created_by, schedule_id, details
 ) VALUES (
-	:jid, :started_at, :created_by, :schedule_id, :details
+	:tenant_id, :jid, :started_at, :created_by, :schedule_id, :details
 )`,
-		convertMultiJobToSqlite(job))
+		convertMultiJobToSqlite(tid, job))
 	if err == nil {
 		p.log.Debugf("Multi-client Job saved successfully: %v", *job)
 	}
@@ -118,6 +135,7 @@ INSERT OR REPLACE INTO multi_jobs (
 }
 
 type multiJobSqlite struct {
+	TenantID tenant.ID `db:"tenant_id"`
 	multiJobSummarySqlite
 	Details *multiJobDetailSqlite `db:"details"`
 }
@@ -210,8 +228,9 @@ func (j *multiJobSqlite) convert() *models.MultiJob {
 	}
 }
 
-func convertMultiJobToSqlite(job *models.MultiJob) *multiJobSqlite {
+func convertMultiJobToSqlite(tid tenant.ID, job *models.MultiJob) *multiJobSqlite {
 	return &multiJobSqlite{
+		TenantID: tid,
 		multiJobSummarySqlite: multiJobSummarySqlite{
 			JID:        job.JID,
 			StartedAt:  job.StartedAt,

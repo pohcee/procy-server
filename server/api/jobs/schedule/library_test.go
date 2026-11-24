@@ -17,6 +17,7 @@ import (
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type fakeProvider struct {
@@ -65,7 +66,7 @@ func (f fakeEntries) ActiveForRun(_ context.Context, id string) (*library.Entry,
 
 type fakeSaver struct{ saved []*models.MultiJob }
 
-func (f *fakeSaver) SaveMultiJob(mj *models.MultiJob) error {
+func (f *fakeSaver) SaveMultiJob(_ context.Context, mj *models.MultiJob) error {
 	f.saved = append(f.saved, mj)
 	return nil
 }
@@ -106,7 +107,7 @@ func TestCreateLibraryScheduleValidatesEntry(t *testing.T) {
 
 	s := libSchedule()
 	s.Details.Command, s.Details.Interpreter, s.Details.TimeoutSec, s.Details.IsSudo = "ls", "bash", 5, true
-	got, err := m.Create(context.Background(), s, "bob")
+	got, err := m.Create(ctxFor(tenant.Default), s, "bob")
 	require.NoError(t, err)
 	assert.Equal(t, "e1", got.Details.LibraryEntryID)
 	assert.Empty(t, got.Details.Command)
@@ -116,19 +117,19 @@ func TestCreateLibraryScheduleValidatesEntry(t *testing.T) {
 
 	s = libSchedule()
 	s.Details.LibraryEntryID = "missing"
-	_, err = m.Create(context.Background(), s, "bob")
+	_, err = m.Create(ctxFor(tenant.Default), s, "bob")
 	assert.Error(t, err)
 
 	s = libSchedule()
 	s.Details.LibraryEntryID = ""
-	_, err = m.Create(context.Background(), s, "bob")
+	_, err = m.Create(ctxFor(tenant.Default), s, "bob")
 	assert.Error(t, err)
 
 	s = &Schedule{
 		Base:    Base{Type: TypeCommand, Schedule: "* * * * *"},
 		Details: Details{ClientIDs: []string{"c1"}, Command: "ls", LibraryEntryID: "e1"},
 	}
-	_, err = m.Create(context.Background(), s, "bob")
+	_, err = m.Create(ctxFor(tenant.Default), s, "bob")
 	assert.Error(t, err)
 }
 
@@ -137,7 +138,7 @@ func TestLibraryScheduleRunsEntry(t *testing.T) {
 	r := &fakeRunner{}
 	m := newLibManager(p, r, testEntry(), &fakeSaver{})
 
-	m.run(context.Background(), "s1")
+	m.run(ctxFor(tenant.Default), "s1")
 
 	assert.Equal(t, "e1", r.entryID)
 	assert.Equal(t, 0, r.typed)
@@ -150,7 +151,7 @@ func TestLibraryScheduleOverlapUsesMaxTimeout(t *testing.T) {
 	r := &fakeRunner{}
 	m := newLibManager(p, r, testEntry(), &fakeSaver{})
 
-	m.run(context.Background(), "s1")
+	m.run(ctxFor(tenant.Default), "s1")
 
 	assert.Equal(t, 120, p.timeout)
 	assert.Empty(t, r.entryID, "overlapping run must be skipped")
@@ -162,7 +163,7 @@ func TestLibraryScheduleDeletedEntryRecordsError(t *testing.T) {
 	saver := &fakeSaver{}
 	m := newLibManager(p, r, nil, saver)
 
-	m.run(context.Background(), "s1")
+	m.run(ctxFor(tenant.Default), "s1")
 
 	assert.Empty(t, r.entryID)
 	require.Len(t, saver.saved, 1)
@@ -174,7 +175,7 @@ func TestLibraryScheduleDeletedEntryRecordsError(t *testing.T) {
 	saver.saved = nil
 	r.startErr = errors.New("no clients for execution")
 	m = newLibManager(p, r, testEntry(), saver)
-	m.run(context.Background(), "s1")
+	m.run(ctxFor(tenant.Default), "s1")
 	require.Len(t, saver.saved, 1)
 	assert.Equal(t, "no clients for execution", saver.saved[0].Error)
 	assert.Equal(t, 3, saver.saved[0].LibraryVersion)
@@ -183,7 +184,7 @@ func TestLibraryScheduleDeletedEntryRecordsError(t *testing.T) {
 	saver.saved = nil
 	r.startErr = errors.New(`entry "up" has no implementation for any target (targets darwin: 1)`)
 	m = newLibManager(p, r, testEntry(), saver)
-	m.run(context.Background(), "s1")
+	m.run(ctxFor(tenant.Default), "s1")
 	require.Len(t, saver.saved, 1)
 	assert.Contains(t, saver.saved[0].Error, "no implementation for any target")
 	assert.Equal(t, "e1", saver.saved[0].LibraryEntryID)
@@ -197,7 +198,7 @@ func lastExecution(t *testing.T, scheduleID string, build func(jp *jobs.SqlitePr
 	defer prov.Close()
 	require.NoError(t, addTestData(db))
 	build(jobs.NewSqliteProvider(db, logger.NewLogger("t", logger.LogOutput{}, logger.LogLevelError)))
-	s, err := prov.Get(context.Background(), scheduleID)
+	s, err := prov.Get(ctxFor(tenant.Default), scheduleID)
 	require.NoError(t, err)
 	return s.LastExecution
 }
@@ -206,7 +207,7 @@ func TestLastExecutionOfFailedLibraryRun(t *testing.T) {
 	ex := lastExecution(t, "1", func(jp *jobs.SqliteProvider) {
 		mj := jb.NewMulti(t).ScheduleID("1").Build()
 		mj.Error = "entry deleted"
-		require.NoError(t, jp.SaveMultiJob(mj))
+		require.NoError(t, jp.SaveMultiJob(ctxFor(tenant.Default), mj))
 	})
 	require.NotNil(t, ex)
 	assert.Equal(t, "failed", *ex.Status)
@@ -217,9 +218,9 @@ func TestLastExecutionOfFailedLibraryRun(t *testing.T) {
 func TestLastExecutionExcludesSkippedJobs(t *testing.T) {
 	ex := lastExecution(t, "1", func(jp *jobs.SqliteProvider) {
 		mj := jb.NewMulti(t).ScheduleID("1").Build()
-		require.NoError(t, jp.SaveMultiJob(mj))
+		require.NoError(t, jp.SaveMultiJob(ctxFor(tenant.Default), mj))
 		for _, st := range []string{"successful", "skipped", "skipped"} {
-			require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status(st).Build()))
+			require.NoError(t, jp.SaveJob(ctxFor(tenant.Default), jb.New(t).MultiJobID(mj.JID).Status(st).Build()))
 		}
 	})
 	require.NotNil(t, ex)
@@ -231,9 +232,9 @@ func TestLastExecutionExcludesSkippedJobs(t *testing.T) {
 func TestLastExecutionSkippedDoesNotMaskSuccess(t *testing.T) {
 	ex := lastExecution(t, "1", func(jp *jobs.SqliteProvider) {
 		mj := jb.NewMulti(t).ScheduleID("1").Build()
-		require.NoError(t, jp.SaveMultiJob(mj))
-		require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status("successful").Result(&models.JobResult{Summary: "all good"}).Build()))
-		require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status("skipped").Result(&models.JobResult{Summary: "no macOS implementation"}).Build()))
+		require.NoError(t, jp.SaveMultiJob(ctxFor(tenant.Default), mj))
+		require.NoError(t, jp.SaveJob(ctxFor(tenant.Default), jb.New(t).MultiJobID(mj.JID).Status("successful").Result(&models.JobResult{Summary: "all good"}).Build()))
+		require.NoError(t, jp.SaveJob(ctxFor(tenant.Default), jb.New(t).MultiJobID(mj.JID).Status("skipped").Result(&models.JobResult{Summary: "no macOS implementation"}).Build()))
 	})
 	require.NotNil(t, ex)
 	assert.Equal(t, "successful", *ex.Status)
@@ -244,11 +245,11 @@ func TestLastExecutionSkippedDoesNotMaskSuccess(t *testing.T) {
 func TestLastExecutionTypedUnchanged(t *testing.T) {
 	ex := lastExecution(t, "1", func(jp *jobs.SqliteProvider) {
 		// a multi-job without jobs and without error is not an execution
-		require.NoError(t, jp.SaveMultiJob(jb.NewMulti(t).ScheduleID("1").StartedAt(time.Now().Add(time.Minute)).Build()))
+		require.NoError(t, jp.SaveMultiJob(ctxFor(tenant.Default), jb.NewMulti(t).ScheduleID("1").StartedAt(time.Now().Add(time.Minute)).Build()))
 		mj := jb.NewMulti(t).ScheduleID("1").Build()
-		require.NoError(t, jp.SaveMultiJob(mj))
-		require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status("failed").Build()))
-		require.NoError(t, jp.SaveJob(jb.New(t).MultiJobID(mj.JID).Status("successful").Build()))
+		require.NoError(t, jp.SaveMultiJob(ctxFor(tenant.Default), mj))
+		require.NoError(t, jp.SaveJob(ctxFor(tenant.Default), jb.New(t).MultiJobID(mj.JID).Status("failed").Build()))
+		require.NoError(t, jp.SaveJob(ctxFor(tenant.Default), jb.New(t).MultiJobID(mj.JID).Status("successful").Build()))
 	})
 	require.NotNil(t, ex)
 	assert.Equal(t, 2, *ex.ClientCount)
@@ -263,17 +264,17 @@ func TestUpdateLibrarySchedule(t *testing.T) {
 
 	s := libSchedule()
 	s.Details.LibraryEntryID = "missing"
-	_, err := m.Update(context.Background(), "s1", s)
+	_, err := m.Update(ctxFor(tenant.Default), "s1", s)
 	assert.Error(t, err)
 
 	s = libSchedule()
 	s.Schedule = "bad"
-	_, err = m.Update(context.Background(), "s1", s)
+	_, err = m.Update(ctxFor(tenant.Default), "s1", s)
 	assert.Error(t, err)
 
 	s = libSchedule()
 	s.Details.Command = "ls"
-	got, err := m.Update(context.Background(), "s1", s)
+	got, err := m.Update(ctxFor(tenant.Default), "s1", s)
 	require.NoError(t, err)
 	assert.Equal(t, "e1", got.Details.LibraryEntryID)
 	assert.Equal(t, "s1", s.ID)
@@ -297,11 +298,11 @@ func TestSchedulesUsing(t *testing.T) {
 	c := &Schedule{Base: Base{ID: "s3", Name: "typed", Type: TypeCommand}}
 	m := &Manager{provider: &listProvider{all: []*Schedule{a, b, c}}}
 
-	refs, err := m.SchedulesUsing(context.Background(), "e1")
+	refs, err := m.SchedulesUsing(ctxFor(tenant.Default), "e1")
 	require.NoError(t, err)
 	assert.Equal(t, []library.Reference{{ID: "s1", Name: "nightly"}}, refs)
 
-	refs, err = m.SchedulesUsing(context.Background(), "none")
+	refs, err = m.SchedulesUsing(ctxFor(tenant.Default), "none")
 	require.NoError(t, err)
 	assert.Empty(t, refs)
 }

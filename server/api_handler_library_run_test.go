@@ -21,6 +21,7 @@ import (
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/test"
 	"github.com/openrport/openrport/share/ws"
 )
@@ -84,7 +85,7 @@ func (e *libraryRunEnv) waitJobs(t *testing.T, jid string, n int) *models.MultiJ
 	var mj *models.MultiJob
 	require.Eventually(t, func() bool {
 		var err error
-		mj, err = e.jp.GetMultiJob(context.Background(), jid)
+		mj, err = e.jp.GetMultiJob(tenant.WithID(context.Background(), tenant.Default), jid)
 		return err == nil && mj != nil && len(mj.Jobs) == n
 	}, 5*time.Second, 10*time.Millisecond)
 	return mj
@@ -196,17 +197,17 @@ func TestResultKeepsLibraryFields(t *testing.T) {
 		JID: "j1", ClientID: "c1", Status: models.JobStatusRunning, StartedAt: time.Now(),
 		LibraryEntryID: "e1", LibraryVersion: 4, OS: "linux",
 	}
-	require.NoError(t, jp.CreateJob(stored))
+	require.NoError(t, jp.CreateJob(tenant.WithID(context.Background(), tenant.Default), stored))
 
 	cl := &ClientListener{logger: testLog, server: &Server{jobProvider: jp, uiJobWebSockets: ws.NewWebSocketCache()}}
 	// an older client does not echo the library fields
-	got, err := cl.saveCmdResult([]byte(`{"jid":"j1","client_id":"c1","status":"successful","started_at":"2026-01-01T00:00:00Z"}`))
+	got, err := cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(`{"jid":"j1","client_id":"c1","status":"successful","started_at":"2026-01-01T00:00:00Z"}`))
 	require.NoError(t, err)
 	assert.Equal(t, "e1", got.LibraryEntryID)
 	assert.Equal(t, 4, got.LibraryVersion)
 	assert.Equal(t, "linux", got.OS)
 
-	saved, err := jp.GetByJID("c1", "j1")
+	saved, err := jp.GetByJID(tenant.WithID(context.Background(), tenant.Default), "c1", "j1")
 	require.NoError(t, err)
 	assert.Equal(t, models.JobStatusSuccessful, saved.Status)
 	assert.Equal(t, "e1", saved.LibraryEntryID)
@@ -214,14 +215,14 @@ func TestResultKeepsLibraryFields(t *testing.T) {
 	assert.Equal(t, "linux", saved.OS)
 
 	// values the client does send win
-	got, err = cl.saveCmdResult([]byte(`{"jid":"j1","client_id":"c1","status":"successful","library_entry_id":"e2","library_version":5,"os":"windows"}`))
+	got, err = cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(`{"jid":"j1","client_id":"c1","status":"successful","library_entry_id":"e2","library_version":5,"os":"windows"}`))
 	require.NoError(t, err)
 	assert.Equal(t, "e2", got.LibraryEntryID)
 	assert.Equal(t, 5, got.LibraryVersion)
 	assert.Equal(t, "windows", got.OS)
 
 	// unknown job: nothing to keep, still saved
-	_, err = cl.saveCmdResult([]byte(`{"jid":"j9","client_id":"c1","status":"successful"}`))
+	_, err = cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(`{"jid":"j9","client_id":"c1","status":"successful"}`))
 	require.NoError(t, err)
 }
 

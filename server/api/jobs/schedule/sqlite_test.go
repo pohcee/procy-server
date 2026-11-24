@@ -1,7 +1,6 @@
 package schedule
 
 import (
-	"context"
 	"os"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/openrport/openrport/server/test/jb"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/ptr"
+	"github.com/openrport/openrport/share/tenant"
 
 	"github.com/jmoiron/sqlx"
 
@@ -67,7 +67,7 @@ func TestGet(t *testing.T) {
 	require.NoError(t, err)
 	dbProv := newSQLiteProvider(db)
 	defer dbProv.Close()
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = addTestData(dbProv.db)
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestList(t *testing.T) {
 	err = addTestData(dbProv.db)
 	require.NoError(t, err)
 
-	result, err := dbProv.List(context.Background(), nil)
+	result, err := dbProv.List(ctxFor(tenant.Default), nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, testData, result)
@@ -101,7 +101,7 @@ func TestCreate(t *testing.T) {
 	require.NoError(t, err)
 	dbProv := newSQLiteProvider(db)
 	defer dbProv.Close()
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	itemToSave := testData[0]
 	err = dbProv.Insert(ctx, itemToSave)
@@ -117,7 +117,7 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 	dbProv := newSQLiteProvider(db)
 	defer dbProv.Close()
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = addTestData(dbProv.db)
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, err)
 	dbProv := newSQLiteProvider(db)
 	defer dbProv.Close()
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = addTestData(dbProv.db)
 	require.NoError(t, err)
@@ -165,7 +165,7 @@ func TestCountJobsInProgress(t *testing.T) {
 	require.NoError(t, err)
 	dbProv := newSQLiteProvider(db)
 	defer dbProv.Close()
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	addJobs(t, db)
 
@@ -202,8 +202,8 @@ func addJobs(t *testing.T, db *sqlx.DB) {
 
 	multiJob := jb.NewMulti(t).ScheduleID(testData[0].ID).Build()
 	otherMultiJob := jb.NewMulti(t).ScheduleID(testData[1].ID).Build()
-	require.NoError(t, jobsProvider.SaveMultiJob(multiJob))
-	require.NoError(t, jobsProvider.SaveMultiJob(otherMultiJob))
+	require.NoError(t, jobsProvider.SaveMultiJob(ctxFor(tenant.Default), multiJob))
+	require.NoError(t, jobsProvider.SaveMultiJob(ctxFor(tenant.Default), otherMultiJob))
 
 	// finished job
 	job1 := jb.New(t).MultiJobID(multiJob.JID).FinishedAt(time.Now()).Build()
@@ -213,10 +213,10 @@ func addJobs(t *testing.T, db *sqlx.DB) {
 	job3 := jb.New(t).MultiJobID(multiJob.JID).StartedAt(time.Now().Add(-2 * time.Minute)).Build()
 	// from other schedule
 	job4 := jb.New(t).MultiJobID(otherMultiJob.JID).Build()
-	require.NoError(t, jobsProvider.SaveJob(job1))
-	require.NoError(t, jobsProvider.SaveJob(job2))
-	require.NoError(t, jobsProvider.SaveJob(job3))
-	require.NoError(t, jobsProvider.SaveJob(job4))
+	require.NoError(t, jobsProvider.SaveJob(ctxFor(tenant.Default), job1))
+	require.NoError(t, jobsProvider.SaveJob(ctxFor(tenant.Default), job2))
+	require.NoError(t, jobsProvider.SaveJob(ctxFor(tenant.Default), job3))
+	require.NoError(t, jobsProvider.SaveJob(ctxFor(tenant.Default), job4))
 }
 
 func assertCount(t *testing.T, db *sqlx.DB, expected int, query string) {

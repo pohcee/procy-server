@@ -6,6 +6,8 @@
 // 002_schedules.up.sql (228B)
 // 003_multi_job_schedule_id.down.sql (0)
 // 003_multi_job_schedule_id.up.sql (50B)
+// 004_tenant.down.sql (1.788kB)
+// 004_tenant.up.sql (2.02kB)
 
 package jobs
 
@@ -88,7 +90,7 @@ func _001_initDownSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "001_init.down.sql", size: 109, mode: os.FileMode(0644), modTime: time.Unix(1685339920, 0)}
+	info := bindataFileInfo{name: "001_init.down.sql", size: 109, mode: os.FileMode(0664), modTime: time.Unix(1795497914, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x5e, 0x88, 0xea, 0xcd, 0x76, 0x62, 0xa9, 0x87, 0xa2, 0xc7, 0xf7, 0x6a, 0xdd, 0x1, 0xaa, 0xab, 0x37, 0x9f, 0x8e, 0xd5, 0xf0, 0x2c, 0xe1, 0xaa, 0xf9, 0x4e, 0xe2, 0xe9, 0x5b, 0xe6, 0x64, 0xa9}}
 	return a, nil
 }
@@ -108,7 +110,7 @@ func _001_initUpSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "001_init.up.sql", size: 649, mode: os.FileMode(0644), modTime: time.Unix(1685339920, 0)}
+	info := bindataFileInfo{name: "001_init.up.sql", size: 649, mode: os.FileMode(0664), modTime: time.Unix(1795497914, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x86, 0xd8, 0xc4, 0xe8, 0x45, 0x78, 0x1a, 0xe5, 0x4c, 0xce, 0xed, 0xd5, 0x39, 0x69, 0xdd, 0xb, 0xe3, 0xf, 0xf1, 0x7, 0x13, 0x6c, 0xd2, 0xf1, 0xe3, 0xe7, 0x3, 0x43, 0xb5, 0xa2, 0x27, 0x31}}
 	return a, nil
 }
@@ -128,7 +130,7 @@ func _002_schedulesDownSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "002_schedules.down.sql", size: 22, mode: os.FileMode(0644), modTime: time.Unix(1685339920, 0)}
+	info := bindataFileInfo{name: "002_schedules.down.sql", size: 22, mode: os.FileMode(0664), modTime: time.Unix(1795497914, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x29, 0x36, 0x1d, 0xbd, 0x98, 0x87, 0xed, 0xf6, 0xc7, 0xbe, 0xaa, 0xe3, 0xae, 0x12, 0x22, 0x75, 0x50, 0x48, 0xe7, 0xf3, 0xde, 0x5b, 0xa6, 0x71, 0x29, 0x7, 0xa2, 0x18, 0x46, 0x33, 0x6, 0x81}}
 	return a, nil
 }
@@ -148,7 +150,7 @@ func _002_schedulesUpSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "002_schedules.up.sql", size: 228, mode: os.FileMode(0644), modTime: time.Unix(1685339920, 0)}
+	info := bindataFileInfo{name: "002_schedules.up.sql", size: 228, mode: os.FileMode(0664), modTime: time.Unix(1795497914, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x9f, 0x77, 0x95, 0xe9, 0xe7, 0x93, 0xb9, 0x79, 0xf2, 0x6c, 0xd0, 0x17, 0x16, 0x60, 0x2b, 0xca, 0xcd, 0x50, 0x5a, 0xc2, 0x9a, 0xcb, 0x4e, 0xbf, 0x92, 0xb6, 0x3f, 0x7d, 0xb, 0x85, 0x40, 0x7a}}
 	return a, nil
 }
@@ -168,7 +170,7 @@ func _003_multi_job_schedule_idDownSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "003_multi_job_schedule_id.down.sql", size: 0, mode: os.FileMode(0644), modTime: time.Unix(1685339920, 0)}
+	info := bindataFileInfo{name: "003_multi_job_schedule_id.down.sql", size: 0, mode: os.FileMode(0664), modTime: time.Unix(1795497914, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14, 0x9a, 0xfb, 0xf4, 0xc8, 0x99, 0x6f, 0xb9, 0x24, 0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c, 0xa4, 0x95, 0x99, 0x1b, 0x78, 0x52, 0xb8, 0x55}}
 	return a, nil
 }
@@ -188,8 +190,48 @@ func _003_multi_job_schedule_idUpSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "003_multi_job_schedule_id.up.sql", size: 50, mode: os.FileMode(0644), modTime: time.Unix(1685339920, 0)}
+	info := bindataFileInfo{name: "003_multi_job_schedule_id.up.sql", size: 50, mode: os.FileMode(0664), modTime: time.Unix(1795497914, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x54, 0x85, 0xe7, 0xf3, 0x22, 0x90, 0x8c, 0xe8, 0x7a, 0xb, 0x7f, 0x78, 0x63, 0x5a, 0xc4, 0x42, 0x2e, 0x25, 0x6b, 0x3a, 0x76, 0x48, 0x47, 0x1e, 0x69, 0xf7, 0xa7, 0xc4, 0x61, 0x5d, 0x69, 0xfd}}
+	return a, nil
+}
+
+var __004_tenantDownSql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xac\x54\xc1\x6e\xdb\x30\x0c\xbd\xfb\x2b\x78\x6b\x0c\xf8\x0f\x82\x1d\xbc\x84\x59\x85\x39\x52\xa1\xa8\x48\x7b\x32\xdc\x48\x45\x15\x38\xe9\x50\xcb\xc0\xfa\xf7\x83\xad\xd9\x16\x53\x2d\xe9\x82\x5e\x45\x8a\xe4\xe3\x7b\x8f\x0b\x89\xb9\x42\x50\xf9\xf7\x02\xe1\xd0\xd6\xce\x96\xfb\xd7\xa7\xa6\x7c\xad\x35\xcc\x12\x00\x80\xbd\xd5\xa0\xf0\x41\xc1\x9d\x64\xeb\x5c\x3e\xc2\x4f\x7c\x04\x2e\x14\xf0\xfb\xa2\xc8\xfa\x94\xc6\x55\x6f\xce\xe8\xb2\x72\xb0\xcc\x15\x2a\xb6\xc6\x93\x8c\xdd\x9b\xa9\xba\x8c\xa7\x77\x5f\x8b\x46\xb5\x71\x95\xad\x9b\x58\xa8\xd9\xbd\x18\xdd\xd6\xa6\x1c\xa6\xe8\x42\x49\x0a\x5b\xa6\x6e\xc5\xbd\x02\x29\xb6\x6c\x39\x4f\x18\xdf\xa0\x54\xc0\xb8\x12\x1f\x50\xec\xad\xce\x82\x11\xb3\x60\x98\x6c\x68\x9d\x85\x8d\xd2\xbe\xf3\x06\x0b\x5c\x28\xf8\xef\xdf\xb0\x92\x62\x1d\x0c\x01\xdb\x5b\x94\x08\xce\x1c\xab\xa3\xeb\xe2\xdf\xe0\x46\x9b\xe7\xaa\xad\xdd\xcd\x3c\x49\x08\x01\x57\xad\xde\xb5\xf1\xcd\x5d\x24\xe5\xd9\x1e\x6d\xf3\x42\x53\x3e\x43\xd7\xae\xb6\xc6\x43\x89\x04\x47\xe0\x43\xfc\x22\xc5\x2b\x21\x91\xfd\xe0\x3d\xb8\x59\xf8\x3d\x05\x89\x2b\x94\xc8\x17\xb8\x09\x16\xda\x11\x9a\x9e\x97\xc0\x47\xf2\x5d\xdb\x50\x1a\x03\xf0\x94\xd3\x11\x5d\x46\xb0\x8c\x64\x47\xd5\xf1\x75\xe5\xbd\x7c\x3e\x21\x9c\xa5\x14\x77\xc0\xf8\x12\x1f\xc0\xea\xdf\x5e\xef\x63\xf1\xd2\xd9\x83\x99\x47\x73\x7c\x57\xab\xff\x46\x27\xe1\x91\x87\x69\xdd\xf3\x24\x2f\x14\xca\xf8\x89\x90\xc8\xf3\x35\x02\x71\x1d\xfd\x10\x49\xf5\x49\x83\xf2\xcf\x42\xe8\x77\x2d\xb8\xdf\xc7\x2c\xd8\x1d\xd1\x2e\x6e\x16\xe9\x3f\x0b\x0e\x78\x69\x29\xa2\xb3\x53\x1b\x0e\x6e\x0e\xbd\x78\xd9\x8a\x03\xcb\xd7\x5e\xc1\x63\x75\x30\xe7\x4e\x60\x2c\xe6\xde\x7f\x45\xdf\xa3\x76\x4b\x52\xea\x92\x13\x98\xdd\x5a\x27\x0c\x54\xb5\xdd\x6c\xd3\x95\xcb\xfa\xbe\x71\x47\x5c\x5d\xc5\x0b\x7f\x9c\xe9\xbc\xfa\x03\xa5\x8e\x3f\xa8\xee\x28\xb8\x49\x7c\x41\xfa\x9f\x00\x00\x00\xff\xff\xfb\x49\x5d\x3c\xfc\x06\x00\x00")
+
+func _004_tenantDownSqlBytes() ([]byte, error) {
+	return bindataRead(
+		__004_tenantDownSql,
+		"004_tenant.down.sql",
+	)
+}
+
+func _004_tenantDownSql() (*asset, error) {
+	bytes, err := _004_tenantDownSqlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "004_tenant.down.sql", size: 1788, mode: os.FileMode(0664), modTime: time.Unix(1795498087, 0)}
+	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x3a, 0x5f, 0x5a, 0xe2, 0x42, 0xed, 0x14, 0xf, 0xee, 0x47, 0x8e, 0x48, 0x1a, 0x5a, 0xf8, 0xbb, 0xc8, 0x2a, 0xde, 0x88, 0x65, 0x61, 0xfa, 0x8c, 0xb5, 0x38, 0x8, 0xca, 0x15, 0xcf, 0xbb, 0xd6}}
+	return a, nil
+}
+
+var __004_tenantUpSql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xb4\x54\xc1\x6e\xdb\x30\x0c\xbd\xfb\x2b\x78\x6b\x0d\xe8\x0f\x72\xf2\x62\x66\x13\xe6\x48\x85\xa2\xa0\xed\xc9\x70\x63\x15\x55\xe1\x78\x43\x2d\x63\xeb\xdf\x0f\xb1\x6b\x47\x4c\x55\x7b\xc9\xd6\xab\xf8\x48\x3d\x92\xef\x71\xa9\x30\xd1\x08\x3a\xf9\x92\x21\xec\xdb\xca\xd9\xfc\xf9\xc7\x43\x93\xd7\xe6\x17\x5c\x47\x00\x00\xce\xd4\x45\xed\x72\x5b\x82\xc6\x3b\x0d\x42\x6a\x10\xdb\x2c\x83\x14\x57\xc9\x36\xd3\x70\x55\x9a\xc7\xa2\xad\xdc\x15\xeb\xe0\xcf\xa7\xc0\xfe\xb9\x71\xc5\x8b\x33\x65\x5e\x38\x48\x13\x8d\x9a\xaf\xf1\x04\xb1\x7b\x31\xc5\x01\xf1\xf0\x1a\xca\x2f\x8d\x2b\x6c\xd5\x04\x4b\xef\x9e\x4c\xd9\x56\xe6\x48\x71\x0c\xdd\x28\xbe\x4e\xd4\x3d\x7c\xc7\x7b\xb8\x1e\x1b\x61\x07\x92\x71\x14\xc3\x2d\xd7\xdf\xe4\x56\x83\x92\xb7\x3c\x5d\x44\x5c\x6c\x50\x69\xe0\x42\xcb\x77\xa3\xa0\xc9\xcc\xeb\x87\x79\xcc\xd9\xc0\x93\xf9\xac\xe2\x8e\xcb\x06\x33\x5c\xfa\xe3\x3a\xbf\x10\xac\x94\x5c\x7b\xd4\x16\x51\x44\xf6\xf7\x59\x9b\x73\x6d\x78\xf0\xb3\x3b\x7d\xb4\xb5\x6d\x9e\x28\xe4\x6f\xb6\xbd\xab\xac\x09\x30\xef\x83\x63\xff\x43\x7c\x56\x21\x53\x32\xe8\x11\x2b\xa9\x90\x7f\x15\xef\x10\xfe\x5f\x31\x28\x5c\xa1\x42\xb1\xc4\x8d\xb7\x84\xf3\x74\x35\xa9\x28\xd7\x36\x54\x10\xde\xfc\xa8\x3a\xc6\x01\x51\x8a\xa3\x6c\xe6\x24\xf7\xff\x7e\xea\x35\xf9\xa6\xc6\x54\xc9\x1b\xe0\x22\xc5\x3b\xb0\xe5\xef\xde\x3e\x63\x81\xdc\xd9\xbd\x59\x04\x31\x7d\x65\x5b\xbe\x45\x8f\x6a\x26\x0f\xbe\xf0\x93\x4c\xa3\x0a\x9f\x2d\x85\x22\x59\x23\x10\x13\xd3\x84\x00\x94\xda\x69\xb2\x85\x6e\xb4\x52\x74\x29\x64\x8d\xde\xa8\x88\xf0\x71\xb3\x8c\x3f\xac\x3d\xb4\xfe\x61\x55\x22\xc1\x53\xc7\x0f\xc7\xe1\x1f\x6c\x1f\x36\xd9\x20\x81\x4b\xef\x75\x5d\xec\xcd\xd4\xb1\x0e\xc5\xdc\xeb\xcf\xe0\xfb\x05\xce\xee\x7c\x48\x9d\x77\x32\x2a\x02\x66\x5e\xbf\x54\xfe\x87\x3e\x8e\x37\x98\x75\x1c\x67\x5d\x76\x71\xc1\xde\x4c\x23\x53\xa2\x7e\xef\xd5\xd7\x32\x6d\xeb\x28\x68\x0f\xfe\x27\x00\x00\xff\xff\x61\x94\xec\x81\xe4\x07\x00\x00")
+
+func _004_tenantUpSqlBytes() ([]byte, error) {
+	return bindataRead(
+		__004_tenantUpSql,
+		"004_tenant.up.sql",
+	)
+}
+
+func _004_tenantUpSql() (*asset, error) {
+	bytes, err := _004_tenantUpSqlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "004_tenant.up.sql", size: 2020, mode: os.FileMode(0664), modTime: time.Unix(1795498087, 0)}
+	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0xfa, 0xd1, 0x62, 0xe2, 0x3e, 0x45, 0xb, 0x6e, 0x82, 0xa, 0x18, 0x15, 0x9, 0x47, 0x9b, 0xce, 0x3e, 0xd4, 0x3c, 0x78, 0x83, 0x91, 0x2f, 0xcd, 0xfd, 0x9, 0xec, 0xae, 0xe8, 0xfc, 0x7, 0x11}}
 	return a, nil
 }
 
@@ -290,6 +332,8 @@ var _bindata = map[string]func() (*asset, error){
 	"002_schedules.up.sql":               _002_schedulesUpSql,
 	"003_multi_job_schedule_id.down.sql": _003_multi_job_schedule_idDownSql,
 	"003_multi_job_schedule_id.up.sql":   _003_multi_job_schedule_idUpSql,
+	"004_tenant.down.sql":                _004_tenantDownSql,
+	"004_tenant.up.sql":                  _004_tenantUpSql,
 }
 
 // AssetDebug is true if the assets were built with the debug flag enabled.
@@ -344,6 +388,8 @@ var _bintree = &bintree{nil, map[string]*bintree{
 	"002_schedules.up.sql":               {_002_schedulesUpSql, map[string]*bintree{}},
 	"003_multi_job_schedule_id.down.sql": {_003_multi_job_schedule_idDownSql, map[string]*bintree{}},
 	"003_multi_job_schedule_id.up.sql":   {_003_multi_job_schedule_idUpSql, map[string]*bintree{}},
+	"004_tenant.down.sql":                {_004_tenantDownSql, map[string]*bintree{}},
+	"004_tenant.up.sql":                  {_004_tenantUpSql, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory.

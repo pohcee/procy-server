@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -42,12 +43,18 @@ func typedJobSpec(job *models.MultiJob) library.JobSpec {
 // it, a job ID failure is reported on it, and after the last client it waits
 // for the UI to close it (keeping the sequential done channel registered
 // until then, as before).
+//
+// ctx carries the tenant the jobs are saved in. The run outlives the request that started it, so
+// ctx's cancellation is dropped.
 func (al *APIListener) runMultiClientJob(
+	ctx context.Context,
 	uiConn *ws.ConcurrentWebSocket,
 	job *models.MultiJob,
 	clients []*clientdata.Client,
 	specFor clientSpecFunc,
 ) {
+	ctx = context.WithoutCancel(ctx)
+
 	// for sequential execution - create a channel to get the job result
 	var curJobDoneChannel chan *models.Job
 	if !job.Concurrent {
@@ -70,16 +77,16 @@ func (al *APIListener) runMultiClientJob(
 
 		spec, skipReason := specFor(client)
 		if skipReason != "" {
-			al.saveSkippedJob(uiConn, &job.JID, curJID, job.CreatedBy, spec, skipReason, client)
+			al.saveSkippedJob(ctx, uiConn, &job.JID, curJID, job.CreatedBy, spec, skipReason, client)
 			continue
 		}
 
 		if job.Concurrent {
-			go al.createAndRunJob(uiConn, &job.JID, curJID, job.CreatedBy, spec, client) //nolint:errcheck // error is logged, nothing to act on here
+			go al.createAndRunJob(ctx, uiConn, &job.JID, curJID, job.CreatedBy, spec, client) //nolint:errcheck // error is logged, nothing to act on here
 			continue
 		}
 
-		err = al.createAndRunJob(uiConn, &job.JID, curJID, job.CreatedBy, spec, client)
+		err = al.createAndRunJob(ctx, uiConn, &job.JID, curJID, job.CreatedBy, spec, client)
 		if err != nil {
 			if job.AbortOnErr && !errors.Is(err, ErrClientNotConnected) {
 				if uiConn != nil {
@@ -119,6 +126,7 @@ func (al *APIListener) runMultiClientJob(
 // saveSkippedJob records a job that is not sent to its client and, with
 // uiConn set, writes it there like a finished job.
 func (al *APIListener) saveSkippedJob(
+	ctx context.Context,
 	uiConn *ws.ConcurrentWebSocket,
 	multiJobID *string,
 	jid, createdBy string,
@@ -138,7 +146,7 @@ func (al *APIListener) saveSkippedJob(
 	if uiConn != nil {
 		_ = uiConn.WriteJSON(skipped)
 	}
-	if err := al.jobProvider.CreateJob(&skipped); err != nil {
+	if err := al.jobProvider.CreateJob(ctx, &skipped); err != nil {
 		al.Errorf("%s, Failed to persist skipped job: %v", skipped.LogPrefix(), err)
 	}
 }

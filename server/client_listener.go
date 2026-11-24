@@ -395,7 +395,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	clientLog.Debugf("opened %s within %s", clientBanner, time.Since(ts2))
 
 	// now run handler for other client requests and connections
-	go cl.handleSSHRequests(clientLog, clientID, reqs)
+	go cl.handleSSHRequests(client.GetContext(), clientLog, clientID, reqs)
 	go cl.handleSSHChannels(clientLog.GetLogger(), chans)
 
 	// wait until we're disconnected from the client
@@ -470,7 +470,8 @@ func (cl *ClientListener) replyConnectionError(r *ssh.Request, err error) {
 	}
 }
 
-func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, clientID string, reqs <-chan *ssh.Request) {
+// handleSSHRequests handles the requests of a connected client; ctx is the client's context.
+func (cl *ClientListener) handleSSHRequests(ctx context.Context, clientLog *logger.DynamicLogger, clientID string, reqs <-chan *ssh.Request) {
 	clientService := cl.getClientService()
 
 	for r := range reqs {
@@ -535,7 +536,7 @@ func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, cli
 				ts = time.Now().UTC()
 			}
 
-			job, err := cl.saveCmdResult(r.Payload)
+			job, err := cl.saveCmdResult(ctx, r.Payload)
 			if err != nil {
 				clientLog.Errorf("Failed to save cmd result: %s", err)
 				continue
@@ -659,7 +660,9 @@ func (cl *ClientListener) sendMeasurementToAlertingService(
 	}
 }
 
-func (cl *ClientListener) saveCmdResult(respBytes []byte) (*models.Job, error) {
+// saveCmdResult saves a job result sent by a client; ctx is the client's context, which carries
+// its tenant.
+func (cl *ClientListener) saveCmdResult(ctx context.Context, respBytes []byte) (*models.Job, error) {
 	resp := models.Job{}
 	err := json.Unmarshal(respBytes, &resp)
 	if err != nil {
@@ -670,7 +673,7 @@ func (cl *ClientListener) saveCmdResult(respBytes []byte) (*models.Job, error) {
 	// both in the saved job and in the message forwarded to the UI
 	fwdBytes := respBytes
 	if resp.LibraryEntryID == "" || resp.LibraryVersion == 0 || resp.OS == "" {
-		if stored, getErr := cl.server.jobProvider.GetByJID(resp.ClientID, resp.JID); getErr == nil && stored != nil {
+		if stored, getErr := cl.server.jobProvider.GetByJID(ctx, resp.ClientID, resp.JID); getErr == nil && stored != nil {
 			if resp.LibraryEntryID == "" {
 				resp.LibraryEntryID = stored.LibraryEntryID
 			}
@@ -704,7 +707,7 @@ func (cl *ClientListener) saveCmdResult(respBytes []byte) (*models.Job, error) {
 		cl.log().Debugf("%s, WS conn not found when saving command result. No active listeners connected", resp.LogPrefix())
 	}
 
-	err = cl.server.jobProvider.SaveJob(&resp)
+	err = cl.server.jobProvider.SaveJob(ctx, &resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save job result: %s", err)
 	}
