@@ -12,6 +12,7 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/storage/postgres"
 	"github.com/openrport/openrport/server/storage/postgres/migrate"
+	"github.com/openrport/openrport/server/vault"
 	"github.com/openrport/openrport/server/vault/vaultkms"
 	"github.com/openrport/openrport/share/files"
 )
@@ -81,17 +82,30 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 		opts.Dispatcher = NotConnectedDispatcher{}
 	}
 
-	closeFn := func() {}
+	keys, closeFn, err := VaultKeys(ctx, cfg, db, logw)
+	if err != nil {
+		return nil, nil, err
+	}
+	opts.VaultKeys = keys
+	return opts, closeFn, nil
+}
+
+// VaultKeys returns the vault key provider of [vault] key_provider on db: nil for the passphrase vault, otherwise
+// the managed provider (wrapped keys stored in db). close releases what it opened.
+func VaultKeys(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, logw io.Writer) (_ vault.KeyProvider, close func(), _ error) {
+	if logw == nil {
+		logw = io.Discard
+	}
 	switch cfg.Vault.KeyProvider {
 	case "", chconfig.KeyProviderPassphrase:
 		// the vault is initialised and unlocked with a passphrase, per tenant, as standalone
-		opts.VaultKeys = nil
+		return nil, func() {}, nil
 	case chconfig.KeyProviderKMS:
 		p, c, err := KMSVaultKeys(ctx, cfg.Vault.KMSKey, db, logw)
 		if err != nil {
 			return nil, nil, err
 		}
-		opts.VaultKeys, closeFn = p, c
+		return p, c, nil
 	case chconfig.KeyProviderLocal:
 		k, err := vaultkms.NewLocalKMS(cfg.Vault.LocalKeyFile)
 		if err != nil {
@@ -101,9 +115,8 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 		if err != nil {
 			return nil, nil, err
 		}
-		opts.VaultKeys = p
+		return p, func() {}, nil
 	default:
 		return nil, nil, fmt.Errorf("vault: unknown key provider %q", cfg.Vault.KeyProvider)
 	}
-	return opts, closeFn, nil
 }

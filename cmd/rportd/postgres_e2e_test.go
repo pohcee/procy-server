@@ -105,9 +105,9 @@ type e2eServer struct {
 
 const e2eKeySeed = "e2e-key-seed-0123456789abcdef"
 
-// e2eConfig writes an rportd.conf in root with a client and an API listener on free ports; extra is appended
-// (auth, [storage], [vault]).
-func e2eConfig(t *testing.T, root, dataDir, extra string) (configPath string, clientPort int, apiURL string) {
+// e2eConfig writes an rportd.conf in root with a client and an API listener on free ports; serverExtra and apiExtra
+// go into [server] and [api] (auth settings), extra is appended ([storage], [vault]).
+func e2eConfig(t *testing.T, root, dataDir, serverExtra, apiExtra, extra string) (configPath string, clientPort int, apiURL string) {
 	t.Helper()
 	clientPort = e2eFreePort(t)
 	apiPort := e2eFreePort(t)
@@ -120,6 +120,7 @@ func e2eConfig(t *testing.T, root, dataDir, extra string) (configPath string, cl
   used_ports = ['%d']
   excluded_ports = []
   allow_root = true
+%s
 
 [logging]
   log_level = "info"
@@ -128,11 +129,12 @@ func e2eConfig(t *testing.T, root, dataDir, extra string) (configPath string, cl
   address = "127.0.0.1:%d"
   jwt_secret = "e2e-jwt-secret-0123456789abcdef0123"
   password_min_length = 8
+%s
 
 [pairing]
   enabled = false
 %s
-`, clientPort, clientPort, e2eKeySeed, dataDir, tunnelPort, apiPort, extra)
+`, clientPort, clientPort, e2eKeySeed, dataDir, tunnelPort, serverExtra, apiPort, apiExtra, extra)
 	configPath = filepath.Join(root, "rportd.conf")
 	require.NoError(t, os.WriteFile(configPath, []byte(conf), 0o600))
 	return configPath, clientPort, fmt.Sprintf("http://127.0.0.1:%d", apiPort)
@@ -320,7 +322,7 @@ func TestPostgresNodeEndToEnd(t *testing.T) {
 	dsnFile := filepath.Join(root, "dsn")
 	require.NoError(t, os.WriteFile(dsnFile, []byte(d.AppURL+"\n"), 0o600))
 
-	configPath, clientPort, apiURL := e2eConfig(t, root, dataDir, fmt.Sprintf(`
+	configPath, clientPort, apiURL := e2eConfig(t, root, dataDir, "", "", fmt.Sprintf(`
 [storage]
   backend = "postgres"
   dsn_file = %q

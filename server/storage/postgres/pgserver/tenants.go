@@ -59,3 +59,18 @@ func AddUser(ctx context.Context, db *sqlx.DB, id tenant.ID, username, password 
 	}
 	return nil
 }
+
+// EnsureTenant adds the tenant id (as AddTenant does) unless it exists already, and reports whether it added it.
+func EnsureTenant(ctx context.Context, db *sqlx.DB, id tenant.ID) (added bool, _ error) {
+	var n int
+	if err := db.GetContext(ctx, &n, "SELECT count(*) FROM tenants WHERE id = $1", string(id)); err != nil {
+		return false, fmt.Errorf("look up tenant %q: %w", id, err)
+	}
+	if n > 0 {
+		return false, nil
+	}
+	if err := AddTenant(ctx, db, id, ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
