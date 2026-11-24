@@ -116,10 +116,27 @@ func Up(ctx context.Context, db *sqlx.DB) ([]int64, error) {
 			applied = append(applied, m.Version)
 		}
 	}
+	if err := runDeferred(ctx, db); err != nil {
+		return applied, err
+	}
 	if err := resetFeedIfAhead(ctx, db); err != nil {
 		return applied, err
 	}
 	return applied, nil
+}
+
+// runDeferred runs the deferred DDL (migrate_deferred, migration 0120) whose tables exist now.
+func runDeferred(ctx context.Context, db *sqlx.DB) error {
+	return inLock(ctx, db, func(tx *sqlx.Tx) error {
+		var exists bool
+		if err := tx.GetContext(ctx, &exists, "SELECT to_regclass('migrate_deferred') IS NOT NULL"); err != nil || !exists {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "SELECT rport_run_deferred()"); err != nil {
+			return fmt.Errorf("migrate: deferred statements: %w", err)
+		}
+		return nil
+	})
 }
 
 // resetFeedIfAhead empties the change feed when it holds transaction ids this database hasn't reached: it was
@@ -166,6 +183,13 @@ func Check(ctx context.Context, db *sqlx.DB) error {
 			return fmt.Errorf("migrate: %s is not applied; run \"rportd migrate\"", m.Name)
 		}
 	}
+	var pending []string
+	if err := db.SelectContext(ctx, &pending, "SELECT name FROM migrate_deferred WHERE done_at IS NULL ORDER BY name"); err != nil {
+		return fmt.Errorf("migrate: check deferred statements: %w", err)
+	}
+	if len(pending) > 0 {
+		return fmt.Errorf("migrate: %s is not applied; run \"rportd migrate\"", pending[0])
+	}
 	return nil
 }
 
@@ -183,7 +207,7 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
-		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, changes, changes_horizon FROM " + q,
+		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, changes, changes_horizon, migrate_deferred FROM " + q,
 		"GRANT EXECUTE ON FUNCTION rport_prune_changes(interval) TO " + q,
 	}
 	for _, s := range stmts {

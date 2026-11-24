@@ -410,16 +410,7 @@ func (m *Manager) addCron(ctx context.Context, s *Schedule) error {
 }
 
 func (m *Manager) run(ctx context.Context, id string) {
-	schedule, err := m.provider.Get(ctx, id)
-	if err != nil {
-		m.Errorf("Could not get schedule %s: %v", id, err)
-		return
-	}
-	if schedule == nil {
-		// schedule not found in db, probably deleted by user
-		return
-	}
-
+	// claimed first: a node that doesn't start the run reads nothing
 	if m.claimer != nil {
 		fire, ok := FireTimeFrom(ctx)
 		if !ok {
@@ -435,6 +426,16 @@ func (m *Manager) run(ctx context.Context, id string) {
 			return
 		}
 	}
+	schedule, err := m.provider.Get(ctx, id)
+	if err != nil {
+		m.Errorf("Could not get schedule %s: %v", id, err)
+		return
+	}
+	if schedule == nil {
+		// schedule not found in db, probably deleted by user
+		return
+	}
+
 
 	var entry *library.Entry
 	if schedule.Type == TypeLibrary {

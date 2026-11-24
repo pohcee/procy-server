@@ -1,4 +1,4 @@
-// Package changefeed reads the change feed of the Postgres storage (table changes, migration 0600): one row per
+// Package changefeed reads the change feed of the Postgres storage (table changes, migration 0120): one row per
 // changed row of the tables nodes cache, written by a trigger in the same transaction as the change.
 //
 // Feed rows get their seq before their transaction commits, so they become visible out of seq order. Read therefore
@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -38,6 +39,28 @@ var ErrTooFarBehind = errors.New("changefeed: reader is further behind than the 
 type Cursor struct {
 	TxID uint64
 	Seq  int64
+}
+
+// String formats c as "<tx_id>:<seq>", for a reader that stores its position (ParseCursor reads it back).
+func (c Cursor) String() string {
+	return strconv.FormatUint(c.TxID, 10) + ":" + strconv.FormatInt(c.Seq, 10)
+}
+
+// ParseCursor reads a cursor formatted by Cursor.String.
+func ParseCursor(s string) (Cursor, error) {
+	tx, seq, ok := strings.Cut(s, ":")
+	if !ok {
+		return Cursor{}, fmt.Errorf("changefeed: invalid cursor %q", s)
+	}
+	id, err := strconv.ParseUint(tx, 10, 64)
+	if err != nil {
+		return Cursor{}, fmt.Errorf("changefeed: invalid cursor %q: %w", s, err)
+	}
+	n, err := strconv.ParseInt(seq, 10, 64)
+	if err != nil {
+		return Cursor{}, fmt.Errorf("changefeed: invalid cursor %q: %w", s, err)
+	}
+	return Cursor{TxID: id, Seq: n}, nil
 }
 
 // Less reports whether c is before o.

@@ -28,5 +28,7 @@ SELECT rport_enable_rls('schedule_runs');
 
 -- Built-in library entries are synced by one node at a time (a lease), and this keeps two of the same built-in from
 -- ever being created in a tenant.
-CREATE UNIQUE INDEX library_entries_unique_builtin_key ON library_entries (tenant_id, builtin_key) WHERE builtin_key IS NOT NULL;
-DROP INDEX library_entries_builtin_key;
+-- (library_entries comes from migration 0400: deferred, see migrate_deferred in 0120)
+INSERT INTO migrate_deferred (name, needs, ddl) VALUES ('0130 unique builtin_key', 'library_entries',
+    $d$CREATE UNIQUE INDEX library_entries_unique_builtin_key ON library_entries (tenant_id, builtin_key) WHERE builtin_key IS NOT NULL;
+       DROP INDEX IF EXISTS library_entries_builtin_key$d$);

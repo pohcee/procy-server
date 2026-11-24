@@ -37,6 +37,8 @@ type nodeFixture struct {
 	base string
 	// stop stops the node (also done at the end of the test); it is safe to call twice
 	stop func()
+	// coord is the node's cluster coordinator
+	coord *Coordinator
 }
 
 func freeAddr(t *testing.T) string {
@@ -183,7 +185,8 @@ func startNodeOn(t *testing.T, d *pgtest.DB, s nodeSettings) *nodeFixture {
 		c.Close()
 		return true
 	}, 10*time.Second, 50*time.Millisecond)
-	return &nodeFixture{base: base, stop: stop}
+	coord, _ := opts.Cluster.(*Coordinator)
+	return &nodeFixture{base: base, stop: stop, coord: coord}
 }
 
 func (h *nodeFixture) do(t *testing.T, method, path, token string, body any) (int, map[string]any) {

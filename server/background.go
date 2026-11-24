@@ -26,12 +26,14 @@ func leaseTTL(interval time.Duration) time.Duration {
 
 // runPeriodic runs task every interval. Standalone it runs as it always has, for the server's tenant (ctx). In a
 // cluster each run goes through the active tenants and runs task for those whose lease (name, tenant) this node
-// holds, so the task runs on one node at a time per tenant.
+// holds, so the task runs on one node at a time per tenant; the first run is at start.
 func runPeriodic(ctx context.Context, c cluster.Coordinator, log *logger.Logger, name string, task scheduler.Task, interval time.Duration) {
 	if !c.Clustered() {
 		scheduler.Run(ctx, log, task, interval)
 		return
 	}
+	// a first run at start: with nodes restarting more often than a long interval, the task would never run
+	runForTenants(ctx, c, log, name, leaseTTL(interval), task.Run)
 	tick := time.NewTicker(interval)
 	defer tick.Stop()
 	for {

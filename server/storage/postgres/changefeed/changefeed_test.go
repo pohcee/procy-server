@@ -363,3 +363,100 @@ func TestFollowerReportsStall(t *testing.T) {
 	}
 	require.NoError(t, idle.Rollback())
 }
+
+func TestCursorString(t *testing.T) {
+	c := changefeed.Cursor{TxID: 12345678901, Seq: 42}
+	got, err := changefeed.ParseCursor(c.String())
+	require.NoError(t, err)
+	assert.Equal(t, c, got)
+	_, err = changefeed.ParseCursor("42")
+	assert.Error(t, err)
+}
+
+// applier stores its position with what it applied, and fails once on demand.
+type applier struct {
+	mu     sync.Mutex
+	keys   []string
+	pos    changefeed.Cursor
+	failed bool
+	fail   bool
+	resets int
+}
+
+func (a *applier) Apply(_ context.Context, cs []changefeed.Change, next changefeed.Cursor) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.fail && !a.failed {
+		a.failed = true
+		return assert.AnError
+	}
+	for _, c := range cs {
+		a.keys = append(a.keys, c.Key)
+	}
+	a.pos = next
+	return nil
+}
+
+func (a *applier) Reset(_ context.Context, head changefeed.Cursor) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.resets++
+	a.keys = nil
+	a.pos = head
+	return nil
+}
+
+func (a *applier) snapshot() ([]string, changefeed.Cursor) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.keys...), a.pos
+}
+
+func TestFollowerApplierResumesFromItsPosition(t *testing.T) {
+	d := pgtest.New(t, "a")
+	ctx := context.Background()
+	start, err := changefeed.Head(ctx, d.App)
+	require.NoError(t, err)
+	exec(t, d.App, "a", "INSERT INTO users (tenant_id, username) VALUES ('a', 'one')")
+
+	a := &applier{fail: true, pos: start}
+	f := &changefeed.Follower{DB: d.App, From: &start, Applier: a, PollInterval: 30 * time.Millisecond}
+	follow(t, f)
+	require.Eventually(t, func() bool { k, _ := a.snapshot(); return len(k) == 1 }, 10*time.Second, 20*time.Millisecond)
+	keys, pos := a.snapshot()
+	assert.Equal(t, []string{"one"}, keys, "a failed apply is retried with the same changes, not skipped")
+
+	// a second follower resuming from the stored position sees only what came after
+	exec(t, d.App, "a", "INSERT INTO users (tenant_id, username) VALUES ('a', 'two')")
+	b := &applier{pos: pos}
+	follow(t, &changefeed.Follower{DB: d.App, From: &pos, Applier: b, PollInterval: 30 * time.Millisecond})
+	require.Eventually(t, func() bool { k, _ := b.snapshot(); return len(k) == 1 }, 10*time.Second, 20*time.Millisecond)
+	keys, _ = b.snapshot()
+	assert.Equal(t, []string{"two"}, keys)
+}
+
+func TestMigrateRunsDeferredDDLOnceItsTableExists(t *testing.T) {
+	d := pgtest.New(t, "a")
+	ctx := context.Background()
+	_, err := d.Owner.Exec(`INSERT INTO migrate_deferred (name, needs, ddl) VALUES ('9999 test', 'later_table',
+		$d$SELECT rport_track_changes('later_table', 'later', 'id')$d$)`)
+	require.NoError(t, err)
+	assert.ErrorContains(t, migrate.Check(ctx, d.App), "9999 test is not applied", "a node refuses to start")
+
+	_, err = migrate.Up(ctx, d.Owner)
+	require.NoError(t, err)
+	assert.Error(t, migrate.Check(ctx, d.App), "still pending: its table doesn't exist yet")
+
+	_, err = d.Owner.Exec(`CREATE TABLE later_table (tenant_id text NOT NULL, id text NOT NULL);
+		GRANT SELECT, INSERT ON later_table TO ` + pgtest.AppRole)
+	require.NoError(t, err)
+	_, err = migrate.Up(ctx, d.Owner)
+	require.NoError(t, err)
+	require.NoError(t, migrate.Check(ctx, d.App))
+
+	head, err := changefeed.Head(ctx, d.App)
+	require.NoError(t, err)
+	exec(t, d.App, "a", "INSERT INTO later_table (tenant_id, id) VALUES ('a', 'x')")
+	cs, _ := readUntil(t, d.App, head, 1)
+	assert.Equal(t, []got{{"a", "later", "x", "insert"}}, simplify(cs))
+}

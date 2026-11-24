@@ -27,6 +27,15 @@ const (
 // ErrStalled is reported (OnError) while committed changes wait for an older transaction that is still running.
 var ErrStalled = errors.New("changefeed: committed changes are held back by a transaction still running on the database server; changes reach this node late (an idle transaction? see idle_in_transaction_session_timeout)")
 
+// Applier is a reader that keeps a copy (a cache, a local database) current from the feed and stores its own
+// position: Apply applies changes and records next as its position, atomically if it can; Reset drops the copy so
+// it is rebuilt from a fresh snapshot (the follower continues from the new head). An error leaves the position
+// where it was: the same changes come again on the next read.
+type Applier interface {
+	Apply(ctx context.Context, changes []Change, next Cursor) error
+	Reset(ctx context.Context, head Cursor) error
+}
+
 // Follower follows the feed from its head: it reads new changes whenever a notification arrives on Channel, and
 // at least every PollInterval (a lost notification only adds delay), and hands them to OnChanges in order. When it
 // falls behind retention it calls OnReset (drop everything derived from the feed) and continues from the new head.
@@ -34,6 +43,9 @@ type Follower struct {
 	DB *sqlx.DB
 	// OnChanges receives each batch in order. It must not block for long: the follower waits for it.
 	OnChanges func(ctx context.Context, changes []Change)
+	// Applier, when set, is used instead of OnChanges and OnReset (see Applier); start it at its stored position
+	// with From.
+	Applier Applier
 	// OnReset is called when changes were missed (behind retention); whatever was cached must be reloaded.
 	OnReset func(ctx context.Context)
 	// OnError reports a failed read or a lost listening connection; the follower retries. Optional.
@@ -128,17 +140,29 @@ func (f *Follower) drain(ctx context.Context, batch int) {
 				f.report(herr)
 				return
 			}
-			f.setCursor(head)
-			if f.OnReset != nil {
+			if f.Applier != nil {
+				if err := f.Applier.Reset(ctx, head); err != nil {
+					f.report(fmt.Errorf("changefeed: reset: %w", err))
+					return
+				}
+			} else if f.OnReset != nil {
 				f.OnReset(ctx)
 			}
+			f.setCursor(head)
 			continue
 		}
 		if err != nil {
 			f.report(err)
 			return
 		}
-		if len(changes) > 0 && f.OnChanges != nil {
+		switch {
+		case len(changes) == 0:
+		case f.Applier != nil:
+			if err := f.Applier.Apply(ctx, changes, next); err != nil {
+				f.report(fmt.Errorf("changefeed: apply: %w", err))
+				return
+			}
+		case f.OnChanges != nil:
 			f.OnChanges(ctx, changes)
 		}
 		f.setCursor(next)

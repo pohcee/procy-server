@@ -56,8 +56,8 @@ type Coordinator struct {
 
 	mu       sync.Mutex
 	watchers []cluster.Watcher
-	// listener: whether this node holds ClientListenerLease and keeps renewing it
-	listener bool
+	// stopRenewing stops renewing ClientListenerLease (nil: not held)
+	stopRenewing context.CancelFunc
 }
 
 var _ cluster.Coordinator = (*Coordinator)(nil)
@@ -92,6 +92,9 @@ func NewCoordinator(ctx context.Context, db *sqlx.DB, nodeID string, log *logger
 
 // NodeID returns the node id of the coordinator.
 func (c *Coordinator) NodeID() string { return c.nodeID }
+
+// Cursor returns how far this node has consumed the change feed.
+func (c *Coordinator) Cursor() changefeed.Cursor { return c.follower.Cursor() }
 
 // Holder returns the name of this process in leases and claims.
 func (c *Coordinator) Holder() string { return c.holder }
@@ -168,7 +171,8 @@ func (c *Coordinator) ClaimRun(ctx context.Context, scheduleID string, fire time
 func (c *Coordinator) LeaveScheduledRuns() { c.noRuns = true }
 
 // AcquireClientListener takes the lease of the cluster's client listener for this node, or returns an error naming
-// the node holding it. The holder is the node id, so the same node restarting takes it back at once. Run renews it.
+// the node holding it. The holder is the node id, so the same node restarting takes it back at once. It is renewed
+// from now on, until Run ends or Release is called.
 func (c *Coordinator) AcquireClientListener(ctx context.Context) error {
 	ok, err := c.lease(ctx, ClientListenerLease, "", c.nodeID, clientListenerTTL)
 	if err != nil {
@@ -178,10 +182,35 @@ func (c *Coordinator) AcquireClientListener(ctx context.Context) error {
 		holder, _ := c.LeaseHolder(ctx, ClientListenerLease, "")
 		return fmt.Errorf(`cluster: node %q accepts the client connections of this database; only one node may run with [storage] role = "all" (run the others with role = "api"), or wait a minute after that node stopped`, holder)
 	}
+	rctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	c.mu.Lock()
-	c.listener = true
+	c.stopRenewing = cancel
 	c.mu.Unlock()
+	go c.renewClientListener(rctx)
 	return nil
+}
+
+// Release gives up this process's leases (another node takes its work at once) and stops renewing them. Run calls
+// it when it ends.
+func (c *Coordinator) Release() {
+	c.mu.Lock()
+	stop := c.stopRenewing
+	c.stopRenewing = nil
+	c.mu.Unlock()
+	if stop != nil {
+		stop()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	q := "DELETE FROM work_leases WHERE holder = $1"
+	args := []any{c.holder}
+	if stop != nil {
+		q += " OR (name = $2 AND tenant_id = '' AND holder = $3)"
+		args = append(args, ClientListenerLease, c.nodeID)
+	}
+	if _, err := c.db.ExecContext(ctx, q, args...); err != nil {
+		c.log.Errorf("cluster: release leases: %v", err)
+	}
 }
 
 // Watch adds w to the watchers.
@@ -214,16 +243,11 @@ func (c *Coordinator) reset(ctx context.Context) {
 	}
 }
 
-// Run follows the change feed, renews the client listener lease and prunes the feed and run claims, until ctx is
-// done.
+// Run follows the change feed and prunes the feed and run claims until ctx is done; then it releases this node's
+// leases.
 func (c *Coordinator) Run(ctx context.Context) error {
+	defer c.Release()
 	go c.upkeep(ctx)
-	c.mu.Lock()
-	listener := c.listener
-	c.mu.Unlock()
-	if listener {
-		go c.renewClientListener(ctx)
-	}
 	err := c.follower.Run(ctx)
 	if ctx.Err() != nil {
 		return nil

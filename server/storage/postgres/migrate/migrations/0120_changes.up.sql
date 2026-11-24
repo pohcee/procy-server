@@ -85,20 +85,47 @@ BEGIN
 END
 $$;
 
--- The tables nodes cache, or will cache (device nodes, phase 3); pgserver's watchers name the reaction to each.
-SELECT rport_track_changes('users', 'users', 'username');
-SELECT rport_track_changes('user_groups', 'user_groups', 'username');
-SELECT rport_track_changes('groups', 'groups', 'name');
-SELECT rport_track_changes('api_tokens', 'api_tokens', 'username');
--- a session's last access is updated on every request; only its creation and deletion (revocation) matter to others
-SELECT rport_track_changes('api_sessions', 'api_sessions', 'session_id', 'INSERT OR DELETE');
-SELECT rport_track_changes('clients_auth', 'clients_auth', 'id');
-SELECT rport_track_changes('clients', 'clients', 'id');
-SELECT rport_track_changes('stored_tunnels', 'stored_tunnels', 'client_id');
-SELECT rport_track_changes('client_groups', 'client_groups', 'id');
-SELECT rport_track_changes('schedules', 'schedules', 'id');
-SELECT rport_track_changes('library_entries', 'library_entries', 'id');
-SELECT rport_track_changes('vault_wrapped_keys', 'vault_wrapped_keys', 'tenant_id');
+-- migrate_deferred holds DDL that needs a table a later-numbered migration creates (migration numbers are blocks
+-- per workstream, not dependency order). "rportd migrate" runs rport_run_deferred after the migrations: each
+-- statement runs once, as soon as the table it needs exists. A node refuses to start while one is pending.
+CREATE TABLE migrate_deferred (
+    name    text PRIMARY KEY,
+    needs   text NOT NULL,
+    ddl     text NOT NULL,
+    done_at timestamptz
+);
+
+CREATE FUNCTION rport_run_deferred() RETURNS integer LANGUAGE plpgsql AS $$
+DECLARE
+    r   record;
+    ran integer := 0;
+BEGIN
+    FOR r IN SELECT name, needs, ddl FROM migrate_deferred WHERE done_at IS NULL ORDER BY name LOOP
+        IF to_regclass(r.needs) IS NOT NULL THEN
+            EXECUTE r.ddl;
+            UPDATE migrate_deferred SET done_at = now() WHERE name = r.name;
+            ran := ran + 1;
+        END IF;
+    END LOOP;
+    RETURN ran;
+END
+$$;
+
+-- The tables nodes cache, or will cache (device nodes); the server's cluster watcher names the reaction to each.
+INSERT INTO migrate_deferred (name, needs, ddl) VALUES
+    ('0120 track users', 'users', $d$SELECT rport_track_changes('users', 'users', 'username')$d$),
+    ('0120 track user_groups', 'user_groups', $d$SELECT rport_track_changes('user_groups', 'user_groups', 'username')$d$),
+    ('0120 track groups', 'groups', $d$SELECT rport_track_changes('groups', 'groups', 'name')$d$),
+    ('0120 track api_tokens', 'api_tokens', $d$SELECT rport_track_changes('api_tokens', 'api_tokens', 'username')$d$),
+    -- a session's last access is updated on every request; only its creation and deletion (revocation) matter
+    ('0120 track api_sessions', 'api_sessions', $d$SELECT rport_track_changes('api_sessions', 'api_sessions', 'session_id', 'INSERT OR DELETE')$d$),
+    ('0120 track clients_auth', 'clients_auth', $d$SELECT rport_track_changes('clients_auth', 'clients_auth', 'id')$d$),
+    ('0120 track clients', 'clients', $d$SELECT rport_track_changes('clients', 'clients', 'id')$d$),
+    ('0120 track stored_tunnels', 'stored_tunnels', $d$SELECT rport_track_changes('stored_tunnels', 'stored_tunnels', 'client_id')$d$),
+    ('0120 track client_groups', 'client_groups', $d$SELECT rport_track_changes('client_groups', 'client_groups', 'id')$d$),
+    ('0120 track schedules', 'schedules', $d$SELECT rport_track_changes('schedules', 'schedules', 'id')$d$),
+    ('0120 track library_entries', 'library_entries', $d$SELECT rport_track_changes('library_entries', 'library_entries', 'id')$d$),
+    ('0120 track vault_wrapped_keys', 'vault_wrapped_keys', $d$SELECT rport_track_changes('vault_wrapped_keys', 'vault_wrapped_keys', 'tenant_id')$d$);
 
 -- rport_prune_changes removes feed rows older than keep and raises changes_horizon to the highest one removed. It
 -- returns how many rows it removed.
@@ -129,3 +156,4 @@ $$;
 REVOKE EXECUTE ON FUNCTION rport_record_change() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION rport_prune_changes(interval) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION rport_track_changes(regclass, text, text, text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION rport_run_deferred() FROM PUBLIC;

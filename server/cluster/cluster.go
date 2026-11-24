@@ -44,7 +44,7 @@ type Change struct {
 	Op     string
 }
 
-// Watcher reacts to changes. OnChanges gets every change in commit order; OnReset is called when changes may have
+// Watcher reacts to changes. OnChanges gets every change in the order of its transaction's id (not quite commit order: the rows of each transaction together, transactions ordered by when they first wrote), at least once; OnReset is called when changes may have
 // been missed, so everything cached must be dropped or reloaded. Both run on the node's feed goroutine and must not
 // block for long.
 type Watcher interface {

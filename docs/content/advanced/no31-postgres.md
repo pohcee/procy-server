@@ -178,6 +178,14 @@ What the nodes share and how:
   preview only the node with role `all` starts runs (the others can't reach the clients).
 * The change feed keeps three days of changes. A node further behind (stopped longer, or cut off from the
   database) reloads what it caches.
+* A transaction left open on the database server (an idle `psql` session that changed something, a long import)
+  holds back the change feed of every node until it ends: changes made meanwhile reach the other nodes late, and
+  the nodes log a warning. Set `idle_in_transaction_session_timeout` on the database, and prefer a database server
+  that doesn't also run long transactions for other applications.
+* After restoring the database from a dump into another Postgres server, run `rportd migrate` before starting the
+  nodes: it resets the change feed, whose transaction ids come from the old server (nodes refuse to start until
+  then).
+* `node_id` must be unique: two nodes with role `all` and the same `node_id` would both accept client connections.
 
 Some state stays on the node that created it, so the load balancer must send a user's requests to the same API
 node (session affinity) for:

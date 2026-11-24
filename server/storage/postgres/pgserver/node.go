@@ -107,10 +107,15 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 
 	keys, closeFn, err := VaultKeys(ctx, cfg, db, logw)
 	if err != nil {
+		coord.Release()
 		return nil, nil, err
 	}
 	opts.VaultKeys = keys
-	return opts, closeFn, nil
+	return opts, func() {
+		// the server's run released them already, unless it never ran
+		coord.Release()
+		closeFn()
+	}, nil
 }
 
 // VaultKeys returns the vault key provider of [vault] key_provider on db: nil for the passphrase vault, otherwise

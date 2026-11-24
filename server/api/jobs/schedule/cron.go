@@ -24,8 +24,9 @@ type CronImplementation struct {
 	cronParser cron.ScheduleParser
 	cron       *cron.Cron
 	mapping    map[cronKey]cron.EntryID
-	// alignEvery makes "@every d" fire at multiples of d since the Unix epoch instead of d after the entry was
-	// added, so every node of a cluster fires a schedule at the same instants (and claims the same fire time).
+	// alignEvery makes "@every d" fire at fixed multiples of d instead of d after the entry was
+	// added (multiples counted from Go's zero time), so every node of a cluster fires a schedule at the same instants
+// (and claims the same fire time).
 	alignEvery bool
 }
 
@@ -104,7 +105,8 @@ func (c *CronImplementation) Remove(ctx context.Context, id string) {
 	delete(c.mapping, key)
 }
 
-// alignedEvery fires every `every`, at multiples of it since the Unix epoch.
+// alignedEvery fires every `every`, at multiples of it counted from Go's zero time (time.Truncate): the same instants
+// on every node.
 type alignedEvery struct{ every time.Duration }
 
 func (a alignedEvery) Next(t time.Time) time.Time {

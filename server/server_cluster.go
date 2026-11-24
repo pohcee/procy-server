@@ -89,8 +89,39 @@ func (s *Server) watchCluster() {
 	s.cluster.Watch(w)
 }
 
+// ordered returns changes with each (tenant, entity, key) once (the watcher re-reads the database, so the last of
+// several is as good as all), session revocations first.
+func ordered(changes []cluster.Change) []cluster.Change {
+	type key struct{ tenant, entity, key string }
+	seen := make(map[key]bool, len(changes))
+	sessions := []cluster.Change{}
+	rest := make([]cluster.Change, 0, len(changes))
+	for i := len(changes) - 1; i >= 0; i-- {
+		c := changes[i]
+		k := key{string(c.Tenant), c.Entity, c.Key}
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		if c.Entity == cluster.EntityAPISessions {
+			sessions = append(sessions, c)
+		} else {
+			rest = append(rest, c)
+		}
+	}
+	reverse(sessions)
+	reverse(rest)
+	return append(sessions, rest...)
+}
+
+func reverse(cs []cluster.Change) {
+	for i, j := 0, len(cs)-1; i < j; i, j = i+1, j-1 {
+		cs[i], cs[j] = cs[j], cs[i]
+	}
+}
+
 func (w *cacheWatcher) OnChanges(ctx context.Context, changes []cluster.Change) {
-	for _, c := range changes {
+	for _, c := range ordered(changes) {
 		tctx := tenant.WithID(ctx, c.Tenant)
 		var err error
 		switch c.Entity {

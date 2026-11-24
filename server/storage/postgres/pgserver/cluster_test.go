@@ -16,13 +16,10 @@ import (
 	chserver "github.com/openrport/openrport/server"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/server/storage/postgres/changefeed"
 	"github.com/openrport/openrport/server/storage/postgres/pgtest"
 	"github.com/openrport/openrport/share/files"
 )
-
-// feedDelay is long enough for a change committed on one node to reach the other (NOTIFY; polling every 3s backs
-// it up).
-const feedDelay = 1500 * time.Millisecond
 
 // twoNodes runs nodes A and B (role api) on one database with the seeded tenants.
 func twoNodes(t *testing.T) (*pgtest.DB, *nodeFixture, *nodeFixture) {
@@ -32,15 +29,29 @@ func twoNodes(t *testing.T) (*pgtest.DB, *nodeFixture, *nodeFixture) {
 	return d, startNodeOn(t, d, nodeSettings{nodeID: "node-a"}), startNodeOn(t, d, nodeSettings{nodeID: "node-b"})
 }
 
+// waitConsumed waits until node h has consumed the newest feed row of entity (and so has reacted to it).
+func waitConsumed(t *testing.T, d *pgtest.DB, h *nodeFixture, entity string) {
+	t.Helper()
+	var row struct {
+		TxID string `db:"tx_id"`
+		Seq  int64  `db:"seq"`
+	}
+	require.NoError(t, d.Owner.Get(&row, "SELECT tx_id::text AS tx_id, seq FROM changes WHERE entity = $1 ORDER BY seq DESC LIMIT 1", entity))
+	target, err := changefeed.ParseCursor(row.TxID + ":" + fmt.Sprint(row.Seq))
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return !h.coord.Cursor().Less(target) }, 15*time.Second, 20*time.Millisecond,
+		"node consumed the %s change", entity)
+}
+
 func TestSessionRevokedOnOneNodeRefusedOnOther(t *testing.T) {
-	_, a, b := twoNodes(t)
+	d, a, b := twoNodes(t)
 	tok := a.login(t, "alice")
 	code, out := b.do(t, http.MethodGet, "/me", tok, nil)
 	require.Equal(t, http.StatusOK, code, "B caches the session: %s", out["_raw"])
 
 	code, out = a.do(t, http.MethodDelete, "/logout", tok, nil)
 	require.Less(t, code, 300, out["_raw"])
-	time.Sleep(feedDelay)
+	waitConsumed(t, d, b, "api_sessions")
 	// without the feed B would still accept this request from its cache (the cache entry goes only after a failed
 	// lifetime update)
 	code, out = b.do(t, http.MethodGet, "/me", tok, nil)
@@ -48,7 +59,7 @@ func TestSessionRevokedOnOneNodeRefusedOnOther(t *testing.T) {
 }
 
 func TestUserDeletedOnOneNodeRefusedOnOther(t *testing.T) {
-	_, a, b := twoNodes(t)
+	d, a, b := twoNodes(t)
 	alice := a.login(t, "alice")
 	code, out := a.do(t, http.MethodPost, "/users", alice, map[string]any{"username": "carol", "password": testPassword, "groups": []string{"Administrators"}})
 	require.Less(t, code, 300, out["_raw"])
@@ -58,7 +69,7 @@ func TestUserDeletedOnOneNodeRefusedOnOther(t *testing.T) {
 
 	code, out = a.do(t, http.MethodDelete, "/users/carol", alice, nil)
 	require.Less(t, code, 300, out["_raw"])
-	time.Sleep(feedDelay)
+	waitConsumed(t, d, b, "users")
 	code, out = b.do(t, http.MethodGet, "/me", carol, nil)
 	assert.Equal(t, http.StatusUnauthorized, code, out["_raw"])
 }
@@ -104,7 +115,8 @@ func TestClientDeletedOnOneNodeGoneOnOther(t *testing.T) {
 	}, 10*time.Second, 100*time.Millisecond)
 }
 
-func TestClientGroupAndClientAuthChangedOnOneNodeSeenOnOther(t *testing.T) {
+// Client groups and client credentials aren't cached: a regression test that no node serves them stale.
+func TestClientGroupAndClientAuthNotStaleAcrossNodes(t *testing.T) {
 	_, a, b := twoNodes(t)
 	aliceA, aliceB := a.login(t, "alice"), b.login(t, "alice")
 	code, out := a.do(t, http.MethodPost, "/client-groups", aliceA, map[string]any{"id": "g1", "description": "first", "params": map[string]any{"client_id": []string{"web*"}}})
