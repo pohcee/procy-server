@@ -156,7 +156,7 @@ func TestStartClientConcurrency(t *testing.T) {
 		mockConns = append(mockConns, mockConn)
 	}
 
-	repo, err := InitClientRepository(defaultCtx, clientDB, nil, testLog)
+	repo, err := InitClientRepository(defaultCtx, NewSQLiteStore(clientDB, nil), nil, testLog)
 	require.NoError(t, err)
 
 	cs := &ClientServiceProvider{

@@ -16,7 +16,6 @@ import (
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
 	"github.com/openrport/openrport/share/random"
 	"github.com/openrport/openrport/share/ws"
 )
@@ -27,21 +26,8 @@ var generateNewJobID = func() (string, error) {
 	return random.UUID4()
 }
 
-type JobProvider interface {
-	GetByJID(ctx context.Context, clientID, jid string) (*models.Job, error)
-	List(ctx context.Context, options *query.ListOptions) ([]*models.Job, error)
-	Count(ctx context.Context, options *query.ListOptions) (int, error)
-	// SaveJob creates or updates a job
-	SaveJob(ctx context.Context, job *models.Job) error
-	// CreateJob creates a new job. If already exist with a given JID - do nothing and return nil
-	CreateJob(ctx context.Context, job *models.Job) error
-	GetMultiJob(ctx context.Context, jid string) (*models.MultiJob, error)
-	GetMultiJobSummaries(ctx context.Context, options *query.ListOptions) ([]*models.MultiJobSummary, error)
-	CountMultiJobs(ctx context.Context, options *query.ListOptions) (int, error)
-	SaveMultiJob(ctx context.Context, multiJob *models.MultiJob) error
-	CleanupJobsMultiJobs(context.Context, int) error
-	Close() error
-}
+// JobProvider is jobs.Provider, kept under its old name.
+type JobProvider = jobs.Provider
 
 func (al *APIListener) createAndRunJob(
 	ctx context.Context,

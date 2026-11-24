@@ -194,7 +194,7 @@ func lastExecution(t *testing.T, scheduleID string, build func(jp *jobs.SqlitePr
 	t.Helper()
 	db, err := sqlite.New(":memory:", jobsmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
-	prov := newSQLiteProvider(db)
+	prov := NewSQLiteProvider(db)
 	defer prov.Close()
 	require.NoError(t, addTestData(db))
 	build(jobs.NewSqliteProvider(db, logger.NewLogger("t", logger.LogOutput{}, logger.LogLevelError)))

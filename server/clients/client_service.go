@@ -14,7 +14,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/hashicorp/go-version"
-	"github.com/jmoiron/sqlx"
 
 	alertingcap "github.com/openrport/openrport/plus/capabilities/alerting"
 	"github.com/openrport/openrport/plus/capabilities/alerting/transformers"
@@ -203,12 +202,12 @@ func InitClientService(
 	ctx context.Context,
 	tunnelProxyConfig *clienttunnel.InternalTunnelProxyConfig,
 	portDistributor *ports.PortDistributor,
-	db *sqlx.DB,
+	store ClientStore,
 	keepDisconnectedClients *time.Duration,
 	logger *logger.Logger,
 	acme *acme.Acme,
 ) (*ClientServiceProvider, error) {
-	repo, err := InitClientRepository(ctx, db, keepDisconnectedClients, logger)
+	repo, err := InitClientRepository(ctx, store, keepDisconnectedClients, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init Client Repository: %v", err)
 	}

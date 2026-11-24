@@ -17,7 +17,10 @@ type SQLiteProvider struct {
 	converter *query.SQLConverter
 }
 
-func newSQLiteProvider(db *sqlx.DB) *SQLiteProvider {
+var _ Provider = (*SQLiteProvider)(nil)
+
+// NewSQLiteProvider returns a stored tunnel provider on an opened, migrated clients database.
+func NewSQLiteProvider(db *sqlx.DB) *SQLiteProvider {
 	return &SQLiteProvider{
 		db:        db,
 		converter: query.NewSQLConverter(db.DriverName()),

@@ -35,7 +35,10 @@ type SqliteProvider struct {
 	keepDisconnectedClients *time.Duration
 }
 
-func newSqliteProvider(db *sqlx.DB, keepDisconnectedClients *time.Duration) *SqliteProvider {
+var _ ClientStore = (*SqliteProvider)(nil)
+
+// NewSQLiteStore returns a client store on an opened, migrated clients database.
+func NewSQLiteStore(db *sqlx.DB, keepDisconnectedClients *time.Duration) *SqliteProvider {
 	return &SqliteProvider{db: db, keepDisconnectedClients: keepDisconnectedClients}
 }
 

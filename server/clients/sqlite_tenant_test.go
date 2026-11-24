@@ -99,7 +99,7 @@ func TestClientStoreUpgradeKeepsDataInDefaultTenant(t *testing.T) {
 	db, err := sqlite.New(path, clients.FS, DataSourceOptions)
 	require.NoError(t, err)
 	defer db.Close()
-	p := newSqliteProvider(db, nil)
+	p := NewSQLiteStore(db, nil)
 
 	got, err := p.get(defaultCtx, "legacy", testLog)
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestClientStoreDowngradeKeepsOnlyDefaultTenant(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "clients.db")
 	db, err := sqlite.New(path, clients.FS, DataSourceOptions)
 	require.NoError(t, err)
-	p := newSqliteProvider(db, nil)
+	p := NewSQLiteStore(db, nil)
 	require.NoError(t, p.Save(defaultCtx, New(t).ID("c1").ClientAuthID("default").Logger(testLog).Build()))
 	require.NoError(t, p.Save(ctxFor("a"), New(t).ID("c1").ClientAuthID("a").Logger(testLog).Build()))
 	_, err = db.Exec(`INSERT INTO stored_tunnels (tenant_id, id, client_id, name) VALUES ('default', 't1', 'c1', 'default'), ('a', 't1', 'c1', 'a')`)

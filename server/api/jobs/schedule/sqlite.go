@@ -44,12 +44,15 @@ LEFT JOIN (
 WHERE s.tenant_id = ?
 `
 
+// SQLiteProvider stores schedules in the jobs database; it reads the jobs and multi-job tables for
+// the last run of a schedule. Every method is scoped to the tenant carried by its context.
 type SQLiteProvider struct {
 	db        *sqlx.DB
 	converter *query.SQLConverter
 }
 
-func newSQLiteProvider(db *sqlx.DB) *SQLiteProvider {
+// NewSQLiteProvider returns a schedule provider on an opened, migrated jobs database.
+func NewSQLiteProvider(db *sqlx.DB) *SQLiteProvider {
 	return &SQLiteProvider{
 		db:        db,
 		converter: query.NewSQLConverter(db.DriverName()),

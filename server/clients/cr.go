@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
 	"github.com/openrport/openrport/server/cgroups"
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/share/logger"
@@ -66,10 +64,11 @@ func newClientRepository(tid tenant.ID, initialClients []*clientdata.Client, kee
 	}
 }
 
-// InitClientRepository returns a repository populated with the stored clients of the tenant carried by ctx.
+// InitClientRepository returns a repository on store, populated with the stored clients of the
+// tenant carried by ctx.
 func InitClientRepository(
 	ctx context.Context,
-	db *sqlx.DB,
+	store ClientStore,
 	keepDisconnectedClients *time.Duration,
 	logger *logger.Logger,
 ) (*ClientRepository, error) {
@@ -77,13 +76,12 @@ func InitClientRepository(
 	if err != nil {
 		return nil, err
 	}
-	provider := newSqliteProvider(db, keepDisconnectedClients)
-	initialClients, err := LoadInitialClients(ctx, provider, logger)
+	initialClients, err := LoadInitialClients(ctx, store, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return newClientRepository(tid, initialClients, keepDisconnectedClients, provider, logger), nil
+	return newClientRepository(tid, initialClients, keepDisconnectedClients, store, logger), nil
 }
 
 func (r *ClientRepository) SetPostSaveHandlerFn(handlerFn func(cl *clientdata.Client)) {

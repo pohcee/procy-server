@@ -239,7 +239,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		ctx,
 		&s.config.Server.InternalTunnelProxyConfig,
 		ports.NewPortDistributor(config.AllowedPorts()),
-		s.clientDB,
+		clients.NewSQLiteStore(s.clientDB, keepDisconnectedClients),
 		keepDisconnectedClients,
 		s.Logger,
 		s.acme,
@@ -293,7 +293,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.capabilities = capabilities.NewServerCapabilities(&config.Monitoring)
 
-	s.scheduleManager, err = schedule.New(ctx, s.Logger, jobsDB, s.apiListener, config.Server.RunRemoteCmdTimeoutSec)
+	s.scheduleManager, err = schedule.New(ctx, s.Logger, schedule.NewSQLiteProvider(jobsDB), s.apiListener, config.Server.RunRemoteCmdTimeoutSec)
 	if err != nil {
 		return nil, err
 	}

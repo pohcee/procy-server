@@ -19,76 +19,9 @@ import (
 	"github.com/openrport/openrport/share/tenant"
 )
 
-const (
-	DefaultLimit = 100
-	MaxLimit     = 1000
-)
+var _ Provider = (*SqliteProvider)(nil)
 
-var JobSupportedFilters = map[string]bool{
-	"jid":                true,
-	"started_at[gt]":     true,
-	"started_at[lt]":     true,
-	"started_at[since]":  true,
-	"started_at[until]":  true,
-	"finished_at[gt]":    true,
-	"finished_at[lt]":    true,
-	"finished_at[since]": true,
-	"finished_at[until]": true,
-	"status":             true,
-	"created_by":         true,
-	"multi_job_id":       true,
-	"schedule_id":        true,
-	"client_id":          true,
-}
-var JobSupportedSorts = map[string]bool{
-	"jid":          true,
-	"started_at":   true,
-	"finished_at":  true,
-	"status":       true,
-	"multi_job_id": true,
-	"schedule_id":  true,
-	"created_by":   true,
-}
-var jobFields = map[string]bool{
-	"jid":          true,
-	"status":       true,
-	"finished_at":  true,
-	"client_id":    true,
-	"client_name":  true,
-	"command":      true,
-	"cwd":          true,
-	"interpreter":  true,
-	"pid":          true,
-	"started_at":   true,
-	"created_by":   true,
-	"timeout_sec":  true,
-	"multi_job_id": true,
-	"schedule_id":  true,
-	"error":        true,
-	"is_sudo":      true,
-	"is_script":    true,
-}
-var JobSupportedFields = map[string]map[string]bool{
-	"jobs":     jobFields,
-	"commands": jobFields,
-	"scripts":  jobFields,
-	"result": {
-		"stdout":  true,
-		"stderr":  true,
-		"summary": true,
-	},
-}
-var JobListDefaultFields = map[string][]string{
-	"fields[jobs]": {
-		"jid",
-		"status",
-		"finished_at",
-	},
-	"fields[result]": {
-		"summary",
-	},
-}
-
+// SqliteProvider is the Provider on an opened, migrated jobs database.
 type SqliteProvider struct {
 	log       *logger.Logger
 	db        *sqlx.DB
@@ -101,12 +34,6 @@ func NewSqliteProvider(db *sqlx.DB, log *logger.Logger) *SqliteProvider {
 		log:       log,
 		converter: query.NewSQLConverter(db.DriverName()),
 	}
-}
-
-// TODO: this was added to support test dependencies. we could potentially remove if there's a
-// better way.
-func (p *SqliteProvider) GetDB() (db *sqlx.DB) {
-	return p.db
 }
 
 // tenantOf returns the tenant every query of the provider is scoped to.
@@ -241,6 +168,33 @@ func (p *SqliteProvider) patchLibraryFields(ctx context.Context, tid tenant.ID, 
 			WHERE tenant_id = ? AND jid = ?`, job.LibraryEntryID, job.LibraryVersion, job.OS, tid, job.JID)
 	}, "patchjoblibrary", p.log)
 	return err
+}
+
+// CleanupJobsMultiJobs keeps the newest maxJobs jobs of the context's tenant (with their multi-jobs)
+// and deletes the rest of that tenant's jobs and multi-jobs.
+func (p *SqliteProvider) CleanupJobsMultiJobs(ctx context.Context, maxJobs int) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	const older = "SELECT %s FROM jobs WHERE tenant_id = ? ORDER BY started_at DESC LIMIT -1 OFFSET ?"
+	// Delete all multi jobs that have jobs after max jobs
+	_, err = p.db.ExecContext(ctx, "DELETE FROM multi_jobs WHERE tenant_id = ? AND jid IN ("+fmt.Sprintf(older, "multi_job_id")+")", tid, tid, maxJobs)
+	if err != nil {
+		return errors.Wrap(err, "deleting multi jobs")
+	}
+	// Delete all jobs associated with multi jobs
+	_, err = p.db.ExecContext(ctx, "DELETE FROM jobs WHERE tenant_id = ? AND multi_job_id IN ("+fmt.Sprintf(older, "multi_job_id")+") AND multi_job_id IS NOT NULL", tid, tid, maxJobs)
+	if err != nil {
+		return errors.Wrap(err, "deleting multi jobs' jobs")
+	}
+	// Delete any jobs left not from multi jobs
+	_, err = p.db.ExecContext(ctx, "DELETE FROM jobs WHERE tenant_id = ? AND jid IN ("+fmt.Sprintf(older, "jid")+") AND multi_job_id IS NULL", tid, tid, maxJobs)
+	if err != nil {
+		return errors.Wrap(err, "deleting jobs")
+	}
+
+	return nil
 }
 
 func (p *SqliteProvider) Close() error {

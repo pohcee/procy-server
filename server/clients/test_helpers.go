@@ -18,7 +18,7 @@ var DataSourceOptions = sqlite.DataSourceOptions{WALEnabled: false}
 func NewFakeClientProvider(t *testing.T, exp *time.Duration, cs ...*clientdata.Client) *SqliteProvider {
 	db, err := sqlite.New(":memory:", clients.FS, DataSourceOptions)
 	require.NoError(t, err)
-	p := newSqliteProvider(db, exp)
+	p := NewSQLiteStore(db, exp)
 	for _, cur := range cs {
 		if cur != nil {
 			err = p.Save(tenant.WithID(context.Background(), tenant.Default), cur)

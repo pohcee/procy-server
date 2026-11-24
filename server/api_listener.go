@@ -246,7 +246,7 @@ func NewAPIListener(
 		vaultManager:           vault.NewManager(vaultDBProviderFactory, &vault.Aes256PassManager{}, vaultLogger),
 		libraryManager:         libraryManager,
 		tokenManager:           tokenManager,
-		storedTunnels:          storedtunnels.New(server.clientDB),
+		storedTunnels:          storedtunnels.New(storedtunnels.NewSQLiteProvider(server.clientDB)),
 		notificationsStorage:   store,
 		notificationsProcessor: notificationProcessor,
 		notificationsDB:        db,
