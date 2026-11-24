@@ -5,12 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openrport/openrport/server/api/jobs/schedule"
 	"github.com/openrport/openrport/server/cgroups"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/share/query"
 	"github.com/openrport/openrport/share/tenant"
 )
 
@@ -58,4 +60,45 @@ func TestScheduledRunResolvesGroupsWithDefaultTenant(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("scheduled run did not reach the group's client")
 	}
+}
+
+// A cron-fired library schedule resolves its entry and client groups and saves its run, all in the
+// tenant of the server's root context (standalone: the default tenant).
+func TestScheduledLibraryRunUsesDefaultTenant(t *testing.T) {
+	root := tenant.WithID(context.Background(), tenant.Default)
+	e := newLibraryRunEnv(t)
+	entry := e.createEntry(t, runEntryBody)
+	done := make(chan bool, 10)
+	e.al.testDone = done
+
+	gp := e.al.clientGroupProvider
+	require.NoError(t, gp.Create(root, makeClientGroup("group-1", &cgroups.ClientParams{
+		ClientID: &cgroups.ParamValues{"c-linux"},
+	})))
+
+	m := schedule.NewManager(root, e.al, e.jp.GetDB(), testLog, 30)
+	m.SetLibrary(e.al.libraryManager, e.jp)
+	abort := false
+	s, err := m.Create(root, &schedule.Schedule{
+		Base:    schedule.Base{Name: "every second", Schedule: "@every 1s", Type: schedule.TypeLibrary},
+		Details: schedule.Details{GroupIDs: []string{"group-1"}, LibraryEntryID: entry.ID, AbortOnError: &abort},
+	}, "admin")
+	require.NoError(t, err)
+	defer func() { _ = m.Delete(root, s.ID) }()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("scheduled library run did not reach the group's client")
+	}
+
+	runs, err := e.jp.GetMultiJobSummaries(root, &query.ListOptions{})
+	require.NoError(t, err)
+	require.NotEmpty(t, runs)
+	run, err := e.jp.GetMultiJob(root, runs[len(runs)-1].JID) // the oldest run is the one that finished
+	require.NoError(t, err)
+	require.NotNil(t, run)
+	assert.Equal(t, entry.ID, run.LibraryEntryID)
+	require.Len(t, run.Jobs, 1, "the run's job is saved in the default tenant")
+	assert.Equal(t, "c-linux", run.Jobs[0].ClientID)
 }
