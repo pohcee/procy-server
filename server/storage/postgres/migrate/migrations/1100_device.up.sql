@@ -232,7 +232,7 @@ DECLARE prev_tenant text := current_setting('rport.tenant_id', true); it jsonb; 
 BEGIN
     PERFORM rport_ingest_batch(batch);
     FOR it IN SELECT e FROM jsonb_array_elements(batch) AS e LOOP
-        out_key := it ->> 'key';
+        out_key := coalesce(it ->> 'key', '');
         out_status := 'applied';
         why := rport_ingest_item(it);
         IF why IS NULL THEN
@@ -280,7 +280,7 @@ END
 $$;
 
 -- ingest_measurements: monitoring measurements. Fields: client_id, timestamp, cpu_usage_percent,
--- memory_usage_percent, io_usage_percent (numbers), processes, mountpoints (null or JSON text), net_lan_in,
+-- memory_usage_percent, io_usage_percent (numbers), processes, mountpoints (null, empty or JSON text), net_lan_in,
 -- net_lan_out, net_wan_in, net_wan_out (null or integers). A client has one measurement per time: a second one is a
 -- duplicate.
 CREATE FUNCTION ingest_measurements(batch jsonb) RETURNS TABLE (out_key text, out_status text)
@@ -289,13 +289,13 @@ DECLARE prev_tenant text := current_setting('rport.tenant_id', true); it jsonb; 
 BEGIN
     PERFORM rport_ingest_batch(batch);
     FOR it IN SELECT e FROM jsonb_array_elements(batch) AS e LOOP
-        out_key := it ->> 'key';
+        out_key := coalesce(it ->> 'key', '');
         out_status := 'applied';
         why := rport_ingest_item(it);
         IF why IS NULL THEN
             BEGIN
-                IF (it ->> 'processes') IS NOT NULL THEN PERFORM (it ->> 'processes')::json; END IF;
-                IF (it ->> 'mountpoints') IS NOT NULL THEN PERFORM (it ->> 'mountpoints')::json; END IF;
+                IF coalesce(it ->> 'processes', '') <> '' THEN PERFORM (it ->> 'processes')::json; END IF;
+                IF coalesce(it ->> 'mountpoints', '') <> '' THEN PERFORM (it ->> 'mountpoints')::json; END IF;
                 INSERT INTO measurements (tenant_id, client_id, timestamp, cpu_usage_percent, memory_usage_percent,
                                           io_usage_percent, processes, mountpoints, net_lan_in, net_lan_out,
                                           net_wan_in, net_wan_out)
@@ -328,7 +328,7 @@ DECLARE prev_tenant text := current_setting('rport.tenant_id', true); it jsonb; 
 BEGIN
     PERFORM rport_ingest_batch(batch);
     FOR it IN SELECT e FROM jsonb_array_elements(batch) AS e LOOP
-        out_key := it ->> 'key';
+        out_key := coalesce(it ->> 'key', '');
         out_status := 'applied';
         why := rport_ingest_item(it);
         IF why IS NULL THEN
@@ -362,7 +362,7 @@ DECLARE prev_tenant text := current_setting('rport.tenant_id', true); it jsonb; 
 BEGIN
     PERFORM rport_ingest_batch(batch);
     FOR it IN SELECT e FROM jsonb_array_elements(batch) AS e LOOP
-        out_key := it ->> 'key';
+        out_key := coalesce(it ->> 'key', '');
         out_status := 'applied';
         why := rport_ingest_item(it);
         IF why IS NULL THEN
@@ -399,7 +399,7 @@ DECLARE prev_tenant text := current_setting('rport.tenant_id', true); it jsonb; 
 BEGIN
     PERFORM rport_ingest_batch(batch);
     FOR it IN SELECT e FROM jsonb_array_elements(batch) AS e LOOP
-        out_key := it ->> 'key';
+        out_key := coalesce(it ->> 'key', '');
         out_status := 'applied';
         why := rport_ingest_item(it);
         IF why IS NULL THEN

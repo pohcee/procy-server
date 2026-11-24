@@ -21,7 +21,9 @@ const (
 	StorageRoleAll = "all"
 	// StorageRoleAPI serves the API only: no client listener, work on clients is refused as "not connected".
 	StorageRoleAPI = "api"
-	// StorageRoleDevice is reserved for a node that serves only the client listener.
+	// StorageRoleDevice serves only the client listener ([api] address must be empty), connected as the device
+	// database role: device-path lookups and ingest functions only, what devices report written through a local
+	// outbox.
 	StorageRoleDevice = "device"
 )
 
@@ -45,7 +47,7 @@ type StorageConfig struct {
 	DSN string `mapstructure:"dsn"`
 	// DSNFile is a file holding the DSN (surrounding whitespace is ignored).
 	DSNFile string `mapstructure:"dsn_file"`
-	// Role is what a Postgres node serves: "all" (default) or "api".
+	// Role is what a Postgres node serves: "all" (default), "api" or "device".
 	Role string `mapstructure:"role"`
 }
 
@@ -79,6 +81,9 @@ func (c *Config) parseAndValidateStorage() error {
 		if err := s.parseAndValidatePostgres(); err != nil {
 			return err
 		}
+		if s.Role == StorageRoleDevice && c.API.Address != "" {
+			return fmt.Errorf(`[storage] role = "device" serves no API: [api] address must be empty (it is %q); run the API in a process with role "api"`, c.API.Address)
+		}
 		if err := c.refuseLocalAuthSources(); err != nil {
 			return err
 		}
@@ -108,11 +113,9 @@ func (s *StorageConfig) parseAndValidatePostgres() error {
 	switch s.Role {
 	case "":
 		s.Role = StorageRoleAll
-	case StorageRoleAll, StorageRoleAPI:
-	case StorageRoleDevice:
-		return fmt.Errorf("storage role %q is not yet supported", s.Role)
+	case StorageRoleAll, StorageRoleAPI, StorageRoleDevice:
 	default:
-		return fmt.Errorf(`invalid [storage] role %q: expected "all" or "api"`, s.Role)
+		return fmt.Errorf(`invalid [storage] role %q: expected "all", "api" or "device"`, s.Role)
 	}
 	return nil
 }
