@@ -75,7 +75,11 @@ type Server struct {
 	uiJobWebSockets ws.WebSocketCache // used to push job result to UI
 	fileGrants      *dispatch.FileGrants
 	// dispatcher does all work on clients (ServerOpts.Dispatcher, or the local one)
-	dispatcher      dispatch.Dispatcher
+	dispatcher dispatch.Dispatcher
+	// localDispatcher works on the clients connected to this process
+	localDispatcher dispatch.Dispatcher
+	// peer is ServerOpts.Peer
+	peer            PeerNode
 	jobsDoneChannel *jobrunner.DoneChannels // used for sequential command execution to know when command is finished
 	jobRunner       *jobrunner.Runner
 	libraryManager  *library.Manager
@@ -129,6 +133,13 @@ type ServerOpts struct {
 	// active tenant on one node at a time, scheduled runs are claimed, and what the server caches follows the
 	// changes other nodes make. nil means cluster.Standalone (the default tenant, everything runs here).
 	Cluster cluster.Coordinator
+	// ClientSessions, when set, records the client connections in the cluster's session registry.
+	ClientSessions dispatch.Sessions
+	// Peer, when set, runs the parts of a cluster process that pass work on clients between processes.
+	Peer PeerNode
+	// TunnelHostInTunnels sets [server] tunnel_host on each tunnel this server opens (tunnel_host), so that links
+	// to a tunnel name the node holding it.
+	TunnelHostInTunnels bool
 }
 
 // NewServer creates and returns a new rport server
@@ -241,9 +252,13 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		return nil, err
 	}
 
+	s.localDispatcher = dispatch.NewLocal(s.clientService, s.fileGrants, s.Logger.Fork("dispatch"))
 	s.dispatcher = opts.Dispatcher
 	if s.dispatcher == nil {
-		s.dispatcher = dispatch.NewLocal(s.clientService, s.fileGrants, s.Logger.Fork("dispatch"))
+		s.dispatcher = s.localDispatcher
+	}
+	if p, ok := s.clientService.(*clients.ClientServiceProvider); ok && opts.TunnelHostInTunnels {
+		p.SetTunnelHostInTunnels(true)
 	}
 
 	if rportplus.IsPlusEnabled(config.PlusConfig) {
@@ -276,6 +291,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 			Measurements:  s.monitoringQueue,
 			PlusManager:   s.plusManager,
 			Capabilities:  s.capabilities,
+			Sessions:      opts.ClientSessions,
 		})
 		if err != nil {
 			return nil, err
@@ -359,6 +375,10 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	// from here on the caches follow the changes other nodes make
 	s.watchCluster()
+
+	if err := s.bindPeer(opts.Peer); err != nil {
+		return nil, err
+	}
 
 	if s.alertingService != nil {
 		tid, err := tenant.FromContext(ctx)
@@ -547,6 +567,10 @@ func (s *Server) Start(ctx context.Context) error {
 		err = s.caddyServer.Start(ctx)
 	}
 
+	if err == nil && s.peer != nil {
+		err = s.peer.Start(ctx)
+	}
+
 	return err
 }
 
@@ -570,6 +594,9 @@ func (s *Server) Close() error {
 
 	if s.clientListener != nil {
 		wg.Go(s.clientListener.Close)
+	}
+	if s.peer != nil {
+		wg.Go(s.peer.Close)
 	}
 	wg.Go(s.apiListener.Close)
 	if s.config.CaddyEnabled() {

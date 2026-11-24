@@ -83,6 +83,8 @@ type ClientListenerOptions struct {
 	PlusManager  rportplus.Manager
 	// Capabilities are sent to every client that connects.
 	Capabilities *models.Capabilities
+	// Sessions, when set, records each connection in the cluster's session registry.
+	Sessions dispatch.Sessions
 }
 
 // listenerServices holds the options under the names the listener code uses.
@@ -98,6 +100,7 @@ type listenerServices struct {
 	monitoringQueue    monitoring.MeasurementSaver
 	plusManager        rportplus.Manager
 	capabilities       *models.Capabilities
+	sessions           dispatch.Sessions
 }
 
 type ClientListener struct {
@@ -176,6 +179,7 @@ func NewClientListener(o ClientListenerOptions) (*ClientListener, error) {
 		monitoringQueue:    o.Measurements,
 		plusManager:        o.PlusManager,
 		capabilities:       o.Capabilities,
+		sessions:           o.Sessions,
 	}
 	privateKey := o.PrivateKey
 	config := server.config
@@ -460,6 +464,10 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	ctx, cancel := context.WithCancel(cl.getCtx())
 	defer cancel()
 
+	// recorded before the client is saved as connected, so the cluster never sees it connected without a session
+	endSession := cl.registerSession(ctx, clientID, sshConn, clientLog)
+	defer endSession()
+
 	client, err := cl.getClientService().StartClient(ctx, clientAuthID, clientID, sshConn, clientHostname(req.Host), cl.server.config.Server.AuthMultiuseCreds, connRequest, clientLog.GetLogger())
 	if err != nil {
 		cl.replyConnectionError(r, err)
@@ -486,10 +494,27 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	}
 	clientLog.Debugf("close %s", clientBanner)
 
+	// ended first: saving the client as disconnected must not hide a newer session on another node
+	endSession()
 	err = cl.getClientService().Terminate(ctx, client)
 	if err != nil {
 		cl.log().Errorf("could not terminate client: %s", err)
 	}
+}
+
+// registerSession records the connection in the session registry (when the server has one) and returns what ends
+// it; a newer connection of the client elsewhere closes this one.
+func (cl *ClientListener) registerSession(ctx context.Context, clientID string, sshConn ssh.Conn, clientLog *logger.DynamicLogger) func() {
+	if cl.server.sessions == nil {
+		return func() {}
+	}
+	end, err := cl.server.sessions.Connected(ctx, clientID, func() { _ = sshConn.Close() })
+	if err != nil {
+		clientLog.Errorf("client session not recorded: %v", err)
+		return func() {}
+	}
+	var once sync.Once
+	return func() { once.Do(end) }
 }
 
 // checkVersions print if client and server versions dont match.

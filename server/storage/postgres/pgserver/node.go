@@ -81,11 +81,16 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 	if err != nil {
 		return nil, nil, err
 	}
-	if cfg.Storage.Role == chconfig.StorageRoleAPI {
+	peerCalls := cfg.Cluster.PeerEnabled()
+	switch {
+	case peerCalls:
+		// every client is reached through the session registry and peer calls: any node starts scheduled runs,
+		// and several nodes accept client connections
+	case cfg.Storage.Role == chconfig.StorageRoleAPI:
 		// work on clients is refused here; the node with the client listener starts the scheduled runs
 		coord.LeaveScheduledRuns()
-	} else {
-		// phase 2: one node of a cluster accepts the client connections
+	default:
+		// without peer calls, one node of a cluster accepts the client connections
 		if err := coord.AcquireClientListener(ctx); err != nil {
 			return nil, nil, err
 		}
@@ -104,6 +109,13 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 		opts.DisableClientListener = true
 		opts.Dispatcher = NotConnectedDispatcher{}
 	}
+	// the session registry, and with peer calls the cluster dispatcher (replacing the one above) and peer listener
+	cp, err := newClusterProcess(cfg, db, coord, opts)
+	if err != nil {
+		coord.Release()
+		return nil, nil, err
+	}
+	opts.Peer = cp
 
 	keys, closeFn, err := VaultKeys(ctx, cfg, db, logw)
 	if err != nil {
