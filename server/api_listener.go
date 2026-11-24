@@ -97,6 +97,8 @@ type APIListenerOptions struct {
 	TenantResolver tenant.Resolver
 	// VaultKeys gives the key that encrypts the vault values; nil: the passphrase given through the API.
 	VaultKeys vault.KeyProvider
+	// NoNotificationsCleaner leaves deleting old notifications to the server (per tenant, in a cluster).
+	NoNotificationsCleaner bool
 }
 
 // apiServices holds the options under the names the handler code uses.
@@ -246,10 +248,10 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 
 	notificationProcessor := notifications.NewProcessor(notificationsLogger, store, notificationConsumers...)
 	var notificationsCleaner notificationsSQLite.Closeable
-	if cleanable, ok := store.(notificationsSQLite.Cleanable); ok {
+	if cleanable, ok := store.(notificationsSQLite.Cleanable); ok && !o.NoNotificationsCleaner {
 		notificationLogger := logger.NewLogger("cleaner", config.Logging.LogOutput, logger.LogLevelInfo)
 		notificationsCleaner = notificationsSQLite.StartCleaner(ctx, notificationLogger, cleanable, config.Notifications.LogStorageDuration, config.Notifications.CleanupInterval)
-	} else {
+	} else if !ok {
 		notificationsLogger.Debugf("the notifications repository does not delete old entries; the cleaner is not started")
 	}
 
