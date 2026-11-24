@@ -333,8 +333,8 @@ func TestRefreshStoredConnectedNotHeldHereIsDisconnected(t *testing.T) {
 
 func TestRefreshOnNodeHoldingNoConnectionsKeepsStoredState(t *testing.T) {
 	store := newMemStore()
-	hour := time.Hour
-	repo := NewClientRepositoryWithDB(nil, &hour, KeepConnectionStateOnLoad(store), testLog)
+	keep := time.Hour
+	repo := NewClientRepositoryWithDB(nil, &keep, KeepConnectionStateOnLoad(store), testLog)
 	ctx := ctxFor(tenantB)
 	store.put(t, tenantB, New(t).ID("elsewhere").Logger(testLog).Build()) // connected to another node
 	require.Len(t, repo.GetAllClients(ctx), 1)

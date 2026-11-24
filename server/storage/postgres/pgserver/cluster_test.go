@@ -15,10 +15,13 @@ import (
 
 	chserver "github.com/openrport/openrport/server"
 	"github.com/openrport/openrport/server/chconfig"
+	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/storage/postgres/changefeed"
 	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	pgclients "github.com/openrport/openrport/server/storage/postgres/clients"
 	"github.com/openrport/openrport/share/files"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 // twoNodes runs nodes A and B (role api) on one database with the seeded tenants.
@@ -265,4 +268,42 @@ func TestClientListenerLeaseFailsOverWhenNodeStops(t *testing.T) {
 	stopped := time.Now()
 	require.Eventually(t, func() bool { return tryB() == nil }, 10*time.Second, 200*time.Millisecond, "B takes over once A's lease expired")
 	assert.Less(t, time.Since(stopped), clientListenerTTL+2*time.Second)
+}
+
+// Only the node holding the connections writes their state, so "disconnected" in the database is the cluster's
+// truth: the purge (leased, once per cluster per tenant) removes clients disconnected for longer than
+// keep_disconnected_clients and never one connected to another node, which api nodes also don't mark disconnected
+// when they load it.
+func TestPurgeOnAPINodeKeepsClientsConnectedElsewhere(t *testing.T) {
+	d := pgtest.New(t)
+	seedTenants(t, d)
+	ctx := tenant.WithID(context.Background(), "a")
+	store := pgclients.New(d.App, nil)
+	held := &clientdata.Client{ID: "held", ClientAuthID: "auth-a", Name: "held elsewhere"} // connected to the all node
+	require.NoError(t, store.Save(ctx, held))
+	long := time.Now().Add(-2 * time.Hour)
+	old := &clientdata.Client{ID: "old", ClientAuthID: "auth-a", Name: "gone for long", DisconnectedAt: &long}
+	require.NoError(t, store.Save(ctx, old))
+
+	api := startNodeOn(t, d, nodeSettings{nodeID: "node-api", server: `  purge_disconnected_clients = true
+  keep_disconnected_clients = "1h"
+  purge_disconnected_clients_interval = "1s"`})
+	require.Eventually(t, func() bool {
+		got, err := store.Get(ctx, "old", nil)
+		require.NoError(t, err)
+		return got == nil
+	}, 15*time.Second, 100*time.Millisecond, "a client disconnected for longer than keep_disconnected_clients is purged")
+
+	got, err := store.Get(ctx, "held", nil)
+	require.NoError(t, err)
+	require.NotNil(t, got, "a client connected to another node is never purged")
+	assert.True(t, got.IsConnected(), "nor marked disconnected by an api node")
+	got, err = store.Get(ctx, "web01", nil)
+	require.NoError(t, err)
+	assert.NotNil(t, got, "recently disconnected: kept")
+
+	alice := api.login(t, "alice")
+	code, out := api.do(t, http.MethodGet, "/clients/held", alice, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, "connected", out["data"].(map[string]any)["connection_state"], "the api node shows the stored state")
 }

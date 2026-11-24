@@ -74,6 +74,7 @@ type nodeSettings struct {
 	role   string // [storage] role; default "api"
 	vault  string // the [vault] settings; default the local key provider with a fresh key file
 	nodeID string // [cluster] node_id; default "node-1"
+	server string // extra [server] settings
 }
 
 // nodeConf is the rportd.conf of a Postgres node with the API on apiAddr.
@@ -92,6 +93,7 @@ func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
 [server]
   address = %q
   data_dir = %q
+%s
 [logging]
   log_level = "error"
 [api]
@@ -105,7 +107,7 @@ func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
 %s
 [cluster]
   node_id = %q
-`, freeAddr(t), t.TempDir(), apiAddr, testSecret, dsn, s.role, s.vault, s.nodeID)
+`, freeAddr(t), t.TempDir(), s.server, apiAddr, testSecret, dsn, s.role, s.vault, s.nodeID)
 }
 
 func localKeyFile(t *testing.T) string {

@@ -34,8 +34,8 @@ func (s *sharedStore) SaveKeepingACL(ctx context.Context, c *clientdata.Client) 
 
 func TestSaveKindsOnTheNodeHoldingConnections(t *testing.T) {
 	store := &sharedStore{memStore: newMemStore()}
-	hour := time.Hour
-	repo := NewClientRepositoryWithDB(nil, &hour, store, testLog)
+	keep := time.Hour
+	repo := NewClientRepositoryWithDB(nil, &keep, store, testLog)
 	ctx := ctxFor(tenantB)
 	c := New(t).ID("c1").Logger(testLog).Build()
 	require.NoError(t, repo.Save(ctx, c))
@@ -45,8 +45,8 @@ func TestSaveKindsOnTheNodeHoldingConnections(t *testing.T) {
 
 func TestSaveKindsOnANodeHoldingNone(t *testing.T) {
 	store := &sharedStore{memStore: newMemStore()}
-	hour := time.Hour
-	repo := NewClientRepositoryWithDB(nil, &hour, KeepConnectionStateOnLoad(store), testLog)
+	keep := time.Hour
+	repo := NewClientRepositoryWithDB(nil, &keep, KeepConnectionStateOnLoad(store), testLog)
 	ctx := ctxFor(tenantB)
 	c := New(t).ID("c1").Logger(testLog).Build()
 	require.NoError(t, repo.Save(ctx, c))
@@ -56,8 +56,8 @@ func TestSaveKindsOnANodeHoldingNone(t *testing.T) {
 
 func TestSaveKindsStandalone(t *testing.T) {
 	store := newMemStore() // neither interface, as the SQLite store
-	hour := time.Hour
-	repo := NewClientRepositoryWithDB(nil, &hour, store, testLog)
+	keep := time.Hour
+	repo := NewClientRepositoryWithDB(nil, &keep, store, testLog)
 	ctx := ctxFor(tenantB)
 	c := New(t).ID("c1").Logger(testLog).Build()
 	before := store.saveCount()
