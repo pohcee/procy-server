@@ -119,6 +119,20 @@ func (p *Cache) Delete(ctx context.Context, sessionID int64) error {
 	return nil
 }
 
+// Forget drops the session from this cache only, after another server instance sharing the storage deleted (or
+// changed) it: the next Get reads the storage again.
+func (p *Cache) Forget(tid tenant.ID, sessionID int64) {
+	p.cache.Delete(cacheKey(tid, sessionID))
+}
+
+// ForgetAll drops every session of every tenant from this cache only, after changes made by other server instances
+// may have been missed: sessions are read from the storage again on their next use.
+func (p *Cache) ForgetAll() {
+	for k := range p.cache.Items() {
+		p.cache.Delete(k)
+	}
+}
+
 func (p *Cache) DeleteExpired(ctx context.Context) error {
 	// only delete expired token in storage as go-cache will have already expired
 	// the internal cache tokens.

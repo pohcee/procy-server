@@ -72,6 +72,12 @@ type MultiJobSaver interface {
 	SaveMultiJob(ctx context.Context, multiJob *models.MultiJob) error
 }
 
+// RunClaimer decides which node of a cluster starts a scheduled run: ClaimRun returns true exactly once per
+// (tenant of ctx, schedule, fire time) across the nodes running the schedule.
+type RunClaimer interface {
+	ClaimRun(ctx context.Context, scheduleID string, fire time.Time) (bool, error)
+}
+
 type Manager struct {
 	*logger.Logger
 	jobRunner JobRunner
@@ -79,6 +85,8 @@ type Manager struct {
 	cron      Cron
 	entries   EntryLookup
 	saver     MultiJobSaver
+	// claimer, when set, must grant a run before it starts (several nodes run the same schedules)
+	claimer RunClaimer
 
 	runRemoteCmdTimeoutSec int
 }
@@ -91,20 +99,52 @@ func New(ctx context.Context, logger *logger.Logger, p Provider, jobRunner JobRu
 	}
 
 	m := NewManager(ctx, jobRunner, p, logger, runRemoteCmdTimeoutSec)
-
-	existing, err := m.provider.List(ctx, nil)
-	if err != nil {
+	if err := m.Load(ctx); err != nil {
 		return nil, err
 	}
+	return m, nil
+}
 
-	for _, cron := range existing {
-		err := m.addCron(ctx, cron)
-		if err != nil {
-			return nil, err
+// Load adds every stored schedule of ctx's tenant to the cron.
+func (m *Manager) Load(ctx context.Context) error {
+	if _, err := tenant.FromContext(ctx); err != nil {
+		return fmt.Errorf("schedule manager: %w", err)
+	}
+	existing, err := m.provider.List(ctx, nil)
+	if err != nil {
+		return err
+	}
+	for _, s := range existing {
+		if err := m.addCron(ctx, s); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
-	return m, nil
+// Reload makes the cron agree with the store for the schedule id of ctx's tenant, after another node created,
+// changed or deleted it.
+func (m *Manager) Reload(ctx context.Context, id string) error {
+	s, err := m.provider.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	m.cron.Remove(ctx, id)
+	if s == nil {
+		return nil
+	}
+	return m.addCron(ctx, s)
+}
+
+// SetClaimer makes every scheduled run ask c first, and aligns "@every" schedules to the epoch so that all nodes
+// fire them at the same instants. Call it before loading schedules.
+func (m *Manager) SetClaimer(c RunClaimer) {
+	m.claimer = c
+	if ci, ok := m.cron.(*CronImplementation); ok {
+		ci.mtx.Lock()
+		ci.alignEvery = c != nil
+		ci.mtx.Unlock()
+	}
 }
 
 // Stop stops running the schedules (the manager's cron). It is used when the server fails to start
@@ -370,6 +410,22 @@ func (m *Manager) addCron(ctx context.Context, s *Schedule) error {
 }
 
 func (m *Manager) run(ctx context.Context, id string) {
+	// claimed first: a node that doesn't start the run reads nothing
+	if m.claimer != nil {
+		fire, ok := FireTimeFrom(ctx)
+		if !ok {
+			fire = time.Now().Truncate(time.Minute)
+		}
+		claimed, err := m.claimer.ClaimRun(ctx, id, fire)
+		if err != nil {
+			m.Errorf("Could not claim the run of schedule %s due at %s: %v", id, fire.Format(time.RFC3339), err)
+			return
+		}
+		if !claimed {
+			m.Debugf("The run of schedule %s due at %s is started by another node.", id, fire.Format(time.RFC3339))
+			return
+		}
+	}
 	schedule, err := m.provider.Get(ctx, id)
 	if err != nil {
 		m.Errorf("Could not get schedule %s: %v", id, err)

@@ -26,6 +26,7 @@ import (
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/targeting"
 	"github.com/openrport/openrport/server/clientsauth"
+	"github.com/openrport/openrport/server/cluster"
 	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
@@ -92,6 +93,8 @@ type Server struct {
 	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
 	// vaultKeys is ServerOpts.VaultKeys; nil uses the vault passphrase.
 	vaultKeys vault.KeyProvider
+	// cluster is ServerOpts.Cluster, or cluster.Standalone.
+	cluster cluster.Coordinator
 }
 
 type ServerOpts struct {
@@ -126,6 +129,10 @@ type ServerOpts struct {
 	// Operator, when set, serves the platform operator API (/api/v1/operator) to the administrators of the system
 	// tenant (Postgres nodes). Nil: no operator API, as on standalone servers.
 	Operator operator.Service
+	// Cluster, when set, is how the server shares its database with other nodes: background work runs for every
+	// active tenant on one node at a time, scheduled runs are claimed, and what the server caches follows the
+	// changes other nodes make. nil means cluster.Standalone (the default tenant, everything runs here).
+	Cluster cluster.Coordinator
 }
 
 // NewServer creates and returns a new rport server
@@ -153,6 +160,10 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	s.plusManager = opts.PlusManager
 	s.capabilitiesOverride = opts.Capabilities
 	s.vaultKeys = opts.VaultKeys
+	s.cluster = opts.Cluster
+	if s.cluster == nil {
+		s.cluster = cluster.Standalone{}
+	}
 
 	if rportplus.IsPlusEnabled(config.PlusConfig) {
 		licCap := s.plusManager.GetLicenseCapabilityEx()
@@ -277,7 +288,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.filesAPI = filesAPI
 
-	s.libraryManager, err = openLibrary(ctx, repos.Library, logger.NewLogger("library", config.Logging.LogOutput, config.Logging.LogLevel))
+	s.libraryManager, err = openLibrary(ctx, repos.Library, logger.NewLogger("library", config.Logging.LogOutput, config.Logging.LogLevel), s.cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +306,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		return nil, err
 	}
 
-	s.scheduleManager, err = schedule.New(ctx, s.Logger, repos.Schedules, s.jobRunner, config.Server.RunRemoteCmdTimeoutSec)
+	s.scheduleManager, err = newScheduleManager(ctx, s.cluster, s.Logger, repos.Schedules, s.jobRunner, config.Server.RunRemoteCmdTimeoutSec)
 	if err != nil {
 		return nil, err
 	}
@@ -329,6 +340,8 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		TenantResolver: opts.TenantResolver,
 		VaultKeys:      s.vaultKeys,
 		Operator:       opts.Operator,
+		// in a cluster old notifications are deleted per tenant by a leased task (Run)
+		NoNotificationsCleaner: s.cluster.Clustered(),
 	})
 	if err != nil {
 		return nil, err
@@ -348,6 +361,9 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		s.caddyServer = caddy.NewCaddyServer(&cfg.Caddy, caddyLog)
 		s.clientService.SetCaddyAPI(s.caddyServer)
 	}
+
+	// from here on the caches follow the changes other nodes make
+	s.watchCluster()
 
 	if s.alertingService != nil {
 		tid, err := tenant.FromContext(ctx)
@@ -424,6 +440,12 @@ func initPrivateKey(seed string) (ssh.Signer, error) {
 // Run is responsible for starting the rport service
 func (s *Server) Run(ctx context.Context) error {
 	ctx = tenant.WithID(ctx, tenant.Default)
+	// the feed starts where the coordinator took its head, before the caches were loaded
+	go func() {
+		if err := s.cluster.Run(ctx); err != nil && ctx.Err() == nil {
+			s.Errorf("cluster: %v", err)
+		}
+	}()
 	if err := s.Start(ctx); err != nil {
 		return err
 	}
@@ -433,7 +455,7 @@ func (s *Server) Run(ctx context.Context) error {
 	// TODO(m-terel): add graceful shutdown of background task
 	if s.config.Server.PurgeDisconnectedClients {
 		s.Infof("Period to keep disconnected clients is set to %v", s.config.Server.KeepDisconnectedClients)
-		go scheduler.Run(ctx, s.Logger, clients.NewCleanupTask(s.Logger, s.clientService.GetRepo()), s.config.Server.PurgeDisconnectedClientsInterval)
+		go runPeriodic(ctx, s.cluster, s.Logger, "clients-purge", clients.NewCleanupTask(s.Logger, s.clientService.GetRepo()), s.config.Server.PurgeDisconnectedClientsInterval)
 		s.Infof("Task to purge disconnected clients will run with interval %v", s.config.Server.PurgeDisconnectedClientsInterval)
 	} else {
 		s.Debugf("Task to purge disconnected clients disabled")
@@ -462,25 +484,27 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 
 		monitoringCleanupTask := monitoring.NewCleanupTask(s.Logger, s.monitoringService, cleaningPeriod)
-		go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", monitoringCleanupTask)), monitoringCleanupTask, cleanupMeasurementsInterval)
+		go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", monitoringCleanupTask)), "monitoring-cleanup", monitoringCleanupTask, cleanupMeasurementsInterval)
 		s.Infof("Task to cleanup measurements will run with interval %v", cleanupMeasurementsInterval)
 	} else {
 		s.Infof("Measurement disabled")
 	}
 
 	sessionsCleanupTask := session.NewCleanupTask(s.apiListener.apiSessions)
-	go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", sessionsCleanupTask)), sessionsCleanupTask, cleanupAPISessionsInterval)
+	go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", sessionsCleanupTask)), "sessions-cleanup", sessionsCleanupTask, cleanupAPISessionsInterval)
 	s.Infof("Task to cleanup expired api sessions will run with interval %v", cleanupAPISessionsInterval)
 
 	jobsCleanupTask := jobs.NewCleanupTask(s.jobProvider, s.config.Server.JobsMaxResults)
-	go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", jobsCleanupTask)), jobsCleanupTask, cleanupJobsInterval)
+	go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", jobsCleanupTask)), "jobs-cleanup", jobsCleanupTask, cleanupJobsInterval)
 	s.Infof("Task to cleanup jobs will run with interval %v", cleanupJobsInterval)
 
 	if keep, days := s.config.Library.KeepVersions, s.config.Library.KeepVersionsDays; keep > 0 || days > 0 {
 		libraryPruneTask := library.NewPruneTask(s.libraryManager, keep, days, s.Logger)
-		go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", libraryPruneTask)), libraryPruneTask, pruneLibraryVersionsInterval)
+		go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", libraryPruneTask)), "library-prune", libraryPruneTask, pruneLibraryVersionsInterval)
 		s.Infof("Task to prune old library versions will run with interval %v", pruneLibraryVersionsInterval)
 	}
+
+	s.runClusterNotificationsCleanup(ctx)
 
 	// Only on debug mode, log the number of running go routines
 	if s.config.Logging.LogLevel == logger.LogLevelDebug {

@@ -30,10 +30,9 @@ var (
 			"backend = \"postgres\", from -c). The source is only read, never changed. Everything is copied in one " +
 			"transaction, and rows already present are kept, so the import can be run again. History (jobs, audit " +
 			"log, monitoring, notification log) is copied only with --with-history.\n\n" +
-			"With a managed vault key provider ([vault] key_provider = \"kms\" or \"local\") the source vault values are " +
-			"decrypted with the source vault passphrase (from $" + EnvVaultPassphrase + ", or the first line of stdin with " +
-			"--vault-passphrase-stdin) and encrypted again with the tenant's key. With the passphrase vault they are " +
-			"copied as they are and the vault keeps its passphrase.",
+			"The source vault values are decrypted with the source vault passphrase (from $" + EnvVaultPassphrase +
+			", or the first line of stdin with --vault-passphrase-stdin) and encrypted again with the tenant's key " +
+			"([vault] key_provider = \"kms\" or \"local\", required on Postgres).",
 		Example: "rportd import -c /etc/rport/rportd.conf --from /var/lib/rport --from-config /etc/rport/old-rportd.conf --dry-run",
 		Args:    cobra.NoArgs,
 		Run: func(*cobra.Command, []string) {
