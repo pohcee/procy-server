@@ -29,6 +29,13 @@ get:
                     enum:
                       - locked
                       - unlocked
+                  managed:
+                    type: boolean
+                    description: >-
+                      present and true when the vault key comes from a key
+                      provider configured in the server instead of a passphrase:
+                      the vault needs no initialization and cannot be unlocked or
+                      locked through the API
     '401':
       description: Unauthorized
       content:

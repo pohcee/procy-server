@@ -34,7 +34,9 @@ post:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
     '409':
-      description: vault is already initialized
+      description: >-
+        vault is already initialized, or the vault key is managed by the
+        server (no passphrase is used)
       content:
         application/json:
           schema:

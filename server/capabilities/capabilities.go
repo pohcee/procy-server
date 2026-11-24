@@ -11,7 +11,8 @@ import (
 // true when the feature is available on this server. Clients must treat a
 // missing field (an older server) as available.
 type Capabilities struct {
-	// VaultPassphrase: the vault can be initialised and unlocked with a passphrase via the API.
+	// VaultPassphrase: the vault can be initialised and unlocked with a passphrase via the API. FromConfig
+	// reports true; the status endpoint reports false when a vault key provider is injected (ServerOpts.VaultKeys).
 	VaultPassphrase bool `json:"vault_passphrase"`
 	// PortTunnels: raw TCP/UDP tunnels exposed on a server port.
 	PortTunnels bool `json:"port_tunnels"`

@@ -93,7 +93,9 @@ get:
                     properties:
                       vault_passphrase:
                         type: boolean
-                        description: The vault can be initialised and unlocked with a passphrase
+                        description: >-
+                          The vault can be initialised and unlocked with a passphrase. False when
+                          the vault key comes from a key provider configured in the server.
                       port_tunnels:
                         type: boolean
                         description: Tunnels exposed on a server port

@@ -92,6 +92,8 @@ type APIListenerOptions struct {
 	UIJobStreams *ws.WebSocketCache
 	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
 	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
+	// VaultKeys gives the key that encrypts the vault values; nil: the passphrase given through the API.
+	VaultKeys vault.KeyProvider
 }
 
 // apiServices holds the options under the names the handler code uses.
@@ -294,7 +296,7 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		requestLogOptions:      config.InitRequestLogOptions(),
 		bannedUsers:            security.NewBanList(time.Duration(config.API.UserLoginWait) * time.Second),
 		userService:            userService,
-		vaultManager:           vault.NewManager(repos.Vault, &vault.Aes256PassManager{}, vaultLogger),
+		vaultManager:           vault.NewManagerWithKeyProvider(repos.Vault, &vault.Aes256PassManager{}, o.VaultKeys, vaultLogger),
 		tokenManager:           tokenManager,
 		storedTunnels:          storedtunnels.New(repos.StoredTunnels),
 		notificationsStorage:   store,
