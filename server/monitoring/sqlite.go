@@ -10,7 +10,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/db/migration/monitoring"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
@@ -42,19 +41,13 @@ type SqliteProvider struct {
 	converter *query.SQLConverter
 }
 
-func NewSqliteProvider(dbPath string, dataSourceOptions sqlite.DataSourceOptions, logger *logger.Logger) (DBProvider, error) {
-	db, err := sqlite.New(dbPath, monitoring.FS, dataSourceOptions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create monitoring DB instance: %v", err)
-	}
-
-	logger.Infof("initialized database at %s", dbPath)
-
+// NewSqliteProvider stores measurements in db, an opened and migrated monitoring database.
+func NewSqliteProvider(db *sqlx.DB, logger *logger.Logger) DBProvider {
 	return &SqliteProvider{
 		db:        db,
 		logger:    logger,
 		converter: query.NewSQLConverter(db.DriverName()),
-	}, nil
+	}
 }
 
 func tenantOf(ctx context.Context) (tenant.ID, error) {

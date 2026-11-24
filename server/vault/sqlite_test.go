@@ -31,7 +31,7 @@ func (cm configMock) GetVaultDBPath() string {
 }
 
 func TestSetStatus(t *testing.T) {
-	dbProv, err := NewSqliteProvider(configMock{}, testLog)
+	dbProv, err := openTestSqliteProvider(configMock{}, testLog)
 	require.NoError(t, err)
 
 	defer dbProv.Close()
@@ -72,7 +72,7 @@ func TestSetStatus(t *testing.T) {
 }
 
 func TestGetStatus(t *testing.T) {
-	dbProv, err := NewSqliteProvider(configMock{}, testLog)
+	dbProv, err := openTestSqliteProvider(configMock{}, testLog)
 	require.NoError(t, err)
 	defer dbProv.Close()
 
@@ -108,7 +108,7 @@ func TestGetStatus(t *testing.T) {
 }
 
 func TestGetByID(t *testing.T) {
-	dbProv, err := NewSqliteProvider(configMock{}, testLog)
+	dbProv, err := openTestSqliteProvider(configMock{}, testLog)
 	require.NoError(t, err)
 	defer dbProv.Close()
 
@@ -148,7 +148,7 @@ func TestGetByID(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	dbProv, err := NewSqliteProvider(configMock{}, testLog)
+	dbProv, err := openTestSqliteProvider(configMock{}, testLog)
 	require.NoError(t, err)
 	defer dbProv.Close()
 
@@ -322,7 +322,7 @@ func TestList(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	dbProv, err := NewSqliteProvider(configMock{}, testLog)
+	dbProv, err := openTestSqliteProvider(configMock{}, testLog)
 	require.NoError(t, err)
 	defer dbProv.Close()
 
@@ -367,7 +367,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	dbProv, err := NewSqliteProvider(configMock{}, testLog)
+	dbProv, err := openTestSqliteProvider(configMock{}, testLog)
 	require.NoError(t, err)
 	defer dbProv.Close()
 
@@ -418,7 +418,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestFindByKeyAndClientID(t *testing.T) {
-	dbProv, err := NewSqliteProvider(configMock{}, testLog)
+	dbProv, err := openTestSqliteProvider(configMock{}, testLog)
 	require.NoError(t, err)
 	defer dbProv.Close()
 
@@ -463,7 +463,7 @@ func TestFindByKeyAndClientID(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	dbProv, err := NewSqliteProvider(configMock{}, testLog)
+	dbProv, err := openTestSqliteProvider(configMock{}, testLog)
 	require.NoError(t, err)
 	defer dbProv.Close()
 

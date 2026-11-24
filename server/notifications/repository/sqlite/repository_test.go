@@ -21,7 +21,7 @@ var testLog = logger.NewLogger("client", logger.LogOutput{File: os.Stdout}, logg
 
 type RepositoryTestSuite struct {
 	suite.Suite
-	repository repo.Repository
+	repository notifications.Repository
 }
 
 func (suite *RepositoryTestSuite) SetupTest() {

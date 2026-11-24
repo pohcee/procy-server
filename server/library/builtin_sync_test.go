@@ -17,7 +17,7 @@ func testBuiltin(key, name, code string) Builtin {
 	}}
 }
 
-func entryByKey(t *testing.T, s *Store, key string) *Entry {
+func entryByKey(t *testing.T, s *SQLiteStore, key string) *Entry {
 	t.Helper()
 	e, err := s.ByBuiltinKey(testCtx, key)
 	require.NoError(t, err)

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/openrport/openrport/db/migration/api_sessions"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/bearer"
@@ -32,9 +33,17 @@ func (m *mockConnection) Close() error {
 }
 
 func newEmptyAPISessionCache(t *testing.T) *session.Cache {
-	storage, err := session.NewSqliteProvider(":memory:", DataSourceOptions)
+	storage, err := openTestSessionProvider()
 	require.NoError(t, err)
 	c, err := session.NewCache(tenant.WithID(context.Background(), tenant.Default), bearer.DefaultTokenLifetime, cleanupAPISessionsInterval, storage, nil)
 	require.NoError(t, err)
 	return c
+}
+
+func openTestSessionProvider() (*session.SqliteProvider, error) {
+	db, err := sqlite.New(":memory:", api_sessions.FS, DataSourceOptions)
+	if err != nil {
+		return nil, err
+	}
+	return session.NewSqliteProvider(db), nil
 }

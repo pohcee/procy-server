@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/openrport/openrport/db/sqlite"
+	"github.com/openrport/openrport/server/notifications"
 	db "github.com/openrport/openrport/server/notifications/repository/sqlite"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/tenant"
@@ -15,7 +16,7 @@ import (
 
 type CleanerTestSuite struct {
 	suite.Suite
-	repository db.Repository
+	repository notifications.Repository
 	db         *sqlx.DB
 	logger     *logger.Logger
 }
@@ -107,4 +108,23 @@ func (suite *CleanerTestSuite) expectNotifications(count int) {
 	all, err := suite.repository.List(ctxFor(tenant.Default), nil)
 	suite.NoError(err)
 	suite.Len(all, count)
+}
+
+// TestStartCleanerAcceptsExportedRepository checks that callers outside this package can hold the repository in a
+// variable of an exported type and hand it to StartCleaner.
+func TestStartCleanerAcceptsExportedRepository(t *testing.T) {
+	conn, err := sqlite.New(":memory:", db.Migrations, sqlite.DataSourceOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	var r *db.Repository = db.NewRepository(conn, testLog)
+	var _ notifications.Repository = r
+	var _ db.Cleanable = r
+
+	c := db.StartCleaner(ctxFor(tenant.Default), testLog, r, time.Hour, time.Hour)
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
 }

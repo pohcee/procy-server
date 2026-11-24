@@ -37,7 +37,7 @@ func migrateTo(t *testing.T, path string, version uint) *sqlx.DB {
 
 func newTenantProvider(t *testing.T) *SQLiteProvider {
 	t.Helper()
-	p, err := newSQLiteProvider(t.TempDir(), DataSourceOptions)
+	p, err := openSQLiteProvider(t.TempDir(), DataSourceOptions)
 	require.NoError(t, err)
 	t.Cleanup(func() { p.Close() })
 	return p
@@ -146,7 +146,7 @@ func TestUpgradeKeepsAuditlogInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	p, err := newSQLiteProvider(dir, DataSourceOptions)
+	p, err := openSQLiteProvider(dir, DataSourceOptions)
 	require.NoError(t, err)
 	defer p.Close()
 	assert.Equal(t, []string{"legacy"}, listUsernames(t, p, ctxFor(tenant.Default)))
@@ -154,7 +154,7 @@ func TestUpgradeKeepsAuditlogInDefaultTenant(t *testing.T) {
 
 func TestDowngradeKeepsOnlyDefaultAuditlog(t *testing.T) {
 	dir := t.TempDir()
-	p, err := newSQLiteProvider(dir, DataSourceOptions)
+	p, err := openSQLiteProvider(dir, DataSourceOptions)
 	require.NoError(t, err)
 	require.NoError(t, p.Save(ctxFor(tenant.Default), &Entry{Timestamp: time.Now(), Username: "default"}))
 	require.NoError(t, p.Save(ctxFor("other"), &Entry{Timestamp: time.Now(), Username: "other"}))
@@ -176,7 +176,7 @@ func TestRotatedOldAuditlogIsReadAsDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	rotation, err := newRotationProvider(ctxFor(tenant.Default), tenantTestLog, time.Minute, dir, DataSourceOptions)
+	rotation, err := NewRotationProvider(ctxFor(tenant.Default), tenantTestLog, time.Minute, dir, DataSourceOptions)
 	require.NoError(t, err)
 	defer rotation.Close()
 	assert.Empty(t, listUsernames(t, rotation, ctxFor(tenant.Default)), "rotated on init")
@@ -192,7 +192,7 @@ func TestRotatedOldAuditlogIsReadAsDefault(t *testing.T) {
 
 func TestRotationLoopStopsWithItsContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctxFor(tenant.Default))
-	rotation, err := newRotationProvider(ctx, tenantTestLog, time.Hour, t.TempDir(), DataSourceOptions)
+	rotation, err := NewRotationProvider(ctx, tenantTestLog, time.Hour, t.TempDir(), DataSourceOptions)
 	require.NoError(t, err)
 	defer rotation.Close()
 	cancel()

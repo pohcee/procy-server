@@ -21,8 +21,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jpillora/requestlog"
 
+	"github.com/openrport/openrport/db/migration/api_sessions"
 	"github.com/openrport/openrport/db/migration/api_token"
 	"github.com/openrport/openrport/db/migration/library"
+	"github.com/openrport/openrport/db/migration/vaults"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/notifications/channels/rmailer"
@@ -85,7 +87,7 @@ type APIListener struct {
 	storedTunnels  *storedtunnels.Manager
 	pairing        *pairing.Service
 
-	notificationsStorage   notificationsSQLite.Repository
+	notificationsStorage   notifications.Repository
 	notificationsProcessor notifications.Processor
 	notificationsDB        *sqlx.DB
 	notificationsCleaner   notificationsSQLite.Closeable
@@ -138,7 +140,13 @@ func NewAPIListener(
 
 	vaultDBProviderFactory := vault.NewStatefulDbProviderFactory(
 		func() (vault.DbProvider, error) {
-			return vault.NewSqliteProvider(config, vaultLogger)
+			vaultDBPath := config.GetVaultDBPath()
+			vaultDB, err := sqlite.New(vaultDBPath, vaults.FS, vault.DataSourceOptions)
+			if err != nil {
+				return nil, fmt.Errorf("failed init vault DB instance: %w", err)
+			}
+			vaultLogger.Infof("initialized database at %s", vaultDBPath)
+			return vault.NewSqliteProvider(vaultDB, vaultLogger), nil
 		},
 		&vault.NotInitDbProvider{},
 	)
@@ -206,7 +214,7 @@ func NewAPIListener(
 		return nil, fmt.Errorf("failed init api_token DB instance: %w", err)
 	}
 
-	libraryStore := libraryentries.NewStore(libraryDb)
+	libraryStore := libraryentries.NewSQLiteStore(libraryDb)
 	libraryManager := libraryentries.NewManager(libraryStore, time.Now)
 
 	tokenProvider := authorization.NewSqliteProvider(apiTokenDb)
@@ -254,7 +262,7 @@ func NewAPIListener(
 		notificationsCleaner:   notificationsCleaner,
 	}
 
-	imported, err := libraryentries.ImportLegacy(ctx, libraryDb, libraryStore)
+	imported, err := libraryStore.ImportLegacy(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to import scripts and commands into the library: %w", err)
 	}
@@ -351,10 +359,11 @@ func NewAPIListener(
 		a.accessLogFile = accessLogFile
 	}
 
-	sessionDB, err := session.NewSqliteProvider(path.Join(config.Server.DataDir, "api_sessions.db"), config.Server.GetSQLiteDataSourceOptions())
+	sessionSQLite, err := sqlite.New(path.Join(config.Server.DataDir, "api_sessions.db"), api_sessions.FS, config.Server.GetSQLiteDataSourceOptions())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to create api session DB instance: %w", err)
 	}
+	sessionDB := session.NewSqliteProvider(sessionSQLite)
 
 	a.apiSessions, err = session.NewCache(ctx, bearer.DefaultTokenLifetime, cleanupAPISessionsInterval, sessionDB, nil)
 	if err != nil {

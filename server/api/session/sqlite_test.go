@@ -104,7 +104,7 @@ func TestAPISessionSqlite(t *testing.T) {
 }
 
 func newInmemoryDB(t *testing.T, sessions ...*APISession) *SqliteProvider {
-	p, err := NewSqliteProvider(":memory:", DataSourceOptions)
+	p, err := openTestSqliteProvider(":memory:", DataSourceOptions)
 	require.NoError(t, err)
 
 	for _, cur := range sessions {

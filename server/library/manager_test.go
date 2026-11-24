@@ -12,7 +12,7 @@ import (
 	apierrors "github.com/openrport/openrport/server/api/errors"
 )
 
-func newTestManager(t *testing.T) (*Manager, *Store) {
+func newTestManager(t *testing.T) (*Manager, *SQLiteStore) {
 	t.Helper()
 	s := newTestStore(t)
 	now := t0

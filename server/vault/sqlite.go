@@ -15,8 +15,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/db/migration/vaults"
-
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/share/tenant"
 )
@@ -46,21 +44,15 @@ func tenantOf(ctx context.Context) (tenant.ID, error) {
 const statusColumns = "`id`, `db_status`, `enc_check`, `dec_check`"
 const valueColumns = "`id`, `client_id`, `required_group`, `created_at`, `created_by`, `updated_at`, `updated_by`, `key`, `value`, `type`"
 
-func NewSqliteProvider(c Config, logger *logger.Logger) (*SqliteProvider, error) {
-	dbPath := c.GetVaultDBPath()
+var _ DbProvider = (*SqliteProvider)(nil)
 
-	db, err := sqlite.New(dbPath, vaults.FS, DataSourceOptions)
-	if err != nil {
-		return nil, fmt.Errorf("failed init vault DB instance: %w", err)
-	}
-
-	logger.Infof("initialized database at %s", dbPath)
-
+// NewSqliteProvider stores the vault in db, an opened and migrated vault database.
+func NewSqliteProvider(db *sqlx.DB, logger *logger.Logger) *SqliteProvider {
 	return &SqliteProvider{
 		logger:    logger,
 		db:        db,
 		converter: query.NewSQLConverter(db.DriverName()),
-	}, nil
+	}
 }
 
 func (p *SqliteProvider) Close() error {
