@@ -13,13 +13,15 @@ import (
 )
 
 // sqlxAllowed reports whether the non-test Go file at rel (slash-separated, relative to the module root) may import
-// sqlx: SQLite implementations, the central SQLite wiring and the [database] auth providers.
+// sqlx: SQLite implementations, the central SQLite wiring, the [database] auth providers and the Postgres storage
+// (server/storage, whose packages are the Postgres implementations and their wiring).
 func sqlxAllowed(rel string) bool {
 	if strings.HasPrefix(filepath.Base(rel), "sqlite") {
 		return true
 	}
 	for _, prefix := range []string{
 		"db/sqlite/",
+		"server/storage/",
 		"server/notifications/repository/sqlite/",
 		"cmd/rportd/usercli/",
 		"share/test/",
