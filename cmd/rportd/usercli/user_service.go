@@ -38,10 +38,11 @@ func NewUserService(cfg *chconfig.Config) (UserService, error) {
 
 	// the CLI manages the users of a standalone server, which belong to the default tenant
 	ctx := tenant.WithID(context.Background(), tenant.Default)
-	apiUserService, err := users.NewAPIServiceFromConfig(ctx, authDB, cfg)
+	usersProvider, err := users.NewProviderFromConfig(ctx, authDB, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("Could not initialize user service: %w", err)
 	}
+	apiUserService := users.NewAPIServiceFromConfig(ctx, usersProvider, cfg)
 
 	return &userServiceImpl{
 		ctx:            ctx,

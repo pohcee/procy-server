@@ -6,18 +6,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/jmoiron/sqlx"
 	zxcvbn "github.com/trustelem/zxcvbn"
 	"golang.org/x/crypto/bcrypt"
 
-	rportplus "github.com/openrport/openrport/plus"
 	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/message"
 	"github.com/openrport/openrport/server/chconfig"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/enums"
-	"github.com/openrport/openrport/share/logger"
 )
 
 type Provider interface {
@@ -52,49 +49,9 @@ func NewAPIService(provider Provider, twoFAOn bool, passwordMinLength int, Passw
 	}
 }
 
-// NewAPIServiceFromConfig builds the user service. ctx is the server context: it carries the tenant users from a
-// file are loaded into (users from a file reload with it on SIGUSR1).
-func NewAPIServiceFromConfig(ctx context.Context, authDB *sqlx.DB, config *chconfig.Config) (*APIService, error) {
-	var usersProvider Provider
-	var err error
-	if rportplus.IsOAuthPermittedUserList(config.PlusConfig) {
-		if config.API.AuthFile != "" {
-			logger := logger.NewLogger("auth-file", config.Logging.LogOutput, config.Logging.LogLevel)
-			usersProvider, err = NewFileAdapter(ctx, logger, NewFileManager(logger, config.API.AuthFile))
-			if err != nil {
-				return nil, err
-			}
-		} else if config.API.AuthUserTable != "" {
-			logger := logger.NewLogger("database", config.Logging.LogOutput, config.Logging.LogLevel)
-			usersProvider, err = newAPIAuthDatabase(authDB, config, logger)
-			if err != nil {
-				return nil, err
-			}
-		}
-	} else if config.API.AuthFile != "" {
-		logger := logger.NewLogger("auth-file", config.Logging.LogOutput, config.Logging.LogLevel)
-		usersProvider, err = NewFileAdapter(ctx, logger, NewFileManager(logger, config.API.AuthFile))
-		if err != nil {
-			return nil, err
-		}
-	} else if config.API.Auth != "" {
-		authUser, e := parseHTTPAuthStr(config.API.Auth)
-		if e != nil {
-			return nil, e
-		}
-		// for static user set the admin group
-		authUser.Groups = []string{Administrators}
-		usersProvider = NewStaticProvider([]*User{authUser})
-	} else if config.API.AuthUserTable != "" {
-		logger := logger.NewLogger("database", config.Logging.LogOutput, config.Logging.LogLevel)
-		usersProvider, err = newAPIAuthDatabase(authDB, config, logger)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return NewAPIService(
-		usersProvider, config.API.IsTwoFAOn(), config.API.PasswordMinLength, config.API.PasswordZxcvbnMinscore,
-	), nil
+// NewAPIServiceFromConfig builds the user service on top of p, the provider built by NewProviderFromConfig.
+func NewAPIServiceFromConfig(_ context.Context, p Provider, config *chconfig.Config) *APIService {
+	return NewAPIService(p, config.API.IsTwoFAOn(), config.API.PasswordMinLength, config.API.PasswordZxcvbnMinscore)
 }
 
 func (as APIService) SupportsGroupPermissions() bool {
@@ -408,20 +365,6 @@ func GenerateTokenHash(newTokenClear string) (string, error) {
 	}
 	tokenHashStr := strings.Replace(string(tokenHash), HtpasswdBcryptAltPrefix, HtpasswdBcryptPrefix, 1)
 	return tokenHashStr, nil
-}
-
-func newAPIAuthDatabase(authDB *sqlx.DB, config *chconfig.Config, logger *logger.Logger) (usersProvider *UserDatabase, err error) {
-	usersProvider, err = NewUserDatabase(
-		authDB,
-		config.API.AuthUserTable,
-		config.API.AuthGroupTable,
-		config.API.AuthGroupDetailsTable,
-		config.API.IsTwoFAOn(),
-		config.API.TotPEnabled,
-		rportplus.IsPlusEnabled(config.PlusConfig),
-		logger,
-	)
-	return usersProvider, err
 }
 
 // parseHTTPAuthStr parses <user>:<password> string, returns (user, nil) or (nil, error)
