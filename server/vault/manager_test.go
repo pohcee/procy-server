@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	errors2 "github.com/openrport/openrport/server/api/errors"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type DbProviderMock struct {
@@ -162,14 +163,14 @@ func TestManagerInit(t *testing.T) {
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
 	const passToGive = "1234"
-	err := mngr.Init(context.Background(), passToGive)
+	err := mngr.Init(testCtx, passToGive)
 	require.NoError(t, err)
 
 	assert.True(t, dbProv.isInit)
 	assert.Equal(t, dbProv.statusToStore.StatusName, DbStatusInit)
 	assert.Equal(t, dbProv.statusToStore.EncCheckValue, "123")
 	assert.Equal(t, dbProv.statusToStore.DecCheckValue, "345")
-	assert.False(t, mngr.IsLocked())
+	assert.False(t, mngr.IsLocked(testCtx))
 }
 
 func TestManagerInitInvalidPassword(t *testing.T) {
@@ -179,7 +180,7 @@ func TestManagerInitInvalidPassword(t *testing.T) {
 	}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.Init(context.Background(), "12")
+	err := mngr.Init(testCtx, "12")
 	assert.EqualError(t, err, "invalid password")
 }
 
@@ -190,7 +191,7 @@ func TestManagerDbInitError(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.Init(context.Background(), "12")
+	err := mngr.Init(testCtx, "12")
 	assert.EqualError(t, err, "failed to init database")
 }
 
@@ -201,7 +202,7 @@ func TestManagerDbStatusReadError(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.Init(context.Background(), "12")
+	err := mngr.Init(testCtx, "12")
 	assert.EqualError(t, err, "failed to read status from database")
 }
 
@@ -214,7 +215,7 @@ func TestManagerAlreadyInitError(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.Init(context.Background(), "12")
+	err := mngr.Init(testCtx, "12")
 	assert.EqualError(t, err, "vault is already initialized")
 }
 
@@ -225,7 +226,7 @@ func TestManagerReadEncValueErr(t *testing.T) {
 	}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.Init(context.Background(), "12")
+	err := mngr.Init(testCtx, "12")
 	assert.EqualError(t, err, "cannot enc pass")
 }
 
@@ -236,7 +237,7 @@ func TestManagerSetStatusErr(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.Init(context.Background(), "12")
+	err := mngr.Init(testCtx, "12")
 	assert.EqualError(t, err, "cannot store status in db")
 }
 
@@ -255,11 +256,11 @@ func TestUnlock(t *testing.T) {
 	}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	assert.True(t, mngr.IsLocked())
+	assert.True(t, mngr.IsLocked(testCtx))
 
-	err := mngr.UnLock(context.Background(), "12")
+	err := mngr.UnLock(testCtx, "12")
 	require.NoError(t, err)
-	assert.False(t, mngr.IsLocked())
+	assert.False(t, mngr.IsLocked(testCtx))
 	assert.Equal(t, dbStatus, passManagerProv.PassMatchDbStatusGiven)
 }
 
@@ -275,10 +276,10 @@ func TestUnlockWhenAlreadyUnlocked(t *testing.T) {
 	}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.UnLock(context.Background(), "12")
+	err := mngr.UnLock(testCtx, "12")
 	require.NoError(t, err)
 
-	err = mngr.UnLock(context.Background(), "12")
+	err = mngr.UnLock(testCtx, "12")
 	require.EqualError(t, err, "vault is already unlocked")
 
 	appErr, ok := err.(errors2.APIError)
@@ -293,7 +294,7 @@ func TestUnlockStatusReadError(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.UnLock(context.Background(), "12")
+	err := mngr.UnLock(testCtx, "12")
 	require.EqualError(t, err, "status read error")
 }
 
@@ -302,7 +303,7 @@ func TestUnlockWhenDbIsNotInit(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.UnLock(context.Background(), "12")
+	err := mngr.UnLock(testCtx, "12")
 	require.EqualError(t, err, "vault is not yet initialized")
 
 	appErr, ok := err.(errors2.APIError)
@@ -321,7 +322,7 @@ func TestUnlockPasswordCheckError(t *testing.T) {
 	}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.UnLock(context.Background(), "12")
+	err := mngr.UnLock(testCtx, "12")
 	require.EqualError(t, err, "pass match error")
 }
 
@@ -336,7 +337,7 @@ func TestUnlockWithWrongPassword(t *testing.T) {
 	}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.UnLock(context.Background(), "12")
+	err := mngr.UnLock(testCtx, "12")
 	require.EqualError(t, err, WrongPasswordError.Error())
 
 	appErr, ok := err.(errors2.APIError)
@@ -355,13 +356,13 @@ func TestLock(t *testing.T) {
 		PassMatchToGive: true,
 	}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
-	err := mngr.UnLock(context.Background(), "123")
+	err := mngr.UnLock(testCtx, "123")
 	require.NoError(t, err)
-	assert.False(t, mngr.IsLocked())
+	assert.False(t, mngr.IsLocked(testCtx))
 
-	err = mngr.Lock(context.Background())
+	err = mngr.Lock(testCtx)
 	require.NoError(t, err)
-	assert.True(t, mngr.IsLocked())
+	assert.True(t, mngr.IsLocked(testCtx))
 }
 
 func TestLockWhenNotUnlocked(t *testing.T) {
@@ -369,7 +370,7 @@ func TestLockWhenNotUnlocked(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 	mngr := NewManager(dbProv, passManagerProv, testLog)
 
-	err := mngr.Lock(context.Background())
+	err := mngr.Lock(testCtx)
 	require.EqualError(t, err, "vault is already locked")
 
 	appErr, ok := err.(errors2.APIError)
@@ -384,9 +385,9 @@ func TestLockWithReadStatusError(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 
 	mngr := NewManager(dbProv, passManagerProv, testLog)
-	mngr.pass = "123"
+	mngr.passes[tenant.Default] = "123"
 
-	err := mngr.Lock(context.Background())
+	err := mngr.Lock(testCtx)
 	require.EqualError(t, err, "failed to read db status")
 }
 
@@ -399,9 +400,9 @@ func TestLockWhenDBIsNotInitialized(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 
 	mngr := NewManager(dbProv, passManagerProv, testLog)
-	mngr.pass = "123"
+	mngr.passes[tenant.Default] = "123"
 
-	err := mngr.Lock(context.Background())
+	err := mngr.Lock(testCtx)
 	require.EqualError(t, err, "vault is not yet initialized")
 }
 
@@ -414,7 +415,7 @@ func TestReadStatusNotInitialised(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 
 	mngr := NewManager(dbProv, passManagerProv, testLog)
-	st, err := mngr.Status(context.Background())
+	st, err := mngr.Status(testCtx)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -430,7 +431,7 @@ func TestReadStatusNotInitialised(t *testing.T) {
 		statusToGive: DbStatus{},
 	}
 	mngr = NewManager(dbProv, &PassManagerMock{}, testLog)
-	st, err = mngr.Status(context.Background())
+	st, err = mngr.Status(testCtx)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -446,7 +447,7 @@ func TestReadStatusNotInitialised(t *testing.T) {
 		statusToGiveErr: ErrDatabaseNotInitialised,
 	}
 	mngr = NewManager(dbProv, &PassManagerMock{}, testLog)
-	st, err = mngr.Status(context.Background())
+	st, err = mngr.Status(testCtx)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -468,7 +469,7 @@ func TestReadStatusLocked(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 
 	mngr := NewManager(dbProv, passManagerProv, testLog)
-	st, err := mngr.Status(context.Background())
+	st, err := mngr.Status(testCtx)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -489,8 +490,8 @@ func TestReadStatusUnLocked(t *testing.T) {
 	}
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.pass = "123"
-	st, err := mngr.Status(context.Background())
+	mngr.passes[tenant.Default] = "123"
+	st, err := mngr.Status(testCtx)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -509,7 +510,7 @@ func TestReadStatusFailure(t *testing.T) {
 	}
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
-	_, err := mngr.Status(context.Background())
+	_, err := mngr.Status(testCtx)
 	require.EqualError(t, err, "failed to read status")
 }
 
@@ -539,19 +540,19 @@ func TestManagerList(t *testing.T) {
 		URL: inputURL,
 	}
 
-	_, err = mngr.List(context.Background(), req)
+	_, err = mngr.List(testCtx, req)
 	require.EqualError(t, err, "vault is locked")
 
-	mngr.pass = "123"
+	mngr.passes[tenant.Default] = "123"
 
-	_, err = mngr.List(context.Background(), req)
+	_, err = mngr.List(testCtx, req)
 	require.EqualError(t, err, "vault is not initialized")
 
 	dbProv.statusToGive = DbStatus{
 		StatusName: DbStatusInit,
 	}
 
-	actualValues, err := mngr.List(context.Background(), req)
+	actualValues, err := mngr.List(testCtx, req)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -586,9 +587,9 @@ func TestManagerList(t *testing.T) {
 	}
 
 	mngr = NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.pass = "123"
+	mngr.passes[tenant.Default] = "123"
 
-	_, err = mngr.List(context.Background(), req)
+	_, err = mngr.List(testCtx, req)
 	require.EqualError(t, err, "list error")
 }
 
@@ -601,7 +602,7 @@ func TestListWithUnsupportedFilterAndSort(t *testing.T) {
 	}
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.pass = "123"
+	mngr.passes[tenant.Default] = "123"
 
 	inputURL, err := url.Parse("/someu?sort=unsupportedSortField&filter[unsupportedFilter]=val1")
 	require.NoError(t, err)
@@ -610,7 +611,7 @@ func TestListWithUnsupportedFilterAndSort(t *testing.T) {
 		URL: inputURL,
 	}
 
-	_, err = mngr.List(context.Background(), req)
+	_, err = mngr.List(testCtx, req)
 	require.EqualError(t, err, "unsupported sort field 'unsupportedSortField', unsupported filter field 'filter[unsupportedFilter]'")
 }
 
@@ -649,19 +650,19 @@ func TestGetOne(t *testing.T) {
 		GroupsToGive: []string{},
 	}
 
-	_, _, err = mngr.GetOne(context.Background(), 1, user)
+	_, _, err = mngr.GetOne(testCtx, 1, user)
 	require.EqualError(t, err, "vault is locked")
 
-	mngr.pass = pass
+	mngr.passes[tenant.Default] = pass
 
-	_, _, err = mngr.GetOne(context.Background(), 1, user)
+	_, _, err = mngr.GetOne(testCtx, 1, user)
 	require.EqualError(t, err, "vault is not initialized")
 
 	dbProv.statusToGive = DbStatus{
 		StatusName: DbStatusInit,
 	}
 
-	val, found, err := mngr.GetOne(context.Background(), 1, user)
+	val, found, err := mngr.GetOne(testCtx, 1, user)
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.Equal(t, expectedValue, val)
@@ -676,9 +677,9 @@ func TestGetOne(t *testing.T) {
 	}
 
 	mngr = NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.pass = "123"
+	mngr.passes[tenant.Default] = "123"
 
-	_, found, err = mngr.GetOne(context.Background(), 1, user)
+	_, found, err = mngr.GetOne(testCtx, 1, user)
 	require.NoError(t, err)
 	assert.False(t, found)
 
@@ -692,9 +693,9 @@ func TestGetOne(t *testing.T) {
 	}
 
 	mngr = NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.pass = pass
+	mngr.passes[tenant.Default] = pass
 
-	_, _, err = mngr.GetOne(context.Background(), 1, user)
+	_, _, err = mngr.GetOne(testCtx, 1, user)
 	require.EqualError(t, err, "some get id error")
 }
 
@@ -718,13 +719,13 @@ func TestGetOneWithLimitedAccess(t *testing.T) {
 	}
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.pass = pass
+	mngr.passes[tenant.Default] = pass
 
 	user := &UserDataProviderMock{
 		GroupsToGive: []string{},
 	}
 
-	_, _, err = mngr.GetOne(context.Background(), 1, user)
+	_, _, err = mngr.GetOne(testCtx, 1, user)
 	assert.Equal(
 		t,
 		errors2.APIError{
@@ -738,7 +739,7 @@ func TestGetOneWithLimitedAccess(t *testing.T) {
 		GroupsToGive: []string{"root"},
 	}
 
-	_, _, err = mngr.GetOne(context.Background(), 1, user2)
+	_, _, err = mngr.GetOne(testCtx, 1, user2)
 	assert.NoError(t, err)
 }
 
@@ -767,14 +768,14 @@ func TestStore(t *testing.T) {
 		GroupsToGive:   []string{},
 	}
 	t.Run("vault_locked", func(t *testing.T) {
-		_, err := mngr.Store(context.Background(), 0, inputValue, user)
+		_, err := mngr.Store(testCtx, 0, inputValue, user)
 		require.EqualError(t, err, "vault is locked")
 	})
 
-	mngr.pass = pass
+	mngr.passes[tenant.Default] = pass
 
 	t.Run("vault_not_init", func(t *testing.T) {
-		_, err := mngr.Store(context.Background(), 1, inputValue, user)
+		_, err := mngr.Store(testCtx, 1, inputValue, user)
 		require.EqualError(t, err, "vault is not initialized")
 	})
 
@@ -783,7 +784,7 @@ func TestStore(t *testing.T) {
 	}
 
 	t.Run("create_success", func(t *testing.T) {
-		storedID, err := mngr.Store(context.Background(), 0, inputValue, user)
+		storedID, err := mngr.Store(testCtx, 0, inputValue, user)
 		require.NoError(t, err)
 		assert.Equal(t, int64(123), storedID.ID)
 
@@ -807,13 +808,13 @@ func TestStore(t *testing.T) {
 		InputValue: InputValue{},
 	}
 	t.Run("update_success", func(t *testing.T) {
-		_, err := mngr.Store(context.Background(), 1, inputValue, user)
+		_, err := mngr.Store(testCtx, 1, inputValue, user)
 		require.NoError(t, err)
 	})
 
 	dbProv.FindByKeyAndClientIDFoundToGive = true
 	t.Run("store_failure_key_exists", func(t *testing.T) {
-		_, err := mngr.Store(context.Background(), 1, inputValue, user)
+		_, err := mngr.Store(testCtx, 1, inputValue, user)
 		require.EqualError(t, err, "another key 'someKey' exists for this client 'client1'")
 	})
 
@@ -821,20 +822,20 @@ func TestStore(t *testing.T) {
 
 	dbProv.FindByKeyAndClientIDErrorToGive = errors.New("finding key and client error")
 	t.Run("store_failure_key_exists_error", func(t *testing.T) {
-		_, err := mngr.Store(context.Background(), 1, inputValue, user)
+		_, err := mngr.Store(testCtx, 1, inputValue, user)
 		require.EqualError(t, err, "finding key and client error")
 	})
 
 	dbProv.FindByKeyAndClientIDErrorToGive = nil
 
 	t.Run("invalid_input", func(t *testing.T) {
-		_, err := mngr.Store(context.Background(), 1, &InputValue{}, user)
+		_, err := mngr.Store(testCtx, 1, &InputValue{}, user)
 		require.EqualError(t, err, "key is required, value is required, value type is required")
 	})
 
 	dbProv.SaveErrorToGive = errors.New("failed to save value to db")
 	t.Run("db_store_error", func(t *testing.T) {
-		_, err := mngr.Store(context.Background(), 1, inputValue, user)
+		_, err := mngr.Store(testCtx, 1, inputValue, user)
 		require.EqualError(t, err, "failed to save value to db")
 	})
 }
@@ -861,14 +862,14 @@ func TestStoreWithLimitedGroupAccess(t *testing.T) {
 	}
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.pass = "12345"
+	mngr.passes[tenant.Default] = "12345"
 
 	user := UserDataProviderMock{
 		UsernameToGive: "someuser",
 		GroupsToGive:   []string{},
 	}
 
-	_, err := mngr.Store(context.Background(), 1, &dbProv.getByIDStoredValue.InputValue, user)
+	_, err := mngr.Store(testCtx, 1, &dbProv.getByIDStoredValue.InputValue, user)
 	require.Equal(
 		t,
 		errors2.APIError{
@@ -883,7 +884,7 @@ func TestStoreWithLimitedGroupAccess(t *testing.T) {
 		GroupsToGive:   []string{"secure_group"},
 	}
 
-	_, err = mngr.Store(context.Background(), 1, &dbProv.getByIDStoredValue.InputValue, user2)
+	_, err = mngr.Store(testCtx, 1, &dbProv.getByIDStoredValue.InputValue, user2)
 	assert.NoError(t, err)
 }
 
@@ -906,21 +907,21 @@ func TestDeleteKey(t *testing.T) {
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
 
 	t.Run("vault_locked", func(t *testing.T) {
-		err := mngr.Delete(context.Background(), 1, user)
+		err := mngr.Delete(testCtx, 1, user)
 		require.EqualError(t, err, "vault is locked")
 	})
 
-	mngr.pass = "1234"
+	mngr.passes[tenant.Default] = "1234"
 
 	t.Run("vault_not_init", func(t *testing.T) {
-		err := mngr.Delete(context.Background(), 1, user)
+		err := mngr.Delete(testCtx, 1, user)
 		require.EqualError(t, err, "vault is not initialized")
 	})
 
 	dbProv.statusToGive.StatusName = DbStatusInit
 
 	t.Run("delete_success", func(t *testing.T) {
-		err := mngr.Delete(context.Background(), 1, user)
+		err := mngr.Delete(testCtx, 1, user)
 		require.NoError(t, err)
 
 		assert.Equal(t, 1, dbProv.DeleteIDGiven)
@@ -928,14 +929,14 @@ func TestDeleteKey(t *testing.T) {
 
 	dbProv.DeleteErrorToGive = errors.New("failed to delete value to db")
 	t.Run("db_error", func(t *testing.T) {
-		err := mngr.Delete(context.Background(), 1, user)
+		err := mngr.Delete(testCtx, 1, user)
 		require.EqualError(t, err, "failed to delete value to db")
 	})
 	dbProv.DeleteErrorToGive = nil
 
 	dbProv.getByIDFound = false
 	t.Run("entryNotFound", func(t *testing.T) {
-		err := mngr.Delete(context.Background(), 1, user)
+		err := mngr.Delete(testCtx, 1, user)
 		require.Equal(
 			t,
 			errors2.APIError{
@@ -949,7 +950,7 @@ func TestDeleteKey(t *testing.T) {
 	dbProv.getByIDFound = true
 	dbProv.getByIDError = errors.New("failed to read stored value")
 	t.Run("entry read error", func(t *testing.T) {
-		err := mngr.Delete(context.Background(), 1, user)
+		err := mngr.Delete(testCtx, 1, user)
 		require.EqualError(t, err, "failed to read stored value")
 	})
 }
@@ -971,7 +972,7 @@ func TestDeleteKeyWithNoGroupAccess(t *testing.T) {
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
 
-	mngr.pass = pass
+	mngr.passes[tenant.Default] = pass
 
 	t.Run("user_no_key_access", func(t *testing.T) {
 		user := UserDataProviderMock{
@@ -979,7 +980,7 @@ func TestDeleteKeyWithNoGroupAccess(t *testing.T) {
 			GroupsToGive:   []string{},
 		}
 
-		err := mngr.Delete(context.Background(), 1, user)
+		err := mngr.Delete(testCtx, 1, user)
 		require.Equal(
 			t,
 			errors2.APIError{
@@ -996,7 +997,7 @@ func TestDeleteKeyWithNoGroupAccess(t *testing.T) {
 			GroupsToGive:   []string{"secure_group"},
 		}
 
-		err := mngr.Delete(context.Background(), 1, user2)
+		err := mngr.Delete(testCtx, 1, user2)
 		require.NoError(t, err)
 	})
 }

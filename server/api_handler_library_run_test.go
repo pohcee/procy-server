@@ -20,8 +20,8 @@ import (
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/test"
 	"github.com/openrport/openrport/share/ws"
 )

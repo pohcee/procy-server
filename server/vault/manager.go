@@ -15,6 +15,7 @@ import (
 	"github.com/openrport/openrport/share/enc"
 
 	errors2 "github.com/openrport/openrport/server/api/errors"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var supportedFields = map[string]bool{
@@ -61,9 +62,12 @@ type DbProviderFactory interface {
 	Init() error
 }
 
+// Manager runs the vault of each tenant. Each tenant has its own status and passphrase, so locking or unlocking one
+// tenant's vault doesn't affect another's. Every method needs a tenant in its context.
 type Manager struct {
-	passLock  sync.RWMutex
-	pass      string
+	passLock sync.RWMutex
+	// passes holds the passphrase of each unlocked tenant's vault.
+	passes    map[tenant.ID]string
 	dbFactory DbProviderFactory
 	pm        PassManager
 	logger    *logger.Logger
@@ -72,13 +76,43 @@ type Manager struct {
 func NewManager(dbFactory DbProviderFactory, pm PassManager, logger *logger.Logger) *Manager {
 	return &Manager{
 		passLock:  sync.RWMutex{},
+		passes:    map[tenant.ID]string{},
 		dbFactory: dbFactory,
 		pm:        pm,
 		logger:    logger,
 	}
 }
 
+func vaultTenant(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("vault: %w", err)
+	}
+	return id, nil
+}
+
+// passOf returns the passphrase of the tenant's vault, "" when it is locked.
+func (m *Manager) passOf(tid tenant.ID) string {
+	m.passLock.RLock()
+	defer m.passLock.RUnlock()
+	return m.passes[tid]
+}
+
+func (m *Manager) setPass(tid tenant.ID, pass string) {
+	m.passLock.Lock()
+	defer m.passLock.Unlock()
+	if pass == "" {
+		delete(m.passes, tid)
+		return
+	}
+	m.passes[tid] = pass
+}
+
 func (m *Manager) Init(ctx context.Context, pass string) error {
+	tid, err := vaultTenant(ctx)
+	if err != nil {
+		return err
+	}
 	if err := m.pm.ValidatePass(pass); err != nil {
 		return err
 	}
@@ -116,9 +150,7 @@ func (m *Manager) Init(ctx context.Context, pass string) error {
 		return err
 	}
 
-	m.passLock.Lock()
-	defer m.passLock.Unlock()
-	m.pass = pass
+	m.setPass(tid, pass)
 	m.logger.Infof("unlocked vault")
 
 	return nil
@@ -143,7 +175,11 @@ func (m *Manager) isDatabaseInitialized(ctx context.Context) (bool, error) {
 }
 
 func (m *Manager) UnLock(ctx context.Context, pass string) error {
-	if !m.IsLocked() {
+	tid, err := vaultTenant(ctx)
+	if err != nil {
+		return err
+	}
+	if m.passOf(tid) != "" {
 		return errors2.APIError{
 			Message:    "vault is already unlocked",
 			HTTPStatus: http.StatusConflict,
@@ -174,16 +210,17 @@ func (m *Manager) UnLock(ctx context.Context, pass string) error {
 
 	m.logger.Infof("unlocked vault")
 
-	m.passLock.Lock()
-	defer m.passLock.Unlock()
-
-	m.pass = pass
+	m.setPass(tid, pass)
 
 	return nil
 }
 
 func (m *Manager) Lock(ctx context.Context) error {
-	if m.IsLocked() {
+	tid, err := vaultTenant(ctx)
+	if err != nil {
+		return err
+	}
+	if m.passOf(tid) == "" {
 		return errors2.APIError{
 			Message:    "vault is already locked",
 			HTTPStatus: http.StatusConflict,
@@ -203,23 +240,25 @@ func (m *Manager) Lock(ctx context.Context) error {
 	}
 
 	m.logger.Infof("locked vault")
-	m.passLock.Lock()
-	defer m.passLock.Unlock()
-
-	m.pass = ""
+	m.setPass(tid, "")
 
 	return nil
 }
 
-func (m *Manager) IsLocked() bool {
-	m.passLock.RLock()
-	defer m.passLock.RUnlock()
-
-	return m.pass == ""
+// IsLocked reports whether the vault of ctx's tenant is locked. Without a tenant it is locked.
+func (m *Manager) IsLocked(ctx context.Context) bool {
+	tid, err := vaultTenant(ctx)
+	if err != nil {
+		return true
+	}
+	return m.passOf(tid) == ""
 }
 
 func (m *Manager) Status(ctx context.Context) (StatusReport, error) {
 	sr := StatusReport{}
+	if _, err := vaultTenant(ctx); err != nil {
+		return sr, err
+	}
 
 	db := m.dbFactory.GetDbProvider()
 	dbStatus, err := db.GetStatus(ctx)
@@ -237,7 +276,7 @@ func (m *Manager) Status(ctx context.Context) (StatusReport, error) {
 		return sr, nil
 	}
 
-	if m.IsLocked() {
+	if m.IsLocked(ctx) {
 		sr.LockStatus = StatusLocked
 	} else {
 		sr.LockStatus = StatusUnlocked
@@ -308,10 +347,11 @@ func (m *Manager) GetOne(ctx context.Context, id int, user UserDataProvider) (St
 		return StoredValue{}, false, err
 	}
 
-	m.passLock.RLock()
-	defer m.passLock.RUnlock()
-
-	decryptedValue, err := enc.Aes256DecryptByPassFromBase64String(val.Value, m.pass)
+	pass, err := m.unlockedPass(ctx)
+	if err != nil {
+		return StoredValue{}, false, err
+	}
+	decryptedValue, err := enc.Aes256DecryptByPassFromBase64String(val.Value, pass)
 	if err != nil {
 		return StoredValue{}, false, err
 	}
@@ -364,10 +404,11 @@ func (m *Manager) Store(ctx context.Context, existingID int64, valueToStore *Inp
 		}
 	}
 
-	m.passLock.RLock()
-	defer m.passLock.RUnlock()
-
-	encValue, err := enc.Aes256EncryptByPassToBase64String([]byte(valueToStore.Value), m.pass)
+	pass, err := m.unlockedPass(ctx)
+	if err != nil {
+		return StoredValueID{}, err
+	}
+	encValue, err := enc.Aes256EncryptByPassToBase64String([]byte(valueToStore.Value), pass)
 	if err != nil {
 		return StoredValueID{}, err
 	}
@@ -416,12 +457,27 @@ func (m *Manager) Delete(ctx context.Context, id int, user UserDataProvider) err
 	return nil
 }
 
+var errVaultLocked = errors2.APIError{
+	Message:    "vault is locked",
+	HTTPStatus: http.StatusConflict,
+}
+
+// unlockedPass returns the passphrase of ctx's tenant's vault, or an error when it is locked.
+func (m *Manager) unlockedPass(ctx context.Context) (string, error) {
+	tid, err := vaultTenant(ctx)
+	if err != nil {
+		return "", err
+	}
+	pass := m.passOf(tid)
+	if pass == "" {
+		return "", errVaultLocked
+	}
+	return pass, nil
+}
+
 func (m *Manager) checkUnlockedAndInitialized(ctx context.Context) error {
-	if m.IsLocked() {
-		return errors2.APIError{
-			Message:    "vault is locked",
-			HTTPStatus: http.StatusConflict,
-		}
+	if _, err := m.unlockedPass(ctx); err != nil {
+		return err
 	}
 
 	isInit, err := m.isDatabaseInitialized(ctx)

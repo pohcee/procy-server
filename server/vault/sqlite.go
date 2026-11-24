@@ -18,6 +18,7 @@ import (
 	"github.com/openrport/openrport/db/migration/vaults"
 
 	"github.com/openrport/openrport/db/sqlite"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var ErrDatabaseNotInitialised = errors2.APIError{
@@ -26,11 +27,24 @@ var ErrDatabaseNotInitialised = errors2.APIError{
 }
 var DataSourceOptions = sqlite.DataSourceOptions{WALEnabled: false}
 
+// SqliteProvider stores the vault status and values. Every method is scoped to the tenant carried by its context
+// and fails with tenant.ErrMissing when there is none.
 type SqliteProvider struct {
 	db        *sqlx.DB
 	logger    *logger.Logger
 	converter *query.SQLConverter
 }
+
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("vault: %w", err)
+	}
+	return id, nil
+}
+
+const statusColumns = "`id`, `db_status`, `enc_check`, `dec_check`"
+const valueColumns = "`id`, `client_id`, `required_group`, `created_at`, `created_by`, `updated_at`, `updated_by`, `key`, `value`, `type`"
 
 func NewSqliteProvider(c Config, logger *logger.Logger) (*SqliteProvider, error) {
 	dbPath := c.GetVaultDBPath()
@@ -59,7 +73,11 @@ func (p *SqliteProvider) Close() error {
 
 func (p *SqliteProvider) GetStatus(ctx context.Context) (DbStatus, error) {
 	res := DbStatus{}
-	err := p.db.GetContext(ctx, &res, "SELECT * FROM `status` LIMIT 1")
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return res, err
+	}
+	err = p.db.GetContext(ctx, &res, "SELECT "+statusColumns+" FROM `status` WHERE `tenant_id` = ? LIMIT 1", tid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return res, nil
@@ -71,13 +89,17 @@ func (p *SqliteProvider) GetStatus(ctx context.Context) (DbStatus, error) {
 }
 
 func (p *SqliteProvider) SetStatus(ctx context.Context, newStatus DbStatus) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 	tx, err := p.db.Beginx()
 	if err != nil {
 		return err
 	}
 
 	var idToUpdate int
-	err = tx.GetContext(ctx, &idToUpdate, "SELECT id FROM `status` LIMIT 1")
+	err = tx.GetContext(ctx, &idToUpdate, "SELECT id FROM `status` WHERE `tenant_id` = ? LIMIT 1", tid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			idToUpdate = 0
@@ -90,7 +112,8 @@ func (p *SqliteProvider) SetStatus(ctx context.Context, newStatus DbStatus) erro
 	if idToUpdate == 0 {
 		_, err = tx.ExecContext(
 			ctx,
-			"INSERT INTO `status` (`db_status`, `enc_check`, `dec_check`) VALUES (?, ?, ?)",
+			"INSERT INTO `status` (`tenant_id`, `db_status`, `enc_check`, `dec_check`) VALUES (?, ?, ?, ?)",
+			tid,
 			newStatus.StatusName,
 			newStatus.EncCheckValue,
 			newStatus.DecCheckValue,
@@ -101,11 +124,12 @@ func (p *SqliteProvider) SetStatus(ctx context.Context, newStatus DbStatus) erro
 			return err
 		}
 	} else {
-		q := "UPDATE `status` SET db_status=?, enc_check = ?, dec_check = ? WHERE id = ?"
+		q := "UPDATE `status` SET db_status=?, enc_check = ?, dec_check = ? WHERE tenant_id = ? AND id = ?"
 		params := []interface{}{
 			newStatus.StatusName,
 			newStatus.EncCheckValue,
 			newStatus.DecCheckValue,
+			tid,
 			idToUpdate,
 		}
 		_, err = tx.ExecContext(ctx, q, params...)
@@ -124,7 +148,11 @@ func (p *SqliteProvider) SetStatus(ctx context.Context, newStatus DbStatus) erro
 }
 
 func (p *SqliteProvider) GetByID(ctx context.Context, id int) (val StoredValue, found bool, err error) {
-	err = p.db.GetContext(ctx, &val, "SELECT * FROM `values` WHERE `id` = ? LIMIT 1", id)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return val, false, err
+	}
+	err = p.db.GetContext(ctx, &val, "SELECT "+valueColumns+" FROM `values` WHERE `tenant_id` = ? AND `id` = ? LIMIT 1", tid, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return val, false, nil
@@ -138,12 +166,17 @@ func (p *SqliteProvider) GetByID(ctx context.Context, id int) (val StoredValue, 
 
 func (p *SqliteProvider) List(ctx context.Context, lo *query.ListOptions) ([]ValueKey, error) {
 	values := []ValueKey{}
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return values, err
+	}
 
-	q := "SELECT `id`, `client_id`, `created_by`, `created_at`, `key` FROM `values`"
+	q := "SELECT `id`, `client_id`, `created_by`, `created_at`, `key` FROM `values` WHERE `tenant_id` = ?"
 
 	q, params := p.converter.ConvertListOptionsToQuery(lo, q)
+	params = append([]interface{}{tid}, params...)
 
-	err := p.db.SelectContext(ctx, &values, q, params...)
+	err = p.db.SelectContext(ctx, &values, q, params...)
 	if err != nil {
 		return values, err
 	}
@@ -152,7 +185,11 @@ func (p *SqliteProvider) List(ctx context.Context, lo *query.ListOptions) ([]Val
 }
 
 func (p *SqliteProvider) FindByKeyAndClientID(ctx context.Context, key, clientID string) (val StoredValue, found bool, err error) {
-	err = p.db.GetContext(ctx, &val, "SELECT * FROM `values` WHERE `key` = ? and `client_id` = ? LIMIT 1", key, clientID)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return val, false, err
+	}
+	err = p.db.GetContext(ctx, &val, "SELECT "+valueColumns+" FROM `values` WHERE `tenant_id` = ? AND `key` = ? and `client_id` = ? LIMIT 1", tid, key, clientID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return val, false, nil
@@ -165,10 +202,15 @@ func (p *SqliteProvider) FindByKeyAndClientID(ctx context.Context, key, clientID
 }
 
 func (p *SqliteProvider) Save(ctx context.Context, user string, idToUpdate int64, val *InputValue, nowDate time.Time) (int64, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
 	if idToUpdate == 0 {
 		res, err := p.db.ExecContext(
 			ctx,
-			"INSERT INTO `values` (`client_id`, `required_group`, `created_at`, `created_by`, `updated_at`, `updated_by`, `key`, `value`, `type`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			"INSERT INTO `values` (`tenant_id`, `client_id`, `required_group`, `created_at`, `created_by`, `updated_at`, `updated_by`, `key`, `value`, `type`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			tid,
 			val.ClientID,
 			val.RequiredGroup,
 			nowDate.Format(time.RFC3339),
@@ -188,7 +230,7 @@ func (p *SqliteProvider) Save(ctx context.Context, user string, idToUpdate int64
 			return 0, err
 		}
 	} else {
-		q := "UPDATE `values` SET `client_id` = ?, `required_group` = ?, `updated_at` = ?, `updated_by` = ?, `key` = ?, `value` = ?, `type` = ? WHERE id = ?"
+		q := "UPDATE `values` SET `client_id` = ?, `required_group` = ?, `updated_at` = ?, `updated_by` = ?, `key` = ?, `value` = ?, `type` = ? WHERE tenant_id = ? AND id = ?"
 		params := []interface{}{
 			val.ClientID,
 			val.RequiredGroup,
@@ -197,6 +239,7 @@ func (p *SqliteProvider) Save(ctx context.Context, user string, idToUpdate int64
 			val.Key,
 			val.Value,
 			val.Type,
+			tid,
 			idToUpdate,
 		}
 		_, err := p.db.ExecContext(ctx, q, params...)
@@ -209,7 +252,11 @@ func (p *SqliteProvider) Save(ctx context.Context, user string, idToUpdate int64
 }
 
 func (p *SqliteProvider) Delete(ctx context.Context, id int) error {
-	res, err := p.db.ExecContext(ctx, "DELETE FROM `values` WHERE `id` = ?", id)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	res, err := p.db.ExecContext(ctx, "DELETE FROM `values` WHERE `tenant_id` = ? AND `id` = ?", tid, id)
 
 	if err != nil {
 		return err
