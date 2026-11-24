@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -8,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/openrport/openrport/server/api"
 	apierrors "github.com/openrport/openrport/server/api/errors"
@@ -290,7 +290,7 @@ func (al *APIListener) handlePutClientTunnel(w http.ResponseWriter, req *http.Re
 		remote.ACL = &aclStr
 	}
 
-	allowed, err := clienttunnel.IsAllowed(remote.Remote(), client.GetConnection(), al.Log())
+	allowed, err := al.dispatcher.IsTunnelAllowed(req.Context(), client.GetID(), remote.Remote())
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -313,7 +313,7 @@ func (al *APIListener) handlePutClientTunnel(w http.ResponseWriter, req *http.Re
 	}
 
 	if checkPortStr := req.URL.Query().Get("check_port"); checkPortStr != "0" && remote.IsProtocol(models.ProtocolTCP) {
-		err = al.checkRemotePort(*remote, client.GetConnection())
+		err = al.checkRemotePort(req.Context(), client.GetID(), *remote)
 		if err != nil {
 			al.jsonError(w, err)
 			return
@@ -337,9 +337,13 @@ func (al *APIListener) handlePutClientTunnel(w http.ResponseWriter, req *http.Re
 	remote.Owner = currUser.Username
 
 	// start the new tunnel only
-	tunnels, err := al.clientService.StartClientTunnels(req.Context(), client, []*models.Remote{remote})
+	tunnels, err := al.dispatcher.StartTunnels(req.Context(), client.GetID(), []*models.Remote{remote})
 	if err != nil {
 		al.jsonError(w, err)
+		return
+	}
+	if len(tunnels) != 1 {
+		al.jsonErrorResponseWithTitle(w, http.StatusInternalServerError, fmt.Sprintf("expected 1 started tunnel, got %d", len(tunnels)))
 		return
 	}
 	response := api.NewSuccessPayload(tunnels[0])
@@ -465,13 +469,12 @@ func (al *APIListener) checkLocalPort(localPort, protocol string) (err error) {
 	return nil
 }
 
-func (al *APIListener) checkRemotePort(remote models.Remote, conn ssh.Conn) (err error) {
+func (al *APIListener) checkRemotePort(ctx context.Context, clientID string, remote models.Remote) (err error) {
 	req := &comm.CheckPortRequest{
 		HostPort: remote.Remote(),
 		Timeout:  al.config.Server.CheckPortTimeout,
 	}
-	resp := &comm.CheckPortResponse{}
-	err = comm.SendRequestAndGetResponse(conn, comm.RequestTypeCheckPort, req, resp, al.Log())
+	resp, err := al.dispatcher.CheckPort(ctx, clientID, req)
 	if err != nil {
 		if _, ok := err.(*comm.ClientError); ok {
 			err = apierrors.NewAPIError(http.StatusConflict, "", "", err)
@@ -547,7 +550,7 @@ func (al *APIListener) handleDeleteClientTunnel(w http.ResponseWriter, req *http
 		return
 	}
 
-	err = al.clientService.TerminateTunnel(req.Context(), client, tunnel, force)
+	err = al.dispatcher.CloseTunnel(req.Context(), client.GetID(), tunnel.ID, force)
 	if err != nil {
 		al.jsonErrorResponseWithTitle(w, http.StatusConflict, err.Error())
 		return
@@ -604,7 +607,7 @@ func (al *APIListener) handlePutClientTunnelACL(w http.ResponseWriter, req *http
 		return
 	}
 
-	err = al.clientService.SetTunnelACL(req.Context(), client, tunnel, reqBody.ACL)
+	err = al.dispatcher.SetTunnelACL(req.Context(), client.GetID(), tunnel.ID, reqBody.ACL)
 	if err != nil {
 		al.jsonErrorResponseWithTitle(w, http.StatusBadRequest, err.Error())
 		return

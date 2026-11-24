@@ -372,7 +372,7 @@ func setupTestAPIListenerUserAPISessions(t *testing.T, sessionCache *session.Cac
 
 	al = &APIListener{
 		Logger: testlog,
-		Server: &Server{
+		apiServices: &apiServices{
 			config: serverCfg,
 		},
 		bannedUsers: security.NewBanList(0),

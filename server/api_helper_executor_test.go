@@ -17,6 +17,7 @@ import (
 	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/tenant"
@@ -159,7 +160,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		done := make(chan bool)
 		al.testDone = done
 
-		multiJob, err := al.StartMultiClientJob(tenant.WithID(context.Background(), tenant.Default), &jobs.MultiJobRequest{
+		multiJob, err := al.jobRunner.StartMultiClientJob(tenant.WithID(context.Background(), tenant.Default), &jobs.MultiJobRequest{
 			ClientIDs:      []string{"c1", "c2", "c3"},
 			Command:        "uname -a",
 			Cwd:            "/tmp",
@@ -261,7 +262,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		al.testDone = done
 		abort := true
 
-		_, err := al.StartMultiClientJob(tenant.WithID(context.Background(), tenant.Default), &jobs.MultiJobRequest{
+		_, err := al.jobRunner.StartMultiClientJob(tenant.WithID(context.Background(), tenant.Default), &jobs.MultiJobRequest{
 			ClientIDs:      []string{"c2", "c1"},
 			Command:        "uname -a",
 			TimeoutSec:     30,
@@ -292,7 +293,7 @@ type doneSignalingJobProvider struct {
 func (p *doneSignalingJobProvider) CreateJob(ctx context.Context, job *models.Job) error {
 	err := p.SqliteProvider.CreateJob(ctx, job)
 	if job.Status == models.JobStatusRunning && job.MultiJobID != nil {
-		if ch := p.al.jobsDoneChannel.Get(*job.MultiJobID); ch != nil {
+		if ch := doneChannelsOf(p.al).Get(*job.MultiJobID); ch != nil {
 			finished := *job
 			finished.Status = models.JobStatusSuccessful
 			go func() { ch <- &finished }()
@@ -318,6 +319,7 @@ func executorFixture(t *testing.T) (*APIListener, *jobs.SqliteProvider, []*clien
 	al := makeAPIListener(makeTestUser("tester"),
 		clients.NewClientRepository(cls, &hour, testLog), 60, nil, testLog)
 	al.insecureForTests = false // really wait for each sequential job
+	useLocalDispatcher(al)
 	jp := makeJobsProvider(t, DataSourceOptions, testLog)
 	t.Cleanup(func() { jp.Close() })
 	al.jobProvider = &doneSignalingJobProvider{SqliteProvider: jp, al: al}
@@ -337,12 +339,12 @@ func linuxOnlyEntry(c *clientdata.Client) (library.JobSpec, string) {
 	}, ""
 }
 
-func runExecutor(t *testing.T, al *APIListener, uiConn *ws.ConcurrentWebSocket, mj *models.MultiJob, cls []*clientdata.Client, specFor clientSpecFunc) {
+func runExecutor(t *testing.T, al *APIListener, uiConn *ws.ConcurrentWebSocket, mj *models.MultiJob, cls []*clientdata.Client, specFor jobrunner.ClientSpecFunc) {
 	t.Helper()
 	require.NoError(t, al.jobProvider.SaveMultiJob(tenant.WithID(context.Background(), tenant.Default), mj))
 	finished := make(chan struct{})
 	go func() {
-		al.runMultiClientJob(tenant.WithID(context.Background(), tenant.Default), uiConn, mj, cls, specFor)
+		al.jobRunner.RunMultiClientJob(tenant.WithID(context.Background(), tenant.Default), uiConn, mj, cls, specFor)
 		close(finished)
 	}()
 	select {

@@ -28,7 +28,7 @@ func TestHandleMeStaticAuth(t *testing.T) {
 	}
 	al := APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{},
 		},
 		userService: mockUsersService,
@@ -113,7 +113,7 @@ func TestHandleMeDBAuth(t *testing.T) {
 	}
 	al := APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{},
 		},
 		userService: mockUsersService,

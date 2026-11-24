@@ -36,3 +36,17 @@ func TestNewRequiresTenant(t *testing.T) {
 	_, err := New(context.Background(), nil, nil, nil, 30)
 	assert.ErrorIs(t, err, tenant.ErrMissing)
 }
+
+func TestManagerStopStopsSchedules(t *testing.T) {
+	m := &Manager{cron: newCron(tenant.WithID(context.Background(), tenant.Default))}
+	ran := make(chan struct{}, 10)
+	require.NoError(t, m.cron.Add(ctxFor(tenant.Default), "s1", "@every 1s", func(context.Context, string) { ran <- struct{}{} }))
+
+	m.Stop()
+
+	select {
+	case <-ran:
+		t.Fatal("a schedule ran after Stop")
+	case <-time.After(1500 * time.Millisecond):
+	}
+}

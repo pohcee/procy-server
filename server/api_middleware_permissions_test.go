@@ -25,7 +25,7 @@ func runWithPermission(t *testing.T, username string, permission string) (nextCa
 
 	al := &APIListener{
 		Logger:      testLog,
-		Server:      &Server{config: &chconfig.Config{}},
+		apiServices: &apiServices{config: &chconfig.Config{}},
 		userService: &MockUsersService{UserService: svc},
 	}
 	handler := al.permissionsMiddleware(permission)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { nextCalled = true }))

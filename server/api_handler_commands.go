@@ -319,7 +319,7 @@ func (al *APIListener) handlePostMultiClientCommand(w http.ResponseWriter, req *
 
 	reqBody.Username = curUser.Username
 
-	multiJob, err := al.StartMultiClientJob(ctx, &reqBody)
+	multiJob, err := al.jobRunner.StartMultiClientJob(ctx, &reqBody)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -392,8 +392,7 @@ func (al *APIListener) handleExecuteCommand(ctx context.Context, w http.Response
 		IsSudo:      executeInput.IsSudo,
 		IsScript:    executeInput.IsScript,
 	}
-	sshResp := &comm.RunCmdResponse{}
-	err = comm.SendRequestAndGetResponse(client.GetConnection(), comm.RequestTypeRunCmd, curJob, sshResp, al.Log())
+	sshResp, err := al.dispatcher.RunJob(ctx, executeInput.ClientID, &curJob)
 	if err != nil {
 		if _, ok := err.(*comm.ClientError); ok {
 			al.jsonErrorResponseWithTitle(w, http.StatusConflict, err.Error())

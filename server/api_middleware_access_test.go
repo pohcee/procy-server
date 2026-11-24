@@ -34,13 +34,14 @@ func TestClientAccessMiddlewareStopsWhenClientGroupsCannotBeLoaded(t *testing.T)
 	admin := &users.User{Username: "admin", Groups: []string{users.Administrators}}
 	al := &APIListener{
 		Logger: testLog,
-		Server: &Server{
+		apiServices: &apiServices{
 			config:              &chconfig.Config{},
 			clientService:       clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1}, &hour, testLog), testLog, nil),
 			clientGroupProvider: failingClientGroupProvider{},
 		},
 		userService: &MockUsersService{UserService: users.NewAPIService(users.NewStaticProvider([]*users.User{admin}), false, 0, -1)},
 	}
+	useLocalDispatcher(al)
 
 	nextCalled := false
 	handler := al.wrapClientAccessMiddleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { nextCalled = true }))

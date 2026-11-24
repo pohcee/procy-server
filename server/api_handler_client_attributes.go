@@ -44,10 +44,6 @@ func (al *APIListener) handleGetClientAttributes(w http.ResponseWriter, req *htt
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(client.GetAttributes()))
 }
 
-type Resp struct {
-	OK string `json:"ok"`
-}
-
 func (al *APIListener) handleUpdateClientAttributes(w http.ResponseWriter, req *http.Request) {
 
 	ctx := req.Context()
@@ -70,8 +66,7 @@ func (al *APIListener) handleUpdateClientAttributes(w http.ResponseWriter, req *
 		return
 	}
 
-	sshResp := &Resp{}
-	err = comm.SendRequestAndGetResponse(client.GetConnection(), comm.RequestTypeUpdateClientAttributes, attributes, sshResp, al.Log())
+	err = al.dispatcher.UpdateAttributes(ctx, client.GetID(), attributes)
 	if err != nil {
 		if _, ok := err.(*comm.ClientError); ok {
 			al.jsonErrorResponseWithTitle(w, http.StatusConflict, err.Error())

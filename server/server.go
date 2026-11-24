@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path"
 	"runtime"
-	"sync"
 	"time"
 
 	"go.etcd.io/bbolt"
@@ -25,7 +24,10 @@ import (
 	"github.com/openrport/openrport/server/cgroups"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
+	"github.com/openrport/openrport/server/clients/targeting"
 	"github.com/openrport/openrport/server/clientsauth"
+	"github.com/openrport/openrport/server/dispatch"
+	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
@@ -66,21 +68,24 @@ type Server struct {
 	clientGroupProvider cgroups.ClientGroupProvider
 	monitoringService   monitoring.Service
 	// repos is the storage of every domain; storageClosers close the SQLite files no repository closes.
-	repos            *Repositories
-	storageClosers   []func() error
-	uiJobWebSockets  ws.WebSocketCache // used to push job result to UI
-	uploadWebSockets sync.Map
-	fileGrants       *fileGrants
-	jobsDoneChannel  jobResultChanMap // used for sequential command execution to know when command is finished
-	auditLog         *auditlog.AuditLog
-	capabilities     *models.Capabilities
-	scheduleManager  *schedule.Manager
-	filesAPI         files.FileAPI
-	plusManager      rportplus.Manager
-	caddyServer      *caddy.Server
-	acme             *acme.Acme
-	alertingService  alertingcap.Service
-	monitoringQueue  monitoring.MeasurementSaver
+	repos           *Repositories
+	storageClosers  []func() error
+	uiJobWebSockets ws.WebSocketCache // used to push job result to UI
+	fileGrants      *dispatch.FileGrants
+	// dispatcher does all work on clients (ServerOpts.Dispatcher, or the local one)
+	dispatcher      dispatch.Dispatcher
+	jobsDoneChannel *jobrunner.DoneChannels // used for sequential command execution to know when command is finished
+	jobRunner       *jobrunner.Runner
+	libraryManager  *library.Manager
+	auditLog        *auditlog.AuditLog
+	capabilities    *models.Capabilities
+	scheduleManager *schedule.Manager
+	filesAPI        files.FileAPI
+	plusManager     rportplus.Manager
+	caddyServer     *caddy.Server
+	acme            *acme.Acme
+	alertingService alertingcap.Service
+	monitoringQueue monitoring.MeasurementSaver
 	// capabilitiesOverride is ServerOpts.Capabilities; nil reports the computed capabilities.
 	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
 }
@@ -95,6 +100,9 @@ type ServerOpts struct {
 	// latest version (run "rportd migrate" first). Files the server creates while running (the vault on init, the
 	// audit log after a rotation) are migrated regardless.
 	SkipMigrations bool
+	// Dispatcher, when set, does the work on clients (commands, scripts, tunnels, uploads) instead of
+	// dispatch.Local, which uses the connections of the clients connected to this server.
+	Dispatcher dispatch.Dispatcher
 	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
 	// It receives the capabilities computed from the config and returns the ones to report.
 	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
@@ -109,14 +117,11 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	chshare.SetTrustedProxies(config.API.ParsedTrustedProxies)
 
 	s := &Server{
-		Logger:           logger.NewLogger("server", config.Logging.LogOutput, config.Logging.LogLevel),
-		config:           config,
-		uiJobWebSockets:  ws.NewWebSocketCache(),
-		uploadWebSockets: sync.Map{},
-		fileGrants:       newFileGrants(),
-		jobsDoneChannel: jobResultChanMap{
-			m: make(map[string]chan *models.Job),
-		},
+		Logger:          logger.NewLogger("server", config.Logging.LogOutput, config.Logging.LogLevel),
+		config:          config,
+		uiJobWebSockets: ws.NewWebSocketCache(),
+		fileGrants:      dispatch.NewFileGrants(),
+		jobsDoneChannel: jobrunner.NewDoneChannels(),
 	}
 
 	s.acme = acme.New(s.Logger.Fork("acme"), config.Server.DataDir, config.Server.AcmeHTTPPort)
@@ -208,6 +213,11 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		return nil, err
 	}
 
+	s.dispatcher = opts.Dispatcher
+	if s.dispatcher == nil {
+		s.dispatcher = dispatch.NewLocal(s.clientService, s.fileGrants, s.Logger.Fork("dispatch"))
+	}
+
 	if rportplus.IsPlusEnabled(config.PlusConfig) {
 		licCapEx := s.plusManager.GetLicenseCapabilityEx()
 		s.clientService.SetPlusLicenseInfoCap(licCapEx)
@@ -222,26 +232,80 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.clientAuthProvider = repos.ClientAuth
 
-	s.clientListener, err = NewClientListener(s, privateKey)
+	s.capabilities = capabilities.NewServerCapabilities(&config.Monitoring)
+
+	s.clientListener, err = NewClientListener(ClientListenerOptions{
+		Config:        config,
+		PrivateKey:    privateKey,
+		ClientService: s.clientService,
+		ClientAuth:    s.clientAuthProvider,
+		AuditLog:      s.auditLog,
+		Jobs:          s.jobProvider,
+		JobsDone:      s.jobsDoneChannel,
+		UIJobStreams:  &s.uiJobWebSockets,
+		FileGrants:    s.fileGrants,
+		Measurements:  s.monitoringQueue,
+		PlusManager:   s.plusManager,
+		Capabilities:  s.capabilities,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	s.filesAPI = filesAPI
 
-	s.apiListener, err = NewAPIListener(ctx, s, fingerprint)
+	s.libraryManager, err = openLibrary(ctx, repos.Library, logger.NewLogger("library", config.Logging.LogOutput, config.Logging.LogLevel))
 	if err != nil {
 		return nil, err
 	}
 
-	s.capabilities = capabilities.NewServerCapabilities(&config.Monitoring)
-
-	s.scheduleManager, err = schedule.New(ctx, s.Logger, repos.Schedules, s.apiListener, config.Server.RunRemoteCmdTimeoutSec)
+	s.jobRunner, err = jobrunner.New(jobrunner.Options{
+		Jobs:       repos.Jobs,
+		Dispatcher: s.dispatcher,
+		Targets:    targeting.Resolver{Clients: s.clientService, Groups: repos.ClientGroups},
+		Library:    s.libraryManager,
+		Config:     config,
+		Done:       s.jobsDoneChannel,
+		Logger:     logger.NewLogger("jobs", config.Logging.LogOutput, config.Logging.LogLevel),
+	})
 	if err != nil {
 		return nil, err
 	}
-	s.scheduleManager.SetLibrary(s.apiListener.libraryManager, s.jobProvider)
-	s.apiListener.libraryManager.SetReferenceChecker(s.scheduleManager)
+
+	s.scheduleManager, err = schedule.New(ctx, s.Logger, repos.Schedules, s.jobRunner, config.Server.RunRemoteCmdTimeoutSec)
+	if err != nil {
+		return nil, err
+	}
+	// a later startup step failing stops the schedules (the storage is closed by the defer above)
+	defer func() {
+		if err != nil {
+			s.scheduleManager.Stop()
+		}
+	}()
+	s.scheduleManager.SetLibrary(s.libraryManager, s.jobProvider)
+	s.libraryManager.SetReferenceChecker(s.scheduleManager)
+
+	// built even when [api] address is empty (then it is not started): notifications are processed in it
+	s.apiListener, err = NewAPIListener(ctx, APIListenerOptions{
+		Config:        config,
+		Fingerprint:   fingerprint,
+		Repositories:  repos,
+		ClientService: s.clientService,
+		Dispatcher:    s.dispatcher,
+		JobRunner:     s.jobRunner,
+		Library:       s.libraryManager,
+		Schedules:     s.scheduleManager,
+		AuditLog:      s.auditLog,
+		Monitoring:    s.monitoringService,
+		Files:         s.filesAPI,
+		PlusManager:   s.plusManager,
+		Acme:          s.acme,
+		UIJobStreams:  &s.uiJobWebSockets,
+		Capabilities:  s.capabilitiesOverride,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	if s.config.CaddyEnabled() {
 		cfg := s.config
@@ -273,10 +337,10 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 func (s *Server) HandlePlusLicenseInfoAvailable() {
 	s.Logger.Debugf("received license info from rport-plus")
 
-	if s.clientListener != nil && s.clientListener.server.clientService != nil {
+	if s.clientListener != nil && s.clientService != nil {
 		// the listener context is the server context; it is nil until the listener has started (no clients yet)
 		if ctx := s.clientListener.getCtx(); ctx != nil {
-			s.clientListener.server.clientService.UpdateClientStatus(ctx)
+			s.clientService.UpdateClientStatus(ctx)
 		}
 	}
 }
@@ -342,7 +406,7 @@ func (s *Server) Run(ctx context.Context) error {
 	// TODO(m-terel): add graceful shutdown of background task
 	if s.config.Server.PurgeDisconnectedClients {
 		s.Infof("Period to keep disconnected clients is set to %v", s.config.Server.KeepDisconnectedClients)
-		go scheduler.Run(ctx, s.Logger, clients.NewCleanupTask(s.Logger, s.clientListener.server.clientService.GetRepo()), s.config.Server.PurgeDisconnectedClientsInterval)
+		go scheduler.Run(ctx, s.Logger, clients.NewCleanupTask(s.Logger, s.clientService.GetRepo()), s.config.Server.PurgeDisconnectedClientsInterval)
 		s.Infof("Task to purge disconnected clients will run with interval %v", s.config.Server.PurgeDisconnectedClientsInterval)
 	} else {
 		s.Debugf("Task to purge disconnected clients disabled")
@@ -351,7 +415,7 @@ func (s *Server) Run(ctx context.Context) error {
 	// Run a task to Check the client connections status by sending and receiving pings
 	clientsStatusCheckTask := NewClientsStatusCheckTask(
 		s.Logger,
-		s.clientListener.server.clientService.GetRepo(),
+		s.clientService.GetRepo(),
 		s.config.Server.CheckClientsConnectionInterval,
 		s.config.Server.CheckClientsConnectionTimeout,
 	)
@@ -384,7 +448,7 @@ func (s *Server) Run(ctx context.Context) error {
 	s.Infof("Task to cleanup jobs will run with interval %v", cleanupJobsInterval)
 
 	if keep, days := s.config.Library.KeepVersions, s.config.Library.KeepVersionsDays; keep > 0 || days > 0 {
-		libraryPruneTask := library.NewPruneTask(s.apiListener.libraryManager, keep, days, s.Logger)
+		libraryPruneTask := library.NewPruneTask(s.libraryManager, keep, days, s.Logger)
 		go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", libraryPruneTask)), libraryPruneTask, pruneLibraryVersionsInterval)
 		s.Infof("Task to prune old library versions will run with interval %v", pruneLibraryVersionsInterval)
 	}
@@ -456,6 +520,9 @@ func (s *Server) Close() error {
 	}
 
 	wg.Go(s.jobProvider.Close)
+	if s.libraryManager != nil {
+		wg.Go(s.libraryManager.Close)
+	}
 
 	wg.Go(s.clientGroupProvider.Close)
 	wg.Go(s.uiJobWebSockets.CloseConnections)
@@ -463,13 +530,6 @@ func (s *Server) Close() error {
 	if s.auditLog != nil {
 		wg.Go(s.auditLog.Close)
 	}
-
-	s.uploadWebSockets.Range(func(key, value interface{}) bool {
-		if wsConn, ok := value.(*ws.ConcurrentWebSocket); ok {
-			wg.Go(wsConn.Close)
-		}
-		return true
-	})
 
 	wg.Go(s.monitoringQueue.Close)
 
@@ -490,39 +550,4 @@ func (s *Server) Close() error {
 	}
 
 	return err
-}
-
-// jobResultChanMap is thread safe map with [jobID, chan *models.Job] pairs.
-type jobResultChanMap struct {
-	m  map[string]chan *models.Job
-	mu sync.RWMutex
-}
-
-func (m *jobResultChanMap) Set(jobID string, done chan *models.Job) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.m[jobID] = done
-}
-
-func (m *jobResultChanMap) Del(jobID string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.m, jobID)
-}
-
-func (m *jobResultChanMap) Get(jobID string) chan *models.Job {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.m[jobID]
-}
-
-// TODO: only used for testing purposes. we should review the approach.
-func (m *jobResultChanMap) GetAllKeys() (jobIDs []string) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	jobIDs = make([]string, 0, len(m.m))
-	for k := range m.m {
-		jobIDs = append(jobIDs, k)
-	}
-	return jobIDs
 }

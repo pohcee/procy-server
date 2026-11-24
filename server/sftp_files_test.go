@@ -5,15 +5,13 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/share/test"
 )
 
@@ -90,64 +88,14 @@ func TestDeviceFileServerStatsGrantedFile(t *testing.T) {
 	assert.EqualValues(t, 7, fi.Size())
 }
 
-func TestFileGrantsArePerConnectionAndRevocable(t *testing.T) {
-	g := newFileGrants()
-	connA, connB := &struct{ n int }{1}, &struct{ n int }{2}
-
-	revoke := g.Grant(connA, "/data/filepush/x_rport_filepush")
-	assert.True(t, g.Allowed(connA, "/data/filepush/x_rport_filepush"))
-	assert.True(t, g.Allowed(connA, "/data/filepush/../filepush/x_rport_filepush"), "cleaned path")
-	assert.False(t, g.Allowed(connB, "/data/filepush/x_rport_filepush"), "another device's connection")
-	assert.False(t, g.Allowed(connA, "/data/filepush/y_rport_filepush"))
-
-	revoke2 := g.Grant(connA, "/data/filepush/x_rport_filepush")
-	revoke()
-	assert.True(t, g.Allowed(connA, "/data/filepush/x_rport_filepush"), "still granted by the second upload")
-	revoke2()
-	assert.False(t, g.Allowed(connA, "/data/filepush/x_rport_filepush"))
-	assert.Empty(t, g.byConn, "no leftovers")
-}
-
-// grantCheckingConn records whether the file was readable over SFTP while the upload request was in flight.
-type grantCheckingConn struct {
-	*test.ConnMock
-	grants            *fileGrants
-	path              string
-	allowedDuringSend bool
-}
-
-func (c *grantCheckingConn) SendRequest(name string, wantReply bool, payload []byte) (bool, []byte, error) {
-	c.allowedDuringSend = c.grants.Allowed(c, c.path)
-	return true, []byte(`{}`), nil
-}
-
-func TestSendFileToClientGrantsTheFileOnlyDuringTheSend(t *testing.T) {
-	grants := newFileGrants()
-	file := &models.UploadedFile{ID: "id-1", SourceFilePath: "/data/filepush/id-1_rport_filepush"}
-	conn := &grantCheckingConn{ConnMock: test.NewConnMock(), grants: grants, path: file.SourceFilePath}
-	cl := clients.New(t).Logger(testLog).Build()
-	cl.SetConnection(conn)
-	al := &APIListener{Server: &Server{fileGrants: grants}, Logger: testLog}
-
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	resChan := make(chan *uploadResult, 1)
-	al.sendFileToClient(wg, file, cl, resChan)
-
-	res := <-resChan
-	require.NoError(t, res.err)
-	assert.True(t, conn.allowedDuringSend, "the client must be able to fetch the file while the request is in flight")
-	assert.False(t, grants.Allowed(conn, file.SourceFilePath), "the grant ends with the send")
-}
-
 func TestClientListenerSessionChannelServesOnlyGrantedFiles(t *testing.T) {
 	dir := t.TempDir()
 	granted := writeTemp(t, dir, "abc_rport_filepush", "payload")
 	secret := writeTemp(t, dir, "rportd.conf", "jwt_secret = x")
-	grants := newFileGrants()
+	grants := dispatch.NewFileGrants()
 	conn := test.NewConnMock()
 	defer grants.Grant(conn, granted)()
-	cl := &ClientListener{server: &Server{fileGrants: grants}}
+	cl := &ClientListener{server: &listenerServices{fileGrants: grants}}
 
 	serverSide, clientSide := net.Pipe()
 	go cl.handleSessionChannel(conn, serverSide, testLog)

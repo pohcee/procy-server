@@ -22,7 +22,6 @@ import (
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/test"
-	"github.com/openrport/openrport/share/ws"
 )
 
 type libraryRunEnv struct {
@@ -198,7 +197,7 @@ func TestResultKeepsLibraryFields(t *testing.T) {
 	}
 	require.NoError(t, jp.CreateJob(tenant.WithID(context.Background(), tenant.Default), stored))
 
-	cl := &ClientListener{logger: testLog, server: &Server{jobProvider: jp, uiJobWebSockets: ws.NewWebSocketCache()}}
+	cl := &ClientListener{logger: testLog, server: &listenerServices{jobProvider: jp, uiJobWebSockets: newUIStreams()}}
 	// an older client does not echo the library fields
 	got, err := cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(`{"jid":"j1","client_id":"c1","status":"successful","started_at":"2026-01-01T00:00:00Z"}`))
 	require.NoError(t, err)

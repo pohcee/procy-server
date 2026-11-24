@@ -9,7 +9,6 @@ import (
 
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/query"
 )
 
@@ -32,7 +31,7 @@ func (al *APIListener) handleRefreshUpdatesStatus(w http.ResponseWriter, req *ht
 		return
 	}
 
-	err = comm.SendRequestAndGetResponse(client.GetConnection(), comm.RequestTypeRefreshUpdatesStatus, nil, nil, al.Log())
+	err = al.dispatcher.RefreshUpdatesStatus(req.Context(), client.GetID())
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return

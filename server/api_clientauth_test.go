@@ -115,7 +115,7 @@ func TestHandleGetClientsAuth(t *testing.T) {
 			// given
 			al := APIListener{
 				Logger: testLog,
-				Server: &Server{
+				apiServices: &apiServices{
 					config: &chconfig.Config{
 						API: chconfig.APIConfig{
 							MaxRequestBytes: 1024 * 1024,
@@ -124,6 +124,7 @@ func TestHandleGetClientsAuth(t *testing.T) {
 					clientAuthProvider: tc.provider,
 				},
 			}
+			useLocalDispatcher(&al)
 
 			// when
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/clients-auth", nil)
@@ -329,7 +330,7 @@ func TestHandlePostClientsAuth(t *testing.T) {
 		t.Run(tc.descr, func(t *testing.T) {
 			// given
 			al := APIListener{
-				Server: &Server{
+				apiServices: &apiServices{
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
 							AuthWrite: tc.clientAuthWrite,
@@ -342,6 +343,7 @@ func TestHandlePostClientsAuth(t *testing.T) {
 				},
 				Logger: testLog,
 			}
+			useLocalDispatcher(&al)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/clients-auth", tc.requestBody)
 			req = req.WithContext(tenant.WithID(req.Context(), tenant.Default))
@@ -512,7 +514,7 @@ func TestHandleDeleteClientAuth(t *testing.T) {
 			// given
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: clients.NewClientService(nil, nil, clients.NewClientRepository(tc.clients, &hour, testLog), testLog, nil),
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
@@ -526,6 +528,7 @@ func TestHandleDeleteClientAuth(t *testing.T) {
 				},
 				Logger: testLog,
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 			mockConn.closed = false
 

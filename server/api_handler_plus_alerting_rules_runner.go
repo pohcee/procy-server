@@ -14,7 +14,7 @@ import (
 )
 
 func (al *APIListener) getAlertingCapability() (capEx alertingcap.CapabilityEx, statusCode int, err error) {
-	plusManager := al.Server.plusManager
+	plusManager := al.plusManager
 	if plusManager == nil {
 		return nil, http.StatusUnauthorized, rportplus.ErrPlusNotAvailable
 	}

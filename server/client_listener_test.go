@@ -18,7 +18,7 @@ import (
 
 func TestHandleOutputChannel(t *testing.T) {
 	log := logger.NewLogger("client-listener-test", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug)
-	cl := &ClientListener{server: &Server{uiJobWebSockets: ws.NewWebSocketCache()}}
+	cl := &ClientListener{server: &listenerServices{uiJobWebSockets: newUIStreams()}}
 	mockConn := &connMock{}
 	ws := ws.NewConcurrentWebSocket(mockConn, log)
 	cl.server.uiJobWebSockets.Set("test-jid", ws)

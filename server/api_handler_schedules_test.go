@@ -203,7 +203,7 @@ func TestHandlePostScheduleMultiClientJobWithTags(t *testing.T) {
 			gp := makeGroupsProvider(t, DataSourceOptions)
 			defer gp.Close()
 
-			scheduleManager := makeScheduleManager(t, jp, al, testLog)
+			scheduleManager := makeScheduleManager(t, jp, al.jobRunner, testLog)
 
 			al.initRouter()
 
@@ -432,7 +432,7 @@ func TestHandlePostUpdateScheduleMultiClientJobWithTags(t *testing.T) {
 			gp := makeGroupsProvider(t, DataSourceOptions)
 			defer gp.Close()
 
-			scheduleManager := makeScheduleManager(t, jp, al, testLog)
+			scheduleManager := makeScheduleManager(t, jp, al.jobRunner, testLog)
 
 			al.initRouter()
 

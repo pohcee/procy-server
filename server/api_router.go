@@ -12,6 +12,7 @@ import (
 	rportplus "github.com/openrport/openrport/plus"
 	"github.com/openrport/openrport/plus/capabilities/oauth"
 	"github.com/openrport/openrport/server/api/middleware"
+	"github.com/openrport/openrport/server/api/uploads"
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/routes"
 	"github.com/openrport/openrport/share/security"
@@ -38,6 +39,18 @@ func (al *APIListener) initRouter() {
 		resolver = tenant.DefaultResolver{}
 	}
 	r.Use(tenant.Middleware(resolver))
+	al.uploads = uploads.New(uploads.Options{
+		Config:      al.config,
+		Files:       al.filesAPI,
+		Dispatcher:  al.dispatcher,
+		AuditLog:    al.auditLog,
+		Targets:     al.targets(),
+		Groups:      al.clientGroupProvider,
+		CurrentUser: al.getUserModelForAuth,
+		Respond:     al.responder(),
+		Upgrader:    &apiUpgrader,
+		Logger:      al.Logger,
+	})
 	api := r.PathPrefix(routes.AllRoutesPrefix).Subrouter()
 
 	secureAPI := api.NewRoute().Subrouter()
@@ -91,7 +104,7 @@ func (al *APIListener) initRouter() {
 	clientMonitoring := clientDetails.NewRoute().Subrouter()
 	clientMonitoring.Use(al.permissionsMiddleware(users.PermissionMonitoring))
 	clientMonitoring.HandleFunc("/updates-status", al.handleRefreshUpdatesStatus).Methods(http.MethodPost)
-	if al.Server.config.Monitoring.Enabled {
+	if al.config.Monitoring.Enabled {
 		clientMonitoring.HandleFunc("/graph-metrics", al.handleGetClientGraphMetrics).Methods(http.MethodGet)
 		clientMonitoring.HandleFunc("/graph-metrics/{"+routes.ParamGraphName+"}", al.handleGetClientGraphMetricsGraph).Methods(http.MethodGet)
 		clientMonitoring.HandleFunc("/metrics", al.handleGetClientMetrics).Methods(http.MethodGet)
@@ -109,7 +122,7 @@ func (al *APIListener) initRouter() {
 
 	secureAPI.Handle("/tunnels", al.permissionsMiddleware(users.PermissionTunnels)(http.HandlerFunc(al.handleGetTunnels))).Methods(http.MethodGet)
 	secureAPI.Handle("/auditlog", al.permissionsMiddleware(users.PermissionsAuditLog)(http.HandlerFunc(al.handleListAuditLog))).Methods(http.MethodGet)
-	secureAPI.Handle("/files", al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.handleFileUploads))).Methods(http.MethodPost).Name(routes.FilesUploadRouteName)
+	secureAPI.Handle("/files", al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.uploads.HandleFileUploads))).Methods(http.MethodPost).Name(routes.FilesUploadRouteName)
 
 	secureAPI.HandleFunc("/client-groups", al.handleGetClientGroups).Methods(http.MethodGet)
 	secureAPI.HandleFunc("/client-groups/{group_id}", al.handleGetClientGroup).Methods(http.MethodGet)
@@ -201,7 +214,7 @@ func (al *APIListener) initRouter() {
 	api.HandleFunc("/ws/commands", al.wsAuth(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleCommandsWS)))).Methods(http.MethodGet)
 	api.HandleFunc("/ws/library-entries", al.wsAuth(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleLibraryEntriesWS)))).Methods(http.MethodGet)
 	api.HandleFunc("/ws/scripts", al.wsAuth(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleScriptsWS)))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/uploads", al.wsAuth(al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.handleUploadsWS)))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/uploads", al.wsAuth(al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.uploads.HandleUploadsWS)))).Methods(http.MethodGet)
 
 	if al.config.API.EnableWsTestEndpoints {
 		api.HandleFunc("/test/commands/ui", al.wsCommands)

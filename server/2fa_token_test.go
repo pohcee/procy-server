@@ -41,7 +41,7 @@ func TestTwoFACodeIsDiscardedAfterTooManyWrongAttempts(t *testing.T) {
 func TestVerify2FAUsesTheLoggedInUserNotTheRequestBody(t *testing.T) {
 	// alice started the login (her scoped token authenticated this request); the body names bob.
 	al := &APIListener{
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{API: chconfig.APIConfig{TwoFATokenDelivery: "smtp"}},
 		},
 		bannedUsers: security.NewBanList(0),

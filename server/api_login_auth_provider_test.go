@@ -45,7 +45,7 @@ func GetSuccessPayloadResponse[R PayloadResponse](r io.Reader) (response *R, err
 
 func TestHandleGetBuiltInAuthProvider(t *testing.T) {
 	al := APIListener{
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{
 					MaxTokenLifeTimeHours: 999,
@@ -76,7 +76,7 @@ func TestHandleGetBuiltInAuthProvider(t *testing.T) {
 
 func TestHandleGetAuthSettingsWhenNoPlusOAuth(t *testing.T) {
 	al := APIListener{
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{
 				API:        chconfig.APIConfig{},
 				PlusConfig: rportplus.PlusConfig{},
@@ -144,7 +144,7 @@ func TestHandleGetAuthProviderWhenPlusOAuthAvailable(t *testing.T) {
 	require.NoError(t, err)
 
 	al := APIListener{
-		Server: &Server{
+		apiServices: &apiServices{
 			config:      serverCfg,
 			plusManager: nil,
 		},
@@ -214,7 +214,7 @@ func TestHandleGetAuthSettingsWhenPlusOAuthAvailable(t *testing.T) {
 	require.NoError(t, err)
 
 	al := APIListener{
-		Server: &Server{
+		apiServices: &apiServices{
 			config:      serverCfg,
 			plusManager: plusManager,
 		},

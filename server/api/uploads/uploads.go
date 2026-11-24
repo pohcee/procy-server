@@ -1,6 +1,9 @@
-package chserver
+// Package uploads is the file upload API: POST /files sends a file to clients (through the client
+// dispatcher) and GET /ws/uploads streams each client's result.
+package uploads
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -10,22 +13,89 @@ import (
 	"sync"
 	"time"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	errors3 "github.com/openrport/openrport/share/errors"
-
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/random"
-
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
+
+	"github.com/openrport/openrport/server/api"
+	errors2 "github.com/openrport/openrport/server/api/errors"
+	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/server/auditlog"
+	"github.com/openrport/openrport/server/cgroups"
+	"github.com/openrport/openrport/server/chconfig"
+	"github.com/openrport/openrport/server/clients"
+	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/server/clients/targeting"
+	"github.com/openrport/openrport/server/dispatch"
+	"github.com/openrport/openrport/share/files"
+	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/random"
 )
+
+// GroupLister lists the client groups of the tenant in ctx. cgroups.ClientGroupProvider satisfies it.
+type GroupLister interface {
+	GetAll(ctx context.Context) ([]*cgroups.ClientGroup, error)
+}
+
+// Options are the handler's dependencies; New does not check them, every field is used.
+type Options struct {
+	// Config gives the upload directory.
+	Config     *chconfig.Config
+	Files      files.FileAPI
+	Dispatcher dispatch.Dispatcher
+	AuditLog   *auditlog.AuditLog
+	Targets    targeting.Resolver
+	Groups     GroupLister
+	// CurrentUser returns the user of the request (an errors.APIError when there is none).
+	CurrentUser func(ctx context.Context) (*users.User, error)
+	Respond     *api.Responder
+	Upgrader    *websocket.Upgrader
+	Logger      *logger.Logger
+}
+
+// Handler serves the upload routes.
+type Handler struct {
+	config      *chconfig.Config
+	files       files.FileAPI
+	dispatcher  dispatch.Dispatcher
+	auditLog    *auditlog.AuditLog
+	targets     targeting.Resolver
+	groups      GroupLister
+	currentUser func(ctx context.Context) (*users.User, error)
+	respond     *api.Responder
+	upgrader    *websocket.Upgrader
+	log         *logger.Logger
+	// websockets are the open GET /ws/uploads connections, by connection ID.
+	websockets sync.Map
+}
+
+// New returns the upload handler.
+func New(o Options) *Handler {
+	return &Handler{
+		config:      o.Config,
+		files:       o.Files,
+		dispatcher:  o.Dispatcher,
+		auditLog:    o.AuditLog,
+		targets:     o.Targets,
+		groups:      o.Groups,
+		currentUser: o.CurrentUser,
+		respond:     o.Respond,
+		upgrader:    o.Upgrader,
+		log:         o.Logger,
+	}
+}
+
+// Close closes the open upload websockets.
+func (h *Handler) Close() error {
+	h.websockets.Range(func(_, value interface{}) bool {
+		if wsConn, ok := value.(*websocket.Conn); ok {
+			_ = wsConn.Close()
+		}
+		return true
+	})
+	return nil
+}
 
 const uploadBufSize = 1000000 // 1Mb
 
@@ -52,74 +122,76 @@ func (ur UploadRequest) GetClientTags() (clientTags *models.JobClientTags) {
 	return ur.ClientTags
 }
 
-func (al *APIListener) handleFileUploads(w http.ResponseWriter, req *http.Request) {
-	uploadRequest, err := al.uploadRequestFromRequest(req)
+// HandleFileUploads handles POST /files: it stores the file and sends it to the targeted clients
+// in the background.
+func (h *Handler) HandleFileUploads(w http.ResponseWriter, req *http.Request) {
+	uploadRequest, err := h.uploadRequestFromRequest(req)
 	if err != nil {
-		al.jsonError(w, err)
+		h.respond.Error(w, err)
 		return
 	}
 
-	curUser, err := al.getUserModelForAuth(req.Context())
+	curUser, err := h.currentUser(req.Context())
 	if err != nil {
-		al.jsonErrorResponseWithTitle(w, http.StatusBadRequest, err.Error())
+		h.respond.ErrorWithTitle(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	defer uploadRequest.File.Close()
 
-	wasCreated, err := al.filesAPI.CreateDirIfNotExists(al.config.GetUploadDir(), files.DefaultMode)
+	wasCreated, err := h.files.CreateDirIfNotExists(h.config.GetUploadDir(), files.DefaultMode)
 	if err != nil {
-		al.jsonError(w, err)
+		h.respond.Error(w, err)
 		return
 	}
 	if wasCreated {
-		al.Infof("created directory %s", al.config.GetUploadDir())
+		h.log.Infof("created directory %s", h.config.GetUploadDir())
 	}
 
-	uploadRequest.SourceFilePath = al.genFilePath(uploadRequest.ID)
+	uploadRequest.SourceFilePath = h.genFilePath(uploadRequest.ID)
 
 	err = uploadRequest.Validate()
 	if err != nil {
-		al.jsonErrorResponseWithTitle(w, http.StatusBadRequest, err.Error())
+		h.respond.ErrorWithTitle(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if err = validateRemoteDestination(uploadRequest); err != nil {
-		al.jsonErrorResponseWithDetail(w, http.StatusBadRequest, "BAD_DESTINATION", "upload denied", err.Error())
+		h.respond.ErrorWithDetail(w, http.StatusBadRequest, "BAD_DESTINATION", "upload denied", err.Error())
 		return
 	}
 
 	cr := clients.ClientServiceProvider{}
-	clientGroups, err := al.clientGroupProvider.GetAll(req.Context())
+	clientGroups, err := h.groups.GetAll(req.Context())
 	if err != nil {
-		al.jsonError(w, err)
+		h.respond.Error(w, err)
 		return
 	}
 	if err := cr.CheckClientsAccess(uploadRequest.Clients, curUser, clientGroups); err != nil {
-		al.jsonErrorResponseWithDetail(w, http.StatusForbidden, "ACCESS_CONTROL_VIOLATION", "upload forbidden", err.Error())
+		h.respond.ErrorWithDetail(w, http.StatusForbidden, "ACCESS_CONTROL_VIOLATION", "upload forbidden", err.Error())
 		return
 	}
 
-	copiedBytes, err := al.filesAPI.CreateFile(uploadRequest.SourceFilePath, uploadRequest.File)
+	copiedBytes, err := h.files.CreateFile(uploadRequest.SourceFilePath, uploadRequest.File)
 	if err != nil {
-		al.jsonError(w, err)
+		h.respond.Error(w, err)
 		return
 	}
 
-	file, err := al.filesAPI.Open(uploadRequest.SourceFilePath)
+	file, err := h.files.Open(uploadRequest.SourceFilePath)
 	if err != nil {
-		al.jsonError(w, err)
+		h.respond.Error(w, err)
 		return
 	}
 
 	md5Checksum, err := files.Md5HashFromReader(file)
 	if err != nil {
-		al.jsonError(w, err)
+		h.respond.Error(w, err)
 		return
 	}
 
 	uploadRequest.Md5Checksum = md5Checksum
 
-	al.Debugf(
+	h.log.Debugf(
 		"stored file %s on server, size %d, Content-Type %s, temp location: %s, md5 checksum: %x",
 		uploadRequest.FileHeader.Filename,
 		uploadRequest.FileHeader.Size,
@@ -133,24 +205,26 @@ func (al *APIListener) handleFileUploads(w http.ResponseWriter, req *http.Reques
 		Filepath:  uploadRequest.DestinationPath,
 		SizeBytes: copiedBytes,
 	}
-	al.auditLog.Entry(auditlog.ApplicationUploads, auditlog.ActionCreate).
+	h.auditLog.Entry(auditlog.ApplicationUploads, auditlog.ActionCreate).
 		WithHTTPRequest(req).
 		WithRequest(uploadRequest.UploadedFile).
 		WithResponse(uploadRep).
 		WithID(uploadRequest.UploadedFile.ID).
 		SaveForMultipleClients(uploadRequest.Clients)
 
-	go al.sendFileToClients(uploadRequest)
+	// the sends outlive the request; they keep its tenant
+	go h.sendFileToClients(context.WithoutCancel(req.Context()), uploadRequest)
 
 	response := api.NewSuccessPayload(uploadRep)
 
-	al.writeJSONResponse(w, http.StatusOK, response)
+	h.respond.JSON(w, http.StatusOK, response)
 }
 
-func (al *APIListener) handleUploadsWS(w http.ResponseWriter, req *http.Request) {
-	uiConn, err := apiUpgrader.Upgrade(w, req, nil)
+// HandleUploadsWS handles GET /ws/uploads: the websocket gets the result of every client upload.
+func (h *Handler) HandleUploadsWS(w http.ResponseWriter, req *http.Request) {
+	uiConn, err := h.upgrader.Upgrade(w, req, nil)
 	if err != nil {
-		al.Errorf("Failed to establish WS connection: %v", err)
+		h.log.Errorf("Failed to establish WS connection: %v", err)
 		return
 	}
 
@@ -160,26 +234,26 @@ func (al *APIListener) handleUploadsWS(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	al.Server.uploadWebSockets.Store(connID, uiConn)
+	h.websockets.Store(connID, uiConn)
 
-	defer al.Server.uploadWebSockets.Delete(connID)
+	defer h.websockets.Delete(connID)
 	defer uiConn.Close()
 
 	for {
 		_, _, err := uiConn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				al.Infof("closed ws connection: %v", err)
+				h.log.Infof("closed ws connection: %v", err)
 			}
 			break
 		}
 	}
 }
 
-func (al *APIListener) genFilePath(uuid string) string {
+func (h *Handler) genFilePath(uuid string) string {
 	uniqueFilename := fmt.Sprintf("%s_rport_filepush", uuid)
 
-	return filepath.Join(al.config.GetUploadDir(), uniqueFilename)
+	return filepath.Join(h.config.GetUploadDir(), uniqueFilename)
 }
 
 type uploadResult struct {
@@ -193,14 +267,14 @@ type UploadOutput struct {
 	*models.UploadResponse
 }
 
-func (al *APIListener) sendFileToClients(uploadRequest *UploadRequest) {
+func (h *Handler) sendFileToClients(ctx context.Context, uploadRequest *UploadRequest) {
 	wg := &sync.WaitGroup{}
 	wg.Add(len(uploadRequest.Clients))
 
 	resChan := make(chan *uploadResult, len(uploadRequest.Clients))
 
 	for _, cl := range uploadRequest.Clients {
-		go al.sendFileToClient(wg, uploadRequest.UploadedFile, cl, resChan)
+		go h.sendFileToClient(ctx, wg, uploadRequest.UploadedFile, cl, resChan)
 	}
 
 	go func() {
@@ -208,15 +282,15 @@ func (al *APIListener) sendFileToClients(uploadRequest *UploadRequest) {
 		close(resChan)
 	}()
 
-	al.consumeUploadResults(resChan, uploadRequest)
+	h.consumeUploadResults(resChan, uploadRequest)
 
-	err := al.filesAPI.Remove(uploadRequest.SourceFilePath)
+	err := h.files.Remove(uploadRequest.SourceFilePath)
 	if err != nil {
-		al.Errorf("failed to delete temp file path %s: %v", uploadRequest.SourceFilePath, err)
+		h.log.Errorf("failed to delete temp file path %s: %v", uploadRequest.SourceFilePath, err)
 	}
 }
 
-func (al *APIListener) consumeUploadResults(resChan chan *uploadResult, uploadRequest *UploadRequest) {
+func (h *Handler) consumeUploadResults(resChan chan *uploadResult, uploadRequest *UploadRequest) {
 	for res := range resChan {
 		clientID := res.client.GetID()
 		output := &UploadOutput{
@@ -235,14 +309,14 @@ func (al *APIListener) consumeUploadResults(resChan chan *uploadResult, uploadRe
 					ID: uploadRequest.ID,
 				},
 			}
-			al.Errorf(
+			h.log.Errorf(
 				"upload failure: %s, file id: %s, file path: %s, client %s",
 				errTxt,
 				uploadRequest.ID,
 				uploadRequest.DestinationPath,
 				clientID,
 			)
-			al.auditLog.Entry(auditlog.ApplicationUploads, auditlog.ActionFailed).
+			h.auditLog.Entry(auditlog.ApplicationUploads, auditlog.ActionFailed).
 				WithRequest(uploadRequest.UploadedFile).
 				WithResponse(output).
 				WithID(uploadRequest.UploadedFile.ID).
@@ -250,13 +324,13 @@ func (al *APIListener) consumeUploadResults(resChan chan *uploadResult, uploadRe
 				WithContext(res.client.GetContext()).
 				Save()
 		} else {
-			al.Infof(
+			h.log.Infof(
 				"upload success, file id: %s, file path: %s, client %s",
 				uploadRequest.ID,
 				uploadRequest.DestinationPath,
 				clientID,
 			)
-			al.auditLog.Entry(auditlog.ApplicationUploads, auditlog.ActionSuccess).
+			h.auditLog.Entry(auditlog.ApplicationUploads, auditlog.ActionSuccess).
 				WithRequest(uploadRequest.UploadedFile).
 				WithResponse(output).
 				WithID(uploadRequest.UploadedFile.ID).
@@ -265,30 +339,14 @@ func (al *APIListener) consumeUploadResults(resChan chan *uploadResult, uploadRe
 				Save()
 		}
 
-		al.notifyUploadEventListeners(output)
+		h.notifyUploadEventListeners(output)
 	}
 }
 
-func (al *APIListener) sendFileToClient(wg *sync.WaitGroup, file *models.UploadedFile, cl *clientdata.Client, resChan chan *uploadResult) {
+func (h *Handler) sendFileToClient(ctx context.Context, wg *sync.WaitGroup, file *models.UploadedFile, cl *clientdata.Client, resChan chan *uploadResult) {
 	defer wg.Done()
 
-	fileReceptionConfig := cl.GetFileReceptionConfig()
-	if fileReceptionConfig != nil && !fileReceptionConfig.Enabled {
-		resChan <- &uploadResult{
-			err:    errors3.ErrUploadsDisabled,
-			client: cl,
-			resp:   nil,
-		}
-		return
-	}
-	conn := cl.GetConnection()
-	// The client fetches the file over SFTP while it handles the request.
-	revoke := al.Server.fileGrants.Grant(conn, file.SourceFilePath)
-	defer revoke()
-
-	resp := &models.UploadResponse{}
-	err := comm.SendRequestAndGetResponse(conn, comm.RequestTypeUpload, file, resp, al.Log())
-
+	resp, err := h.dispatcher.Upload(ctx, cl.GetID(), file)
 	resChan <- &uploadResult{
 		err:    err,
 		client: cl,
@@ -296,19 +354,19 @@ func (al *APIListener) sendFileToClient(wg *sync.WaitGroup, file *models.Uploade
 	}
 }
 
-func (al *APIListener) notifyUploadEventListeners(msg interface{}) {
-	al.uploadWebSockets.Range(func(key, value interface{}) bool {
+func (h *Handler) notifyUploadEventListeners(msg interface{}) {
+	h.websockets.Range(func(key, value interface{}) bool {
 		if wsConn, ok := value.(*websocket.Conn); ok {
 			err := wsConn.WriteJSON(msg)
 			if err != nil {
-				al.Errorf("failed to send notification to websocket client %s: %v", key, err)
+				h.log.Errorf("failed to send notification to websocket client %s: %v", key, err)
 			}
 		}
 		return true
 	})
 }
 
-func (al *APIListener) uploadRequestFromRequest(req *http.Request) (ur *UploadRequest, err error) {
+func (h *Handler) uploadRequestFromRequest(req *http.Request) (ur *UploadRequest, err error) {
 	ur = &UploadRequest{
 		UploadedFile: &models.UploadedFile{},
 	}
@@ -334,7 +392,7 @@ func (al *APIListener) uploadRequestFromRequest(req *http.Request) (ur *UploadRe
 
 	ur.ClientTags = clientTags
 
-	orderedClients, clientsInGroupsCount, err := al.getOrderedClientsWithValidation(req.Context(), ur)
+	orderedClients, clientsInGroupsCount, err := h.targets.Resolve(req.Context(), ur)
 	if err != nil {
 		return nil, err
 	}
@@ -361,7 +419,7 @@ func (al *APIListener) uploadRequestFromRequest(req *http.Request) (ur *UploadRe
 	if ur.UploadedFile.ID == "" {
 		id, e := random.UUID4()
 		if e != nil {
-			al.Errorf("failed to generate uuid, will fallback to timestamp uuid, error: %v", e)
+			h.log.Errorf("failed to generate uuid, will fallback to timestamp uuid, error: %v", e)
 			id = fmt.Sprintf("%d", time.Now().UnixNano())
 		}
 		ur.UploadedFile.ID = id

@@ -341,7 +341,7 @@ func TestHandleFileUploads(t *testing.T) {
 
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: clients.NewClientService(
 						nil,
 						nil,
@@ -358,12 +358,12 @@ func TestHandleFileUploads(t *testing.T) {
 							MaxFilePushSize: int64(10 << 20),
 						},
 					},
-					filesAPI:   fileAPIMock,
-					fileGrants: newFileGrants(),
+					filesAPI: fileAPIMock,
 				},
 				Logger:      testLog,
 				userService: MockUserService(tc.user, tc.group),
 			}
+			useLocalDispatcher(&al)
 
 			al.initRouter()
 

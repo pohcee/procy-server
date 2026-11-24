@@ -41,7 +41,7 @@ func TestHandleGetClient(t *testing.T) {
 	c1 := clients.New(t).ID("client-1").ClientAuthID(cl1.ID).Logger(testLog).Build()
 	al := APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1}, &hour, testLog), testLog, nil),
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{
@@ -51,6 +51,7 @@ func TestHandleGetClient(t *testing.T) {
 			clientGroupProvider: mockClientGroupProvider{},
 		},
 	}
+	useLocalDispatcher(&al)
 
 	al.initRouter()
 
@@ -187,7 +188,7 @@ func TestHandleGetClients(t *testing.T) {
 
 	al := APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1, c2}, &hour, testLog), testLog, nil),
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{
@@ -198,6 +199,7 @@ func TestHandleGetClients(t *testing.T) {
 		},
 		userService: users.NewAPIService(users.NewStaticProvider([]*users.User{curUser}), false, 0, -1),
 	}
+	useLocalDispatcher(&al)
 	al.initRouter()
 
 	testCases := []struct {
@@ -386,6 +388,11 @@ func (mcs *SimpleMockClientService) GetActiveByID(_ context.Context, id string) 
 	return mcs.ActiveClients[0], nil
 }
 
+// GetByID is what the local dispatcher looks the client up with.
+func (mcs *SimpleMockClientService) GetByID(ctx context.Context, id string) (*clientdata.Client, error) {
+	return mcs.GetActiveByID(ctx, id)
+}
+
 func (mcs *SimpleMockClientService) StartClientTunnels(_ context.Context, client *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
 	tunnels := make([]*clienttunnel.Tunnel, 0, 32)
 	for i, remote := range remotes {
@@ -552,7 +559,7 @@ func TestHandlePutTunnelWithName(t *testing.T) {
 
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: mockClientService,
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
@@ -569,6 +576,7 @@ func TestHandlePutTunnelWithName(t *testing.T) {
 				userService: mockUsersService,
 				Logger:      testLog,
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			w := httptest.NewRecorder()
@@ -769,7 +777,7 @@ func TestHandlePutTunnelUsingCaddyProxies(t *testing.T) {
 
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: mockClientService,
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
@@ -796,13 +804,14 @@ func TestHandlePutTunnelUsingCaddyProxies(t *testing.T) {
 				userService: mockUsersService,
 				Logger:      testLog,
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
-			originalGenerator := al.Server.config.Caddy.SubDomainGenerator
-			al.Server.config.Caddy.SubDomainGenerator = &MockSubdomainGenerator{}
+			originalGenerator := al.config.Caddy.SubDomainGenerator
+			al.config.Caddy.SubDomainGenerator = &MockSubdomainGenerator{}
 
 			if tc.DisableCaddyConfig {
-				al.Server.config.Caddy.Enabled = false
+				al.config.Caddy.Enabled = false
 			}
 
 			w := httptest.NewRecorder()
@@ -821,7 +830,7 @@ func TestHandlePutTunnelUsingCaddyProxies(t *testing.T) {
 			}
 
 			// be good and restore the original generator
-			al.Server.config.Caddy.SubDomainGenerator = originalGenerator
+			al.config.Caddy.SubDomainGenerator = originalGenerator
 		})
 	}
 }
@@ -842,7 +851,7 @@ func TestHandlePutClientTunnelACL(t *testing.T) {
 	c1.Tunnels[0].TunnelProtocol = mockTunnelProtocol
 	al := APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1}, &hour, testLog), testLog, nil),
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{
@@ -851,6 +860,7 @@ func TestHandlePutClientTunnelACL(t *testing.T) {
 			},
 		},
 	}
+	useLocalDispatcher(&al)
 
 	al.initRouter()
 

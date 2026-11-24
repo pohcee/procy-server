@@ -39,7 +39,7 @@ func newLibraryViewListener(t *testing.T) *APIListener {
 		_, err := m.Create(ctx, c, "m", "u")
 		require.NoError(t, err)
 	}
-	return &APIListener{libraryManager: m}
+	return &APIListener{apiServices: &apiServices{libraryManager: m}}
 }
 
 func TestListLibraryViewFilterSortFieldsPaginate(t *testing.T) {

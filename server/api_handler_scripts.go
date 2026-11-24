@@ -101,7 +101,7 @@ func (al *APIListener) handlePostMultiClientScript(w http.ResponseWriter, req *h
 
 	inboundMsg.Username = curUser.Username
 
-	multiJob, err := al.StartMultiClientJob(ctx, inboundMsg)
+	multiJob, err := al.jobRunner.StartMultiClientJob(ctx, inboundMsg)
 	if err != nil {
 		al.jsonError(w, err)
 		return

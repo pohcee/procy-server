@@ -62,12 +62,13 @@ func TestHandleRefreshUpdatesStatus(t *testing.T) {
 			clientService := clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1, c2}, &hour, testLog), testLog, nil)
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: clientService,
 					config:        &chconfig.Config{},
 				},
 				Logger: testLog,
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/clients/%s/updates-status", tc.ClientID), nil)
@@ -114,7 +115,7 @@ func TestListClientMetrics(t *testing.T) {
 	monitoringService := monitoring.NewService(dbProvider, testLog)
 	al := APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{
 				Monitoring: chconfig.MonitoringConfig{
 					Enabled: true,
@@ -123,6 +124,7 @@ func TestListClientMetrics(t *testing.T) {
 			monitoringService: monitoringService,
 		},
 	}
+	useLocalDispatcher(&al)
 	al.initRouter()
 
 	testCases := []struct {
@@ -243,7 +245,7 @@ func TestMonitoringDisabled(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					config: &chconfig.Config{
 						Monitoring: chconfig.MonitoringConfig{
 							Enabled: tc.Enabled,
@@ -252,6 +254,7 @@ func TestMonitoringDisabled(t *testing.T) {
 					monitoringService: monitoringService,
 				},
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			w := httptest.NewRecorder()
