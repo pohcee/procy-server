@@ -33,6 +33,7 @@ import (
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/ports"
 	"github.com/openrport/openrport/server/scheduler"
+	"github.com/openrport/openrport/server/vault"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/capabilities"
 	"github.com/openrport/openrport/share/files"
@@ -88,6 +89,8 @@ type Server struct {
 	monitoringQueue monitoring.MeasurementSaver
 	// capabilitiesOverride is ServerOpts.Capabilities; nil reports the computed capabilities.
 	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
+	// vaultKeys is ServerOpts.VaultKeys; nil uses the vault passphrase.
+	vaultKeys vault.KeyProvider
 }
 
 type ServerOpts struct {
@@ -115,6 +118,10 @@ type ServerOpts struct {
 	// and the client connection status check does not run. Everything else (the API, the client
 	// service, the job runner) is built as usual.
 	DisableClientListener bool
+	// VaultKeys, when set, gives the key that encrypts the vault values of each tenant instead of the passphrase an
+	// admin gives through the API (#34). The vault then needs no initialisation, init, unlock and lock answer 409,
+	// and GET /api/v1/status reports the vault_passphrase capability as false.
+	VaultKeys vault.KeyProvider
 }
 
 // NewServer creates and returns a new rport server
@@ -141,6 +148,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	filesAPI := opts.FilesAPI
 	s.plusManager = opts.PlusManager
 	s.capabilitiesOverride = opts.Capabilities
+	s.vaultKeys = opts.VaultKeys
 
 	if rportplus.IsPlusEnabled(config.PlusConfig) {
 		licCap := s.plusManager.GetLicenseCapabilityEx()
@@ -315,6 +323,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		Capabilities:  s.capabilitiesOverride,
 		// nil means tenant.DefaultResolver
 		TenantResolver: opts.TenantResolver,
+		VaultKeys:      s.vaultKeys,
 	})
 	if err != nil {
 		return nil, err

@@ -385,7 +385,7 @@ func TestLockWithReadStatusError(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 
 	mngr := NewManager(dbProv, passManagerProv, testLog)
-	mngr.passes[tenant.Default] = "123"
+	mngr.passphrase.setPass(tenant.Default, "123")
 
 	err := mngr.Lock(testCtx)
 	require.EqualError(t, err, "failed to read db status")
@@ -400,7 +400,7 @@ func TestLockWhenDBIsNotInitialized(t *testing.T) {
 	passManagerProv := &PassManagerMock{}
 
 	mngr := NewManager(dbProv, passManagerProv, testLog)
-	mngr.passes[tenant.Default] = "123"
+	mngr.passphrase.setPass(tenant.Default, "123")
 
 	err := mngr.Lock(testCtx)
 	require.EqualError(t, err, "vault is not yet initialized")
@@ -490,7 +490,7 @@ func TestReadStatusUnLocked(t *testing.T) {
 	}
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.passes[tenant.Default] = "123"
+	mngr.passphrase.setPass(tenant.Default, "123")
 	st, err := mngr.Status(testCtx)
 	require.NoError(t, err)
 
@@ -543,7 +543,7 @@ func TestManagerList(t *testing.T) {
 	_, err = mngr.List(testCtx, req)
 	require.EqualError(t, err, "vault is locked")
 
-	mngr.passes[tenant.Default] = "123"
+	mngr.passphrase.setPass(tenant.Default, "123")
 
 	_, err = mngr.List(testCtx, req)
 	require.EqualError(t, err, "vault is not initialized")
@@ -587,7 +587,7 @@ func TestManagerList(t *testing.T) {
 	}
 
 	mngr = NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.passes[tenant.Default] = "123"
+	mngr.passphrase.setPass(tenant.Default, "123")
 
 	_, err = mngr.List(testCtx, req)
 	require.EqualError(t, err, "list error")
@@ -602,7 +602,7 @@ func TestListWithUnsupportedFilterAndSort(t *testing.T) {
 	}
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.passes[tenant.Default] = "123"
+	mngr.passphrase.setPass(tenant.Default, "123")
 
 	inputURL, err := url.Parse("/someu?sort=unsupportedSortField&filter[unsupportedFilter]=val1")
 	require.NoError(t, err)
@@ -653,7 +653,7 @@ func TestGetOne(t *testing.T) {
 	_, _, err = mngr.GetOne(testCtx, 1, user)
 	require.EqualError(t, err, "vault is locked")
 
-	mngr.passes[tenant.Default] = pass
+	mngr.passphrase.setPass(tenant.Default, pass)
 
 	_, _, err = mngr.GetOne(testCtx, 1, user)
 	require.EqualError(t, err, "vault is not initialized")
@@ -677,7 +677,7 @@ func TestGetOne(t *testing.T) {
 	}
 
 	mngr = NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.passes[tenant.Default] = "123"
+	mngr.passphrase.setPass(tenant.Default, "123")
 
 	_, found, err = mngr.GetOne(testCtx, 1, user)
 	require.NoError(t, err)
@@ -693,7 +693,7 @@ func TestGetOne(t *testing.T) {
 	}
 
 	mngr = NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.passes[tenant.Default] = pass
+	mngr.passphrase.setPass(tenant.Default, pass)
 
 	_, _, err = mngr.GetOne(testCtx, 1, user)
 	require.EqualError(t, err, "some get id error")
@@ -719,7 +719,7 @@ func TestGetOneWithLimitedAccess(t *testing.T) {
 	}
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.passes[tenant.Default] = pass
+	mngr.passphrase.setPass(tenant.Default, pass)
 
 	user := &UserDataProviderMock{
 		GroupsToGive: []string{},
@@ -772,7 +772,7 @@ func TestStore(t *testing.T) {
 		require.EqualError(t, err, "vault is locked")
 	})
 
-	mngr.passes[tenant.Default] = pass
+	mngr.passphrase.setPass(tenant.Default, pass)
 
 	t.Run("vault_not_init", func(t *testing.T) {
 		_, err := mngr.Store(testCtx, 1, inputValue, user)
@@ -862,7 +862,7 @@ func TestStoreWithLimitedGroupAccess(t *testing.T) {
 	}
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
-	mngr.passes[tenant.Default] = "12345"
+	mngr.passphrase.setPass(tenant.Default, "12345")
 
 	user := UserDataProviderMock{
 		UsernameToGive: "someuser",
@@ -911,7 +911,7 @@ func TestDeleteKey(t *testing.T) {
 		require.EqualError(t, err, "vault is locked")
 	})
 
-	mngr.passes[tenant.Default] = "1234"
+	mngr.passphrase.setPass(tenant.Default, "1234")
 
 	t.Run("vault_not_init", func(t *testing.T) {
 		err := mngr.Delete(testCtx, 1, user)
@@ -972,7 +972,7 @@ func TestDeleteKeyWithNoGroupAccess(t *testing.T) {
 
 	mngr := NewManager(dbProv, &PassManagerMock{}, testLog)
 
-	mngr.passes[tenant.Default] = pass
+	mngr.passphrase.setPass(tenant.Default, pass)
 
 	t.Run("user_no_key_access", func(t *testing.T) {
 		user := UserDataProviderMock{
