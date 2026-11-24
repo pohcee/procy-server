@@ -139,47 +139,38 @@ func scheduleRuns(t *testing.T, d *pgtest.DB, id string) (claims map[string]stri
 	return claims, jobs
 }
 
-func TestScheduleFiresOnceOnTwoNodesAndFailsOver(t *testing.T) {
-	d, a, _ := twoNodes(t)
-	alice := a.login(t, "alice")
-	code, out := a.do(t, http.MethodPost, "/schedules", alice, map[string]any{
+func TestScheduleCreatedOnAPINodeRunsOnceOnListenerNode(t *testing.T) {
+	d := pgtest.New(t)
+	seedTenants(t, d)
+	listener := startNodeOn(t, d, nodeSettings{nodeID: "node-a", role: chconfig.StorageRoleAll})
+	api := startNodeOn(t, d, nodeSettings{nodeID: "node-b"})
+	alice := api.login(t, "alice")
+	code, out := api.do(t, http.MethodPost, "/schedules", alice, map[string]any{
 		"name": "every 2s", "schedule": "@every 2s", "type": "command", "command": "uptime",
 		"client_ids": []string{"web01"}, "overlaps": true,
 	})
 	require.Less(t, code, 300, out["_raw"])
 	id := out["data"].(map[string]any)["id"].(string)
+	_ = listener
 
-	// both nodes fire it (B learned it from the feed); each fire time runs once
+	// both nodes run the schedule's cron (the listener node learned it from the feed); only the node that can
+	// reach the clients claims the runs, each fire time once
 	require.Eventually(t, func() bool {
 		claims, _ := scheduleRuns(t, d, id)
-		return len(claims) >= 4
+		return len(claims) >= 3
 	}, 30*time.Second, 200*time.Millisecond)
 	time.Sleep(time.Second) // let the last claimed run record its multi-job
 	claims, jobs := scheduleRuns(t, d, id)
+	for fire, h := range claims {
+		assert.True(t, strings.HasPrefix(h, "node-a/"), "run %s claimed by %s", fire, h)
+	}
 	assert.InDelta(t, len(claims), jobs, 1, "one multi-job per claimed fire time (the newest may still be starting)")
-	var attempts int
-	require.NoError(t, d.Owner.Get(&attempts, "SELECT count(DISTINCT fire_time) FROM schedule_runs WHERE schedule_id = $1", id))
-	assert.Equal(t, len(claims), attempts)
-
-	// A stops: B keeps firing the schedule A created
-	a.stop()
-	stoppedAt := time.Now()
-	require.Eventually(t, func() bool {
-		claims, _ := scheduleRuns(t, d, id)
-		for fire, h := range claims {
-			ft, _ := time.Parse(time.RFC3339Nano, fire)
-			if ft.After(stoppedAt) && strings.HasPrefix(h, "node-b/") {
-				return true
-			}
-		}
-		return false
-	}, 15*time.Second, 200*time.Millisecond, "B runs it after A stopped")
 }
 
 func TestScheduleOfOtherTenantRunsAfterRestart(t *testing.T) {
 	d := pgtest.New(t)
 	seedTenants(t, d)
-	first := startNodeOn(t, d, nodeSettings{nodeID: "node-a"})
+	first := startNodeOn(t, d, nodeSettings{nodeID: "node-a", role: chconfig.StorageRoleAll})
 	bob := first.login(t, "bob") // tenant b, not the default one
 	code, out := first.do(t, http.MethodPost, "/schedules", bob, map[string]any{
 		"name": "b's", "schedule": "@every 1s", "type": "command", "command": "uptime",
@@ -189,7 +180,7 @@ func TestScheduleOfOtherTenantRunsAfterRestart(t *testing.T) {
 	id := out["data"].(map[string]any)["id"].(string)
 	first.stop()
 
-	startNodeOn(t, d, nodeSettings{nodeID: "node-a"})
+	startNodeOn(t, d, nodeSettings{nodeID: "node-a", role: chconfig.StorageRoleAll})
 	restarted := time.Now()
 	require.Eventually(t, func() bool {
 		claims, _ := scheduleRuns(t, d, id)
@@ -238,4 +229,28 @@ func TestSecondClientListenerNodeRefused(t *testing.T) {
 	_, release, err := NodeOpts(context.Background(), cfg, d.App, &chserver.ServerOpts{FilesAPI: files.NewFileSystem()}, io.Discard)
 	require.NoError(t, err, "api nodes are not limited")
 	release()
+}
+
+func TestClientListenerLeaseFailsOverWhenNodeStops(t *testing.T) {
+	ttl, renew := clientListenerTTL, clientListenerRenew
+	clientListenerTTL, clientListenerRenew = 2*time.Second, 300*time.Millisecond
+	t.Cleanup(func() { clientListenerTTL, clientListenerRenew = ttl, renew })
+
+	d := pgtest.New(t)
+	a := startNodeOn(t, d, nodeSettings{nodeID: "node-a", role: chconfig.StorageRoleAll})
+	cfg := loadConfig(t, nodeConf(t, d.AppURL, freeAddr(t), nodeSettings{nodeID: "node-b", role: chconfig.StorageRoleAll}))
+	tryB := func() error {
+		_, release, err := NodeOpts(context.Background(), cfg, d.App, &chserver.ServerOpts{FilesAPI: files.NewFileSystem()}, io.Discard)
+		if err == nil {
+			release()
+		}
+		return err
+	}
+	time.Sleep(3 * clientListenerTTL / 2)
+	require.Error(t, tryB(), "a running node keeps renewing its lease past the TTL")
+
+	a.stop()
+	stopped := time.Now()
+	require.Eventually(t, func() bool { return tryB() == nil }, 10*time.Second, 200*time.Millisecond, "B takes over once A's lease expired")
+	assert.Less(t, time.Since(stopped), clientListenerTTL+2*time.Second)
 }

@@ -100,3 +100,17 @@ func TestCoordinatorClientListenerLease(t *testing.T) {
 	assert.ErrorContains(t, err, `node "node-a" accepts the client connections`)
 	assert.NoError(t, newCoordinator(t, d, "node-a").AcquireClientListener(ctx), "the same node restarting takes it back")
 }
+
+func TestCoordinatorAPINodeLeavesScheduledRuns(t *testing.T) {
+	d := pgtest.New(t, "a")
+	api := newCoordinator(t, d, "node-api")
+	api.LeaveScheduledRuns()
+	ctx := tenant.WithID(context.Background(), "a")
+	fire := time.Date(2026, 11, 24, 10, 5, 0, 0, time.UTC)
+	ok, err := api.ClaimRun(ctx, "s1", fire)
+	require.NoError(t, err)
+	assert.False(t, ok, "an api node never starts a scheduled run")
+	ok, err = newCoordinator(t, d, "node-all").ClaimRun(ctx, "s1", fire)
+	require.NoError(t, err)
+	assert.True(t, ok, "and claims nothing: the node with the clients gets the run")
+}

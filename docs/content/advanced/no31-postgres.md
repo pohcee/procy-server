@@ -6,9 +6,9 @@ slug: postgres
 {{< toc >}}
 
 {{< hint type=caution title="Preview" >}}
-**Preview.** Postgres storage is new. It is the first step towards clusters of servers sharing one database.
-For now, run **one** server per database. Without a `[storage]` section the server uses its SQLite files, as it
-always has.
+**Preview.** Postgres storage is new. Several servers can share one database (see
+[Running several servers](#running-several-servers)), with one of them accepting the client connections. Without a
+`[storage]` section the server uses its SQLite files, as it always has.
 {{< /hint >}}
 
 ## What changes
@@ -140,8 +140,52 @@ The vault values are decrypted with the old vault passphrase and encrypted again
 ## Tenants
 
 `rportd tenant add ID [NAME] --dsn <owner URL>` adds another tenant. Its users log in to the same server, and each
-login lands in its tenant. In this preview, devices connect only to the `default` tenant, and schedules and
-clean-ups run only there.
+login lands in its tenant. Schedules and clean-ups run for every active tenant. In this preview, devices connect
+only to the `default` tenant.
+
+## Running several servers
+
+Several servers (*nodes*) can use one database: put a load balancer in front of their API addresses and they serve
+the same users, clients and data. Each node keeps working on its own; nodes don't talk to each other, only to the
+database.
+
+Give every node:
+
+* the same `[api] jwt_secret`, so a token issued by one node is accepted by the others;
+* the same `[server] key_seed`, so the server fingerprint is the same whichever node a device reaches;
+* the same vault key: the same `[vault] kms_key`, or the same key file for `key_provider = "local"`;
+* its own `[cluster] node_id` (the hostname by default; it must differ between nodes);
+* the same time zone (`TZ`): schedules fire at the cron time of the node's zone.
+
+In this preview **one** node accepts the client connections: run it with `[storage] role = "all"` and every other
+node with `role = "api"`. The node with role `all` holds a lease in the database while it runs; a second node with
+role `all` refuses to start ("node … accepts the client connections of this database") until the first has been
+stopped for a minute. API nodes answer "client is not connected" for work on clients (commands, scripts,
+tunnels); send that work to the `all` node.
+
+What the nodes share and how:
+
+* **Caches.** Each node caches clients and API sessions. A change made on one node reaches the others within about
+  a second through a change feed in the database (a `changes` table, `NOTIFY rport_changes`, and polling every few
+  seconds). A session revoked on one node (logout, password change, user deleted) is refused by the others.
+* **Background work.** Clean-ups (jobs, API sessions, monitoring data, notifications, obsolete clients) and the
+  pruning of old library versions run for each tenant on one node at a time: a node takes a lease (table
+  `work_leases`) and renews it on each run; when it stops, another node takes over after about one and a half
+  intervals. Built-in library entries are synced once per tenant and version when nodes start.
+* **Schedules.** Every node keeps every schedule, whichever node created it. Before a run starts, the node records
+  it in `schedule_runs` with the schedule and its due time, so each run starts once however many nodes are due to
+  start it. `@every` schedules fire at multiples of their period, so all nodes agree on the due time. In this
+  preview only the node with role `all` starts runs (the others can't reach the clients).
+* The change feed keeps three days of changes. A node further behind (stopped longer, or cut off from the
+  database) reloads what it caches.
+
+Some state stays on the node that created it, so the load balancer must send a user's requests to the same API
+node (session affinity) for:
+
+* two-factor login: the code sent at login is known only to the node that sent it;
+* login attempts and bans: each node counts failed logins on its own;
+* device pairing codes;
+* live job output in the UI (websockets) and uploads in progress.
 
 ## Developing
 

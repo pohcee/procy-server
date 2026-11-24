@@ -29,8 +29,11 @@ const (
 
 	// ClientListenerLease is the lease of the one node of a cluster that accepts client connections (phase 2).
 	ClientListenerLease = "client-listener"
-	// clientListenerTTL and clientListenerRenew: the holder renews often, so a restarted or replaced listener node
-	// can take over within a minute of the old one stopping.
+)
+
+// clientListenerTTL and clientListenerRenew: the holder renews often, so a replacement listener node can take over
+// within a minute of the old one stopping. Variables for tests.
+var (
 	clientListenerTTL   = time.Minute
 	clientListenerRenew = 20 * time.Second
 )
@@ -46,6 +49,10 @@ type Coordinator struct {
 	log    *logger.Logger
 
 	follower *changefeed.Follower
+
+	// noRuns: this node can't do work on clients (role api, phase 2), so it leaves scheduled runs to the node that
+	// can: a run it claimed would only fail as "not connected"
+	noRuns bool
 
 	mu       sync.Mutex
 	watchers []cluster.Watcher
@@ -134,6 +141,9 @@ func (c *Coordinator) LeaseHolder(ctx context.Context, name string, tid tenant.I
 // ClaimRun records the run of schedule scheduleID (tenant from ctx) due at fire, and reports whether this call
 // recorded it.
 func (c *Coordinator) ClaimRun(ctx context.Context, scheduleID string, fire time.Time) (bool, error) {
+	if c.noRuns {
+		return false, nil
+	}
 	var n int64
 	err := postgres.InTenant(ctx, c.db, func(tx *sqlx.Tx) error {
 		tid, _ := tenant.FromContext(ctx)
@@ -150,6 +160,9 @@ func (c *Coordinator) ClaimRun(ctx context.Context, scheduleID string, fire time
 	}
 	return n == 1, nil
 }
+
+// LeaveScheduledRuns makes this node claim no scheduled run (ClaimRun is always false): it can't reach the clients.
+func (c *Coordinator) LeaveScheduledRuns() { c.noRuns = true }
 
 // AcquireClientListener takes the lease of the cluster's client listener for this node, or returns an error naming
 // the node holding it. The holder is the node id, so the same node restarting takes it back at once. Run renews it.

@@ -81,7 +81,10 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 	if err != nil {
 		return nil, nil, err
 	}
-	if cfg.Storage.Role != chconfig.StorageRoleAPI {
+	if cfg.Storage.Role == chconfig.StorageRoleAPI {
+		// work on clients is refused here; the node with the client listener starts the scheduled runs
+		coord.LeaveScheduledRuns()
+	} else {
 		// phase 2: one node of a cluster accepts the client connections
 		if err := coord.AcquireClientListener(ctx); err != nil {
 			return nil, nil, err
