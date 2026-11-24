@@ -153,16 +153,18 @@ client has moved:
    section and restarts the client under the same supervisor as an update: if the client does not reconnect within
    two minutes, the previous `rport.conf` is restored. The result is in the same `status.json` as an update.
 3. Watch progress. Each client shows the hostname it connected with ("Connected via" on the device page,
-   `connected_host` in the API). Clients still on the old name:
+   `connected_host` in the API):
 
    ```text
-   GET /api/v1/clients?filter[connected_host]=old.example.com&fields[clients]=id,name,connected_host
+   GET /api/v1/clients?fields[clients]=id,name,connected_host,disconnected_at
    ```
 
-   `meta.count` is the number left. Clients that are offline keep the name of their last connection, so they stay
-   in this list until they come back and are switched.
-4. Keep the old name resolving to the server until that count is 0, plus a grace period for clients that are
-   rarely online.
+   A client has moved when its `connected_host` is one of the new names. An empty `connected_host` means the
+   client has not connected since rportd recorded it (it was offline at the upgrade): count it as not moved.
+   Clients that are offline keep the name of their last connection, so they stay on the old name until they come
+   back and are switched.
+4. Keep the old name resolving to the server until every client shows a new name, plus a grace period for clients
+   that are rarely online.
 
 ## Security notes
 

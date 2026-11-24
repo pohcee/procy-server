@@ -40,7 +40,7 @@ const newServer = "http://connect.procy.sh"
 const fallback = "http://us-central1.connect.procy.sh:80"
 
 func TestSetClientServersReplacesServerOnlyInClientSection(t *testing.T) {
-	got, err := setClientServers(t, "[client]\n  server = \"rport.safebridge.io:80\"\n  auth = \"a:b\"\n\n[connection]\n  server = \"keep\"\n", newServer, fallback)
+	got, err := setClientServers(t, "[client]\n  server = \"old.example.com:80\"\n  auth = \"a:b\"\n\n[connection]\n  server = \"keep\"\n", newServer, fallback)
 	require.NoError(t, err)
 	assert.Equal(t, "[client]\n  server = \""+newServer+"\"\n  fallback_servers = [\""+fallback+"\"]\n  auth = \"a:b\"\n\n[connection]\n  server = \"keep\"\n", got)
 }
@@ -80,4 +80,26 @@ func TestSetClientServersKeepsCRLF(t *testing.T) {
 	assert.Contains(t, got, "  auth = 'a:b'\r\n")
 	assert.Contains(t, got, "  server = \""+newServer+"\"")
 	assert.NotContains(t, got, "'old'")
+}
+
+// The config holds the client credentials, so the rewritten copy must never be readable by others,
+// even for a moment. A shim awk records the mode of the file its output goes to.
+func TestSetClientServersWritesPrivateTempFile(t *testing.T) {
+	realAwk, err := exec.LookPath("awk")
+	if err != nil {
+		t.Skip("no awk")
+	}
+	if _, err := os.Stat("/proc/self/fd/1"); err != nil {
+		t.Skip("no /proc")
+	}
+	shimDir := t.TempDir()
+	modeFile := filepath.Join(shimDir, "mode")
+	shim := "#!/bin/sh\nstat -L -c %a /proc/$$/fd/1 > " + modeFile + "\nexec " + realAwk + " \"$@\"\n"
+	require.NoError(t, os.WriteFile(filepath.Join(shimDir, "awk"), []byte(shim), 0755))
+	t.Setenv("PATH", shimDir+":"+os.Getenv("PATH"))
+	_, err = setClientServers(t, "[client]\n  server = 'old'\n", newServer, fallback)
+	require.NoError(t, err)
+	mode, err := os.ReadFile(modeFile)
+	require.NoError(t, err)
+	assert.Equal(t, "600", strings.TrimSpace(string(mode)))
 }

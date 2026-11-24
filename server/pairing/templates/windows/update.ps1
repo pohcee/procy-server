@@ -65,9 +65,9 @@ if ($s)
 {
     if (@($RportConnectUrls).Count -eq 0)
     {
-        Write-Output "* No public connect URL configured on the server ([server] url). Nothing changed."
         Set-Location $myLocation
-        exit 1
+        # throw, not exit: started with &, "exit 1" would leave the calling job successful
+        throw "No public connect URL configured on the server ([server] url). Nothing changed."
     }
     $switchServer = @($RportConnectUrls)[0]
     $switchFallback = @(@($RportConnectUrls) | Select-Object -Skip 1)

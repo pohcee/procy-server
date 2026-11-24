@@ -687,7 +687,8 @@ set_client_servers() {
         [ -n "$scs_fallback" ] && scs_fallback="${scs_fallback}, "
         scs_fallback="${scs_fallback}\"${scs_v}\""
     done
-    SCS_SERVER="$scs_server" SCS_FALLBACK="$scs_fallback" awk -v q="'" '
+    # The config holds the client credentials: the rewritten copy is private (umask 077) from the start.
+    (umask 077 && SCS_SERVER="$scs_server" SCS_FALLBACK="$scs_fallback" awk -v q="'" '
     BEGIN { sec = ""; done = 0; skip = 0; strre = "\"[^\"]*\"|" q "[^" q "]*" q }
     {
         line = $0; cr = ""
@@ -714,7 +715,7 @@ set_client_servers() {
         print $0
     }
     END { if (!done) exit 3 }
-    ' "$scs_conf" >"${scs_conf}.switch" || {
+    ' "$scs_conf" >"${scs_conf}.switch") || {
         rm -f "${scs_conf}.switch"
         throw_fatal "No server setting found in the [client] section of ${scs_conf}"
         return 1

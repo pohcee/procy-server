@@ -233,3 +233,10 @@ func TestWindowsUpdateScriptOffersServerSwitch(t *testing.T) {
 	empty, _ := renderUpdate(osWindows, scriptSettings{DownloadsURL: dlURL, PairingURL: publicURL + "/pairing"})
 	assert.Contains(t, string(empty), "$RportConnectUrls = @()\n")
 }
+
+// "exit 1" in a script started with & only sets $LASTEXITCODE; the library entry's job would look
+// successful. Refusals must throw.
+func TestWindowsServerSwitchRefusalThrows(t *testing.T) {
+	body, _ := renderUpdate(osWindows, scriptSettings{DownloadsURL: dlURL, PairingURL: publicURL + "/pairing"})
+	assert.Contains(t, string(body), `throw "No public connect URL configured on the server ([server] url). Nothing changed."`)
+}
