@@ -54,7 +54,7 @@ func TestToLastExecution(t *testing.T) {
 				StartedAt:    &testTime,
 				ClientCount:  ptr.Int(3),
 				SuccessCount: ptr.Int(2),
-				Status:       ptr.String(models.JobStatusSuccessful),
+				Status:       ptr.String(models.JobStatusFailed),
 				Details: &jobs.JobDetails{
 					Result: &models.JobResult{
 						Summary: "all ok",
@@ -65,7 +65,7 @@ func TestToLastExecution(t *testing.T) {
 				"started_at": "2022-05-10T14:12:50Z",
 				"client_count": 3,
 				"success_count": 2,
-				"status": null,
+				"status": "failed",
 				"summary": null
 			}`,
 		},

@@ -441,6 +441,13 @@ func TestHandleGetCommands(t *testing.T) {
 		job3.JID,
 		job4.JID,
 	)
+	job5 := jb.Status(models.JobStatusSuccessful).FinishedAt(ft).Build()
+	job5.LibraryEntryID, job5.LibraryVersion, job5.OS = "entry-1", 3, "linux"
+	wantRespLibrary := fmt.Sprintf(
+		`{"data":[{"jid":"%s","library_entry_id":"entry-1","library_version":3,"os":"linux"},{"jid":"%s"}], "meta": {"count": 2}}`,
+		job5.JID,
+		job1.JID,
+	)
 	wantResp2 := fmt.Sprintf(
 		`{"data":[{"jid":"%s", "finished_at": "%s", "status": "%s", "result":{"summary":"%s"}}], "meta": {"count": 1}}`,
 		job1.JID,
@@ -467,6 +474,13 @@ func TestHandleGetCommands(t *testing.T) {
 			params:          "fields[commands]=jid",
 			jpReturnJobs:    []*models.Job{job1, job2, job3, job4},
 			wantSuccessResp: wantResp1,
+			wantStatusCode:  http.StatusOK,
+		},
+		{
+			name:            "library fields, only on library runs",
+			params:          "fields[jobs]=jid,library_entry_id,library_version,os",
+			jpReturnJobs:    []*models.Job{job5, job1},
+			wantSuccessResp: wantRespLibrary,
 			wantStatusCode:  http.StatusOK,
 		},
 		{

@@ -39,6 +39,11 @@ type jobPayload struct {
 	Result      **jobResult `json:"result,omitempty"`
 	IsSudo      *bool       `json:"is_sudo,omitempty"`
 	IsScript    *bool       `json:"is_script,omitempty"`
+
+	// Library runs only: left out for other jobs even when requested.
+	LibraryEntryID *string `json:"library_entry_id,omitempty"`
+	LibraryVersion *int    `json:"library_version,omitempty"`
+	OS             *string `json:"os,omitempty"`
 }
 
 type jobResult struct {
@@ -109,6 +114,15 @@ func convertToJobsPayload(jobs []*models.Job, fields []query.FieldsOption) []job
 		}
 		if requestedFields["is_script"] {
 			result[i].IsScript = &job.IsScript
+		}
+		if requestedFields["library_entry_id"] && job.LibraryEntryID != "" {
+			result[i].LibraryEntryID = &job.LibraryEntryID
+		}
+		if requestedFields["library_version"] && job.LibraryVersion != 0 {
+			result[i].LibraryVersion = &job.LibraryVersion
+		}
+		if requestedFields["os"] && job.OS != "" {
+			result[i].OS = &job.OS
 		}
 		if len(requestedResultFields) > 0 {
 			result[i].Result = new(*jobResult)
