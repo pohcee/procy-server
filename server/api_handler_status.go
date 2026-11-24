@@ -56,6 +56,8 @@ func (al *APIListener) handleGetStatus(w http.ResponseWriter, req *http.Request)
 // statusCapabilities returns the capabilities reported by the status endpoint.
 func (al *APIListener) statusCapabilities() capabilities.Capabilities {
 	c := capabilities.FromConfig(al.config)
+	// a vault key provider that is not the passphrase needs no passphrase screens
+	c.VaultPassphrase = al.vaultManager == nil || al.vaultManager.UsesPassphrase()
 	if al.capabilitiesOverride != nil {
 		c = al.capabilitiesOverride(c)
 	}

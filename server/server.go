@@ -33,6 +33,7 @@ import (
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/ports"
 	"github.com/openrport/openrport/server/scheduler"
+	"github.com/openrport/openrport/server/vault"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/capabilities"
 	"github.com/openrport/openrport/share/files"
@@ -88,6 +89,8 @@ type Server struct {
 	monitoringQueue monitoring.MeasurementSaver
 	// capabilitiesOverride is ServerOpts.Capabilities; nil reports the computed capabilities.
 	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
+	// vaultKeys is ServerOpts.VaultKeys; nil uses the vault passphrase.
+	vaultKeys vault.KeyProvider
 }
 
 type ServerOpts struct {
@@ -106,6 +109,10 @@ type ServerOpts struct {
 	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
 	// It receives the capabilities computed from the config and returns the ones to report.
 	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
+	// VaultKeys, when set, gives the key that encrypts the vault values of each tenant instead of the passphrase an
+	// admin gives through the API (#34). The vault then needs no initialisation, init, unlock and lock answer 409,
+	// and GET /api/v1/status reports the vault_passphrase capability as false.
+	VaultKeys vault.KeyProvider
 }
 
 // NewServer creates and returns a new rport server
@@ -132,6 +139,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	filesAPI := opts.FilesAPI
 	s.plusManager = opts.PlusManager
 	s.capabilitiesOverride = opts.Capabilities
+	s.vaultKeys = opts.VaultKeys
 
 	if rportplus.IsPlusEnabled(config.PlusConfig) {
 		licCap := s.plusManager.GetLicenseCapabilityEx()
@@ -302,6 +310,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		Acme:          s.acme,
 		UIJobStreams:  &s.uiJobWebSockets,
 		Capabilities:  s.capabilitiesOverride,
+		VaultKeys:     s.vaultKeys,
 	})
 	if err != nil {
 		return nil, err

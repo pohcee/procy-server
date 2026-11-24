@@ -36,7 +36,9 @@ post:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
     '409':
-      description: vault is already unlocked
+      description: >-
+        vault is already unlocked, or the vault key is managed by the server
+        (no passphrase is used)
       content:
         application/json:
           schema:
@@ -71,7 +73,9 @@ delete:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
     '409':
-      description: vault is already locked
+      description: >-
+        vault is already locked, or the vault key is managed by the server
+        (no passphrase is used)
       content:
         application/json:
           schema:
