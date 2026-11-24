@@ -48,19 +48,27 @@ func freeAddr(t *testing.T) string {
 // loadConfig decodes an rportd.conf the way rportd does: rportd's defaults, the TOML file, then validation.
 func loadConfig(t *testing.T, conf string) *chconfig.Config {
 	t.Helper()
+	cfg, err := parseConfig(t, conf)
+	require.NoError(t, err)
+	return cfg
+}
+
+// parseConfig is loadConfig returning the validation error.
+func parseConfig(t *testing.T, conf string) (*chconfig.Config, error) {
+	t.Helper()
 	v := viper.New()
 	v.SetConfigType("toml")
 	chconfig.SetDefaults(v)
 	cfg := &chconfig.Config{}
 	require.NoError(t, chshare.DecodeViperConfig(v, cfg, strings.NewReader(conf)))
 	mLog := logger.NewMemLogger()
-	require.NoError(t, cfg.ParseAndValidate(&mLog))
-	return cfg
+	return cfg, cfg.ParseAndValidate(&mLog)
 }
 
 type nodeSettings struct {
-	role  string // [storage] role; default "api"
-	vault string // extra [vault] settings
+	role   string // [storage] role; default "api"
+	vault  string // the [vault] settings; default the local key provider with a fresh key file
+	nodeID string // [cluster] node_id; default "node-1"
 }
 
 // nodeConf is the rportd.conf of a Postgres node with the API on apiAddr.
@@ -68,6 +76,12 @@ func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
 	t.Helper()
 	if s.role == "" {
 		s.role = chconfig.StorageRoleAPI
+	}
+	if s.vault == "" {
+		s.vault = fmt.Sprintf("key_provider = \"local\"\nlocal_key_file = %q\n", localKeyFile(t))
+	}
+	if s.nodeID == "" {
+		s.nodeID = "node-1"
 	}
 	return fmt.Sprintf(`
 [server]
@@ -84,7 +98,9 @@ func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
   role = %q
 [vault]
 %s
-`, freeAddr(t), t.TempDir(), apiAddr, testSecret, dsn, s.role, s.vault)
+[cluster]
+  node_id = %q
+`, freeAddr(t), t.TempDir(), apiAddr, testSecret, dsn, s.role, s.vault, s.nodeID)
 }
 
 func localKeyFile(t *testing.T) string {
@@ -243,28 +259,16 @@ func TestNodeRoleAllServesAPI(t *testing.T) {
 	assert.Equal(t, []string{"a-web"}, clientNames(t, out))
 }
 
-func TestNodePassphraseVault(t *testing.T) {
-	h := startNode(t) // [vault] key_provider defaults to "passphrase"
-	alice, bob := h.login(t, "alice"), h.login(t, "bob")
-	code, out := h.do(t, http.MethodPost, "/vault", alice, map[string]any{"client_id": "web01", "key": "db", "value": "s3cret", "type": "secret"})
-	assert.GreaterOrEqual(t, code, 400, "not initialised yet: %s", out["_raw"])
-
-	code, out = h.do(t, http.MethodPost, "/vault-admin/init", alice, map[string]string{"password": "abcdefghijklmnop1234"})
-	require.Equal(t, http.StatusCreated, code, out["_raw"])
-	code, out = h.do(t, http.MethodPost, "/vault", alice, map[string]any{"client_id": "web01", "key": "db", "value": "s3cret", "type": "secret"})
-	require.Equal(t, http.StatusCreated, code, out["_raw"])
-	code, out = h.do(t, http.MethodGet, "/vault", alice, nil)
-	require.Equal(t, http.StatusOK, code, out["_raw"])
-	assert.Len(t, out["data"], 1)
-
-	// the vault of another tenant is its own: not initialised
-	code, out = h.do(t, http.MethodGet, "/vault-admin", bob, nil)
-	require.Equal(t, http.StatusOK, code, out["_raw"])
-	assert.Equal(t, "uninitialized", out["data"].(map[string]any)["init"], out["_raw"])
+// The passphrase unlocks the vault of one process only, so a Postgres node refuses it: the config doesn't validate.
+func TestNodeConfigRefusesPassphraseVault(t *testing.T) {
+	for _, vault := range []string{"# key_provider defaults to passphrase\n", "key_provider = \"passphrase\"\n"} {
+		_, err := parseConfig(t, nodeConf(t, "postgres://rport_app@127.0.0.1:1/none", freeAddr(t), nodeSettings{vault: vault}))
+		assert.ErrorContains(t, err, `[vault] key_provider = "passphrase" is not supported with [storage] backend = "postgres"`, vault)
+	}
 }
 
 func TestNodeManagedVaultPerTenant(t *testing.T) {
-	h := startNodeWith(t, nodeSettings{vault: fmt.Sprintf("key_provider = \"local\"\nlocal_key_file = %q\n", localKeyFile(t))})
+	h := startNode(t) // the local key provider by default
 	alice, bob := h.login(t, "alice"), h.login(t, "bob")
 	code, out := h.do(t, http.MethodPost, "/vault", alice, map[string]any{"client_id": "web01", "key": "db", "value": "s3cret", "type": "secret"})
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
@@ -330,7 +334,7 @@ func TestServerOptsRoleAPI(t *testing.T) {
 	assert.True(t, opts.SkipMigrations)
 	assert.NotNil(t, opts.TenantResolver)
 	assert.NotNil(t, opts.Repositories.Users)
-	assert.Nil(t, opts.VaultKeys, "passphrase vault by default")
+	assert.NotNil(t, opts.VaultKeys, "the vault keys are managed: no passphrase vault on Postgres")
 	assert.Same(t, fs, opts.FilesAPI, "copied from base")
 	assert.False(t, base.SkipMigrations, "base is not modified")
 
@@ -340,10 +344,4 @@ func TestServerOptsRoleAPI(t *testing.T) {
 	defer closeOpts()
 	assert.False(t, opts.DisableClientListener)
 	assert.Nil(t, opts.Dispatcher, "role all does the work on its own connected clients")
-
-	cfg = loadConfig(t, nodeConf(t, d.AppURL, freeAddr(t), nodeSettings{vault: fmt.Sprintf("key_provider = \"local\"\nlocal_key_file = %q\n", localKeyFile(t))}))
-	opts, closeOpts, err = NodeOpts(context.Background(), cfg, d.App, base, io.Discard)
-	require.NoError(t, err)
-	defer closeOpts()
-	assert.NotNil(t, opts.VaultKeys)
 }

@@ -345,6 +345,7 @@ type Config struct {
 	PlusConfig    rportplus.PlusConfig `mapstructure:",squash"`
 	Storage       StorageConfig        `mapstructure:"storage"`
 	Vault         VaultConfig          `mapstructure:"vault"`
+	Cluster       ClusterConfig        `mapstructure:"cluster"`
 }
 
 var (
@@ -388,6 +389,7 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 	if err := c.parseAndValidateStorage(); err != nil {
 		return err
 	}
+	c.warnPostgresSettings(mLog)
 
 	if c.Server.MaxRequestBytes > 0 {
 		c.API.MaxRequestBytes = c.Server.MaxRequestBytes
