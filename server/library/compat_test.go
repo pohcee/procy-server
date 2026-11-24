@@ -1,7 +1,6 @@
 package library
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 
 func TestScriptViewUpdateKeepsOtherOS(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, Content{Name: "Restart", Implementations: map[string]Implementation{
 		OSLinux:   {Kind: KindScript, Code: "systemctl restart x", Interpreter: "bash"},
 		OSWindows: {Kind: KindScript, Code: "Restart-Service x", Interpreter: "powershell"},
@@ -62,7 +61,7 @@ func TestScriptViewListsOnlyScripts(t *testing.T) {
 	assert.Equal(t, OSWindows, os)
 
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	sc, err := m.Create(ctx, Content{Name: "S", Implementations: script1.Implementations}, "m", "u")
 	require.NoError(t, err)
 	cm, err := m.Create(ctx, Content{Name: "C", Implementations: cmd1.Implementations}, "m", "u")
@@ -92,7 +91,7 @@ func TestScriptViewListsOnlyScripts(t *testing.T) {
 
 func TestCommandViewRoundTrip(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	in := command.InputCommand{Name: "Disk", Cmd: "/bin/df -h", Tags: []string{"b", "a"}, TimoutSec: 15}
 	c := ContentFromCommand(in, nil)
 	e, err := m.Create(ctx, c, "Saved through /library/commands", "alice")

@@ -34,7 +34,7 @@ func linuxOnly(name, code string) Content {
 
 func TestCreateStartsAtVersion1(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly(" Disk ", "df"), "initial", "alice")
 	require.NoError(t, err)
 	assert.NotEmpty(t, e.ID)
@@ -59,7 +59,7 @@ func TestCreateStartsAtVersion1(t *testing.T) {
 
 func TestSaveAddsVersionAndChanged(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 
@@ -85,7 +85,7 @@ func TestSaveAddsVersionAndChanged(t *testing.T) {
 
 func TestSaveRejectsStaleBaseVersion(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 
@@ -104,7 +104,7 @@ func TestSaveRejectsStaleBaseVersion(t *testing.T) {
 
 func TestSaveWithoutChangeKeepsVersion(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 	got, err := m.Save(ctx, e.ID, SaveInput{Content: linuxOnly(" Disk", "df"), BaseVersion: 1}, "bob")
@@ -117,7 +117,7 @@ func TestSaveWithoutChangeKeepsVersion(t *testing.T) {
 
 func TestRestoreCreatesNewVersion(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 	_, err = m.Save(ctx, e.ID, SaveInput{Content: linuxOnly("Disk", "df -h"), BaseVersion: 1}, "bob")
@@ -142,7 +142,7 @@ func TestRestoreCreatesNewVersion(t *testing.T) {
 
 func TestDeleteHidesAndUndeleteRestores(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 	require.NoError(t, m.Delete(ctx, e.ID, "bob"))
@@ -177,7 +177,7 @@ func TestDeleteHidesAndUndeleteRestores(t *testing.T) {
 
 func TestUndeleteNameTaken(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 	require.NoError(t, m.Delete(ctx, e.ID, "bob"))
@@ -192,7 +192,7 @@ func TestUndeleteNameTaken(t *testing.T) {
 
 func TestBuiltinIsReadOnly(t *testing.T) {
 	m, s := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, v := testEntry("b1", "Builtin")
 	key := "builtin.one"
 	e.BuiltinKey = &key
@@ -207,7 +207,7 @@ func TestBuiltinIsReadOnly(t *testing.T) {
 
 func TestListFiltersByOS(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	_, err := m.Create(ctx, linuxOnly("Alpha", "a"), "", "u")
 	require.NoError(t, err)
 	both := linuxOnly("Beta", "b")
@@ -246,7 +246,7 @@ func (f fakeRefs) SchedulesUsing(_ context.Context, _ string) ([]Reference, erro
 
 func TestDeleteRefusedWhenScheduled(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 	m.SetReferenceChecker(fakeRefs{[]Reference{{ID: "s1", Name: "nightly"}, {ID: "s2", Name: "weekly"}}})
@@ -261,7 +261,7 @@ func TestDeleteRefusedWhenScheduled(t *testing.T) {
 
 func TestUsedByListsSchedules(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 	refs, err := m.UsedBy(ctx, e.ID)
@@ -279,7 +279,7 @@ func TestUsedByListsSchedules(t *testing.T) {
 
 func TestDeleteAllowedWithoutReferences(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 	m.SetReferenceChecker(fakeRefs{})

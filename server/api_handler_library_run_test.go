@@ -3,7 +3,6 @@ package chserver
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -230,9 +229,9 @@ func (e *libraryRunEnv) syncBuiltins(t *testing.T) *library.Entry {
 	t.Helper()
 	builtins, err := library.Builtins()
 	require.NoError(t, err)
-	_, _, _, err = library.SyncBuiltins(context.Background(), e.store, builtins, "test", time.Now())
+	_, _, _, err = library.SyncBuiltins(tenant.WithID(context.Background(), tenant.Default), e.store, builtins, "test", time.Now())
 	require.NoError(t, err)
-	entry, err := e.store.ByBuiltinKey(context.Background(), "client-update")
+	entry, err := e.store.ByBuiltinKey(tenant.WithID(context.Background(), tenant.Default), "client-update")
 	require.NoError(t, err)
 	require.NotNil(t, entry)
 	return entry
@@ -301,15 +300,15 @@ func TestBuiltinServedWithServerURL(t *testing.T) {
 	}
 
 	// storage keeps the placeholder
-	stored, err := e.store.ByBuiltinKey(context.Background(), "client-update")
+	stored, err := e.store.ByBuiltinKey(tenant.WithID(context.Background(), tenant.Default), "client-update")
 	require.NoError(t, err)
 	assert.Contains(t, stored.Implementations["linux"].Code, "{{server_url}}")
-	v, err := e.store.Version(context.Background(), entry.ID, entry.ActiveVersion)
+	v, err := e.store.Version(tenant.WithID(context.Background(), tenant.Default), entry.ID, entry.ActiveVersion)
 	require.NoError(t, err)
 	assert.Contains(t, v.Content.Implementations["linux"].Code, "{{server_url}}")
 
 	// the compat view path serves the concrete URL too
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r := defaultTenantRequest(http.MethodGet, "/")
 	got, found, err := e.al.libraryViewEntry(r, entry.ID, library.KindScript)
 	require.NoError(t, err)
 	if !found {

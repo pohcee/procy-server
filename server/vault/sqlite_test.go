@@ -14,8 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/test"
 )
+
+// testCtx carries the default tenant, as requests on a standalone server do.
+var testCtx = tenant.WithID(context.Background(), tenant.Default)
 
 var testLog = chshare.NewLogger("vault", chshare.LogOutput{File: os.Stdout}, chshare.LogLevelDebug)
 
@@ -37,7 +41,7 @@ func TestSetStatus(t *testing.T) {
 		EncCheckValue: "123",
 		DecCheckValue: "345",
 	}
-	err = dbProv.SetStatus(context.Background(), statusToSet)
+	err = dbProv.SetStatus(testCtx, statusToSet)
 	require.NoError(t, err)
 
 	expectedRows := []map[string]interface{}{
@@ -54,7 +58,7 @@ func TestSetStatus(t *testing.T) {
 	statusToSet.DecCheckValue = "91011"
 	statusToSet.StatusName = DbStatusNotInit
 
-	err = dbProv.SetStatus(context.Background(), statusToSet)
+	err = dbProv.SetStatus(testCtx, statusToSet)
 	require.NoError(t, err)
 
 	expectedRows2 := []map[string]interface{}{
@@ -72,7 +76,7 @@ func TestGetStatus(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProv.Close()
 
-	dbStatus, err := dbProv.GetStatus(context.Background())
+	dbStatus, err := dbProv.GetStatus(testCtx)
 	require.NoError(t, err)
 	assert.Equal(
 		t,
@@ -88,7 +92,7 @@ func TestGetStatus(t *testing.T) {
 	_, err = dbProv.db.Exec("INSERT INTO `status` (`db_status`, `enc_check`, `dec_check`) VALUES ('someStatus', 'someEnc', 'someDec')")
 	require.NoError(t, err)
 
-	dbStatus, err = dbProv.GetStatus(context.Background())
+	dbStatus, err = dbProv.GetStatus(testCtx)
 	require.NoError(t, err)
 
 	assert.Equal(
@@ -108,7 +112,7 @@ func TestGetByID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProv.Close()
 
-	ctx := context.Background()
+	ctx := testCtx
 
 	err = addDemoData(dbProv.db)
 	require.NoError(t, err)
@@ -153,7 +157,7 @@ func TestList(t *testing.T) {
 	expectedCreatedAt, err := time.Parse("2006-01-02 15:04:05", "2001-01-01 00:00:00")
 	require.NoError(t, err)
 
-	vals, err := dbProv.List(context.Background(), &query.ListOptions{})
+	vals, err := dbProv.List(testCtx, &query.ListOptions{})
 	require.NoError(t, err)
 	assert.Equal(
 		t,
@@ -176,7 +180,7 @@ func TestList(t *testing.T) {
 		vals,
 	)
 
-	vals, err = dbProv.List(context.Background(), &query.ListOptions{
+	vals, err = dbProv.List(testCtx, &query.ListOptions{
 		Sorts: []query.SortOption{
 			{
 				Column: "client_id",
@@ -206,7 +210,7 @@ func TestList(t *testing.T) {
 		vals,
 	)
 
-	vals, err = dbProv.List(context.Background(), &query.ListOptions{
+	vals, err = dbProv.List(testCtx, &query.ListOptions{
 		Sorts: []query.SortOption{
 			{
 				Column: "key",
@@ -242,7 +246,7 @@ func TestList(t *testing.T) {
 		vals,
 	)
 
-	vals, err = dbProv.List(context.Background(), &query.ListOptions{
+	vals, err = dbProv.List(testCtx, &query.ListOptions{
 		Filters: []query.FilterOption{
 			{
 				Column: []string{"client_id"},
@@ -253,7 +257,7 @@ func TestList(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []ValueKey{}, vals)
 
-	vals, err = dbProv.List(context.Background(), &query.ListOptions{
+	vals, err = dbProv.List(testCtx, &query.ListOptions{
 		Filters: []query.FilterOption{
 			{
 				Column: []string{"key"},
@@ -276,7 +280,7 @@ func TestList(t *testing.T) {
 		vals,
 	)
 
-	vals, err = dbProv.List(context.Background(), &query.ListOptions{
+	vals, err = dbProv.List(testCtx, &query.ListOptions{
 		Sorts: []query.SortOption{
 			{
 				Column: "key",
@@ -325,7 +329,7 @@ func TestCreate(t *testing.T) {
 	expectedCreatedAt, err := time.Parse("2006-01-02 15:04:05", "2001-01-01 00:00:00")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := testCtx
 
 	id, err := dbProv.Save(
 		ctx,
@@ -346,6 +350,7 @@ func TestCreate(t *testing.T) {
 	expectedRows := []map[string]interface{}{
 		{
 			"id":             int64(1),
+			"tenant_id":      "default",
 			"client_id":      "client123",
 			"required_group": "group123",
 			"created_at":     expectedCreatedAt,
@@ -372,7 +377,7 @@ func TestUpdate(t *testing.T) {
 	expectedUpdatedAt, err := time.Parse("2006-01-02 15:04:05", "2001-01-02 00:00:00")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := testCtx
 
 	err = addDemoData(dbProv.db)
 	require.NoError(t, err)
@@ -396,6 +401,7 @@ func TestUpdate(t *testing.T) {
 	expectedRows := []map[string]interface{}{
 		{
 			"id":             int64(1),
+			"tenant_id":      "default",
 			"client_id":      "client123",
 			"required_group": "group123",
 			"created_at":     expectedCreatedAt,
@@ -419,7 +425,7 @@ func TestFindByKeyAndClientID(t *testing.T) {
 	expectedCreatedAt, err := time.Parse("2006-01-02 15:04:05", "2001-01-01 00:00:00")
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := testCtx
 
 	err = addDemoData(dbProv.db)
 	require.NoError(t, err)
@@ -461,7 +467,7 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProv.Close()
 
-	ctx := context.Background()
+	ctx := testCtx
 
 	expectedCreatedAt, err := time.Parse("2006-01-02 15:04:05", "2001-01-01 00:00:00")
 	require.NoError(t, err)
@@ -478,6 +484,7 @@ func TestDelete(t *testing.T) {
 	expectedRows := []map[string]interface{}{
 		{
 			"id":             int64(2),
+			"tenant_id":      "default",
 			"client_id":      "client2",
 			"required_group": "group1",
 			"created_at":     expectedCreatedAt,

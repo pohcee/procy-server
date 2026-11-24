@@ -14,8 +14,12 @@ const builtinAuthor = "procy"
 
 // ByBuiltinKey returns the entry (deleted or not) created for a built-in key, or nil.
 func (s *Store) ByBuiltinKey(ctx context.Context, key string) (*Entry, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var id string
-	err := s.db.GetContext(ctx, &id, "SELECT `id` FROM `entries` WHERE `builtin_key` = ?", key)
+	err = s.db.GetContext(ctx, &id, "SELECT `id` FROM `entries` WHERE `tenant_id` = ? AND `builtin_key` = ?", tid, key)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -30,8 +34,11 @@ func builtinSuffixed(name string) string { return name + " (built-in)" }
 // SyncBuiltins makes sure every shipped built-in has an entry: missing ones are
 // created, changed ones get a new version. Deleted built-ins stay deleted and
 // user entries are never touched. A user entry using a built-in's name makes
-// the built-in "<name> (built-in)".
+// the built-in "<name> (built-in)". It syncs the tenant carried by ctx.
 func SyncBuiltins(ctx context.Context, store *Store, builtins []Builtin, version string, now time.Time) (created, updated int, skipped []string, err error) {
+	if _, err := tenantOf(ctx); err != nil {
+		return 0, 0, nil, err
+	}
 	var errs []error
 	for _, b := range builtins {
 		existing, gerr := store.ByBuiltinKey(ctx, b.Key)

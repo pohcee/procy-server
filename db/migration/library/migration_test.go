@@ -32,7 +32,7 @@ func TestMigration005RerunOnExistingTables(t *testing.T) {
 
 	var version int
 	require.NoError(t, db.Get(&version, "SELECT `version` FROM `schema_migrations`"))
-	assert.Equal(t, 5, version)
+	assert.Equal(t, 6, version)
 	var v string
 	require.NoError(t, db.Get(&v, "SELECT `value` FROM `library_meta` WHERE `key` = 'k'"))
 	assert.Equal(t, "v", v)

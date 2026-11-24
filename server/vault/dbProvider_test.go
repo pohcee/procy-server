@@ -1,7 +1,6 @@
 package vault
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -24,7 +23,7 @@ func TestDbProviderNotInit(t *testing.T) {
 	)
 
 	actualDBProvider := dbProvFactory.GetDbProvider()
-	actualDBProviderStatus, err := actualDBProvider.GetStatus(context.Background())
+	actualDBProviderStatus, err := actualDBProvider.GetStatus(testCtx)
 	require.NoError(t, err)
 	assert.Equal(t, "not init db", actualDBProviderStatus.StatusName)
 
@@ -32,7 +31,7 @@ func TestDbProviderNotInit(t *testing.T) {
 	require.NoError(t, err)
 
 	actualDBProvider2 := dbProvFactory.GetDbProvider()
-	actualDBProviderStatus2, err := actualDBProvider2.GetStatus(context.Background())
+	actualDBProviderStatus2, err := actualDBProvider2.GetStatus(testCtx)
 	require.NoError(t, err)
 	assert.Equal(t, "init db", actualDBProviderStatus2.StatusName)
 }
@@ -47,4 +46,21 @@ func TestDbProviderBuildError(t *testing.T) {
 
 	err := dbProvFactory.Init()
 	require.EqualError(t, err, "some error")
+}
+
+// The vault database is shared by all tenants: initializing a second tenant's vault must not reopen it.
+func TestDbProviderInitOpensOnce(t *testing.T) {
+	builds := 0
+	dbProvFactory := NewStatefulDbProviderFactory(
+		func() (DbProvider, error) {
+			builds++
+			return &DbProviderMock{}, nil
+		},
+		&DbProviderMock{},
+	)
+	require.NoError(t, dbProvFactory.Init())
+	first := dbProvFactory.GetDbProvider()
+	require.NoError(t, dbProvFactory.Init())
+	assert.Equal(t, 1, builds)
+	assert.Same(t, first, dbProvFactory.GetDbProvider())
 }

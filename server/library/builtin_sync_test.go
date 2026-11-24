@@ -1,7 +1,6 @@
 package library
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ func testBuiltin(key, name, code string) Builtin {
 
 func entryByKey(t *testing.T, s *Store, key string) *Entry {
 	t.Helper()
-	e, err := s.ByBuiltinKey(context.Background(), key)
+	e, err := s.ByBuiltinKey(testCtx, key)
 	require.NoError(t, err)
 	return e
 }
@@ -30,7 +29,7 @@ func TestSyncCreatesBuiltins(t *testing.T) {
 	bs, err := Builtins()
 	require.NoError(t, err)
 
-	created, updated, _, err := SyncBuiltins(context.Background(), s, bs, "1.2.3", t0)
+	created, updated, _, err := SyncBuiltins(testCtx, s, bs, "1.2.3", t0)
 	require.NoError(t, err)
 	assert.Equal(t, len(bs), created)
 	assert.Equal(t, 0, updated)
@@ -40,7 +39,7 @@ func TestSyncCreatesBuiltins(t *testing.T) {
 	assert.Equal(t, "OS updates", e.Name)
 	assert.Equal(t, 1, e.ActiveVersion)
 	assert.Equal(t, []string{OSLinux, OSWindows}, e.OS)
-	vs, err := s.Versions(context.Background(), e.ID)
+	vs, err := s.Versions(testCtx, e.ID)
 	require.NoError(t, err)
 	require.Len(t, vs, 1)
 	assert.Equal(t, "procy", vs[0].CreatedBy)
@@ -51,9 +50,9 @@ func TestSyncCreatesBuiltins(t *testing.T) {
 func TestSyncIdempotent(t *testing.T) {
 	s := newTestStore(t)
 	bs := []Builtin{testBuiltin("a", "A", "echo 1")}
-	_, _, _, err := SyncBuiltins(context.Background(), s, bs, "1", t0)
+	_, _, _, err := SyncBuiltins(testCtx, s, bs, "1", t0)
 	require.NoError(t, err)
-	created, updated, _, err := SyncBuiltins(context.Background(), s, bs, "1", t0)
+	created, updated, _, err := SyncBuiltins(testCtx, s, bs, "1", t0)
 	require.NoError(t, err)
 	assert.Equal(t, 0, created)
 	assert.Equal(t, 0, updated)
@@ -62,7 +61,7 @@ func TestSyncIdempotent(t *testing.T) {
 
 func TestSyncUpdatesChangedBuiltin(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	_, _, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 1")}, "1", t0)
 	require.NoError(t, err)
 
@@ -90,7 +89,7 @@ func TestSyncUpdatesChangedBuiltin(t *testing.T) {
 
 func TestSyncNameClash(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, v := testEntry("user1", "A")
 	require.NoError(t, s.Insert(ctx, e, v))
 
@@ -118,7 +117,7 @@ func TestSyncNameClash(t *testing.T) {
 
 func TestSyncKeepsDeletedBuiltinDeleted(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	_, _, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "A", "echo 1")}, "1", t0)
 	require.NoError(t, err)
 	e := entryByKey(t, s, "a")
@@ -139,7 +138,7 @@ func TestSyncKeepsDeletedBuiltinDeleted(t *testing.T) {
 
 func TestSyncOneFailureDoesNotStopTheRest(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	for i, n := range []string{"A", "A (built-in)"} {
 		e, v := testEntry("u"+string(rune('1'+i)), n)
 		require.NoError(t, s.Insert(ctx, e, v))
@@ -154,7 +153,7 @@ func TestSyncOneFailureDoesNotStopTheRest(t *testing.T) {
 
 func TestSyncUpdateNeverRenamesIntoClash(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	_, _, _, err := SyncBuiltins(ctx, s, []Builtin{testBuiltin("a", "Old", "x")}, "1", t0)
 	require.NoError(t, err)
 	e, v := testEntry("u1", "New")
@@ -170,9 +169,9 @@ func TestSyncIdempotentRealBuiltins(t *testing.T) {
 	s := newTestStore(t)
 	bs, err := Builtins()
 	require.NoError(t, err)
-	_, _, _, err = SyncBuiltins(context.Background(), s, bs, "1", t0)
+	_, _, _, err = SyncBuiltins(testCtx, s, bs, "1", t0)
 	require.NoError(t, err)
-	created, updated, _, err := SyncBuiltins(context.Background(), s, bs, "1", t0)
+	created, updated, _, err := SyncBuiltins(testCtx, s, bs, "1", t0)
 	require.NoError(t, err)
 	assert.Equal(t, 0, created+updated)
 }
