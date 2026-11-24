@@ -2,9 +2,11 @@ package pgserver
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -75,6 +77,63 @@ func (c *DeviceCoordinator) Run(ctx context.Context) error {
 // Clustered is true.
 func (c *DeviceCoordinator) Clustered() bool { return true }
 
+// deviceTenants is the chserver.DeviceTenants of a device process: the tenant of a device from device_client_auth,
+// the tenants' status and client limit from device_tenants.
+type deviceTenants struct {
+	db   *sqlx.DB
+	auth device.ClientAuth
+}
+
+var _ chserver.DeviceTenants = deviceTenants{}
+
+func (d deviceTenants) TenantOfClientAuth(ctx context.Context, clientAuthID string) (tenant.ID, bool, error) {
+	tid, _, found, err := d.auth.Lookup(ctx, clientAuthID)
+	return tid, found, err
+}
+
+type deviceTenantRow struct {
+	ID         string        `db:"id"`
+	Status     string        `db:"status"`
+	MaxClients sql.NullInt64 `db:"max_clients"`
+}
+
+func (d deviceTenants) rows(ctx context.Context) ([]deviceTenantRow, error) {
+	var rows []deviceTenantRow
+	if err := d.db.SelectContext(ctx, &rows, "SELECT id, status, max_clients FROM device_tenants()"); err != nil {
+		return nil, fmt.Errorf("device tenants: %w", err)
+	}
+	return rows, nil
+}
+
+// DevicePolicy is the tenant's status and client limit; a tenant that doesn't exist has the status "deleted".
+func (d deviceTenants) DevicePolicy(ctx context.Context, tid tenant.ID) (chserver.DevicePolicy, error) {
+	rows, err := d.rows(ctx)
+	if err != nil {
+		return chserver.DevicePolicy{}, err
+	}
+	for _, r := range rows {
+		if r.ID == string(tid) {
+			return chserver.DevicePolicy{Status: r.Status, Limited: r.MaxClients.Valid, MaxClients: int(r.MaxClients.Int64)}, nil
+		}
+	}
+	return chserver.DevicePolicy{Status: "deleted"}, nil
+}
+
+// Tenants are the tenants that can have devices (not reserved, no id starting with "_").
+func (d deviceTenants) Tenants(ctx context.Context) ([]tenant.ID, error) {
+	rows, err := d.rows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []tenant.ID
+	for _, r := range rows {
+		if r.Status != "reserved" && !strings.HasPrefix(r.ID, "_") {
+			out = append(out, tenant.ID(r.ID))
+		}
+	}
+	return out, nil
+}
+
 // deviceNodeOpts fills opts for a node with [storage] role = "device": the device path on the device role's
 // functions, what devices report through the outbox in the data directory, no API listener (the config refuses an
 // [api] address), no vault. The repositories a device process has no use for (library, schedules, notifications,
@@ -105,7 +164,17 @@ func deviceNodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, opts
 		ClientAuth:    device.ClientAuth{DB: db},
 	}
 	opts.SkipMigrations = false
-	opts.Cluster = &DeviceCoordinator{db: db, nodeID: cfg.Cluster.NodeID,
+	coord := &DeviceCoordinator{db: db, nodeID: cfg.Cluster.NodeID,
 		shipper: &outbox.Shipper{Outbox: ob, Sink: device.Sink{DB: db}, Log: log}}
+	opts.Cluster = coord
+	// devices of every tenant connect; their client auth id names the tenant
+	opts.DeviceTenants = deviceTenants{db: db, auth: device.ClientAuth{DB: db}}
+	// the session registry, and with peer calls the peer listener api processes dispatch to
+	cp, err := newClusterProcess(cfg, db, coord, opts)
+	if err != nil {
+		_ = ob.Close()
+		return nil, err
+	}
+	opts.Peer = cp
 	return func() { _ = ob.Close() }, nil
 }

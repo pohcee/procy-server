@@ -51,6 +51,21 @@ func (s *Store) Source() enums.ProviderSource { return enums.ProviderSourceDB }
 // columns never include the password: only Verify reads it.
 const columns = "id, '' AS password"
 
+// TenantOf returns the tenant holding the credentials with the client auth id, and false if no tenant has them. It
+// needs no tenant in ctx: it reads the global client_auth_ids table (kept by a trigger on clients_auth), which has no
+// row-level security. The credentials themselves are read with Get in that tenant.
+func (s *Store) TenantOf(ctx context.Context, id string) (tenant.ID, bool, error) {
+	var tid string
+	err := s.db.GetContext(ctx, &tid, "SELECT tenant_id FROM client_auth_ids WHERE id = $1", id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("client auth: tenant of %q: %w", id, err)
+	}
+	return tenant.ID(tid), true, nil
+}
+
 func (s *Store) Get(ctx context.Context, id string) (*clientsauth.ClientAuth, error) {
 	tid, err := postgres.TenantOf(ctx)
 	if err != nil {

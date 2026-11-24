@@ -8,8 +8,8 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// DeviceFunctions are the functions the device database role may execute (migration 1100): lookups on the device
-// path and the ingest functions. migrate.GrantDevice grants EXECUTE on them; CheckDeviceRole requires it.
+// DeviceFunctions are the functions the device database role may execute: lookups on the device path and the
+// ingest functions (migration 1100), and the session registry (1200). migrate.GrantDevice grants EXECUTE on them; CheckDeviceRole requires it.
 var DeviceFunctions = []string{
 	"device_tenants()",
 	"device_client_auth(text)",
@@ -21,6 +21,11 @@ var DeviceFunctions = []string{
 	"ingest_connection_events(jsonb)",
 	"ingest_audit(jsonb)",
 	"report_client_state(jsonb)",
+	// the session registry (migration 1200, migrate.RegistryFunctions)
+	"rport_node_heartbeat(text, text, text)",
+	"rport_register_session(text, text, text, text, integer)",
+	"rport_renew_sessions(text, jsonb, integer)",
+	"rport_end_session(text)",
 }
 
 // CheckDeviceRole returns an error unless the role db connects as has no more privilege than the device role

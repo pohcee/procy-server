@@ -35,6 +35,8 @@ import (
 	"github.com/openrport/openrport/server/notifications/channels/scriptRunner"
 	"github.com/openrport/openrport/server/notifications/channels/toLog"
 	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
+	"github.com/openrport/openrport/server/operator"
+	"github.com/openrport/openrport/server/routes"
 
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/jobs/schedule"
@@ -97,6 +99,8 @@ type APIListenerOptions struct {
 	TenantResolver tenant.Resolver
 	// VaultKeys gives the key that encrypts the vault values; nil: the passphrase given through the API.
 	VaultKeys vault.KeyProvider
+	// Operator, when set, serves the operator API; nil: no operator routes.
+	Operator operator.Service
 	// NoNotificationsCleaner leaves deleting old notifications to the server (per tenant, in a cluster).
 	NoNotificationsCleaner bool
 }
@@ -128,6 +132,8 @@ type APIListener struct {
 
 	// uploads serves the upload routes; made with the router
 	uploads *uploads.Handler
+	// operatorAPI serves the operator routes; nil without APIListenerOptions.Operator
+	operatorAPI *operator.Handler
 
 	fingerprint       string
 	apiSessions       *session.Cache
@@ -311,6 +317,9 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
+	if o.Operator != nil {
+		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, CurrentUser: a.getUserModelForAuth, Respond: a.responder()})
+	}
 
 	logGroupPermissionsNotice(userService, a.Logger)
 
@@ -536,7 +545,7 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 			case authorization.APITokenReadWrite:
 				return true, username, nil
 			case authorization.APITokenClientsAuth:
-				if strings.Contains(urlpath, "clients-auth") {
+				if isClientsAuthRoute(urlpath) {
 					return true, username, nil
 				}
 			}
@@ -545,6 +554,13 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 	}
 
 	return false, username, nil
+}
+
+// isClientsAuthRoute reports whether urlpath is one of the client credential routes a clients-auth token may use:
+// the path, not any path containing the text (an organization id may contain "clients-auth").
+func isClientsAuthRoute(urlpath string) bool {
+	rest := strings.TrimPrefix(urlpath, routes.AllRoutesPrefix)
+	return rest == "/clients-auth" || strings.HasPrefix(rest, "/clients-auth/")
 }
 
 func (al *APIListener) checkBearerToken(ctx context.Context, bearerToken, uri, method string) (bool, *bearer.TokenContext, error) {

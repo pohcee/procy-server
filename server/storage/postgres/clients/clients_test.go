@@ -128,6 +128,30 @@ func TestDeviceReportedClients(t *testing.T) {
 	assert.Empty(t, all)
 }
 
+// A client with a live session in the cluster registry is connected to some node: an old disconnected_at (written
+// by the node that held an older session) neither hides it nor gets it purged.
+func TestLiveSessionKeepsClientFromPurge(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	keep := time.Hour
+	s := New(d.App, &keep)
+	ctx := repotest.Ctx(repotest.TenantA)
+	long := time.Now().Add(-2 * time.Hour)
+	require.NoError(t, s.Save(ctx, repotest.StoreClient("held", &long)))
+	require.NoError(t, s.Save(ctx, repotest.StoreClient("gone", &long)))
+	_, err := d.App.Exec("SELECT rport_register_session('a', 'held', 'n1', 'session-0001', 60)")
+	require.NoError(t, err)
+
+	all, err := s.GetAll(ctx, testLog)
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	assert.Equal(t, "held", all[0].GetID())
+
+	require.NoError(t, s.DeleteObsolete(ctx, testLog))
+	var ids []string
+	require.NoError(t, d.Owner.Select(&ids, "SELECT id FROM clients"))
+	assert.Equal(t, []string{"held"}, ids)
+}
+
 func TestGet(t *testing.T) {
 	d := pgtest.New(t, repotest.TenantA, repotest.TenantB)
 	s := New(d.App, nil)
@@ -274,4 +298,44 @@ func TestDeleteObsoleteFollowsReportedState(t *testing.T) {
 	var n int
 	require.NoError(t, d.Owner.Get(&n, "SELECT count(*) FROM client_state"))
 	assert.Zero(t, n)
+}
+
+// The node that held an older session saving the client as disconnected leaves the newer session's record alone;
+// a client stored as connected without a live session is marked disconnected by the sweep.
+func TestRegistryDecidesConnectionState(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	s := New(d.App, nil)
+	ctx := repotest.Ctx(repotest.TenantA)
+	c := repotest.StoreClient("c1", nil)
+	c.Name = "newer"
+	require.NoError(t, s.Save(ctx, c))
+	_, err := d.App.Exec("SELECT rport_register_session('a', 'c1', 'n2', 'session-0002', 60)")
+	require.NoError(t, err)
+
+	now := time.Now()
+	stale := repotest.StoreClient("c1", &now)
+	stale.Name = "older"
+	require.NoError(t, s.Save(ctx, stale))
+	got, err := s.Get(ctx, "c1", testLog)
+	require.NoError(t, err)
+	assert.True(t, got.IsConnected())
+	assert.Equal(t, "newer", got.GetName())
+
+	n, err := s.MarkLostSessionsDisconnected(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, n)
+
+	_, err = d.App.Exec("SELECT rport_end_session('session-0002')")
+	require.NoError(t, err)
+	n, err = s.MarkLostSessionsDisconnected(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, n)
+	got, err = s.Get(ctx, "c1", testLog)
+	require.NoError(t, err)
+	assert.False(t, got.IsConnected())
+	// with no live session a disconnected save is written as before
+	require.NoError(t, s.Save(ctx, stale))
+	got, err = s.Get(ctx, "c1", testLog)
+	require.NoError(t, err)
+	assert.Equal(t, "older", got.GetName())
 }

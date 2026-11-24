@@ -49,9 +49,10 @@ func OpenOwner(ctx context.Context, cfg *chconfig.Config, ownerDSN string) (*sql
 
 // NodeOpts returns the server options of a node on the Postgres database db (connected as the application role,
 // migrated): base with every repository on Postgres, the tenant of each request from the resolver, the vault keys of
-// [vault] key_provider, and, for [storage] role = "api", no client listener and work on clients refused as not
-// connected; for role "device" the device path on the device role (see deviceNodeOpts), refusing a login with
-// more privilege than that role; the cluster coordinator of [cluster] node_id (a node with a client listener takes the cluster's
+// [vault] key_provider, the operator API, devices of every tenant connecting (DeviceTenants), and, for [storage]
+// role = "api", no client listener and work on clients refused as not connected; for role "device" the device
+// path on the device role (see deviceNodeOpts), refusing a login with more privilege than that role; the cluster
+// coordinator of [cluster] node_id (a node with a client listener takes the cluster's
 // client listener lease, or is refused while another node holds it). It refuses a database that is not migrated (run rportd migrate) and a connection row-level security
 // would not apply to (superuser, BYPASSRLS or table owner). release frees what NodeOpts opened (not db); call it
 // after the server stopped.
@@ -96,11 +97,16 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 	if err != nil {
 		return nil, nil, err
 	}
-	if cfg.Storage.Role == chconfig.StorageRoleAPI {
+	peerCalls := cfg.Cluster.PeerEnabled()
+	switch {
+	case peerCalls:
+		// every client is reached through the session registry and peer calls: any node starts scheduled runs,
+		// and several nodes accept client connections
+	case cfg.Storage.Role == chconfig.StorageRoleAPI:
 		// work on clients is refused here; the node with the client listener starts the scheduled runs
 		coord.LeaveScheduledRuns()
-	} else {
-		// phase 2: one node of a cluster accepts the client connections
+	default:
+		// without peer calls, one node of a cluster accepts the client connections
 		if err := coord.AcquireClientListener(ctx); err != nil {
 			return nil, nil, err
 		}
@@ -113,12 +119,23 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 		opts.Repositories.Clients = clients.KeepConnectionStateOnLoad(opts.Repositories.Clients)
 	}
 	opts.TenantResolver = NewResolver(db, cfg.API.JWTSecret)
+	opts.Operator = NewOperator(db, cfg)
 	// every repository is injected; refuse rather than create any SQLite file
 	opts.SkipMigrations = true
 	if cfg.Storage.Role == chconfig.StorageRoleAPI {
 		opts.DisableClientListener = true
 		opts.Dispatcher = NotConnectedDispatcher{}
+	} else {
+		// devices of every tenant connect; their client auth id names the tenant
+		opts.DeviceTenants = NewDeviceTenants(db)
 	}
+	// the session registry, and with peer calls the cluster dispatcher (replacing the one above) and peer listener
+	cp, err := newClusterProcess(cfg, db, coord, opts)
+	if err != nil {
+		coord.Release()
+		return nil, nil, err
+	}
+	opts.Peer = cp
 
 	keys, closeFn, err := VaultKeys(ctx, cfg, db, logw)
 	if err != nil {

@@ -129,6 +129,11 @@ get:
                       library:
                         type: boolean
                         description: The script and command library
+                      operator:
+                        type: boolean
+                        description: >-
+                          The operator API is available to the requesting user (a platform operator on a Postgres
+                          server). Present only when true.
               meta:
                 type: object
                 properties: {}

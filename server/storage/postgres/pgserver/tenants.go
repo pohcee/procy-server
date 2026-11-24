@@ -28,6 +28,11 @@ func AddTenant(ctx context.Context, db *sqlx.DB, id tenant.ID, name string) erro
 	if _, err := db.ExecContext(ctx, "INSERT INTO tenants (id, name) VALUES ($1, $2)", string(id), name); err != nil {
 		return fmt.Errorf("add tenant %q: %w", id, err)
 	}
+	return syncBuiltins(ctx, db, id)
+}
+
+// syncBuiltins gives the new tenant id the built-in library entries.
+func syncBuiltins(ctx context.Context, db *sqlx.DB, id tenant.ID) error {
 	builtins, err := library.Builtins()
 	if err != nil {
 		return fmt.Errorf("tenant %q added, but the built-in library entries could not be loaded: %w", id, err)

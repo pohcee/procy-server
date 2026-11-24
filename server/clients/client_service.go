@@ -83,9 +83,11 @@ type ClientServiceProvider struct {
 	portDistributor   *ports.PortDistributor
 	tunnelProxyConfig *clienttunnel.InternalTunnelProxyConfig
 	caddyAPI          caddy.API
-	logger            *logger.Logger
-	acme              *acme.Acme
-	alertingService   alertingcap.Service
+	// tunnelHostInTunnels: each tunnel records tunnel_host (several nodes, each with its own name)
+	tunnelHostInTunnels bool
+	logger              *logger.Logger
+	acme                *acme.Acme
+	alertingService     alertingcap.Service
 
 	licensecap licensecap.CapabilityEx
 
@@ -786,6 +788,13 @@ func (s *ClientServiceProvider) FindTunnel(c *clientdata.Client, id string) *cli
 	return nil
 }
 
+// SetTunnelHostInTunnels makes each tunnel started from now on carry [server] tunnel_host, the name of this server,
+// so that links to it name the server holding it when several servers share the clients. Set during
+// initialization.
+func (s *ClientServiceProvider) SetTunnelHostInTunnels(on bool) {
+	s.tunnelHostInTunnels = on
+}
+
 func (s *ClientServiceProvider) SetCaddyAPI(capi caddy.API) {
 	// unguarded as set during initialization
 	s.caddyAPI = capi
@@ -837,6 +846,10 @@ func (s *ClientServiceProvider) StartTunnel(
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if s.tunnelHostInTunnels {
+		tunnel.TunnelHost = s.tunnelProxyConfig.Host
 	}
 
 	// in case tunnel auto-closed due to auto close - run background task to remove the tunnel from the list

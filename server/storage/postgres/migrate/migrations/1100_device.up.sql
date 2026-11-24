@@ -109,10 +109,11 @@ $$;
 -- ---------------------------------------------------------------------------------------------------------------
 -- Device-path lookups. The device role gets lookups by key only, no snapshot of whole tables and no change feed.
 
--- device_tenants: the tenants and their status (a device process admits devices of active tenants only).
-CREATE FUNCTION device_tenants() RETURNS TABLE (id text, status text)
+-- device_tenants: the tenants, their status and client limit (a device process admits devices of active tenants
+-- only, up to the limit).
+CREATE FUNCTION device_tenants() RETURNS TABLE (id text, status text, max_clients integer)
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-    SELECT t.id, t.status FROM tenants t ORDER BY t.id
+    SELECT t.id, t.status, t.max_clients FROM tenants t ORDER BY t.id
 $$;
 
 -- device_client_auth: the tenant and argon2id hash of a client credential, looked up by its id (unique across

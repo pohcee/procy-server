@@ -8,6 +8,7 @@ import (
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 const DefaultMaxWorkers = 100
@@ -85,7 +86,11 @@ func (t *ClientsStatusCheckTask) Run(ctx context.Context) error {
 func (t *ClientsStatusCheckTask) getDueClients(ctx context.Context) (dueClients []*clientdata.Client, totalCount int) {
 	var confirmedClients = 0
 	var now = time.Now()
-	activeClients := t.clientsRepo.GetAllActiveClients(ctx)
+	// the connections of this node, of every tenant whose clients connected here
+	var activeClients []*clientdata.Client
+	for _, tid := range t.clientsRepo.Tenants() {
+		activeClients = append(activeClients, t.clientsRepo.GetAllActiveClients(tenant.WithID(ctx, tid))...)
+	}
 	for _, c := range activeClients {
 		// Shorten the threshold aka make heartbeat older than it is because the ping response is stored after this check.
 		// Clients would get checked only every second time otherwise.

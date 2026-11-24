@@ -23,6 +23,7 @@ import (
 	chserver "github.com/openrport/openrport/server"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/server/operator"
 	pgclients "github.com/openrport/openrport/server/storage/postgres/clients"
 	"github.com/openrport/openrport/server/storage/postgres/pgtest"
 	chshare "github.com/openrport/openrport/share"
@@ -35,6 +36,7 @@ const testPassword = "correct horse battery staple"
 
 type nodeFixture struct {
 	base string
+	db   *pgtest.DB
 	// stop stops the node (also done at the end of the test); it is safe to call twice
 	stop func()
 	// coord is the node's cluster coordinator
@@ -75,6 +77,12 @@ type nodeSettings struct {
 	vault  string // the [vault] settings; default the local key provider with a fresh key file
 	nodeID string // [cluster] node_id; default "node-1"
 	server string // extra [server] settings
+	// listen is the client listener address; default a free port
+	listen string
+	// apiOff runs without the API ([api] address = "")
+	apiOff bool
+	// cluster is extra [cluster] settings
+	cluster string
 }
 
 // nodeConf is the rportd.conf of a Postgres node with the API on apiAddr.
@@ -88,6 +96,12 @@ func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
 	}
 	if s.nodeID == "" {
 		s.nodeID = "node-1"
+	}
+	if s.listen == "" {
+		s.listen = freeAddr(t)
+	}
+	if s.apiOff {
+		apiAddr = ""
 	}
 	return fmt.Sprintf(`
 [server]
@@ -107,7 +121,8 @@ func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
 %s
 [cluster]
   node_id = %q
-`, freeAddr(t), t.TempDir(), s.server, apiAddr, testSecret, dsn, s.role, s.vault, s.nodeID)
+%s
+`, s.listen, t.TempDir(), s.server, apiAddr, testSecret, dsn, s.role, s.vault, s.nodeID, s.cluster)
 }
 
 func localKeyFile(t *testing.T) string {
@@ -142,6 +157,9 @@ func seedTenants(t *testing.T, d *pgtest.DB) {
 		cl := &clientdata.Client{ID: "web01", ClientAuthID: "auth-" + string(tc.id), Name: tc.name, DisconnectedAt: &now}
 		require.NoError(t, pgclients.New(d.App, nil).Save(tenant.WithID(ctx, tc.id), cl))
 	}
+	// platform operators: op (an administrator of the system tenant) and viewer (not an administrator)
+	require.NoError(t, AddUser(ctx, d.App, operator.SystemTenant, "op", testPassword, nil))
+	require.NoError(t, AddUser(ctx, d.App, operator.SystemTenant, "viewer", testPassword, []string{"Viewers"}))
 }
 
 // startNodeOn runs a node on the database d.
@@ -178,6 +196,9 @@ func startNodeOn(t *testing.T, d *pgtest.DB, s nodeSettings) *nodeFixture {
 	}
 	t.Cleanup(stop)
 	base := "http://" + addr + "/api/v1"
+	if s.apiOff {
+		addr, base = s.listen, ""
+	}
 	// wait for the port with a plain dial: an unauthenticated request would delay the next one (user_login_wait)
 	require.Eventually(t, func() bool {
 		c, err := net.Dial("tcp", addr)
@@ -188,7 +209,7 @@ func startNodeOn(t *testing.T, d *pgtest.DB, s nodeSettings) *nodeFixture {
 		return true
 	}, 10*time.Second, 50*time.Millisecond)
 	coord, _ := opts.Cluster.(*Coordinator)
-	return &nodeFixture{base: base, stop: stop, coord: coord}
+	return &nodeFixture{base: base, stop: stop, coord: coord, db: d}
 }
 
 func (h *nodeFixture) do(t *testing.T, method, path, token string, body any) (int, map[string]any) {
@@ -363,6 +384,7 @@ func TestServerOptsRoleAPI(t *testing.T) {
 	assert.NotNil(t, opts.Repositories.Users)
 	assert.NotNil(t, opts.VaultKeys, "the vault keys are managed: no passphrase vault on Postgres")
 	assert.Same(t, fs, opts.FilesAPI, "copied from base")
+	assert.Nil(t, opts.DeviceTenants, "no client listener")
 	assert.False(t, base.SkipMigrations, "base is not modified")
 
 	cfg = loadConfig(t, nodeConf(t, d.AppURL, freeAddr(t), nodeSettings{role: chconfig.StorageRoleAll}))
@@ -371,4 +393,5 @@ func TestServerOptsRoleAPI(t *testing.T) {
 	defer closeOpts()
 	assert.False(t, opts.DisableClientListener)
 	assert.Nil(t, opts.Dispatcher, "role all does the work on its own connected clients")
+	assert.NotNil(t, opts.DeviceTenants, "devices of every tenant connect")
 }
