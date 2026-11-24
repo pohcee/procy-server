@@ -41,15 +41,15 @@ func (f *fakeKMS) aead(name string) cipher.AEAD {
 	return g
 }
 
-func (f *fakeKMS) settings() (error, bool, bool, bool, func()) {
+func (f *fakeKMS) settings() (bool, bool, bool, func(), error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.err, f.corruptEncryptCRC, f.corruptDecryptCRC, f.unverified, f.beforeEncrypt
+	return f.corruptEncryptCRC, f.corruptDecryptCRC, f.unverified, f.beforeEncrypt, f.err
 }
 
 func (f *fakeKMS) Encrypt(_ context.Context, req *kmspb.EncryptRequest, _ ...gax.CallOption) (*kmspb.EncryptResponse, error) {
 	f.encrypts.Add(1)
-	err, corrupt, _, unverified, before := f.settings()
+	corrupt, _, unverified, before, err := f.settings()
 	if before != nil {
 		before()
 	}
@@ -87,7 +87,7 @@ func (f *fakeKMS) Decrypt(_ context.Context, req *kmspb.DecryptRequest, _ ...gax
 	if before != nil {
 		before()
 	}
-	err, _, corrupt, _, _ := f.settings()
+	_, corrupt, _, _, err := f.settings()
 	if err != nil {
 		return nil, err
 	}

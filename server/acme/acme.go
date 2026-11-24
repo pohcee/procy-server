@@ -59,7 +59,7 @@ func (a *Acme) listenHTTP() {
 	}
 }
 
-func (a *Acme) hostPolicy(ctx context.Context, host string) error {
+func (a *Acme) hostPolicy(_ context.Context, host string) error {
 	if !a.hosts[host] {
 		return fmt.Errorf("host %q not configured for acme", host)
 	}

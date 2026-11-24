@@ -59,7 +59,7 @@ func ParseFieldsOptions(values url.Values) []FieldsOption {
 		}
 
 		matches := fieldsRegex.FindStringSubmatch(fieldsKey)
-		if matches == nil || len(matches) < 2 {
+		if len(matches) < 2 {
 			continue
 		}
 

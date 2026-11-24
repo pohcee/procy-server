@@ -29,7 +29,7 @@ type mockFileSystem struct {
 	CheckedPath    string
 }
 
-func (m *mockFileSystem) MakeDirAll(dir string) error {
+func (m *mockFileSystem) MakeDirAll(_ string) error {
 	return nil
 }
 
@@ -65,7 +65,7 @@ func TestShouldErrorWhenPluginPathDoesNotExist(t *testing.T) {
 
 type MockPluginLoader struct{}
 
-func (pl *MockPluginLoader) LoadSymbol(pluginPath string, name string) (sym plugin.Symbol, err error) {
+func (pl *MockPluginLoader) LoadSymbol(_ string, _ string) (sym plugin.Symbol, err error) {
 	return nil, nil
 }
 

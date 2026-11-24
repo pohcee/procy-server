@@ -3,6 +3,7 @@ package jobrunner
 import (
 	"context"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -81,7 +82,7 @@ func TestRunnerWithoutAPI(t *testing.T) {
 		Logger:     testLog,
 		NewJobID: func() (string, error) {
 			n++
-			return "jid-" + string(rune('0'+n)), nil
+			return "jid-" + strconv.Itoa(n), nil
 		},
 		OnRunDone:        func() { done <- struct{}{} },
 		NoSequentialWait: true,

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"sync"
@@ -57,12 +56,12 @@ func (fm *FileManager) SaveUsersToFile(usrs []*User) error {
 	fm.FileAccessLock.Lock()
 	defer fm.FileAccessLock.Unlock()
 
-	file, err := json.MarshalIndent(usrs, "", " ")
+	file, err := json.MarshalIndent(usrs, "", " ") //nolint:gosec // G117: the users file stores the password hashes
 	if err != nil {
 		return err
 	}
 
-	return ioutil.WriteFile(fm.FileName, file, 0600)
+	return os.WriteFile(fm.FileName, file, 0600)
 }
 
 func parseUsers(r io.Reader) ([]*User, error) {

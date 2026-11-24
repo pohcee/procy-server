@@ -170,7 +170,7 @@ func currentURIMatchesTokenScopes(currentURI, currentMethod string, tokenScopes 
 
 func ParseToken(tokenStr string, JWTSecret string) (tokCtx *TokenContext, err error) {
 	appClaims := &AppTokenClaims{}
-	bearerToken, err := jwt.ParseWithClaims(tokenStr, appClaims, func(token *jwt.Token) (i interface{}, err error) {
+	bearerToken, err := jwt.ParseWithClaims(tokenStr, appClaims, func(_ *jwt.Token) (i interface{}, err error) {
 		return []byte(JWTSecret), nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()})) // only HS256 tokens are issued
 	if err != nil {

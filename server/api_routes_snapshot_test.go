@@ -75,7 +75,7 @@ func TestAPIRouteSnapshot(t *testing.T) {
 
 			golden := filepath.Join("testdata", "api_routes_"+name+".txt")
 			if *updateRouteSnapshot {
-				require.NoError(t, os.WriteFile(golden, []byte(got), 0o644))
+				require.NoError(t, os.WriteFile(golden, []byte(got), 0o644)) //nolint:gosec // G306: a committed golden file
 			}
 			want, err := os.ReadFile(golden)
 			require.NoError(t, err)

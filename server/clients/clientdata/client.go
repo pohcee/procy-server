@@ -24,7 +24,7 @@ func CopyAttrsToClient(attributes models.Attributes, client *Client) {
 	client.Tags = attributes.Tags
 }
 
-func CopyClientsToAttrs(client Client, attributes *models.Attributes) { //nolint:govet
+func CopyClientsToAttrs(client *Client, attributes *models.Attributes) {
 	attributes.Labels = client.Labels
 	attributes.Tags = client.Tags
 }
@@ -682,7 +682,7 @@ func (c *Client) UserGroupHasAccessViaClientGroup(userGroups []string, allClient
 func (c *Client) GetAttributes() models.Attributes {
 	attr := models.Attributes{}
 	c.flock.RLock()
-	CopyClientsToAttrs(*c, &attr) //nolint:govet
+	CopyClientsToAttrs(c, &attr)
 	c.flock.RUnlock()
 	return attr
 }

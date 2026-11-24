@@ -19,7 +19,7 @@ import (
 )
 
 // EnvVaultPassphrase holds the passphrase of the source vault for "rportd import".
-const EnvVaultPassphrase = "RPORT_VAULT_PASSPHRASE"
+const EnvVaultPassphrase = "RPORT_VAULT_PASSPHRASE" //nolint:gosec // G101: an environment variable name
 
 var (
 	importCmd = &cobra.Command{

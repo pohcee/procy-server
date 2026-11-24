@@ -43,7 +43,7 @@ func newTenantProvider(t *testing.T) *SQLiteProvider {
 	return p
 }
 
-func listUsernames(t *testing.T, p Provider, ctx context.Context) []string {
+func listUsernames(ctx context.Context, t *testing.T, p Provider) []string {
 	t.Helper()
 	entries, err := p.List(ctx, &query.ListOptions{})
 	require.NoError(t, err)
@@ -71,8 +71,8 @@ func TestAuditLogIsolatesTenants(t *testing.T) {
 	require.NoError(t, p.Save(b, &Entry{Timestamp: time.Now(), Username: "bob", ID: "x"}))
 	require.NoError(t, p.Save(b, &Entry{Timestamp: time.Now(), Username: "bob2", ID: "y"}))
 
-	assert.Equal(t, []string{"alice"}, listUsernames(t, p, a))
-	assert.ElementsMatch(t, []string{"bob", "bob2"}, listUsernames(t, p, b))
+	assert.Equal(t, []string{"alice"}, listUsernames(a, t, p))
+	assert.ElementsMatch(t, []string{"bob", "bob2"}, listUsernames(b, t, p))
 
 	filtered, err := p.List(b, &query.ListOptions{Filters: []query.FilterOption{{
 		Column: []string{"affected_id"}, Operator: query.FilterOperatorTypeEQ, Values: []string{"x"},
@@ -107,8 +107,8 @@ func TestEntrySavesForTheRequestsTenant(t *testing.T) {
 	cancel()
 	e.Save()
 
-	assert.Equal(t, []string{"alice"}, listUsernames(t, p, ctxFor("a")))
-	assert.Empty(t, listUsernames(t, p, ctxFor("b")))
+	assert.Equal(t, []string{"alice"}, listUsernames(ctxFor("a"), t, p))
+	assert.Empty(t, listUsernames(ctxFor("b"), t, p))
 }
 
 func TestEntryWithContextSavesForThatTenant(t *testing.T) {
@@ -117,8 +117,8 @@ func TestEntryWithContextSavesForThatTenant(t *testing.T) {
 	e.Username = "bob"
 	e.Save()
 
-	assert.Equal(t, []string{"bob"}, listUsernames(t, p, ctxFor("b")))
-	assert.Empty(t, listUsernames(t, p, ctxFor("a")))
+	assert.Equal(t, []string{"bob"}, listUsernames(ctxFor("b"), t, p))
+	assert.Empty(t, listUsernames(ctxFor("a"), t, p))
 }
 
 func TestEntryWithoutTenantIsNotSaved(t *testing.T) {
@@ -149,7 +149,7 @@ func TestUpgradeKeepsAuditlogInDefaultTenant(t *testing.T) {
 	p, err := openSQLiteProvider(dir, DataSourceOptions)
 	require.NoError(t, err)
 	defer p.Close()
-	assert.Equal(t, []string{"legacy"}, listUsernames(t, p, ctxFor(tenant.Default)))
+	assert.Equal(t, []string{"legacy"}, listUsernames(ctxFor(tenant.Default), t, p))
 }
 
 func TestDowngradeKeepsOnlyDefaultAuditlog(t *testing.T) {
@@ -179,15 +179,15 @@ func TestRotatedOldAuditlogIsReadAsDefault(t *testing.T) {
 	rotation, err := NewRotationProvider(ctxFor(tenant.Default), tenantTestLog, time.Minute, dir, DataSourceOptions)
 	require.NoError(t, err)
 	defer rotation.Close()
-	assert.Empty(t, listUsernames(t, rotation, ctxFor(tenant.Default)), "rotated on init")
+	assert.Empty(t, listUsernames(ctxFor(tenant.Default), t, rotation), "rotated on init")
 	require.NoError(t, rotation.Save(ctxFor(tenant.Default), &Entry{Timestamp: time.Now(), Username: "new"}))
-	assert.Equal(t, []string{"new"}, listUsernames(t, rotation, ctxFor(tenant.Default)))
+	assert.Equal(t, []string{"new"}, listUsernames(ctxFor(tenant.Default), t, rotation))
 
 	db, err := sqlite.New(path.Join(dir, time.Now().Format(rotatedFilename)), auditlogmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
 	rotated := &SQLiteProvider{db: db, converter: query.NewSQLConverter(db.DriverName())}
 	defer rotated.Close()
-	assert.Equal(t, []string{"legacy"}, listUsernames(t, rotated, ctxFor(tenant.Default)))
+	assert.Equal(t, []string{"legacy"}, listUsernames(ctxFor(tenant.Default), t, rotated))
 }
 
 func TestRotationLoopStopsWithItsContext(t *testing.T) {

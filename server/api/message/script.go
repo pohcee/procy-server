@@ -67,7 +67,7 @@ func (s *ScriptService) DeliveryMethod() string {
 	return "script"
 }
 
-func (s *ScriptService) ValidateReceiver(ctx context.Context, receiver string) error {
+func (s *ScriptService) ValidateReceiver(_ context.Context, receiver string) error {
 	switch s.Validation {
 	case ValidationEmail:
 		return email2.Validate(receiver)

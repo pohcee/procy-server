@@ -85,9 +85,9 @@ func TestStoreIsolatesTenants(t *testing.T) {
 	assert.Equal(t, "desc", got.Description)
 
 	// a second version in a only
-	addVersionIn(t, s, a, "id1", 2, t0.Add(time.Hour))
-	assert.Equal(t, []int{2, 1}, versionNumbersIn(t, s, a, "id1"))
-	assert.Equal(t, []int{1}, versionNumbersIn(t, s, b, "id1"))
+	addVersionIn(a, t, s, "id1", 2, t0.Add(time.Hour))
+	assert.Equal(t, []int{2, 1}, versionNumbersIn(a, t, s, "id1"))
+	assert.Equal(t, []int{1}, versionNumbersIn(b, t, s, "id1"))
 	gotB, err := s.Get(b, "id1")
 	require.NoError(t, err)
 	assert.Equal(t, 1, gotB.ActiveVersion)
@@ -125,12 +125,12 @@ func TestStoreIsolatesTenants(t *testing.T) {
 	assert.Nil(t, stillA.DeletedAt)
 
 	// prune in b leaves a's versions alone
-	addVersionIn(t, s, a, "id2", 2, t0.Add(time.Hour))
-	addVersionIn(t, s, a, "id2", 3, t0.Add(2*time.Hour))
+	addVersionIn(a, t, s, "id2", 2, t0.Add(time.Hour))
+	addVersionIn(a, t, s, "id2", 3, t0.Add(2*time.Hour))
 	n, err := s.Prune(b, 1, time.Time{})
 	require.NoError(t, err)
 	assert.Zero(t, n)
-	assert.Equal(t, []int{3, 2, 1}, versionNumbersIn(t, s, a, "id2"))
+	assert.Equal(t, []int{3, 2, 1}, versionNumbersIn(a, t, s, "id2"))
 
 	// meta per tenant
 	tx, err := s.db.BeginTxx(a, nil)
@@ -251,7 +251,7 @@ func TestUpgradeKeepsLibraryInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	assert.Equal(t, "df 3", u.Implementations[OSLinux].Code)
-	assert.Equal(t, []int{3, 2, 1}, versionNumbersIn(t, s, ctx, "user1"))
+	assert.Equal(t, []int{3, 2, 1}, versionNumbersIn(ctx, t, s, "user1"))
 
 	d, err := s.Get(ctx, "del1")
 	require.NoError(t, err)
@@ -288,7 +288,7 @@ func TestDowngradeKeepsOnlyDefaultLibrary(t *testing.T) {
 		e, v := testEntry("id1", "A")
 		e.Description = string(tid)
 		require.NoError(t, s.Insert(ctx, e, v))
-		addVersionIn(t, s, ctx, "id1", 2, t0.Add(time.Hour))
+		addVersionIn(ctx, t, s, "id1", 2, t0.Add(time.Hour))
 		tx, err := db.BeginTxx(ctx, nil)
 		require.NoError(t, err)
 		require.NoError(t, s.setMeta(ctx, tx, "k", string(tid)))

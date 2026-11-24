@@ -5,7 +5,6 @@ package system
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 )
 
@@ -16,7 +15,7 @@ var vDevices = map[string]string{
 	"/dev/vmbus/hv_kvp": VirtualSystemHyperV,
 }
 
-func (s *realSystemInfo) virtualizationInfo(ctx context.Context) (virtSystem, virtRole string, err error) {
+func (s *realSystemInfo) virtualizationInfo(_ context.Context) (virtSystem, virtRole string, err error) {
 	for i, v := range vDevices {
 		if _, err := os.Stat(i); err == nil {
 			return v, VirtualSystemRoleGuest, nil
@@ -31,7 +30,7 @@ func (s *realSystemInfo) virtualizationInfo(ctx context.Context) (virtSystem, vi
 		return "", "", err
 	}
 
-	fileContent, err := ioutil.ReadFile(devicesInfoPath)
+	fileContent, err := os.ReadFile(devicesInfoPath)
 	if err != nil {
 		return "", "", err
 	}

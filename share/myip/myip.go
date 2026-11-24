@@ -49,7 +49,7 @@ func getMyIP(ctx context.Context, apiURL string, netTransport string) (ip string
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+	transport.DialContext = func(ctx context.Context, _, addr string) (net.Conn, error) {
 		return zeroDialer.DialContext(ctx, netTransport, addr)
 	}
 	httpClient.Transport = transport

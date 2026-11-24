@@ -21,7 +21,7 @@ func vaultInput(clientID, key, value string) *vault.InputValue {
 	return &vault.InputValue{ClientID: clientID, RequiredGroup: "g1", Key: key, Value: value, Type: vault.SecretType}
 }
 
-func vaultSave(t *testing.T, r vault.DbProvider, ctx context.Context, user string, val *vault.InputValue, at time.Time) int {
+func vaultSave(ctx context.Context, t *testing.T, r vault.DbProvider, user string, val *vault.InputValue, at time.Time) int {
 	t.Helper()
 	id, err := r.Save(ctx, user, 0, val, at)
 	require.NoError(t, err)
@@ -37,7 +37,7 @@ func vaultKeys(vals []vault.ValueKey) []string {
 	return keys
 }
 
-func vaultList(t *testing.T, r vault.DbProvider, ctx context.Context, lo *query.ListOptions) []string {
+func vaultList(ctx context.Context, t *testing.T, r vault.DbProvider, lo *query.ListOptions) []string {
 	t.Helper()
 	vals, err := r.List(ctx, lo)
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 
 		st, err := r.GetStatus(b)
 		require.NoError(t, err)
-		assert.Equal(t, "", st.StatusName, "B's vault is not initialised by A's")
+		assert.Equal(t, "", st.StatusName, "B's vault is not initialized by A's")
 
 		require.NoError(t, r.SetStatus(b, vault.DbStatus{StatusName: vault.DbStatusInit, EncCheckValue: "encB", DecCheckValue: "decB"}))
 		require.NoError(t, r.SetStatus(b, vault.DbStatus{StatusName: vault.DbStatusNotInit, EncCheckValue: "encB2", DecCheckValue: "decB2"}))
@@ -131,8 +131,8 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 
 	t.Run("SaveInsertsAndGetByID", func(t *testing.T) {
 		r := newRepo(t)
-		id1 := vaultSave(t, r, a, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
-		id2 := vaultSave(t, r, a, "u1", vaultInput("c2", "k2", "v2"), vaultT0)
+		id1 := vaultSave(a, t, r, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
+		id2 := vaultSave(a, t, r, "u1", vaultInput("c2", "k2", "v2"), vaultT0)
 		assert.NotEqual(t, id1, id2)
 
 		got, found, err := r.GetByID(a, id1)
@@ -155,7 +155,7 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 	t.Run("SaveRoundTripsEmptyFields", func(t *testing.T) {
 		r := newRepo(t)
 		in := &vault.InputValue{ClientID: "", RequiredGroup: "", Key: "k", Value: "", Type: vault.TextType}
-		id := vaultSave(t, r, a, "u1", in, vaultT0)
+		id := vaultSave(a, t, r, "u1", in, vaultT0)
 		got, found, err := r.GetByID(a, id)
 		require.NoError(t, err)
 		require.True(t, found)
@@ -169,7 +169,7 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 
 	t.Run("SaveUpdates", func(t *testing.T) {
 		r := newRepo(t)
-		id := vaultSave(t, r, a, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
+		id := vaultSave(a, t, r, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
 		later := vaultT0.Add(time.Hour)
 		upd := &vault.InputValue{ClientID: "c9", RequiredGroup: "g9", Key: "k9", Value: "v9", Type: vault.MarkdownType}
 		gotID, err := r.Save(a, "u2", int64(id), upd, later)
@@ -193,12 +193,12 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 
 	t.Run("KeyUniquePerClient", func(t *testing.T) {
 		r := newRepo(t)
-		vaultSave(t, r, a, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
+		vaultSave(a, t, r, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
 		_, err := r.Save(a, "u1", 0, vaultInput("c1", "k1", "other"), vaultT0)
 		assert.Error(t, err, "a key exists once per client")
 
-		vaultSave(t, r, a, "u1", vaultInput("c2", "k1", "v2"), vaultT0)
-		vaultSave(t, r, a, "u1", vaultInput("", "k1", "v3"), vaultT0)
+		vaultSave(a, t, r, "u1", vaultInput("c2", "k1", "v2"), vaultT0)
+		vaultSave(a, t, r, "u1", vaultInput("", "k1", "v3"), vaultT0)
 
 		got, found, err := r.FindByKeyAndClientID(a, "k1", "c1")
 		require.NoError(t, err)
@@ -208,8 +208,8 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 
 	t.Run("FindByKeyAndClientID", func(t *testing.T) {
 		r := newRepo(t)
-		id := vaultSave(t, r, a, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
-		vaultSave(t, r, a, "u1", vaultInput("c2", "k2", "v2"), vaultT0)
+		id := vaultSave(a, t, r, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
+		vaultSave(a, t, r, "u1", vaultInput("c2", "k2", "v2"), vaultT0)
 
 		_, found, err := r.FindByKeyAndClientID(a, "k1", "unknown")
 		require.NoError(t, err)
@@ -232,9 +232,9 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 
 	t.Run("List", func(t *testing.T) {
 		r := newRepo(t)
-		id1 := vaultSave(t, r, a, "u1", vaultInput("c2", "kb", "v1"), vaultT0)
-		vaultSave(t, r, a, "u2", vaultInput("c1", "ka", "v2"), vaultT0.Add(time.Hour))
-		vaultSave(t, r, a, "u1", vaultInput("c3", "kc", "v3"), vaultT0.Add(2*time.Hour))
+		id1 := vaultSave(a, t, r, "u1", vaultInput("c2", "kb", "v1"), vaultT0)
+		vaultSave(a, t, r, "u2", vaultInput("c1", "ka", "v2"), vaultT0.Add(time.Hour))
+		vaultSave(a, t, r, "u1", vaultInput("c3", "kc", "v3"), vaultT0.Add(2*time.Hour))
 
 		vals, err := r.List(a, &query.ListOptions{})
 		require.NoError(t, err)
@@ -247,44 +247,44 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 			}
 		}
 
-		assert.Equal(t, []string{"c3/kc", "c2/kb", "c1/ka"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c3/kc", "c2/kb", "c1/ka"}, vaultList(a, t, r, &query.ListOptions{
 			Sorts: []query.SortOption{{Column: "client_id", IsASC: false}},
 		}))
-		assert.Equal(t, []string{"c3/kc", "c1/ka", "c2/kb"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c3/kc", "c1/ka", "c2/kb"}, vaultList(a, t, r, &query.ListOptions{
 			Sorts: []query.SortOption{{Column: "created_at", IsASC: false}},
 		}))
-		assert.Equal(t, []string{"c3/kc", "c1/ka", "c2/kb"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c3/kc", "c1/ka", "c2/kb"}, vaultList(a, t, r, &query.ListOptions{
 			Sorts: []query.SortOption{{Column: "id", IsASC: false}},
 		}))
-		assert.Equal(t, []string{"c1/ka", "c2/kb", "c3/kc"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c1/ka", "c2/kb", "c3/kc"}, vaultList(a, t, r, &query.ListOptions{
 			Sorts: []query.SortOption{{Column: "created_by", IsASC: false}, {Column: "client_id", IsASC: true}},
 		}))
 
-		assert.Equal(t, []string{"c3/kc", "c2/kb"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c3/kc", "c2/kb"}, vaultList(a, t, r, &query.ListOptions{
 			Sorts:   []query.SortOption{{Column: "key", IsASC: false}},
 			Filters: []query.FilterOption{{Column: []string{"created_by"}, Values: []string{"u1"}}},
 		}))
-		assert.Equal(t, []string{}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{}, vaultList(a, t, r, &query.ListOptions{
 			Filters: []query.FilterOption{{Column: []string{"client_id"}, Values: []string{"unknown"}}},
 		}))
-		assert.Equal(t, []string{"c1/ka"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c1/ka"}, vaultList(a, t, r, &query.ListOptions{
 			Filters: []query.FilterOption{{Column: []string{"key"}, Values: []string{"ka"}}},
 		}))
-		assert.Equal(t, []string{"c2/kb"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c2/kb"}, vaultList(a, t, r, &query.ListOptions{
 			Filters: []query.FilterOption{
 				{Column: []string{"key"}, Values: []string{"ka", "kb"}},
 				{Column: []string{"created_by"}, Values: []string{"u1"}},
 			},
 		}))
-		assert.Equal(t, []string{"c2/kb"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c2/kb"}, vaultList(a, t, r, &query.ListOptions{
 			Filters: []query.FilterOption{{Column: []string{"client_id", "key"}, Values: []string{"c2"}}},
 		}))
 		// a wildcard pattern matches case-insensitively
-		assert.Equal(t, []string{"c2/kb", "c3/kc"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c2/kb", "c3/kc"}, vaultList(a, t, r, &query.ListOptions{
 			Sorts:   []query.SortOption{{Column: "key", IsASC: true}},
 			Filters: []query.FilterOption{{Column: []string{"key"}, Values: []string{"K*"}}, {Column: []string{"created_by"}, Values: []string{"u1"}}},
 		}))
-		assert.Equal(t, []string{"c2/kb"}, vaultList(t, r, a, &query.ListOptions{
+		assert.Equal(t, []string{"c2/kb"}, vaultList(a, t, r, &query.ListOptions{
 			Filters: []query.FilterOption{{Column: []string{"id"}, Values: []string{strconv.Itoa(id1)}}},
 		}))
 	})
@@ -299,8 +299,8 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 
 	t.Run("Delete", func(t *testing.T) {
 		r := newRepo(t)
-		id1 := vaultSave(t, r, a, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
-		id2 := vaultSave(t, r, a, "u1", vaultInput("c2", "k2", "v2"), vaultT0)
+		id1 := vaultSave(a, t, r, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
+		id2 := vaultSave(a, t, r, "u1", vaultInput("c2", "k2", "v2"), vaultT0)
 
 		assert.Error(t, r.Delete(a, -2))
 		require.NoError(t, r.Delete(a, id1))
@@ -312,16 +312,16 @@ func Vault(t *testing.T, newRepo Factory[vault.DbProvider]) {
 		_, found, err = r.GetByID(a, id2)
 		require.NoError(t, err)
 		assert.True(t, found)
-		assert.Equal(t, []string{"c2/k2"}, vaultList(t, r, a, &query.ListOptions{}))
+		assert.Equal(t, []string{"c2/k2"}, vaultList(a, t, r, &query.ListOptions{}))
 
 		// the key can be stored again
-		vaultSave(t, r, a, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
+		vaultSave(a, t, r, "u1", vaultInput("c1", "k1", "v1"), vaultT0)
 	})
 
 	t.Run("TenantIsolation", func(t *testing.T) {
 		r := newRepo(t)
-		idA := vaultSave(t, r, a, "ua", vaultInput("c1", "k1", "va"), vaultT0)
-		idB := vaultSave(t, r, b, "ub", vaultInput("c1", "k1", "vb"), vaultT0)
+		idA := vaultSave(a, t, r, "ua", vaultInput("c1", "k1", "va"), vaultT0)
+		idB := vaultSave(b, t, r, "ub", vaultInput("c1", "k1", "vb"), vaultT0)
 		assert.NotEqual(t, idA, idB)
 
 		got, found, err := r.FindByKeyAndClientID(a, "k1", "c1")

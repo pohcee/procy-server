@@ -316,7 +316,7 @@ func (al *APIListener) initRouter() {
 // library entry writes have their own limits, all other routes use
 // api.max_request_bytes.
 func (al *APIListener) applyMaxBytes(r *mux.Router) {
-	_ = r.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	_ = r.Walk(func(route *mux.Route, _ *mux.Router, _ []*mux.Route) error {
 		name := route.GetName()
 		switch {
 		case name == routes.FilesUploadRouteName:

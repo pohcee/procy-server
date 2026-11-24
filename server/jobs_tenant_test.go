@@ -42,7 +42,7 @@ func TestCmdResultSavedInClientTenant(t *testing.T) {
 }
 
 // A multi-job started by a request is run and saved in the request's tenant, even after the request
-// is done and its context cancelled.
+// is done and its context canceled.
 func TestMultiJobRunSavedInRequestTenant(t *testing.T) {
 	sequentialJobIDs(t)
 	al, jp, cls, _ := typedRunFixture(t)
@@ -77,7 +77,7 @@ func TestMultiJobRunSavedInRequestTenant(t *testing.T) {
 }
 
 // A result still being processed when the connection ends (or the server shuts down) must be saved:
-// the client's context is cancelled by then.
+// the client's context is canceled by then.
 func TestCmdResultSavedAfterClientContextCancelled(t *testing.T) {
 	jp := makeJobsProvider(t, DataSourceOptions, testLog)
 	t.Cleanup(func() { jp.Close() })

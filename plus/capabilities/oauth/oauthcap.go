@@ -36,7 +36,7 @@ func (cap *Capability) GetInitFuncName() (name string) {
 // the returned capability provider interface. This interface provides
 // the functions of the capability.
 func (cap *Capability) InitProvider(initFn plugin.Symbol) {
-	fn := initFn.(func(cap *Capability) (capProvider CapabilityEx))
+	fn := initFn.(func(capability *Capability) (capProvider CapabilityEx))
 	cap.Provider = fn(cap)
 }
 

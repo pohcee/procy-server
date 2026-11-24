@@ -83,7 +83,7 @@ func (p *StaticProvider) DeleteGroup(ctx context.Context, _ string) error {
 	}
 }
 
-func (p *StaticProvider) Add(ctx context.Context, usr *User) error {
+func (p *StaticProvider) Add(ctx context.Context, _ *User) error {
 	if err := tenant.RequireDefault(ctx); err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (p *StaticProvider) Add(ctx context.Context, usr *User) error {
 		HTTPStatus: http.StatusBadRequest,
 	}
 }
-func (p *StaticProvider) Update(ctx context.Context, usr *User, username string) error {
+func (p *StaticProvider) Update(ctx context.Context, _ *User, _ string) error {
 	if err := tenant.RequireDefault(ctx); err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func (p *StaticProvider) Update(ctx context.Context, usr *User, username string)
 		HTTPStatus: http.StatusBadRequest,
 	}
 }
-func (p *StaticProvider) Delete(ctx context.Context, username string) error {
+func (p *StaticProvider) Delete(ctx context.Context, _ string) error {
 	if err := tenant.RequireDefault(ctx); err != nil {
 		return err
 	}

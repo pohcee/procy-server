@@ -46,10 +46,10 @@ func (c *connMock) Close() error {
 	return nil
 }
 
-func (c *connMock) WriteMessage(messageType int, data []byte) error {
+func (c *connMock) WriteMessage(_ int, _ []byte) error {
 	return nil
 }
 
-func (c *connMock) WriteJSON(jsonOutboundMsg interface{}) error {
+func (c *connMock) WriteJSON(_ interface{}) error {
 	return nil
 }

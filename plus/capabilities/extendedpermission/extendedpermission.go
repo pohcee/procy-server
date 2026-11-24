@@ -41,7 +41,7 @@ func (cap *Capability) GetInitFuncName() (name string) {
 }
 
 func (cap *Capability) InitProvider(sym plugin.Symbol) {
-	fn := sym.(func(cap *Capability) (capProvider CapabilityEx))
+	fn := sym.(func(capability *Capability) (capProvider CapabilityEx))
 	cap.Provider = fn(cap)
 }
 

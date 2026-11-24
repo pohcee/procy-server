@@ -14,7 +14,7 @@ const websocketBufferSize = 1024
 var Upgrader = websocket.Upgrader{
 	ReadBufferSize:  websocketBufferSize,
 	WriteBufferSize: websocketBufferSize,
-	CheckOrigin:     func(r *http.Request) bool { return true },
+	CheckOrigin:     func(_ *http.Request) bool { return true },
 	Subprotocols:    []string{"binary"},
 }
 

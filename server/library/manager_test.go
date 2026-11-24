@@ -19,7 +19,14 @@ func newTestManager(t *testing.T) (*Manager, *SQLiteStore) {
 	return NewManager(s, func() time.Time { now = now.Add(time.Minute); return now }), s
 }
 
-func requireStatus(t *testing.T, err error, status int) apierrors.APIError {
+// requireStatus fails the test unless err is an APIError with the given HTTP status.
+func requireStatus(t *testing.T, err error, status int) {
+	t.Helper()
+	_ = requireStatusErr(t, err, status)
+}
+
+// requireStatusErr is requireStatus that also returns the APIError.
+func requireStatusErr(t *testing.T, err error, status int) apierrors.APIError {
 	t.Helper()
 	require.Error(t, err)
 	apiErr, ok := err.(apierrors.APIError)
@@ -50,7 +57,7 @@ func TestCreateStartsAtVersion1(t *testing.T) {
 	assert.Equal(t, "initial", vs[0].Message)
 
 	_, err = m.Create(ctx, linuxOnly("Disk", "df -h"), "", "bob")
-	apiErr := requireStatus(t, err, http.StatusConflict)
+	apiErr := requireStatusErr(t, err, http.StatusConflict)
 	assert.Equal(t, `an entry named "Disk" already exists`, apiErr.Message)
 
 	_, err = m.Create(ctx, Content{Name: "x"}, "", "bob")
@@ -92,7 +99,7 @@ func TestSaveRejectsStaleBaseVersion(t *testing.T) {
 	_, err = m.Save(ctx, e.ID, SaveInput{Content: linuxOnly("Disk", "first"), BaseVersion: 1}, "bob")
 	require.NoError(t, err)
 	_, err = m.Save(ctx, e.ID, SaveInput{Content: linuxOnly("Disk", "second"), BaseVersion: 1}, "carol")
-	apiErr := requireStatus(t, err, http.StatusConflict)
+	apiErr := requireStatusErr(t, err, http.StatusConflict)
 	assert.Contains(t, apiErr.Message, "version 2")
 	assert.Contains(t, apiErr.Message, "bob")
 	assert.Contains(t, apiErr.Message, "after version 1 you edited")
@@ -252,7 +259,7 @@ func TestDeleteRefusedWhenScheduled(t *testing.T) {
 	m.SetReferenceChecker(fakeRefs{[]Reference{{ID: "s1", Name: "nightly"}, {ID: "s2", Name: "weekly"}}})
 
 	err = m.Delete(ctx, e.ID, "bob")
-	apiErr := requireStatus(t, err, http.StatusConflict)
+	apiErr := requireStatusErr(t, err, http.StatusConflict)
 	assert.Equal(t, `entry "Disk" is used by schedules: nightly, weekly`, apiErr.Message)
 	got, err := m.Get(ctx, e.ID, false)
 	require.NoError(t, err)

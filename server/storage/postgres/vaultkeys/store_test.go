@@ -2,6 +2,7 @@ package vaultkeys_test
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func wrapped(c string) vaultkms.WrappedKey {
 	return vaultkms.WrappedKey{KeyName: keyName, Ciphertext: []byte(c)}
 }
 
-// storeCases are the behaviour of a vaultkms.WrappedKeyStore. MemoryStore and Store both run them.
+// storeCases are the behavior of a vaultkms.WrappedKeyStore. MemoryStore and Store both run them.
 func storeCases(t *testing.T, newStore func(t *testing.T) vaultkms.WrappedKeyStore) {
 	ctx := context.Background()
 	a, b := repotest.TenantA, repotest.TenantB
@@ -133,7 +134,7 @@ func storeCases(t *testing.T, newStore func(t *testing.T) vaultkms.WrappedKeySto
 			go func() {
 				defer wg.Done()
 				<-start
-				k, err := s.CreateIfAbsent(ctx, a, wrapped(string(rune('a'+i))))
+				k, err := s.CreateIfAbsent(ctx, a, wrapped(fmt.Sprintf("%c", 'a'+i)))
 				assert.NoError(t, err)
 				got[i] = k
 			}()

@@ -113,7 +113,7 @@ func (q *queue) logQueueLength() {
 // NewMeasurementQueuing starts a queue that saves measurements in the background. It stops when ctx is done
 // or on Close; enqueued measurements are still saved on the way out.
 func NewMeasurementQueuing(ctx context.Context, logger *logger.Logger, saver saver, queueSize int) MeasurementSaver {
-	// saves outlive the cancellation, so the shutdown drain doesn't fail on a cancelled context
+	// saves outlive the cancellation, so the shutdown drain doesn't fail on a canceled context
 	saveCtx := tenant.WithID(context.WithoutCancel(ctx), "")
 	ctx, cfn := context.WithCancel(ctx)
 

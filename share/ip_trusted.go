@@ -37,7 +37,7 @@ func ParseTrustedProxies(list []string) ([]netip.Prefix, error) {
 	return out, nil
 }
 
-// RemoteIP returns the client's IP address, honouring X-Forwarded-For only from trusted proxies.
+// RemoteIP returns the client's IP address, honoring X-Forwarded-For only from trusted proxies.
 func RemoteIP(r *http.Request) string {
 	var trusted []netip.Prefix
 	if p := trustedProxies.Load(); p != nil {

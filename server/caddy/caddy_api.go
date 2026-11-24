@@ -80,7 +80,7 @@ func (s *Server) sendRequest(ctx context.Context, method string, path string, bo
 func newHTTPDomainSocketClient() (httpClient http.Client) {
 	httpClient = http.Client{
 		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 				return net.Dial("unix", HostDomainSocket)
 			},
 		},

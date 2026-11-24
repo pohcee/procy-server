@@ -92,7 +92,7 @@ func sortViews[T any](views []T, sorts []query.SortOption) error {
 	return nil
 }
 
-// listLibraryView lists the entries of one kind through a view, honouring the
+// listLibraryView lists the entries of one kind through a view, honoring the
 // sort, filter, fields and pagination query params.
 func listLibraryView[T any](
 	al *APIListener, req *http.Request, kind library.Kind, resource string,

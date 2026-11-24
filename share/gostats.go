@@ -24,6 +24,6 @@ func GoStats() {
 		runtime.ReadMemStats(&memStats)
 		log.Printf("received SIGUSR2, go-routines: %d, go-memory-usage: %s",
 			runtime.NumGoroutine(),
-			sizestr.ToString(int64(memStats.Alloc)))
+			sizestr.ToString(int64(memStats.Alloc))) //nolint:gosec // G115: heap size fits int64
 	}
 }

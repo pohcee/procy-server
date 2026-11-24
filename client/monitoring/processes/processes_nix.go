@@ -7,7 +7,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -251,7 +250,7 @@ func procPidStatSplit(b string) []string {
 }
 
 func readProcFile(filename string) ([]byte, error) {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		// if file doesn't exists it means that process was closed after we got the directory listing
 		if os.IsNotExist(err) {
@@ -372,7 +371,7 @@ func (ph *ProcessHandler) getProcessByPID(pid int) *process.Process {
 	p, exists := ph.processCache.monitoredProcessCache[pid]
 	if !exists {
 		p = &process.Process{
-			Pid: int32(pid),
+			Pid: int32(pid), //nolint:gosec // G115: Linux PIDs fit int32 (pid_max <= 2^22)
 		}
 	}
 	return p

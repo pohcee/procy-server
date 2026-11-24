@@ -70,7 +70,7 @@ func (al *APIListener) handleCommandsExecutionWS(
 		SaveForMultipleClients(inboundMsg.OrderedClients)
 
 	createdBy := curUser.Username
-	if inboundMsg.OrderedClients != nil && len(inboundMsg.OrderedClients) > 0 {
+	if len(inboundMsg.OrderedClients) > 0 {
 		// by default abortOnErr is true
 		abortOnErr := true
 		if inboundMsg.AbortOnError != nil {

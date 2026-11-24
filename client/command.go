@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -77,8 +76,8 @@ func (c *Client) HandleRunCmdRequest(ctx context.Context, reqPayload []byte) (*c
 		return nil, err
 	}
 
-	limitedStdOutCh := ioutil.Discard
-	limitedStdErrCh := ioutil.Discard
+	limitedStdOutCh := io.Discard
+	limitedStdErrCh := io.Discard
 	closeStreamChannels := func() {}
 	if job.StreamResult {
 		stdOutCh, reqs, err := c.getConn().OpenChannel(models.ChannelStdout, reqPayload)

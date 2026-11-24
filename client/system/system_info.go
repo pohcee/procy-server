@@ -113,7 +113,7 @@ func (s *realSystemInfo) CPUPercent(ctx context.Context) (float64, error) {
 	return percentCPU, err
 }
 
-func (s *realSystemInfo) CPUPercentIOWait(ctx context.Context) (float64, error) {
+func (s *realSystemInfo) CPUPercentIOWait(_ context.Context) (float64, error) {
 	percentIOWait := 0.0
 	percents, err := PercentIOWait(s.lastCallCPU)
 	if err != nil {

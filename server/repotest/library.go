@@ -39,7 +39,7 @@ func libEntry(id, name string) (library.Entry, library.Version) {
 }
 
 // libAddVersion makes version n (based on n-1) the active version of entry id, named "A".
-func libAddVersion(t *testing.T, r library.Repository, ctx context.Context, id string, n int, at time.Time) {
+func libAddVersion(ctx context.Context, t *testing.T, r library.Repository, id string, n int, at time.Time) {
 	t.Helper()
 	c := libContent("A")
 	c.Description = fmt.Sprintf("d%d", n)
@@ -48,7 +48,7 @@ func libAddVersion(t *testing.T, r library.Repository, ctx context.Context, id s
 	require.NoError(t, r.AddVersion(ctx, e, v, n-1))
 }
 
-func libVersionNumbers(t *testing.T, r library.Repository, ctx context.Context, id string) []int {
+func libVersionNumbers(ctx context.Context, t *testing.T, r library.Repository, id string) []int {
 	t.Helper()
 	vs, err := r.Versions(ctx, id)
 	require.NoError(t, err)
@@ -233,12 +233,12 @@ func Library(t *testing.T, newRepo Factory[library.Repository]) {
 		assert.Equal(t, "u2", got.UpdatedBy)
 		assert.Equal(t, "u1", got.CreatedBy, "creation is kept")
 		assert.True(t, libT0.Equal(got.CreatedAt))
-		assert.Equal(t, []int{2, 1}, libVersionNumbers(t, r, a, "id1"))
+		assert.Equal(t, []int{2, 1}, libVersionNumbers(a, t, r, "id1"))
 
 		// a missing entry is a conflict too
 		e3, v3 := libEntry("nope", "N")
 		assert.ErrorIs(t, r.AddVersion(a, e3, v3, 0), library.ErrConflict)
-		assert.Empty(t, libVersionNumbers(t, r, a, "nope"))
+		assert.Empty(t, libVersionNumbers(a, t, r, "nope"))
 
 		// as is a deleted one, and nothing is stored
 		at := libT0
@@ -246,7 +246,7 @@ func Library(t *testing.T, newRepo Factory[library.Repository]) {
 		e2.ActiveVersion = 3
 		v2.Version = 3
 		assert.ErrorIs(t, r.AddVersion(a, e2, v2, 2), library.ErrConflict)
-		assert.Equal(t, []int{2, 1}, libVersionNumbers(t, r, a, "id1"))
+		assert.Equal(t, []int{2, 1}, libVersionNumbers(a, t, r, "id1"))
 	})
 
 	t.Run("AddVersionNameTaken", func(t *testing.T) {
@@ -264,7 +264,7 @@ func Library(t *testing.T, newRepo Factory[library.Repository]) {
 		require.NoError(t, err)
 		assert.Equal(t, "B", got.Name)
 		assert.Equal(t, 1, got.ActiveVersion)
-		assert.Equal(t, []int{1}, libVersionNumbers(t, r, a, "id2"))
+		assert.Equal(t, []int{1}, libVersionNumbers(a, t, r, "id2"))
 	})
 
 	t.Run("UniqueLiveName", func(t *testing.T) {
@@ -278,7 +278,7 @@ func Library(t *testing.T, newRepo Factory[library.Repository]) {
 		got, err := r.Get(a, "id2")
 		require.NoError(t, err)
 		assert.Nil(t, got)
-		assert.Empty(t, libVersionNumbers(t, r, a, "id2"))
+		assert.Empty(t, libVersionNumbers(a, t, r, "id2"))
 
 		at := libT0
 		require.NoError(t, r.SetDeleted(a, "id1", &at, "u1"))
@@ -376,18 +376,18 @@ func Library(t *testing.T, newRepo Factory[library.Repository]) {
 		e, v := libEntry("id1", "A")
 		require.NoError(t, r.Insert(a, e, v))
 		for n := 2; n <= 6; n++ {
-			libAddVersion(t, r, a, "id1", n, libT0.Add(time.Duration(n)*time.Hour))
+			libAddVersion(a, t, r, "id1", n, libT0.Add(time.Duration(n)*time.Hour))
 		}
 
 		n, err := r.Prune(a, 0, time.Time{})
 		require.NoError(t, err)
 		assert.EqualValues(t, 0, n)
-		assert.Len(t, libVersionNumbers(t, r, a, "id1"), 6)
+		assert.Len(t, libVersionNumbers(a, t, r, "id1"), 6)
 
 		n, err = r.Prune(a, 2, time.Time{})
 		require.NoError(t, err)
 		assert.EqualValues(t, 3, n)
-		assert.Equal(t, []int{6, 5, 1}, libVersionNumbers(t, r, a, "id1"))
+		assert.Equal(t, []int{6, 5, 1}, libVersionNumbers(a, t, r, "id1"))
 	})
 
 	t.Run("PruneByAge", func(t *testing.T) {
@@ -395,20 +395,20 @@ func Library(t *testing.T, newRepo Factory[library.Repository]) {
 		e, v := libEntry("id1", "A")
 		require.NoError(t, r.Insert(a, e, v))
 		for n := 2; n <= 5; n++ {
-			libAddVersion(t, r, a, "id1", n, libT0.AddDate(0, 0, n))
+			libAddVersion(a, t, r, "id1", n, libT0.AddDate(0, 0, n))
 		}
 
 		// versions 2 and 3 are older than the cutoff; 4 is not; 5 is active
 		n, err := r.Prune(a, 0, libT0.AddDate(0, 0, 4))
 		require.NoError(t, err)
 		assert.EqualValues(t, 2, n)
-		assert.Equal(t, []int{5, 4, 1}, libVersionNumbers(t, r, a, "id1"))
+		assert.Equal(t, []int{5, 4, 1}, libVersionNumbers(a, t, r, "id1"))
 
 		// everything old: only the active version and version 1 remain
 		n, err = r.Prune(a, 0, libT0.AddDate(1, 0, 0))
 		require.NoError(t, err)
 		assert.EqualValues(t, 1, n)
-		assert.Equal(t, []int{5, 1}, libVersionNumbers(t, r, a, "id1"))
+		assert.Equal(t, []int{5, 1}, libVersionNumbers(a, t, r, "id1"))
 	})
 
 	t.Run("PruneByCountOrAge", func(t *testing.T) {
@@ -416,13 +416,13 @@ func Library(t *testing.T, newRepo Factory[library.Repository]) {
 		e, v := libEntry("id1", "A")
 		require.NoError(t, r.Insert(a, e, v))
 		for n := 2; n <= 5; n++ {
-			libAddVersion(t, r, a, "id1", n, libT0.AddDate(0, 0, n))
+			libAddVersion(a, t, r, "id1", n, libT0.AddDate(0, 0, n))
 		}
 		// keep 3 would leave 5, 4, 3; old enough takes 3 as well
 		n, err := r.Prune(a, 3, libT0.AddDate(0, 0, 4))
 		require.NoError(t, err)
 		assert.EqualValues(t, 2, n)
-		assert.Equal(t, []int{5, 4, 1}, libVersionNumbers(t, r, a, "id1"))
+		assert.Equal(t, []int{5, 4, 1}, libVersionNumbers(a, t, r, "id1"))
 	})
 
 	t.Run("MetaAbsent", func(t *testing.T) {
@@ -448,9 +448,9 @@ func Library(t *testing.T, newRepo Factory[library.Repository]) {
 		assert.Equal(t, "desc", got.Description)
 
 		// a second version in a only
-		libAddVersion(t, r, a, "id1", 2, libT0.Add(time.Hour))
-		assert.Equal(t, []int{2, 1}, libVersionNumbers(t, r, a, "id1"))
-		assert.Equal(t, []int{1}, libVersionNumbers(t, r, b, "id1"))
+		libAddVersion(a, t, r, "id1", 2, libT0.Add(time.Hour))
+		assert.Equal(t, []int{2, 1}, libVersionNumbers(a, t, r, "id1"))
+		assert.Equal(t, []int{1}, libVersionNumbers(b, t, r, "id1"))
 		gotB, err := r.Get(b, "id1")
 		require.NoError(t, err)
 		assert.Equal(t, 1, gotB.ActiveVersion)
@@ -502,16 +502,16 @@ func Library(t *testing.T, newRepo Factory[library.Repository]) {
 		assert.Nil(t, stillA.DeletedAt)
 
 		// prune in b leaves a's versions alone
-		libAddVersion(t, r, a, "id2", 2, libT0.Add(time.Hour))
-		libAddVersion(t, r, a, "id2", 3, libT0.Add(2*time.Hour))
+		libAddVersion(a, t, r, "id2", 2, libT0.Add(time.Hour))
+		libAddVersion(a, t, r, "id2", 3, libT0.Add(2*time.Hour))
 		n, err := r.Prune(b, 1, time.Time{})
 		require.NoError(t, err)
 		assert.Zero(t, n)
-		assert.Equal(t, []int{3, 2, 1}, libVersionNumbers(t, r, a, "id2"))
+		assert.Equal(t, []int{3, 2, 1}, libVersionNumbers(a, t, r, "id2"))
 		n, err = r.Prune(b, 0, libT0.AddDate(1, 0, 0))
 		require.NoError(t, err)
 		assert.Zero(t, n)
-		assert.Equal(t, []int{3, 2, 1}, libVersionNumbers(t, r, a, "id2"))
+		assert.Equal(t, []int{3, 2, 1}, libVersionNumbers(a, t, r, "id2"))
 	})
 
 	t.Run("SyncBuiltinsPerTenant", func(t *testing.T) {

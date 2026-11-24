@@ -93,11 +93,11 @@ func (uf *UploadedFile) FromMultipartRequest(req *http.Request) error {
 	}
 
 	if len(req.MultipartForm.Value[uploadedFileModeKey]) > 0 {
-		fileModeInt, err := strconv.ParseInt(req.MultipartForm.Value[uploadedFileModeKey][0], 8, 32)
+		fileModeInt, err := strconv.ParseUint(req.MultipartForm.Value[uploadedFileModeKey][0], 8, 32)
 		if err != nil {
 			return errors2.Wrapf(err, "failed to parse file mode value %s", req.MultipartForm.Value[uploadedFileModeKey][0])
 		}
-		uf.DestinationFileMode = os.FileMode(fileModeInt)
+		uf.DestinationFileMode = os.FileMode(fileModeInt) //nolint:gosec // G115: ParseUint bit size 32
 	}
 
 	if len(req.MultipartForm.Value[fileWriteForcedKey]) > 0 {

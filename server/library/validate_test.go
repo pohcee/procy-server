@@ -17,7 +17,14 @@ func validContent() Content {
 	}
 }
 
-func requireAPIError400(t *testing.T, err error) apierrors.APIError {
+// requireAPIError400 fails the test unless err is an APIError with status 400.
+func requireAPIError400(t *testing.T, err error) {
+	t.Helper()
+	_ = apiError400(t, err)
+}
+
+// apiError400 is requireAPIError400 that also returns the APIError.
+func apiError400(t *testing.T, err error) apierrors.APIError {
 	t.Helper()
 	var apiErr apierrors.APIError
 	if !errors.As(err, &apiErr) {
@@ -44,7 +51,7 @@ func TestValidateRejectsEmptyName(t *testing.T) {
 func TestValidateRejectsUnknownOS(t *testing.T) {
 	c := validContent()
 	c.Implementations["macos"] = Implementation{Code: "/bin/ls"}
-	apiErr := requireAPIError400(t, Validate(c))
+	apiErr := apiError400(t, Validate(c))
 	if !strings.Contains(apiErr.Message, "macos") {
 		t.Errorf("message %q does not mention macos", apiErr.Message)
 	}
@@ -72,7 +79,7 @@ func TestValidateRejectsBadInterpreterForCommand(t *testing.T) {
 	c := validContent()
 	// a command (absolute path, one line) with the script-only tacoscript interpreter
 	c.Implementations[OSWindows] = Implementation{Kind: KindCommand, Code: "/bin/ls", Interpreter: "tacoscript"}
-	apiErr := requireAPIError400(t, Validate(c))
+	apiErr := apiError400(t, Validate(c))
 	if !strings.Contains(apiErr.Message, OSWindows) {
 		t.Errorf("message %q does not name the OS", apiErr.Message)
 	}
@@ -141,7 +148,7 @@ func TestNormalizeDefaults(t *testing.T) {
 func TestValidateRejectsUnknownKind(t *testing.T) {
 	c := validContent()
 	c.Implementations[OSLinux] = Implementation{Kind: "foo", Code: "/bin/ls"}
-	apiErr := requireAPIError400(t, Validate(c))
+	apiErr := apiError400(t, Validate(c))
 	if !strings.Contains(apiErr.Message, OSLinux) || !strings.Contains(apiErr.Message, "foo") {
 		t.Errorf("message %q should name the OS and the kind", apiErr.Message)
 	}

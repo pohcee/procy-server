@@ -97,7 +97,7 @@ func (e *CmdExecutorMock) writeToStdErr(cmd *exec.Cmd) {
 	}
 }
 
-func (e *CmdExecutorMock) Wait(cmd *exec.Cmd) error {
+func (e *CmdExecutorMock) Wait(_ *exec.Cmd) error {
 	if e.ReturnWaitErr != nil {
 		return e.ReturnWaitErr
 	}

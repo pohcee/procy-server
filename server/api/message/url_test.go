@@ -16,7 +16,7 @@ import (
 
 func TestURLService(t *testing.T) {
 	var form url.Values
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
 		require.NoError(t, err)
 

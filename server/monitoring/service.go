@@ -59,7 +59,9 @@ func (s *monitoringService) SaveMeasurementUpdateTimestamp(ctx context.Context, 
 
 func (s *monitoringService) SaveMeasurement(ctx context.Context, measurement *models.Measurement) error {
 	ts := time.Now()
-	defer s.L.Debugf("client %s measurement saved in %s", measurement.ClientID, time.Since(ts))
+	defer func() {
+		s.L.Debugf("client %s measurement saved in %s", measurement.ClientID, time.Since(ts))
+	}()
 	return s.DBProvider.CreateMeasurement(ctx, measurement)
 }
 
@@ -231,10 +233,10 @@ func (s *monitoringService) validateAndParseGraphOptions(lo *query.ListOptions) 
 	}
 
 	query.SortFiltersByOperator(lo.Filters) //important for next check
-	if (lo.Filters[0].Operator == query.FilterOperatorTypeGT && lo.Filters[1].Operator == query.FilterOperatorTypeLT) ||
-		(lo.Filters[0].Operator == query.FilterOperatorTypeSince && lo.Filters[1].Operator == query.FilterOperatorTypeUntil) {
-		//these are the allowed filter combinations
-	} else {
+	// these are the allowed filter combinations
+	gtLt := lo.Filters[0].Operator == query.FilterOperatorTypeGT && lo.Filters[1].Operator == query.FilterOperatorTypeLT
+	sinceUntil := lo.Filters[0].Operator == query.FilterOperatorTypeSince && lo.Filters[1].Operator == query.FilterOperatorTypeUntil
+	if !gtLt && !sinceUntil {
 		return nil, errors.APIError{Message: fmt.Sprintf("Illegal filter pair %s %s", lo.Filters[0], lo.Filters[1]), HTTPStatus: http.StatusBadRequest}
 	}
 

@@ -1,9 +1,10 @@
 package clients
 
 import (
-	"github.com/openrport/openrport/share/tenant"
 	"testing"
 	"time"
+
+	"github.com/openrport/openrport/share/tenant"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

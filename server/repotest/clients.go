@@ -101,17 +101,17 @@ func ClientStore(t *testing.T, newRepo ClientStoreFactory) {
 		require.NoError(t, s.Save(a, StoreClient("recent", &recent)))
 		require.NoError(t, s.Save(a, StoreClient("obsolete", &old)))
 
-		assert.ElementsMatch(t, []string{"connected", "recent"}, clientIDs(t, s, a))
+		assert.ElementsMatch(t, []string{"connected", "recent"}, clientIDs(a, t, s))
 
 		// a store keeping disconnected clients forever sees and keeps all of them
 		forever := newRepo(t, nil)
 		require.NoError(t, forever.Save(a, StoreClient("connected", nil)))
 		require.NoError(t, forever.Save(a, StoreClient("obsolete", &old)))
 		require.NoError(t, forever.DeleteObsolete(a, testLogger))
-		assert.ElementsMatch(t, []string{"connected", "obsolete"}, clientIDs(t, forever, a))
+		assert.ElementsMatch(t, []string{"connected", "obsolete"}, clientIDs(a, t, forever))
 
 		require.NoError(t, s.DeleteObsolete(a, testLogger))
-		assert.ElementsMatch(t, []string{"connected", "recent"}, clientIDs(t, s, a))
+		assert.ElementsMatch(t, []string{"connected", "recent"}, clientIDs(a, t, s))
 	})
 
 	t.Run("delete", func(t *testing.T) {
@@ -120,7 +120,7 @@ func ClientStore(t *testing.T, newRepo ClientStoreFactory) {
 		require.NoError(t, s.Save(a, StoreClient("c2", nil)))
 		require.NoError(t, s.Delete(a, "c1", testLogger))
 		require.NoError(t, s.Delete(a, "unknown", testLogger))
-		assert.Equal(t, []string{"c2"}, clientIDs(t, s, a))
+		assert.Equal(t, []string{"c2"}, clientIDs(a, t, s))
 	})
 
 	t.Run("isolates tenants", func(t *testing.T) {
@@ -150,28 +150,28 @@ func ClientStore(t *testing.T, newRepo ClientStoreFactory) {
 		require.NoError(t, s.Save(a, StoreClient("obsolete", &old)))
 		require.NoError(t, s.Save(b, StoreClient("obsolete", &old)))
 		require.NoError(t, s.DeleteObsolete(a, testLogger))
-		forever := clientIDsOfAll(t, s, b, keep)
+		forever := clientIDsOfAll(b, t, s, keep)
 		assert.Contains(t, forever, "obsolete")
 
 		require.NoError(t, s.Delete(a, "same-id", testLogger))
-		assert.Empty(t, clientIDs(t, s, a))
-		assert.Equal(t, []string{"same-id"}, clientIDs(t, s, b))
+		assert.Empty(t, clientIDs(a, t, s))
+		assert.Equal(t, []string{"same-id"}, clientIDs(b, t, s))
 	})
 }
 
 // clientIDsOfAll returns the ids of all the tenant's clients, obsolete ones included: GetAll leaves out clients
 // disconnected for longer than keep before clientdata.Now, so clientdata.Now is moved back while it runs.
-func clientIDsOfAll(t *testing.T, s clients.ClientStore, ctx context.Context, keep time.Duration) []string {
+func clientIDsOfAll(ctx context.Context, t *testing.T, s clients.ClientStore, keep time.Duration) []string {
 	t.Helper()
 	// GetAll hides obsolete clients; move clientdata.Now back so that they count as recent.
 	orig := clientdata.Now
 	base := orig()
 	clientdata.Now = func() time.Time { return base.Add(-keep - 2*time.Hour) }
 	defer func() { clientdata.Now = orig }()
-	return clientIDs(t, s, ctx)
+	return clientIDs(ctx, t, s)
 }
 
-func clientIDs(t *testing.T, s clients.ClientStore, ctx context.Context) []string {
+func clientIDs(ctx context.Context, t *testing.T, s clients.ClientStore) []string {
 	t.Helper()
 	all, err := s.GetAll(ctx, testLogger)
 	require.NoError(t, err)
@@ -244,7 +244,7 @@ func fullClient(id string, disconnectedAt *time.Time) *clientdata.Client {
 			UpdateSummaries: []models.UpdateSummary{{Title: "openssl", IsSecurityUpdate: true}},
 		},
 		IPAddresses:         &models.IPAddresses{IPv4: "203.0.113.1", UpdatedAt: refreshed},
-		ClientConfiguration: &clientconfig.Config{InterpreterAliases: map[string]string{"pwsh": "/usr/bin/pwsh"}},
+		ClientConfiguration: &clientconfig.Config{InterpreterAliases: map[string]string{"pwsh": "/usr/bin/pwsh"}}, //nolint:gosec // G101: an interpreter path
 		Logger:              testLogger,
 	}
 }

@@ -159,7 +159,7 @@ func TestSave(t *testing.T) {
 		assert.Equal(t, []Entry{*e}, mockProvider.entries)
 	})
 
-	t.Run("with nil provider", func(t *testing.T) {
+	t.Run("with nil provider", func(_ *testing.T) {
 		auditLog.provider = nil
 
 		auditLog.Entry("", "").Save()
@@ -233,10 +233,10 @@ func (p *mockProvider) Save(_ context.Context, e *Entry) error {
 	return nil
 }
 
-func (p *mockProvider) List(ctx context.Context, opts *query.ListOptions) ([]*Entry, error) {
+func (p *mockProvider) List(_ context.Context, _ *query.ListOptions) ([]*Entry, error) {
 	return nil, nil
 }
-func (p *mockProvider) Count(ctx context.Context, opts *query.ListOptions) (int, error) {
+func (p *mockProvider) Count(_ context.Context, _ *query.ListOptions) (int, error) {
 	return 0, nil
 }
 func (p mockProvider) Close() error { return nil }

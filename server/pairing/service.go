@@ -112,7 +112,7 @@ func (s *Service) HandleDeposit(w http.ResponseWriter, r *http.Request, username
 		}
 	} else {
 		// the standalone service also accepted multipart forms
-		if err := r.ParseMultipartForm(formMaxMem); err != nil {
+		if err := r.ParseMultipartForm(formMaxMem); err != nil { //nolint:gosec // G120: API body limited by applyMaxBytes
 			http.Error(w, "expected a JSON or multipart form body", http.StatusBadRequest)
 			return
 		}

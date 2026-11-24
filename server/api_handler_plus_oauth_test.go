@@ -52,15 +52,15 @@ func initMockPlusManager() (plus *plusManagerForMockOAuth) {
 	return plus
 }
 
-func (pm *plusManagerForMockOAuth) RegisterCapability(capName string, newCap rportplus.Capability) (cap rportplus.Capability, err error) {
+func (pm *plusManagerForMockOAuth) RegisterCapability(_ string, newCap rportplus.Capability) (capability rportplus.Capability, err error) {
 	newCap.InitProvider(nil)
 	pm.cap = newCap
 	return newCap, nil
 }
 
 func (pm *plusManagerForMockOAuth) GetOAuthCapabilityEx() (capEx oauth.CapabilityEx) {
-	cap := pm.cap.(*oauthmock.Capability)
-	capEx = cap.GetOAuthCapabilityEx()
+	capability := pm.cap.(*oauthmock.Capability)
+	capEx = capability.GetOAuthCapabilityEx()
 	return capEx
 }
 

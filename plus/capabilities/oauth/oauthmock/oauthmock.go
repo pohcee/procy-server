@@ -32,7 +32,7 @@ func (cap *Capability) GetInitFuncName() (name string) {
 }
 
 // InitProvider sets the capability provider to the local mock implementation
-func (cap *Capability) InitProvider(initFn plugin.Symbol) {
+func (cap *Capability) InitProvider(_ plugin.Symbol) {
 	if cap.Provider == nil {
 		cap.Provider = &MockCapabilityProvider{}
 	}
@@ -77,7 +77,7 @@ func (mp *MockCapabilityProvider) PerformAuthCodeExchange(r *http.Request) (toke
 }
 
 // GetPermittedUser saves the token received and returns the configured mock username
-func (mp *MockCapabilityProvider) GetPermittedUser(r *http.Request, token string) (username string, err error) {
+func (mp *MockCapabilityProvider) GetPermittedUser(_ *http.Request, token string) (username string, err error) {
 	mp.GetUserToken = token
 	if mp.Username == "" {
 		username = "mock-user"
@@ -87,7 +87,7 @@ func (mp *MockCapabilityProvider) GetPermittedUser(r *http.Request, token string
 	return username, nil
 }
 
-func (mp *MockCapabilityProvider) GetLoginInfoForDevice(r *http.Request) (loginInfo *oauth.DeviceLoginInfo, err error) {
+func (mp *MockCapabilityProvider) GetLoginInfoForDevice(_ *http.Request) (loginInfo *oauth.DeviceLoginInfo, err error) {
 	if mp.ShouldFailGetLoginInfo {
 		return nil, errors.New("got an error")
 	}
@@ -109,7 +109,7 @@ func (mp *MockCapabilityProvider) GetLoginInfoForDevice(r *http.Request) (loginI
 	return loginInfo, nil
 }
 
-func (mp *MockCapabilityProvider) GetAccessTokenForDevice(r *http.Request) (token string, username string, errInfo *oauth.DeviceAuthStatusErrorInfo, err error) {
+func (mp *MockCapabilityProvider) GetAccessTokenForDevice(_ *http.Request) (token string, username string, errInfo *oauth.DeviceAuthStatusErrorInfo, err error) {
 	if mp.ShouldFailGetAccessTokenForDevice {
 		errInfo := &oauth.DeviceAuthStatusErrorInfo{
 			StatusCode:   http.StatusForbidden,
@@ -123,6 +123,6 @@ func (mp *MockCapabilityProvider) GetAccessTokenForDevice(r *http.Request) (toke
 	return "mock-token", "mock-username", nil, nil
 }
 
-func (mp *MockCapabilityProvider) GetPermittedUserForDevice(t *http.Request, token string) (username string, err error) {
+func (mp *MockCapabilityProvider) GetPermittedUserForDevice(_ *http.Request, _ string) (username string, err error) {
 	return "testuser", nil
 }

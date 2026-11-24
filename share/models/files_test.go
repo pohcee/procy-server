@@ -253,7 +253,7 @@ func TestUploadedFileFromMultipartRequest(t *testing.T) {
 					"dfasdf",
 				},
 			},
-			wantErr: `failed to parse file mode value dfasdf: strconv.ParseInt: parsing "dfasdf": invalid syntax`,
+			wantErr: `failed to parse file mode value dfasdf: strconv.ParseUint: parsing "dfasdf": invalid syntax`,
 		},
 	}
 

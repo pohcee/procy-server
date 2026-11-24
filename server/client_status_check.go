@@ -103,7 +103,7 @@ func (t *ClientsStatusCheckTask) getDueClients(ctx context.Context) (dueClients 
 	return dueClients, len(activeClients)
 }
 
-func (t *ClientsStatusCheckTask) PingClients(ctx context.Context, workerNum int, clientsToPing <-chan *clientdata.Client, results chan<- bool) {
+func (t *ClientsStatusCheckTask) PingClients(ctx context.Context, _ int, clientsToPing <-chan *clientdata.Client, results chan<- bool) {
 	// while there are clients to ping
 	for cl := range clientsToPing {
 		clientName := cl.GetName()

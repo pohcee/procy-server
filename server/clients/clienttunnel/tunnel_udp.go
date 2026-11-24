@@ -160,7 +160,7 @@ func (t *tunnelUDP) runOutbound(ctx context.Context) error {
 	}
 }
 
-func (t *tunnelUDP) Terminate(force bool) error {
+func (t *tunnelUDP) Terminate(_ bool) error {
 	t.cancel()
 	<-t.done
 
