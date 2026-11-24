@@ -209,6 +209,14 @@ func (c *Config) warnPostgresSettings(mLog *logger.MemLogger) {
 
 func (c *Config) parseAndValidateVault() error {
 	v := &c.Vault
+	// vault data never reaches a device process
+	if c.Storage.IsPostgres() && c.Storage.Role == StorageRoleDevice {
+		if v.KeyProvider != "" || v.KMSKey != "" || v.LocalKeyFile != "" {
+			return errors.New(`[vault] is not used with [storage] role = "device": a device process has no access to the vault; remove the [vault] settings`)
+		}
+		v.KeyProvider = KeyProviderPassphrase
+		return nil
+	}
 	// the passphrase unlocks the vault in one process: the other nodes sharing the database could not open it
 	if c.Storage.IsPostgres() && (v.KeyProvider == "" || v.KeyProvider == KeyProviderPassphrase) {
 		return errors.New(`[vault] key_provider = "passphrase" is not supported with [storage] backend = "postgres": several nodes can share the database and the passphrase unlocks only one; set key_provider = "kms" or "local"`)

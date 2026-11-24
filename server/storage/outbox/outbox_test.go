@@ -71,7 +71,7 @@ func TestCapDropsMeasurementsFirstNeverJobResults(t *testing.T) {
 	assert.Equal(t, []string{"other-tenant"}, keys(t, o, KindMeasurement))
 	assert.Empty(t, keys(t, o, KindAudit))
 
-	add(KindJobResult, "a", "j5") // only job results: stored beyond the cap
+	add(KindJobResult, "a", "j5")   // only job results: stored beyond the cap
 	add(KindMeasurement, "a", "m3") // ... and anything else is dropped
 	assert.Equal(t, []string{"j1", "j2", "j3", "j4", "j5"}, keys(t, o, KindJobResult))
 	assert.Equal(t, []string{"other-tenant"}, keys(t, o, KindMeasurement))
