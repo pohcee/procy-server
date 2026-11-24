@@ -500,7 +500,8 @@ func (r *ClientRepository) removeClient(tid tenant.ID, clientID string) {
 }
 
 // loadTenant makes sure the cache holds the state of the tenant, loading its stored clients on first use
-// (LoadInitialClients, which marks the ones stored as connected disconnected). Without a store the tenant starts
+// (LoadInitialClients, which marks the ones stored as connected disconnected unless the store is wrapped by
+// KeepConnectionStateOnLoad). Without a store the tenant starts
 // empty. The load runs without the main lock held and once per tenant at a time: concurrent first uses wait for
 // it. A failed load is not cached; the next use tries again.
 func (r *ClientRepository) loadTenant(ctx context.Context, tid tenant.ID) error {

@@ -20,7 +20,10 @@ type Store struct {
 	keepDisconnectedClients *time.Duration
 }
 
-var _ clients.ClientStore = (*Store)(nil)
+var (
+	_ clients.ClientStore  = (*Store)(nil)
+	_ clients.ClientGetter = (*Store)(nil)
+)
 
 // New returns a client store. keepDisconnectedClients has the meaning of clients.NewSQLiteStore's parameter: nil
 // keeps disconnected clients forever; otherwise clients disconnected for longer (measured back from
@@ -65,6 +68,35 @@ func (s *Store) GetAll(ctx context.Context, l *logger.Logger) ([]*clientdata.Cli
 		res = append(res, c)
 	}
 	return res, nil
+}
+
+// Get returns the client with the id, or nil when there is none. Like GetAll, it leaves out a client disconnected
+// for longer than keepDisconnectedClients.
+func (s *Store) Get(ctx context.Context, id string, l *logger.Logger) (*clientdata.Client, error) {
+	tid, err := postgres.TenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := "SELECT id, client_auth_id, disconnected_at, details FROM clients WHERE tenant_id = $1 AND id = $2"
+	args := []any{string(tid), id}
+	if s.keepDisconnectedClients != nil {
+		q += " AND (disconnected_at IS NULL OR disconnected_at >= $3)"
+		args = append(args, s.cutoff())
+	}
+	var rows []row
+	err = postgres.InTenantID(ctx, s.db, tid, func(tx *sqlx.Tx) error {
+		return tx.SelectContext(ctx, &rows, q, args...)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	r := rows[0]
+	return clients.DecodeStoredClient(clients.StoredClient{
+		ID: r.ID, ClientAuthID: r.ClientAuthID, DisconnectedAt: r.DisconnectedAt, Details: r.Details,
+	}, l)
 }
 
 func (s *Store) Save(ctx context.Context, c *clientdata.Client) error {

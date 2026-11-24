@@ -95,3 +95,53 @@ func TestRequiresTenantBeforeDatabase(t *testing.T) {
 	_, err := s.GetAll(context.Background(), testLog)
 	assert.Error(t, err)
 }
+
+func TestGet(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA, repotest.TenantB)
+	s := New(d.App, nil)
+	var _ ossclients.ClientGetter = s
+	a, b := repotest.Ctx(repotest.TenantA), repotest.Ctx(repotest.TenantB)
+	at := time.Date(2026, 4, 5, 6, 7, 8, 0, time.UTC)
+	c := repotest.StoreClient("c1", &at)
+	c.Labels = map[string]string{"k": "v"}
+	c.AllowedUserGroups = []string{"g"}
+	require.NoError(t, s.Save(a, c))
+
+	got, err := s.Get(a, "c1", testLog)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "c1", got.GetID())
+	assert.Equal(t, c.GetName(), got.GetName())
+	assert.Equal(t, map[string]string{"k": "v"}, got.GetLabels())
+	assert.Equal(t, []string{"g"}, got.GetAllowedUserGroups())
+	require.NotNil(t, got.GetDisconnectedAt())
+	assert.True(t, at.Equal(*got.GetDisconnectedAt()))
+
+	got, err = s.Get(a, "missing", testLog)
+	require.NoError(t, err)
+	assert.Nil(t, got)
+	got, err = s.Get(b, "c1", testLog)
+	require.NoError(t, err)
+	assert.Nil(t, got, "another tenant's client is not found")
+
+	_, err = s.Get(context.Background(), "c1", testLog)
+	assert.Error(t, err)
+}
+
+func TestGetLeavesOutObsolete(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	keep := time.Hour
+	s := New(d.App, &keep)
+	a := repotest.Ctx(repotest.TenantA)
+	old := time.Now().Add(-2 * time.Hour)
+	recent := time.Now().Add(-time.Minute)
+	require.NoError(t, s.Save(a, repotest.StoreClient("old", &old)))
+	require.NoError(t, s.Save(a, repotest.StoreClient("recent", &recent)))
+
+	got, err := s.Get(a, "old", testLog)
+	require.NoError(t, err)
+	assert.Nil(t, got)
+	got, err = s.Get(a, "recent", testLog)
+	require.NoError(t, err)
+	assert.NotNil(t, got)
+}
