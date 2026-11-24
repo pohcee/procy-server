@@ -127,3 +127,45 @@ func TestNewServerUsesInjectedDispatcher(t *testing.T) {
 	t.Cleanup(func() { _ = local.Close() })
 	assert.IsType(t, &dispatch.Local{}, local.dispatcher)
 }
+
+// NewServer gives the client listener, the job runner, the API listener and the local dispatcher
+// the same shared state: a sequential run waits on the channels the listener signals, job results
+// stream to the websockets the API registered, and SFTP serves the files uploads granted.
+func TestNewServerSharesStateBetweenComponents(t *testing.T) {
+	s, err := NewServer(context.Background(), storageTestConfig(t), &ServerOpts{FilesAPI: files.NewFileSystem()})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = s.Close() })
+
+	listener := s.clientListener.server
+	assert.Same(t, s.jobRunner.DoneChannels(), listener.jobsDoneChannel, "done channels")
+	assert.Same(t, &s.uiJobWebSockets, listener.uiJobWebSockets, "UI job streams (client listener)")
+	assert.Same(t, &s.uiJobWebSockets, s.apiListener.uiJobWebSockets, "UI job streams (API)")
+	local, ok := s.dispatcher.(*dispatch.Local)
+	require.True(t, ok)
+	assert.Same(t, local.FileGrants(), listener.fileGrants, "file grants")
+}
+
+// A dispatcher that starts no tunnel without an error gets a 500, not a crash.
+func TestPutTunnelWithoutStartedTunnel(t *testing.T) {
+	c1 := clients.New(t).ID("c1").Logger(testLog).Build()
+	user := &users.User{Username: "admin", Groups: []string{users.Administrators}}
+	al := &APIListener{
+		insecureForTests: true,
+		apiServices: &apiServices{
+			clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1}, &hour, testLog), testLog, nil),
+			config:        &chconfig.Config{API: chconfig.APIConfig{MaxRequestBytes: 1 << 20}},
+			dispatcher:    &recordingDispatcher{},
+		},
+		userService: users.NewAPIService(users.NewStaticProvider([]*users.User{user}), false, 0, -1),
+		Logger:      testLog,
+	}
+	al.initRouter()
+
+	ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), "admin")
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/clients/c1/tunnels?remote=127.0.0.1%3A22&check_port=0", nil).WithContext(ctx)
+	w := httptest.NewRecorder()
+	al.router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "expected 1 started tunnel, got 0")
+}

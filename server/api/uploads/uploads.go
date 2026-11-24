@@ -38,7 +38,7 @@ type GroupLister interface {
 	GetAll(ctx context.Context) ([]*cgroups.ClientGroup, error)
 }
 
-// Options are the handler's dependencies; all are required.
+// Options are the handler's dependencies; New does not check them, every field is used.
 type Options struct {
 	// Config gives the upload directory.
 	Config     *chconfig.Config

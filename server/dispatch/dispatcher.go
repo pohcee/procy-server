@@ -2,7 +2,8 @@
 // gets the result back. The API handlers, the job runner and the schedules use a Dispatcher and
 // never touch a client's SSH connection.
 //
-// Local is the implementation for a client connected to this process. Another implementation
+// Local is the implementation for a client connected to this process. The API still reads a
+// client's tunnels from the local client service before closing one or changing its ACL. Another implementation
 // (in another Go module) can be given to the server with ServerOpts.Dispatcher.
 package dispatch
 
@@ -36,7 +37,8 @@ type Dispatcher interface {
 	IsTunnelAllowed(ctx context.Context, clientID, remote string) (bool, error)
 	// CheckPort asks the client whether req.HostPort accepts connections.
 	CheckPort(ctx context.Context, clientID string, req *comm.CheckPortRequest) (*comm.CheckPortResponse, error)
-	// StartTunnels opens tunnels to the given remotes and returns them in the same order.
+	// StartTunnels opens tunnels to the given remotes and returns them in the same order: one tunnel
+	// per remote, or an error.
 	StartTunnels(ctx context.Context, clientID string, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error)
 	// CloseTunnel closes a tunnel. Without force it fails while the tunnel has open connections.
 	CloseTunnel(ctx context.Context, clientID, tunnelID string, force bool) error

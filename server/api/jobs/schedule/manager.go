@@ -107,6 +107,14 @@ func New(ctx context.Context, logger *logger.Logger, p Provider, jobRunner JobRu
 	return m, nil
 }
 
+// Stop stops running the schedules (the manager's cron). It is used when the server fails to start
+// after the manager was made.
+func (m *Manager) Stop() {
+	if c, ok := m.cron.(interface{ Stop() }); ok {
+		c.Stop()
+	}
+}
+
 // NewManager returns a manager storing schedules in p, without loading the stored ones into cron.
 func NewManager(ctx context.Context, jobRunner JobRunner, p Provider, logger *logger.Logger, runRemoteCmdTimeoutSec int) (m *Manager) {
 	m = &Manager{

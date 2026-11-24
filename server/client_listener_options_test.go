@@ -13,6 +13,9 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clientsauth"
+	"github.com/openrport/openrport/server/dispatch"
+	"github.com/openrport/openrport/server/jobrunner"
+	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/tenant"
 )
 
@@ -40,6 +43,12 @@ func listenerTestOptions(t *testing.T) ClientListenerOptions {
 		PrivateKey:    key,
 		ClientService: clients.NewClientService(nil, nil, clients.NewClientRepository(nil, nil, testLog), testLog, nil),
 		ClientAuth:    clientsauth.NewSingleProvider("client", "secret"),
+		Jobs:          NewJobProviderMock(),
+		JobsDone:      jobrunner.NewDoneChannels(),
+		UIJobStreams:  newUIStreams(),
+		FileGrants:    dispatch.NewFileGrants(),
+		Measurements:  &recordingMeasurementQueue{},
+		Capabilities:  &models.Capabilities{},
 	}
 }
 
@@ -70,6 +79,12 @@ func TestNewClientListenerRequiresOptions(t *testing.T) {
 		"PrivateKey":    func(o *ClientListenerOptions) { o.PrivateKey = nil },
 		"ClientService": func(o *ClientListenerOptions) { o.ClientService = nil },
 		"ClientAuth":    func(o *ClientListenerOptions) { o.ClientAuth = nil },
+		"Jobs":          func(o *ClientListenerOptions) { o.Jobs = nil },
+		"JobsDone":      func(o *ClientListenerOptions) { o.JobsDone = nil },
+		"UIJobStreams":  func(o *ClientListenerOptions) { o.UIJobStreams = nil },
+		"FileGrants":    func(o *ClientListenerOptions) { o.FileGrants = nil },
+		"Measurements":  func(o *ClientListenerOptions) { o.Measurements = nil },
+		"Capabilities":  func(o *ClientListenerOptions) { o.Capabilities = nil },
 	} {
 		t.Run(field, func(t *testing.T) {
 			o := listenerTestOptions(t)

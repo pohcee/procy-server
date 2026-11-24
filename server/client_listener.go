@@ -60,10 +60,10 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
-// ClientListenerOptions are what the client listener needs from the rest of the server. Config,
-// PrivateKey, ClientService and ClientAuth are required. Without JobsDone and UIJobStreams job
-// results are saved but no sequential run or UI stream is told about them (a process without the
-// API and the job runner).
+// ClientListenerOptions are what the client listener needs from the rest of the server. Every
+// field is required except AuditLog (nil: nothing is audited) and PlusManager (used only with
+// rport-plus). In a process without the API and the job runner, give JobsDone and UIJobStreams
+// empty values: job results are then saved and no sequential run or UI stream waits for them.
 type ClientListenerOptions struct {
 	Config *chconfig.Config
 	// PrivateKey is the server's SSH host key.
@@ -151,6 +151,18 @@ func NewClientListener(o ClientListenerOptions) (*ClientListener, error) {
 		return nil, errors.New("client listener: ClientService is required")
 	case o.ClientAuth == nil:
 		return nil, errors.New("client listener: ClientAuth is required")
+	case o.Jobs == nil:
+		return nil, errors.New("client listener: Jobs is required")
+	case o.JobsDone == nil:
+		return nil, errors.New("client listener: JobsDone is required")
+	case o.UIJobStreams == nil:
+		return nil, errors.New("client listener: UIJobStreams is required")
+	case o.FileGrants == nil:
+		return nil, errors.New("client listener: FileGrants is required")
+	case o.Measurements == nil:
+		return nil, errors.New("client listener: Measurements is required")
+	case o.Capabilities == nil:
+		return nil, errors.New("client listener: Capabilities is required")
 	}
 	server := &listenerServices{
 		config:             o.Config,
@@ -164,13 +176,6 @@ func NewClientListener(o ClientListenerOptions) (*ClientListener, error) {
 		monitoringQueue:    o.Measurements,
 		plusManager:        o.PlusManager,
 		capabilities:       o.Capabilities,
-	}
-	if server.jobsDoneChannel == nil {
-		server.jobsDoneChannel = jobrunner.NewDoneChannels()
-	}
-	if server.uiJobWebSockets == nil {
-		streams := ws.NewWebSocketCache()
-		server.uiJobWebSockets = &streams
 	}
 	privateKey := o.PrivateKey
 	config := server.config

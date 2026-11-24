@@ -66,8 +66,8 @@ const (
 )
 
 // APIListenerOptions are what the API listener (the API and the web UI) needs from the rest of the
-// server. Config, Repositories, ClientService, Dispatcher, JobRunner, Library, Schedules, AuditLog
-// and Files are required; Acme is required when [api] enable_acme is set.
+// server. Every field is required except Fingerprint, PlusManager (used only with rport-plus),
+// Capabilities, and Acme (required only when [api] enable_acme is set).
 type APIListenerOptions struct {
 	Config *chconfig.Config
 	// Fingerprint is the server's SSH host key fingerprint, shown to API users.
@@ -87,8 +87,8 @@ type APIListenerOptions struct {
 	Files       files.FileAPI
 	PlusManager rportplus.Manager
 	Acme        *acme.Acme
-	// UIJobStreams are the UI websockets job results are streamed to (shared with the client
-	// listener); nil gets an empty cache.
+	// UIJobStreams are the UI websockets job results are streamed to; the client listener must get
+	// the same cache.
 	UIJobStreams *ws.WebSocketCache
 	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
 	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
@@ -200,14 +200,14 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		return nil, errors.New("api listener: AuditLog is required")
 	case o.Files == nil:
 		return nil, errors.New("api listener: Files is required")
+	case o.Monitoring == nil:
+		return nil, errors.New("api listener: Monitoring is required")
+	case o.UIJobStreams == nil:
+		return nil, errors.New("api listener: UIJobStreams is required")
 	case o.Config.API.EnableAcme && o.Acme == nil:
 		return nil, errors.New("api listener: Acme is required with enable_acme")
 	}
 	uiStreams := o.UIJobStreams
-	if uiStreams == nil {
-		streams := ws.NewWebSocketCache()
-		uiStreams = &streams
-	}
 	fingerprint := o.Fingerprint
 
 	config := o.Config

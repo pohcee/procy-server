@@ -42,6 +42,9 @@ func (m *DoneChannels) Get(jobID string) chan *models.Job {
 
 // GetAllKeys returns the IDs of the running sequential jobs. Used by tests.
 func (m *DoneChannels) GetAllKeys() (jobIDs []string) {
+	if m == nil {
+		return nil
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	jobIDs = make([]string, 0, len(m.m))

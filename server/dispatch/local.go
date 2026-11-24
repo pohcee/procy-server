@@ -165,3 +165,9 @@ func (d *Local) UpdateAttributes(ctx context.Context, clientID string, attribute
 	}
 	return comm.SendRequestAndGetResponse(conn, comm.RequestTypeUpdateClientAttributes, attributes, &attributesResponse{}, d.log)
 }
+
+// FileGrants returns the grants uploads are made in; the client listener's SFTP server must check
+// the same ones.
+func (d *Local) FileGrants() *FileGrants {
+	return d.grants
+}

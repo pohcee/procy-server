@@ -15,6 +15,7 @@ import (
 	"github.com/openrport/openrport/server/clients/targeting"
 	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/share/files"
 )
 
@@ -55,6 +56,8 @@ func TestNewAPIListenerFromOptions(t *testing.T) {
 		Schedules:     schedules,
 		AuditLog:      audit,
 		Files:         files.NewFileSystem(),
+		Monitoring:    monitoring.NewService(repos.Monitoring, testLog),
+		UIJobStreams:  newUIStreams(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = al.Close() })

@@ -108,3 +108,9 @@ func New(o Options) (*Runner, error) {
 		noSequentialWait: o.NoSequentialWait,
 	}, nil
 }
+
+// DoneChannels returns the done channels the runner waits on; the client listener must signal the
+// same ones.
+func (r *Runner) DoneChannels() *DoneChannels {
+	return r.done
+}

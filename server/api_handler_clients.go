@@ -342,6 +342,10 @@ func (al *APIListener) handlePutClientTunnel(w http.ResponseWriter, req *http.Re
 		al.jsonError(w, err)
 		return
 	}
+	if len(tunnels) != 1 {
+		al.jsonErrorResponseWithTitle(w, http.StatusInternalServerError, fmt.Sprintf("expected 1 started tunnel, got %d", len(tunnels)))
+		return
+	}
 	response := api.NewSuccessPayload(tunnels[0])
 
 	al.auditLog.Entry(auditlog.ApplicationClientTunnel, auditlog.ActionCreate).

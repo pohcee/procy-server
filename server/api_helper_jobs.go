@@ -2,15 +2,12 @@ package chserver
 
 import (
 	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/share/random"
 )
 
-// ErrClientNotConnected is dispatch.ErrClientNotConnected, kept under its old name.
-var ErrClientNotConnected = dispatch.ErrClientNotConnected
-
-// generateNewJobID makes job IDs for the API and the job runner; tests replace it.
+// generateNewJobID makes the job IDs the API assigns (single-client jobs, websocket runs); tests
+// replace it, and the test wiring also gives it to the job runner.
 var generateNewJobID = func() (string, error) {
 	return random.UUID4()
 }

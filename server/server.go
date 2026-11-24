@@ -276,6 +276,12 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	if err != nil {
 		return nil, err
 	}
+	// a later startup step failing stops the schedules (the storage is closed by the defer above)
+	defer func() {
+		if err != nil {
+			s.scheduleManager.Stop()
+		}
+	}()
 	s.scheduleManager.SetLibrary(s.libraryManager, s.jobProvider)
 	s.libraryManager.SetReferenceChecker(s.scheduleManager)
 

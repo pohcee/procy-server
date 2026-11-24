@@ -36,6 +36,11 @@ func newCron(ctx context.Context) *CronImplementation {
 	return c
 }
 
+// Stop stops running schedules; a run in progress continues.
+func (c *CronImplementation) Stop() {
+	c.cron.Stop()
+}
+
 func (c *CronImplementation) Validate(schedule string) error {
 	_, err := c.cronParser.Parse(schedule)
 	return err
