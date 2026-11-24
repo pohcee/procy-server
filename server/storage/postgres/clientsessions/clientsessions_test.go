@@ -138,13 +138,16 @@ func TestRegistryRefusesBadInput(t *testing.T) {
 		"unknown tenant":  func() error { return s.Register(ctx, "n1", sess("zz", "c1", "session-0001"), time.Minute) },
 		"reserved tenant": func() error { return s.Register(ctx, "n1", sess("_unresolved", "c1", "session-0001"), time.Minute) },
 		"long lease":      func() error { return s.Register(ctx, "n1", sess("a", "c1", "session-0001"), 2*time.Hour) },
-		"renew bad tenant": func() error {
-			_, err := s.Renew(ctx, "n1", []peer.Session{sess("zz", "c1", "session-0001")}, time.Minute)
-			return err
-		},
 	} {
 		assert.Error(t, call(), name)
 	}
+}
+
+func TestRenewReportsUnknownTenantLost(t *testing.T) {
+	s, _ := newStore(t)
+	lost, err := s.Renew(context.Background(), "n1", []peer.Session{sess("zz", "c1", "session-0001")}, time.Minute)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"session-0001"}, lost)
 }
 
 func TestApplicationRoleCannotWriteRegistryTables(t *testing.T) {
@@ -170,4 +173,37 @@ func TestApplicationRoleCannotWriteRegistryTables(t *testing.T) {
 	require.NoError(t, err)
 	_, err = tx.Exec("SELECT rport_end_session('session-0001')")
 	assert.ErrorContains(t, err, "permission denied")
+}
+
+// A session that can't be held any more (its tenant was deleted) is reported lost; the others are renewed.
+func TestRenewSkipsSessionOfDeletedTenant(t *testing.T) {
+	s, d := newStore(t)
+	ctx := context.Background()
+	good, gone := sess("a", "c1", "session-0001"), sess("b", "c2", "session-0002")
+	require.NoError(t, s.Register(ctx, "n1", good, time.Minute))
+	require.NoError(t, s.Register(ctx, "n1", gone, time.Minute))
+	_, err := d.Owner.Exec("DELETE FROM tenants WHERE id = 'b'")
+	require.NoError(t, err)
+
+	lost, err := s.Renew(ctx, "n1", []peer.Session{good, gone}, time.Minute)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"session-0002"}, lost)
+	loc, err := s.Locate(ctxFor("a"), "c1")
+	require.NoError(t, err)
+	assert.NotNil(t, loc)
+}
+
+// Renewing stores a held client connected again when the sweep marked it disconnected while its lease had lapsed.
+func TestRenewRestoresConnectedState(t *testing.T) {
+	s, d := newStore(t)
+	ctx := context.Background()
+	_, err := d.Owner.Exec(`INSERT INTO clients (tenant_id, id, client_auth_id, disconnected_at, details)
+		VALUES ('a', 'c1', 'auth-c1', now(), '{}')`)
+	require.NoError(t, err)
+	held := sess("a", "c1", "session-0001")
+	_, err = s.Renew(ctx, "n1", []peer.Session{held}, time.Minute)
+	require.NoError(t, err)
+	var connected bool
+	require.NoError(t, d.Owner.Get(&connected, "SELECT disconnected_at IS NULL FROM clients WHERE id = 'c1'"))
+	assert.True(t, connected)
 }

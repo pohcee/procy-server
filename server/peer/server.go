@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/openrport/openrport/server/dispatch"
@@ -34,9 +35,12 @@ type ServerOptions struct {
 	Local dispatch.Dispatcher
 	// UIJobStreams is the cache the client listener writes job output and results to.
 	UIJobStreams *ws.WebSocketCache
-	// UploadDir is where uploaded files are kept while the client fetches them.
+	// UploadDir is where uploaded files are kept while the client fetches them; files left there by an earlier run
+	// are removed at Start.
 	UploadDir string
-	Log       *logger.Logger
+	// MaxUploadBytes bounds an uploaded file; 0 means no bound.
+	MaxUploadBytes int64
+	Log            *logger.Logger
 }
 
 // Server is the peer listener of a device process: it accepts work on its clients from api processes.
@@ -46,6 +50,9 @@ type Server struct {
 	http   *http.Server
 	ln     net.Listener
 	served chan error
+
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // NewServer returns a peer listener; Start opens it.
@@ -90,6 +97,11 @@ func (s *Server) Handler() http.Handler { return s.http.Handler }
 
 // Start listens on addr and serves until Close.
 func (s *Server) Start(addr string) error {
+	if left, _ := filepath.Glob(filepath.Join(s.o.UploadDir, "peer-*")); len(left) > 0 {
+		for _, f := range left {
+			_ = os.Remove(f)
+		}
+	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("peer listener: %w", err)
@@ -115,16 +127,18 @@ func (s *Server) Start(addr string) error {
 // Addr is the address the listener listens on (after Start).
 func (s *Server) Addr() string { return s.ln.Addr().String() }
 
-// Close stops the listener; streams in progress are cut.
+// Close stops the listener; streams in progress are cut. Calling it again does nothing.
 func (s *Server) Close() error {
-	if s.ln == nil {
-		return nil
-	}
-	err := s.http.Close()
-	if serr := <-s.served; serr != nil && err == nil {
-		err = serr
-	}
-	return err
+	s.closeOnce.Do(func() {
+		if s.ln == nil {
+			return
+		}
+		s.closeErr = s.http.Close()
+		if serr := <-s.served; serr != nil && s.closeErr == nil {
+			s.closeErr = serr
+		}
+	})
+	return s.closeErr
 }
 
 // authorized lets only api processes call.
@@ -327,7 +341,11 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad upload: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	path, err := s.storeUpload(r.Body)
+	body := io.Reader(r.Body)
+	if s.o.MaxUploadBytes > 0 {
+		body = http.MaxBytesReader(w, r.Body, s.o.MaxUploadBytes)
+	}
+	path, err := s.storeUpload(body)
 	if err != nil {
 		writeJSON(w, uploadResponse{Error: toWire(err)})
 		return

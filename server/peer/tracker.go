@@ -35,9 +35,8 @@ type Tracker struct {
 }
 
 type heldConn struct {
-	session    Session
-	closeConn  func()
-	registered bool
+	session   Session
+	closeConn func()
 }
 
 var _ dispatch.Sessions = (*Tracker)(nil)
@@ -86,10 +85,6 @@ func (t *Tracker) Connected(ctx context.Context, clientID string, closeConn func
 	defer cancel()
 	if err := t.store.Register(rctx, t.node.NodeID, h.session, t.lease); err != nil {
 		t.log.Errorf("client %s: session not registered yet: %v", clientID, err)
-	} else {
-		t.mu.Lock()
-		h.registered = true
-		t.mu.Unlock()
 	}
 
 	var once sync.Once
@@ -139,44 +134,36 @@ func (t *Tracker) Run(ctx context.Context) {
 	}
 }
 
-// Tick writes the heartbeat, registers the sessions not registered yet and renews the others once.
+// Tick renews the sessions (recording those not recorded yet, unless a newer session of the client exists) and
+// writes the heartbeat, each step with its own timeout.
 func (t *Tracker) Tick(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, storeTimeout)
-	defer cancel()
-	if err := t.store.Heartbeat(ctx, t.node); err != nil {
-		t.log.Errorf("node heartbeat: %v", err)
-	}
 	t.mu.Lock()
-	var pending, renew []*heldConn
+	held := make([]*heldConn, 0, len(t.held))
 	for _, h := range t.held {
-		if h.registered {
-			renew = append(renew, h)
-		} else {
-			pending = append(pending, h)
-		}
+		held = append(held, h)
 	}
 	t.mu.Unlock()
 
-	for _, h := range pending {
-		if err := t.store.Register(ctx, t.node.NodeID, h.session, t.lease); err != nil {
-			t.log.Errorf("client %s: session not registered yet: %v", h.session.ClientID, err)
-			continue
+	if len(held) > 0 {
+		sessions := make([]Session, 0, len(held))
+		for _, h := range held {
+			sessions = append(sessions, h.session)
 		}
-		t.mu.Lock()
-		h.registered = true
-		t.mu.Unlock()
+		rctx, cancel := context.WithTimeout(ctx, storeTimeout)
+		// a session not recorded at connect (the database was down) is recorded by renewing: it doesn't replace a
+		// newer session of the client, which register would
+		lost, err := t.store.Renew(rctx, t.node.NodeID, sessions, t.lease)
+		cancel()
+		if err != nil {
+			t.log.Errorf("renew client sessions: %v", err)
+		} else {
+			t.Lost(lost...)
+		}
 	}
-	if len(renew) == 0 {
-		return
+
+	hctx, cancel := context.WithTimeout(ctx, storeTimeout)
+	defer cancel()
+	if err := t.store.Heartbeat(hctx, t.node); err != nil {
+		t.log.Errorf("node heartbeat: %v", err)
 	}
-	sessions := make([]Session, 0, len(renew))
-	for _, h := range renew {
-		sessions = append(sessions, h.session)
-	}
-	lost, err := t.store.Renew(ctx, t.node.NodeID, sessions, t.lease)
-	if err != nil {
-		t.log.Errorf("renew client sessions: %v", err)
-		return
-	}
-	t.Lost(lost...)
 }

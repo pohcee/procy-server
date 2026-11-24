@@ -39,6 +39,12 @@ type Dispatcher struct {
 	done     *jobrunner.DoneChannels
 	// refresh, when set, re-reads a client's record after its tunnels changed on another node
 	refresh func(ctx context.Context, clientID string) error
+	jobs    JobReader
+}
+
+// JobReader reads a stored job (tenant from ctx).
+type JobReader interface {
+	GetByJID(ctx context.Context, clientID, jid string) (*models.Job, error)
 }
 
 var _ dispatch.Dispatcher = (*Dispatcher)(nil)
@@ -61,6 +67,8 @@ type Binding struct {
 	JobsDone     *jobrunner.DoneChannels
 	// Refresh re-reads a client's record (tenant in ctx); nil if the cache follows the change feed only.
 	Refresh func(ctx context.Context, clientID string) error
+	// Jobs reads the results the device processes save, for a run whose result didn't come over the stream.
+	Jobs JobReader
 }
 
 // Bind connects the dispatcher to the server. Call it before the server runs.
@@ -68,7 +76,7 @@ func (d *Dispatcher) Bind(b Binding) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.local, d.hasLocal = b.Local, b.HasClientListener && b.Local != nil
-	d.streams, d.done, d.refresh = b.UIJobStreams, b.JobsDone, b.Refresh
+	d.streams, d.done, d.refresh, d.jobs = b.UIJobStreams, b.JobsDone, b.Refresh, b.Jobs
 }
 
 // route returns the node holding the client, or the local dispatcher when it is this process.
@@ -163,15 +171,64 @@ func (d *Dispatcher) RunJob(ctx context.Context, clientID string, job *models.Jo
 	if job.MultiJobID != nil {
 		key = *job.MultiJobID
 	}
+	started := *job
 	go func() {
 		defer cancel()
-		defer stream.close()
-		d.forward(key, stream)
+		got := d.forward(key, stream)
+		stream.close()
+		if !got && started.MultiJobID != nil {
+			d.awaitStoredResult(sctx, &started)
+		}
 	}()
 	return resp, nil
 }
 
-func (d *Dispatcher) forward(key string, stream *jobStream) {
+// storedResultPoll is how often awaitStoredResult reads the job.
+const storedResultPoll = 2 * time.Second
+
+// awaitStoredResult signals a sequential multi-client run waiting for job whose result didn't come over the peer
+// stream (the stream broke, the device process restarted): it reads the result the device process saved, until the
+// stream's deadline (ctx), and then gives the run the job as failed, so the run goes on either way.
+func (d *Dispatcher) awaitStoredResult(ctx context.Context, job *models.Job) {
+	d.mu.RLock()
+	done, jobs := d.done, d.jobs
+	d.mu.RUnlock()
+	if done == nil {
+		return
+	}
+	ch := done.Get(*job.MultiJobID)
+	if ch == nil {
+		return
+	}
+	final := func() *models.Job {
+		if jobs == nil {
+			return nil
+		}
+		tick := time.NewTicker(storedResultPoll)
+		defer tick.Stop()
+		for {
+			stored, err := jobs.GetByJID(ctx, job.ClientID, job.JID)
+			if err == nil && stored != nil && stored.Status != models.JobStatusRunning {
+				return stored
+			}
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-tick.C:
+			}
+		}
+	}()
+	if final == nil {
+		failed := *job
+		failed.Status = models.JobStatusUnknown
+		failed.Error = "the result did not arrive from the node holding the client"
+		final = &failed
+	}
+	go func() { ch <- final }()
+}
+
+// forward copies the frames of a run-job stream to the UI and the waiting run; it reports whether the result came.
+func (d *Dispatcher) forward(key string, stream *jobStream) bool {
 	d.mu.RLock()
 	streams, done := d.streams, d.done
 	d.mu.RUnlock()
@@ -181,7 +238,7 @@ func (d *Dispatcher) forward(key string, stream *jobStream) {
 			if !errors.Is(err, io.EOF) {
 				d.log.Debugf("job stream %s ended: %v", key, err)
 			}
-			return
+			return false
 		}
 		var socket *ws.ConcurrentWebSocket
 		if streams != nil {
@@ -204,7 +261,7 @@ func (d *Dispatcher) forward(key string, stream *jobStream) {
 					go func() { ch <- &job }()
 				}
 			}
-			return
+			return true
 		}
 	}
 }

@@ -133,8 +133,8 @@ func (s *Store) Save(ctx context.Context, c *clientdata.Client) error {
 }
 
 // MarkLostSessionsDisconnected marks the clients of the tenant of ctx disconnected (now) that are stored as
-// connected but have no live session in the cluster registry: their node stopped without saying so, or its lease ran
-// out. It returns how many it marked.
+// connected but whose session in the cluster registry ended more than two minutes ago or never existed: their node
+// stopped without saying so, or lost the database. It returns how many it marked.
 func (s *Store) MarkLostSessionsDisconnected(ctx context.Context) (int64, error) {
 	tid, err := postgres.TenantOf(ctx)
 	if err != nil {
@@ -142,8 +142,12 @@ func (s *Store) MarkLostSessionsDisconnected(ctx context.Context) (int64, error)
 	}
 	var n int64
 	err = postgres.InTenantID(ctx, s.db, tid, func(tx *sqlx.Tx) error {
+		// a lease lapsed for less than two minutes is left alone: its node may be renewing it right now (after a
+		// database outage); renewing also stores the client connected again if the sweep was first
 		res, err := tx.ExecContext(ctx, `UPDATE clients SET disconnected_at = now()
-			WHERE tenant_id = $1 AND disconnected_at IS NULL AND NOT `+liveSession, string(tid))
+			WHERE tenant_id = $1 AND disconnected_at IS NULL AND NOT EXISTS (SELECT 1 FROM client_sessions cs
+				WHERE cs.tenant_id = clients.tenant_id AND cs.client_id = clients.id
+				AND cs.lease_until > now() - interval '2 minutes')`, string(tid))
 		if err != nil {
 			return err
 		}

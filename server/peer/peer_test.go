@@ -92,11 +92,12 @@ func TestCertificateCarriesRoleAndNode(t *testing.T) {
 // fakeLocal is a local dispatcher that records calls; RunJob writes output and the result to the UI job stream
 // as the client listener does.
 type fakeLocal struct {
-	streams *ws.WebSocketCache
-	mu      sync.Mutex
-	tenants []tenant.ID
-	upload  []byte
-	err     error
+	streams  *ws.WebSocketCache
+	mu       sync.Mutex
+	tenants  []tenant.ID
+	upload   []byte
+	err      error
+	noResult bool
 }
 
 func (f *fakeLocal) seen(ctx context.Context) {
@@ -114,6 +115,9 @@ func (f *fakeLocal) RunJob(ctx context.Context, _ string, job *models.Job) (*com
 	key := job.JID
 	if job.MultiJobID != nil {
 		key = *job.MultiJobID
+	}
+	if f.noResult {
+		return &comm.RunCmdResponse{Pid: 1}, nil
 	}
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -221,6 +225,7 @@ type pair struct {
 	streams    *ws.WebSocketCache // api side
 	done       *jobrunner.DoneChannels
 	addr       string
+	srv        *Server
 }
 
 func startPair(t *testing.T, deviceAuth, apiAuth *Auth) *pair {
@@ -236,7 +241,7 @@ func startPair(t *testing.T, deviceAuth, apiAuth *Auth) *pair {
 	done := jobrunner.NewDoneChannels()
 	d := NewDispatcher(staticLocator{&Location{NodeID: "node-b", PeerAddress: srv.Addr()}}, NewClient(apiAuth), "node-a", nil)
 	d.Bind(Binding{UIJobStreams: &apiStreams, JobsDone: done})
-	return &pair{local: local, dispatcher: d, streams: &apiStreams, done: done, addr: srv.Addr()}
+	return &pair{local: local, dispatcher: d, streams: &apiStreams, done: done, addr: srv.Addr(), srv: srv}
 }
 
 func ctxA() context.Context { return tenant.WithID(context.Background(), "acme") }
@@ -429,7 +434,11 @@ func (s *fakeStore) Renew(_ context.Context, _ string, held []Session, _ time.Du
 	defer s.mu.Unlock()
 	var lost []string
 	for _, h := range held {
-		if cur, ok := s.sessions[h.ClientID]; ok && cur != h.SessionID {
+		cur, ok := s.sessions[h.ClientID]
+		switch {
+		case !ok:
+			s.sessions[h.ClientID] = h.SessionID
+		case cur != h.SessionID:
 			lost = append(lost, h.SessionID)
 		}
 	}
@@ -477,6 +486,26 @@ func TestTrackerClosesSessionTakenOver(t *testing.T) {
 	assert.ErrorIs(t, err, tenant.ErrMissing)
 }
 
+func TestTrackerLateRecordDoesNotReplaceNewerSession(t *testing.T) {
+	store := &fakeStore{sessions: map[string]string{}, fail: true}
+	tr := NewTracker(store, NodeInfo{NodeID: "n1"}, time.Minute, time.Hour, nil)
+	closed := make(chan struct{}, 1)
+	_, err := tr.Connected(ctxA(), "c1", func() { closed <- struct{}{} })
+	require.NoError(t, err)
+	// meanwhile the client connected to another node
+	store.mu.Lock()
+	store.fail = false
+	store.sessions["c1"] = "session-on-n2"
+	store.mu.Unlock()
+	tr.Tick(context.Background())
+	assert.Equal(t, "session-on-n2", store.sessions["c1"], "the newer session stays")
+	select {
+	case <-closed:
+	default:
+		t.Fatal("the connection whose session was never recorded and is now replaced is closed")
+	}
+}
+
 func TestTrackerRegistersLaterWhenDatabaseIsDown(t *testing.T) {
 	store := &fakeStore{sessions: map[string]string{}, fail: true}
 	tr := NewTracker(store, NodeInfo{NodeID: "n1"}, time.Minute, time.Hour, nil)
@@ -490,4 +519,31 @@ func TestTrackerRegistersLaterWhenDatabaseIsDown(t *testing.T) {
 	assert.Len(t, store.sessions, 1)
 	end()
 	assert.Empty(t, store.sessions, "ending removes the session")
+}
+
+type storedJobs struct{ job *models.Job }
+
+func (s storedJobs) GetByJID(context.Context, string, string) (*models.Job, error) { return s.job, nil }
+
+// A sequential run waiting for a result that never comes over the stream (the device process went away) gets the
+// result the device process saved.
+func TestSequentialRunGetsStoredResultWhenStreamBreaks(t *testing.T) {
+	p := newPKI(t)
+	pr := startPair(t, p.auth(t, "node-b", false, RoleDevice), p.auth(t, "node-a", false, RoleAPI))
+	pr.local.noResult = true
+	stored := &models.Job{JID: "job-9", Status: models.JobStatusSuccessful}
+	pr.dispatcher.Bind(Binding{UIJobStreams: pr.streams, JobsDone: pr.done, Jobs: storedJobs{stored}})
+
+	multi := "multi-9"
+	ch := make(chan *models.Job, 1)
+	pr.done.Set(multi, ch)
+	_, err := pr.dispatcher.RunJob(ctxA(), "c1", &models.Job{JID: "job-9", MultiJobID: &multi, ClientID: "c1", TimeoutSec: 10})
+	require.NoError(t, err)
+	require.NoError(t, pr.srv.Close())
+	select {
+	case j := <-ch:
+		assert.Equal(t, models.JobStatusSuccessful, j.Status)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the sequential run was not signaled")
+	}
 }

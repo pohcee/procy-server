@@ -513,9 +513,6 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	// recorded before the client is saved as connected, so the cluster never sees it connected without a session
-	endSession := cl.registerSession(ctx, clientID, sshConn, clientLog)
-	defer endSession()
 	client, err := cl.getClientService().StartClient(ctx, clientAuthID, clientID, sshConn, clientHostname(req.Host), cl.server.config.Server.AuthMultiuseCreds, connRequest, clientLog.GetLogger())
 	admitted()
 	if err != nil {
@@ -523,6 +520,10 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 		return
 	}
 	clientLog.Debugf("Client service started for %s (%s) within %s", client.GetID(), client.GetName(), time.Since(ts1))
+	// recorded once the client is admitted (a refused duplicate must not replace the session of the connected one);
+	// renewing stores the client connected again should the cluster's sweep catch it in between
+	endSession := cl.registerSession(ctx, clientID, sshConn, clientLog)
+	defer endSession()
 
 	ts2 := time.Now()
 

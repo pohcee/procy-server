@@ -30,6 +30,8 @@ type PeerBinding struct {
 	// UIJobStreams are the websockets job output is streamed to; JobsDone the sequential runs waiting for results.
 	UIJobStreams *ws.WebSocketCache
 	JobsDone     *jobrunner.DoneChannels
+	// Jobs is the job storage.
+	Jobs JobProvider
 }
 
 func (s *Server) bindPeer(p PeerNode) error {
@@ -43,5 +45,6 @@ func (s *Server) bindPeer(p PeerNode) error {
 		Clients:           s.clientService,
 		UIJobStreams:      &s.uiJobWebSockets,
 		JobsDone:          s.jobsDoneChannel,
+		Jobs:              s.jobProvider,
 	})
 }

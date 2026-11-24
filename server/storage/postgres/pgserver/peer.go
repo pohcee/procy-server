@@ -117,6 +117,7 @@ func (p *clusterProcess) Bind(b chserver.PeerBinding) error {
 			HasClientListener: b.HasClientListener,
 			UIJobStreams:      b.UIJobStreams,
 			JobsDone:          b.JobsDone,
+			Jobs:              b.Jobs,
 			// the change feed brings the tunnels too; refreshing at once answers the next request right
 			Refresh: repo.Refresh,
 		})
@@ -127,7 +128,9 @@ func (p *clusterProcess) Bind(b chserver.PeerBinding) error {
 			Local:        b.Local,
 			UIJobStreams: b.UIJobStreams,
 			UploadDir:    filepath.Join(p.cfg.GetUploadDir(), "peer"),
-			Log:          p.log.Fork("listener"),
+			// the api process applied [api] max_filepush_size already; the same bound here
+			MaxUploadBytes: p.cfg.API.MaxFilePushSize,
+			Log:            p.log.Fork("listener"),
 		})
 		if err != nil {
 			return err
@@ -151,7 +154,9 @@ func (p *clusterProcess) Start(ctx context.Context) error {
 			p.tracker.Run(ctx)
 		}()
 	}
-	if p.cfg.Storage.Role != chconfig.StorageRoleDevice {
+	// only with peer calls: without them (phase 2) one listener node owns the connection state, and nodes of an
+	// earlier release record no sessions, so a rolling upgrade must not mark their clients disconnected
+	if p.cfg.Storage.Role != chconfig.StorageRoleDevice && p.cfg.Cluster.PeerEnabled() {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()

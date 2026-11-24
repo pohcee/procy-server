@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"golang.org/x/net/http2"
+
+	"github.com/openrport/openrport/server/dispatch"
 )
 
 // Client makes peer calls to device processes. It keeps one HTTP/2 connection pool per node.
@@ -65,7 +67,11 @@ func (c *Client) post(ctx context.Context, loc *Location, path string, body io.R
 	c.auth.addSecret(req)
 	resp, err := c.httpClient(loc).Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("peer call to node %s: %w", loc.NodeID, err)
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("peer call to node %s: %w", loc.NodeID, err)
+		}
+		// the node holding the session is gone (its lease hasn't run out yet): for the caller the client is offline
+		return nil, fmt.Errorf("%w: node %s holding it is unreachable: %v", dispatch.ErrClientNotConnected, loc.NodeID, err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
