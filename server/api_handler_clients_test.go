@@ -164,6 +164,7 @@ func TestHandleGetClient(t *testing.T) {
         "allowed_user_groups":null,
         "updates_status":null,
         "client_configuration":null,
+        "connected_host":"",
         "groups": []
     }
 }`
