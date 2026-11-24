@@ -515,6 +515,16 @@ func (r *ClientRepository) removeClient(tid tenant.ID, clientID string) {
 	r.mu.Unlock()
 }
 
+// LoadTenant makes sure the cache holds the clients of the tenant carried by ctx (see loadTenant) and reports a
+// failed load, which the other methods only log.
+func (r *ClientRepository) LoadTenant(ctx context.Context) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	return r.loadTenant(ctx, tid)
+}
+
 // loadTenant makes sure the cache holds the state of the tenant, loading its stored clients on first use
 // (LoadInitialClients, which marks the ones stored as connected disconnected unless the store is wrapped by
 // KeepConnectionStateOnLoad). Without a store the tenant starts

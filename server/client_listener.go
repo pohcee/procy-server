@@ -257,6 +257,7 @@ func (cl *ClientListener) authUser(c ssh.ConnMetadata, password []byte) (*ssh.Pe
 	var clientAuth *clientsauth.ClientAuth
 	tid, found, err := cl.tenantOfClientAuth(ctx, clientAuthID)
 	if err != nil {
+		cl.log().Errorf("Looking up the tenant of client auth id %q failed: %v", clientAuthID, err)
 		return nil, err
 	}
 	if found {
@@ -266,6 +267,7 @@ func (cl *ClientListener) authUser(c ssh.ConnMetadata, password []byte) (*ssh.Pe
 		}
 		clientAuth, err = cl.server.clientAuthProvider.Get(ctx, clientAuthID)
 		if err != nil {
+			cl.log().Errorf("Reading the credentials of client auth id %q failed: %v", clientAuthID, err)
 			return nil, err
 		}
 	}
@@ -316,6 +318,7 @@ func (cl *ClientListener) Start(ctx context.Context, listenAddr string) error {
 
 	// save the server ctx for use when handling client ssh connections etc
 	cl.ctx = ctx
+	cl.loadDeviceTenants(ctx)
 
 	if cl.reverseProxy != nil {
 		clLogger.Infof("Reverse proxy enabled")

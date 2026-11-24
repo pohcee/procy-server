@@ -156,6 +156,23 @@ func TestTenantOfAuthID(t *testing.T) {
 	assert.False(t, found)
 }
 
+// TestAuthIndexReadOnlyAfterPlainUpgrade: the application role got writes on the table from default privileges (as
+// when migration 1000 runs on a database granted earlier, with a plain "rportd migrate"); the migration takes them
+// back.
+func TestAuthIndexReadOnlyAfterPlainUpgrade(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	_, err := d.Owner.Exec("GRANT INSERT, UPDATE, DELETE, TRUNCATE ON client_auth_ids TO " + pgtest.AppRole + "; DELETE FROM schema_migrations WHERE version = 1000")
+	require.NoError(t, err)
+	_, err = d.App.Exec("DELETE FROM client_auth_ids")
+	require.NoError(t, err, "writable before the migration")
+	_, err = migrate.Up(context.Background(), d.Owner)
+	require.NoError(t, err)
+	_, err = d.App.Exec("DELETE FROM client_auth_ids")
+	assert.ErrorContains(t, err, "permission denied")
+	var n int
+	require.NoError(t, d.App.Get(&n, "SELECT count(*) FROM client_auth_ids"), "still readable")
+}
+
 func TestAuthIndexAppRoleReadOnly(t *testing.T) {
 	d := pgtest.New(t, repotest.TenantA)
 	for _, q := range []string{

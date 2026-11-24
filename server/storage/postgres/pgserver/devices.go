@@ -53,3 +53,16 @@ func (d *DeviceTenants) DevicePolicy(ctx context.Context, tid tenant.ID) (chserv
 		MaxClients: int(row.MaxClients.Int64),
 	}, nil
 }
+
+// Tenants returns every tenant that is not reserved, in id order.
+func (d *DeviceTenants) Tenants(ctx context.Context) ([]tenant.ID, error) {
+	var ids []string
+	if err := d.db.SelectContext(ctx, &ids, "SELECT id FROM tenants WHERE status <> 'reserved' ORDER BY id"); err != nil {
+		return nil, fmt.Errorf("list tenants: %w", err)
+	}
+	out := make([]tenant.ID, len(ids))
+	for i, id := range ids {
+		out[i] = tenant.ID(id)
+	}
+	return out, nil
+}

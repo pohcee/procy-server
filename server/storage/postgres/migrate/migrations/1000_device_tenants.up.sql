@@ -14,6 +14,20 @@ CREATE TABLE IF NOT EXISTS client_auth_ids (
     tenant_id text NOT NULL REFERENCES tenants (id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS client_auth_ids_tenant ON client_auth_ids (tenant_id);
+-- Only the trigger writes it. A database upgraded with a plain "rportd migrate" gives the new table the default
+-- privileges an earlier "--grant-to" set (writes included), so they are taken back here from every role but the owner.
+DO $$
+DECLARE r record;
+BEGIN
+    FOR r IN SELECT DISTINCT a.grantee::regrole AS role
+             FROM pg_class c, aclexplode(c.relacl) a
+             WHERE c.oid = 'client_auth_ids'::regclass AND a.grantee <> c.relowner AND a.grantee <> 0
+               AND a.privilege_type IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
+    LOOP
+        EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON client_auth_ids FROM %s', r.role);
+    END LOOP;
+END
+$$;
 
 -- SECURITY DEFINER: the function (owned by the schema owner) writes client_auth_ids only for the clients_auth row
 -- that fired the trigger, which row-level security already limits to the transaction's tenant.

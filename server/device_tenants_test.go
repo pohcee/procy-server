@@ -3,8 +3,10 @@ package chserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +14,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/openrport/openrport/server/clients"
+	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/clientsauth"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/tenant"
@@ -24,12 +27,17 @@ type fakeDeviceTenants struct {
 	policyErr error
 }
 
-func (f *fakeDeviceTenants) TenantOfClientAuth(ctx context.Context, id string) (tenant.ID, bool, error) {
-	if _, err := tenant.FromContext(ctx); err != nil {
-		return "", false, errors.New("the listener context carries the server's tenant")
-	}
+func (f *fakeDeviceTenants) TenantOfClientAuth(_ context.Context, id string) (tenant.ID, bool, error) {
 	tid, ok := f.ids[id]
 	return tid, ok, nil
+}
+
+func (f *fakeDeviceTenants) Tenants(context.Context) ([]tenant.ID, error) {
+	out := []tenant.ID{}
+	for tid := range f.policies {
+		out = append(out, tid)
+	}
+	return out, nil
 }
 
 func (f *fakeDeviceTenants) DevicePolicy(_ context.Context, tid tenant.ID) (DevicePolicy, error) {
@@ -165,8 +173,126 @@ func TestAdmitDevice(t *testing.T) {
 	dt.policyErr = errors.New("database down")
 	assert.ErrorContains(t, admit("open", "new"), "could not check the organization")
 
-	// standalone (no tenant found by authUser): always admitted
-	assert.NoError(t, admit("", "anything"))
+	// a device without a tenant on a listener serving several is refused, never run in the listener's tenant
+	dt.policyErr = nil
+	assert.EqualError(t, admit("", "anything"), "connection refused: the organization of this client is unknown")
+}
+
+// tenantStore is a ClientStore keeping clients per tenant; GetAll fails while failing is set.
+type tenantStore struct {
+	mu      sync.Mutex
+	clients map[tenant.ID]map[string]*clientdata.Client
+	failing bool
+	saved   []string
+}
+
+func (s *tenantStore) GetAll(ctx context.Context, _ *logger.Logger) ([]*clientdata.Client, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.failing {
+		return nil, errors.New("database down")
+	}
+	tid, _ := tenant.FromContext(ctx)
+	var out []*clientdata.Client
+	for _, c := range s.clients[tid] {
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+func (s *tenantStore) Save(ctx context.Context, c *clientdata.Client) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tid, _ := tenant.FromContext(ctx)
+	if s.clients[tid] == nil {
+		s.clients[tid] = map[string]*clientdata.Client{}
+	}
+	s.clients[tid][c.GetID()] = c
+	s.saved = append(s.saved, string(tid)+"/"+c.GetID())
+	return nil
+}
+
+func (s *tenantStore) DeleteObsolete(context.Context, *logger.Logger) error { return nil }
+func (s *tenantStore) Delete(context.Context, string, *logger.Logger) error { return nil }
+func (s *tenantStore) Close() error                                         { return nil }
+
+func storeListener(t *testing.T, dt DeviceTenants, store *tenantStore) *ClientListener {
+	t.Helper()
+	o := listenerTestOptions(t)
+	o.DeviceTenants = dt
+	o.ClientAuth = twoTenantAuth()
+	o.ClientService = clients.NewClientService(nil, nil, clients.NewClientRepositoryWithDB(nil, nil, store, testLog), testLog, nil)
+	cl, err := NewClientListener(o)
+	require.NoError(t, err)
+	cl.ctx = tenant.WithID(context.Background(), tenant.Default)
+	return cl
+}
+
+// A failed load of the tenant's clients refuses a new device of a limited tenant instead of counting 0 clients.
+func TestAdmitDeviceRefusesWhenTheClientsCantBeLoaded(t *testing.T) {
+	store := &tenantStore{clients: map[tenant.ID]map[string]*clientdata.Client{}, failing: true}
+	dt := &fakeDeviceTenants{policies: map[tenant.ID]DevicePolicy{"limited": {Status: TenantStatusActive, Limited: true, MaxClients: 5}}}
+	cl := storeListener(t, dt, store)
+	release, err := cl.admitDevice(tenant.WithID(context.Background(), "limited"), "limited", "new", "auth", admissionLog())
+	release()
+	assert.ErrorContains(t, err, "try again later")
+
+	store.failing = false
+	release, err = cl.admitDevice(tenant.WithID(context.Background(), "limited"), "limited", "new", "auth", admissionLog())
+	release()
+	assert.NoError(t, err)
+}
+
+// Two new devices of a tenant with one place left: exactly one is admitted.
+func TestAdmitDeviceConcurrentNewClients(t *testing.T) {
+	dt := &fakeDeviceTenants{policies: map[tenant.ID]DevicePolicy{"limited": {Status: TenantStatusActive, Limited: true, MaxClients: 1}}}
+	cl := deviceTestListener(t, dt, twoTenantAuth())
+	ctx := tenant.WithID(context.Background(), "limited")
+	const n = 8
+	errs := make(chan error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			id := fmt.Sprintf("new-%d", i)
+			release, err := cl.admitDevice(ctx, "limited", id, "auth", admissionLog())
+			if err == nil {
+				// what StartClient does before the admission is released
+				err = cl.getClientService().GetRepo().Save(ctx, clients.New(t).ID(id).Logger(testLog).Build())
+			}
+			release()
+			errs <- err
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	admitted := 0
+	for err := range errs {
+		if err == nil {
+			admitted++
+		}
+	}
+	assert.Equal(t, 1, admitted)
+	assert.Equal(t, 1, cl.getClientService().Count(ctx))
+}
+
+// When the listener starts it loads every tenant's clients, so clients an earlier run left stored as connected are
+// marked disconnected, not only the server's own tenant's.
+func TestListenerStartLoadsEveryTenant(t *testing.T) {
+	connected := clients.New(t).ID("b1").Logger(testLog).Build()
+	require.True(t, connected.IsConnected())
+	store := &tenantStore{clients: map[tenant.ID]map[string]*clientdata.Client{"b": {"b1": connected}}}
+	dt := &fakeDeviceTenants{policies: map[tenant.ID]DevicePolicy{"b": {Status: TenantStatusActive}}}
+	cl := storeListener(t, dt, store)
+
+	ctx, cancel := context.WithCancel(tenant.WithID(context.Background(), tenant.Default))
+	defer cancel()
+	require.NoError(t, cl.Start(ctx, freeAddr(t)))
+	defer cl.Close()
+
+	assert.Contains(t, store.saved, "b/b1")
+	assert.False(t, store.clients["b"]["b1"].IsConnected(), "marked disconnected at start")
 }
 
 func TestAdmitDeviceWithoutDeviceTenants(t *testing.T) {

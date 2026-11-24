@@ -48,4 +48,8 @@ func TestDeviceTenants(t *testing.T) {
 	assert.Equal(t, "reserved", policy("_unresolved").Status)
 	assert.Equal(t, "deleted", policy("gone").Status)
 	assert.Equal(t, chserver.DevicePolicy{Status: "active"}, policy(tenant.Default))
+
+	tids, err := dt.Tenants(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []tenant.ID{"a", "b", tenant.Default, "s"}, tids, "every tenant but the reserved ones")
 }
