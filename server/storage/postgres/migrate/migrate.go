@@ -143,7 +143,8 @@ func Check(ctx context.Context, db *sqlx.DB) error {
 
 // GrantApp gives role what the application needs, now and for tables later migrations add (default privileges
 // of the role running it, which must be the schema owner): SELECT, INSERT, UPDATE and DELETE on the tenant-scoped
-// tables, USAGE on sequences, and SELECT only on tenants, user_logins (written by a trigger) and schema_migrations.
+// tables, USAGE on sequences, and SELECT only on tenants, user_logins, the change feed (changes, changes_horizon;
+// written by triggers and rport_prune_changes) and schema_migrations.
 // Creating tenants therefore needs the owner. role must not own the tables and must not be a superuser or have
 // BYPASSRLS, or row-level security does not hold for it (postgres.CheckAppRole).
 func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
@@ -154,7 +155,7 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
-		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins FROM " + q,
+		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, changes, changes_horizon FROM " + q,
 	}
 	for _, s := range stmts {
 		if _, err := db.ExecContext(ctx, s); err != nil {
