@@ -220,3 +220,43 @@ func TestSaveKeepingACLKeepsTheStoredACL(t *testing.T) {
 
 	require.NoError(t, s.SaveKeepingACL(a, repotest.StoreClient("c2", nil)), "a new client is inserted")
 }
+
+// The node that held an older session saving the client as disconnected leaves the newer session's record alone;
+// a client stored as connected without a live session is marked disconnected by the sweep.
+func TestRegistryDecidesConnectionState(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	s := New(d.App, nil)
+	ctx := repotest.Ctx(repotest.TenantA)
+	c := repotest.StoreClient("c1", nil)
+	c.Name = "newer"
+	require.NoError(t, s.Save(ctx, c))
+	_, err := d.App.Exec("SELECT rport_register_session('a', 'c1', 'n2', 'session-0002', 60)")
+	require.NoError(t, err)
+
+	now := time.Now()
+	stale := repotest.StoreClient("c1", &now)
+	stale.Name = "older"
+	require.NoError(t, s.Save(ctx, stale))
+	got, err := s.Get(ctx, "c1", testLog)
+	require.NoError(t, err)
+	assert.True(t, got.IsConnected())
+	assert.Equal(t, "newer", got.GetName())
+
+	n, err := s.MarkLostSessionsDisconnected(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, n)
+
+	_, err = d.App.Exec("SELECT rport_end_session('session-0002')")
+	require.NoError(t, err)
+	n, err = s.MarkLostSessionsDisconnected(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, n)
+	got, err = s.Get(ctx, "c1", testLog)
+	require.NoError(t, err)
+	assert.False(t, got.IsConnected())
+	// with no live session a disconnected save is written as before
+	require.NoError(t, s.Save(ctx, stale))
+	got, err = s.Get(ctx, "c1", testLog)
+	require.NoError(t, err)
+	assert.Equal(t, "older", got.GetName())
+}

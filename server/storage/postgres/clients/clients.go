@@ -117,8 +117,12 @@ func (s *Store) Save(ctx context.Context, c *clientdata.Client) error {
 		return err
 	}
 	return postgres.InTenantID(ctx, s.db, tid, func(tx *sqlx.Tx) error {
+		// a node saving the client as disconnected while it has a live session elsewhere is the node that held an
+		// older session (it ended its own session first): the newer session's record stays
 		_, err := tx.ExecContext(ctx, `INSERT INTO clients (tenant_id, id, client_auth_id, disconnected_at, details)
-			VALUES ($1, $2, $3, $4, $5)
+			SELECT $1, $2, $3, $4, $5
+			WHERE $4::timestamptz IS NULL OR NOT EXISTS (SELECT 1 FROM client_sessions cs
+				WHERE cs.tenant_id = $1 AND cs.client_id = $2 AND cs.lease_until > now())
 			ON CONFLICT (tenant_id, id) DO UPDATE SET
 				client_auth_id = EXCLUDED.client_auth_id,
 				disconnected_at = EXCLUDED.disconnected_at,
@@ -126,6 +130,27 @@ func (s *Store) Save(ctx context.Context, c *clientdata.Client) error {
 			string(tid), sc.ID, sc.ClientAuthID, sc.DisconnectedAt, sc.Details)
 		return err
 	})
+}
+
+// MarkLostSessionsDisconnected marks the clients of the tenant of ctx disconnected (now) that are stored as
+// connected but have no live session in the cluster registry: their node stopped without saying so, or its lease ran
+// out. It returns how many it marked.
+func (s *Store) MarkLostSessionsDisconnected(ctx context.Context) (int64, error) {
+	tid, err := postgres.TenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var n int64
+	err = postgres.InTenantID(ctx, s.db, tid, func(tx *sqlx.Tx) error {
+		res, err := tx.ExecContext(ctx, `UPDATE clients SET disconnected_at = now()
+			WHERE tenant_id = $1 AND disconnected_at IS NULL AND NOT `+liveSession, string(tid))
+		if err != nil {
+			return err
+		}
+		n, err = res.RowsAffected()
+		return err
+	})
+	return n, err
 }
 
 func (s *Store) DeleteObsolete(ctx context.Context, _ *logger.Logger) error {
