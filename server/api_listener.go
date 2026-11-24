@@ -39,6 +39,7 @@ import (
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/jobs/schedule"
 	"github.com/openrport/openrport/server/api/session"
+	"github.com/openrport/openrport/server/api/uploads"
 	"github.com/openrport/openrport/server/clients/storedtunnels"
 	"github.com/openrport/openrport/server/pairing"
 
@@ -118,7 +119,8 @@ type APIListener struct {
 
 	*apiServices
 
-	uploadWebSockets sync.Map
+	// uploads serves the upload routes; made with the router
+	uploads *uploads.Handler
 
 	fingerprint       string
 	apiSessions       *session.Cache
@@ -420,12 +422,9 @@ func (al *APIListener) Close() error {
 		g.Go(al.apiSessions.Close)
 	}
 
-	al.uploadWebSockets.Range(func(key, value interface{}) bool {
-		if wsConn, ok := value.(*ws.ConcurrentWebSocket); ok {
-			g.Go(wsConn.Close)
-		}
-		return true
-	})
+	if al.uploads != nil {
+		g.Go(al.uploads.Close)
+	}
 
 	g.Go(al.notificationsStorage.Close)
 	g.Go(al.notificationsProcessor.Close)

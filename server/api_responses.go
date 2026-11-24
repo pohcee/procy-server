@@ -1,89 +1,40 @@
 package chserver
 
 import (
-	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/share/logger"
 )
 
-func (al *APIListener) writeErrorResponseLog(errPayload api.ErrorPayload) {
-	if al.errResponseLogger != nil && al.errResponseLogger.Level == logger.LogLevelDebug {
-		al.errResponseLogger.Debugf("payload: %+v", errPayload)
-	}
+// responder writes responses like every handler of the API.
+func (al *APIListener) responder() *api.Responder {
+	return &api.Responder{Log: al.Logger, ErrLog: al.errResponseLogger}
 }
 
 func (al *APIListener) writeJSONResponse(w http.ResponseWriter, statusCode int, response interface{}) {
-	b, err := json.Marshal(response)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(statusCode)
-	if _, err := w.Write(b); err != nil {
-		al.Errorf("error writing response: %s", err)
-	}
+	al.responder().JSON(w, statusCode, response)
 }
 
 func (al *APIListener) jsonErrorResponse(w http.ResponseWriter, statusCode int, err error) {
-	errPayload := api.NewErrAPIPayloadFromError(err, "", "")
-	al.writeErrorResponseLog(errPayload)
-	al.writeJSONResponse(w, statusCode, errPayload)
+	al.responder().ErrorResponse(w, statusCode, err)
 }
 
 func (al *APIListener) jsonError(w http.ResponseWriter, err error) {
-	statusCode := http.StatusInternalServerError
-	errCode := ""
-	message := ""
-	var apiErr errors2.APIError
-	var apiErrs errors2.APIErrors
-	switch {
-	case errors.As(err, &apiErr):
-		statusCode = apiErr.HTTPStatus
-		errCode = apiErr.ErrCode
-		message = apiErr.Message
-	case errors.As(err, &apiErrs):
-		if len(apiErrs) > 0 {
-			statusCode = apiErrs[0].HTTPStatus
-			errCode = apiErrs[0].ErrCode
-			message = apiErrs[0].Message
-		}
-	}
-
-	errPayload := api.NewErrAPIPayloadFromError(err, errCode, message)
-	al.writeErrorResponseLog(errPayload)
-	al.writeJSONResponse(w, statusCode, errPayload)
+	al.responder().Error(w, err)
 }
 
 func (al *APIListener) jsonErrorResponseWithErrCode(w http.ResponseWriter, statusCode int, errCode, title string) {
-	errPayload := api.NewErrAPIPayloadFromMessage(errCode, title, "")
-	al.writeErrorResponseLog(errPayload)
-	al.writeJSONResponse(w, statusCode, errPayload)
+	al.responder().ErrorWithErrCode(w, statusCode, errCode, title)
 }
 
 func (al *APIListener) jsonErrorResponseWithTitle(w http.ResponseWriter, statusCode int, title string) {
-	errPayload := api.NewErrAPIPayloadFromMessage("", title, "")
-	al.writeErrorResponseLog(errPayload)
-	al.writeJSONResponse(w, statusCode, errPayload)
+	al.responder().ErrorWithTitle(w, statusCode, title)
 }
 
 func (al *APIListener) jsonErrorResponseWithDetail(w http.ResponseWriter, statusCode int, errCode, title, detail string) {
-	errPayload := api.NewErrAPIPayloadFromMessage(errCode, title, detail)
-	al.writeErrorResponseLog(errPayload)
-	al.writeJSONResponse(w, statusCode, errPayload)
+	al.responder().ErrorWithDetail(w, statusCode, errCode, title, detail)
 }
 
 func (al *APIListener) jsonErrorResponseWithError(w http.ResponseWriter, statusCode int, title string, err error) {
-	var detail string
-	if err != nil {
-		detail = err.Error()
-	}
-	errPayload := api.NewErrAPIPayloadFromMessage("", title, detail)
-	al.writeErrorResponseLog(errPayload)
-	al.writeJSONResponse(w, statusCode, errPayload)
+	al.responder().ErrorWithError(w, statusCode, title, err)
 }
