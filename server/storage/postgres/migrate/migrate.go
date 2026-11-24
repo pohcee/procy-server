@@ -144,7 +144,8 @@ func Check(ctx context.Context, db *sqlx.DB) error {
 // GrantApp gives role what the application needs, now and for tables later migrations add (default privileges
 // of the role running it, which must be the schema owner): SELECT, INSERT, UPDATE and DELETE on the tenant-scoped
 // tables, USAGE on sequences, and SELECT only on tenants, user_logins (written by a trigger) and schema_migrations.
-// Creating tenants therefore needs the owner. role must not own the tables and must not be a superuser or have
+// The cluster registry (nodes, client_sessions) is read-only too: it is written through the registry functions
+// (RegistryFunctions), which role may execute. Creating tenants therefore needs the owner. role must not own the tables and must not be a superuser or have
 // BYPASSRLS, or row-level security does not hold for it (postgres.CheckAppRole).
 func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	q := quoteIdent(role)
@@ -155,6 +156,10 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins FROM " + q,
+		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON nodes, client_sessions FROM " + q,
+	}
+	for _, f := range RegistryFunctions {
+		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+f+" TO "+q)
 	}
 	for _, s := range stmts {
 		if _, err := db.ExecContext(ctx, s); err != nil {
@@ -162,6 +167,16 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		}
 	}
 	return nil
+}
+
+// RegistryFunctions are the SECURITY DEFINER functions a device process records its node and its clients' sessions
+// with (migration 0450). Only roles granted EXECUTE may call them: the application role (GrantApp, for nodes with
+// storage role "all") and a device role.
+var RegistryFunctions = []string{
+	"rport_node_heartbeat(text, text, text)",
+	"rport_register_session(text, text, text, text, integer)",
+	"rport_renew_sessions(text, jsonb, integer)",
+	"rport_end_session(text)",
 }
 
 func quoteIdent(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
