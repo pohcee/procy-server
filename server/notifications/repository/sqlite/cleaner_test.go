@@ -1,7 +1,6 @@
 package sqlite_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/openrport/openrport/db/sqlite"
 	db "github.com/openrport/openrport/server/notifications/repository/sqlite"
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type CleanerTestSuite struct {
@@ -30,7 +30,7 @@ func (suite *CleanerTestSuite) SetupTest() {
 
 func (suite *CleanerTestSuite) TestCleanerCleansNothingWhenNothing() {
 	repository := db.NewRepository(suite.db, testLog)
-	c := db.StartCleaner(suite.logger, repository, time.Second, time.Second)
+	c := db.StartCleaner(ctxFor(tenant.Default), suite.logger, repository, time.Second, time.Second)
 	defer c.Close()
 
 	suite.expectNotifications(0)
@@ -73,7 +73,7 @@ func (suite *CleanerTestSuite) TestCleanerCleansOldNotificationsAfterTimeout() {
 }
 
 func (suite *CleanerTestSuite) createNewNotification() {
-	suite.NoError(suite.repository.SetDone(context.Background(), GenerateNotification(), ""))
+	suite.NoError(suite.repository.SetDone(ctxFor(tenant.Default), GenerateNotification(), ""))
 }
 
 func (suite *CleanerTestSuite) TestCleanerCloses() {
@@ -94,17 +94,17 @@ func TestCleanerTestSuite(t *testing.T) {
 
 func (suite *CleanerTestSuite) startCleaner() db.Closeable {
 	repository := db.NewRepository(suite.db, testLog)
-	c := db.StartCleaner(suite.logger, repository, time.Second, time.Second)
+	c := db.StartCleaner(ctxFor(tenant.Default), suite.logger, repository, time.Second, time.Second)
 	return c
 }
 
 func (suite *CleanerTestSuite) makeOldNotification() {
-	suite.NoError(suite.repository.SetDone(context.Background(), GenerateNotification(), ""))
+	suite.NoError(suite.repository.SetDone(ctxFor(tenant.Default), GenerateNotification(), ""))
 	time.Sleep(time.Second * 1)
 }
 
 func (suite *CleanerTestSuite) expectNotifications(count int) {
-	all, err := suite.repository.List(context.Background(), nil)
+	all, err := suite.repository.List(ctxFor(tenant.Default), nil)
 	suite.NoError(err)
 	suite.Len(all, count)
 }

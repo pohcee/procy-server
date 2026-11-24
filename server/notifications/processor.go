@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type Processor interface {
@@ -77,17 +78,19 @@ root:
 			if !ok {
 				break root
 			}
-			ctx, cancelFn := context.WithTimeout(context.Background(), MaxProcessingTime)
+			// the notification was created on another goroutine: it carries the tenant it belongs to
+			tenantCtx := tenant.WithID(context.Background(), notification.Tenant)
+			ctx, cancelFn := context.WithTimeout(tenantCtx, MaxProcessingTime)
 			p.logger.Infof("notification %v(%v)  started processing", notification.Target, notification.ID)
 			out, err := consumer.Process(ctx, notification)
 			cancelFn()
 
 			if err == nil {
 				p.logger.Infof("notification %v(%v) done", notification.Target, notification.ID)
-				err = p.store.SetDone(context.Background(), notification, out)
+				err = p.store.SetDone(tenantCtx, notification, out)
 			} else {
 				p.logger.Infof("notification %v(%v) error", notification.Target, notification.ID)
-				err = p.store.SetError(context.Background(), notification, out, err.Error())
+				err = p.store.SetError(tenantCtx, notification, out, err.Error())
 			}
 			if err != nil {
 				p.logger.Errorf("failed updating state: %v", err)

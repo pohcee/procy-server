@@ -2,6 +2,8 @@
 // sources:
 // 001_init.down.sql (29B)
 // 001_init.up.sql (1.394kB)
+// 002_tenant.down.sql (335B)
+// 002_tenant.up.sql (328B)
 
 package sqlite
 
@@ -84,7 +86,7 @@ func _001_initDownSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "001_init.down.sql", size: 29, mode: os.FileMode(0644), modTime: time.Unix(1688094241, 0)}
+	info := bindataFileInfo{name: "001_init.down.sql", size: 29, mode: os.FileMode(0664), modTime: time.Unix(1795497915, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x1e, 0xdc, 0x32, 0xb, 0xf2, 0x33, 0xb6, 0x50, 0x9e, 0x36, 0x9a, 0x12, 0x8c, 0xea, 0x4e, 0x29, 0x51, 0xab, 0x6d, 0x90, 0x1f, 0x8d, 0x6c, 0x7b, 0x4e, 0x7e, 0xf, 0x26, 0x3d, 0x48, 0x1a, 0x96}}
 	return a, nil
 }
@@ -104,8 +106,48 @@ func _001_initUpSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "001_init.up.sql", size: 1394, mode: os.FileMode(0644), modTime: time.Unix(1689661695, 0)}
+	info := bindataFileInfo{name: "001_init.up.sql", size: 1394, mode: os.FileMode(0664), modTime: time.Unix(1795497915, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x14, 0x0, 0x4, 0xe6, 0xa9, 0xa0, 0x59, 0x83, 0x63, 0x8e, 0xe8, 0xd8, 0xfc, 0x4f, 0xa5, 0x57, 0x74, 0x32, 0xb9, 0x8d, 0xae, 0x37, 0xa1, 0x7, 0x82, 0x1, 0xa5, 0x8e, 0x43, 0x1d, 0x95, 0x33}}
+	return a, nil
+}
+
+var __002_tenantDownSql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x84\x90\xc1\xaa\xc2\x30\x10\x45\xf7\xf9\x8a\x79\xab\xbe\x7e\x43\x70\x51\xdb\x11\x85\xb4\x91\x10\xd1\x5d\x08\xa6\x95\x81\x36\x11\x3a\x82\x9f\x2f\xb8\xa8\x0a\xd5\x6e\x67\xce\xe5\x5c\x6e\x85\x0a\x2d\xc2\xc6\xe8\x1a\x62\x62\xea\xe8\xec\x99\x52\x1c\x5d\x9f\x2e\x70\xdc\xa2\x41\xe0\x36\xfa\xc8\x8e\x02\xfc\xad\x20\x0b\x6d\xe7\x6f\x3d\x67\x52\x54\x46\xef\x61\xd7\x54\x78\x02\x0a\x77\xf7\x19\xa7\x20\x45\x69\xb0\xb0\xf8\x03\x01\xdd\xcc\x58\xff\xdf\x4f\x8e\x42\xbe\xa0\x62\x1a\xda\x91\xfd\x70\x5d\x34\x4e\xe4\x17\xf1\xf4\xcf\xa5\x28\x94\x45\x03\xb6\x58\x2b\x9c\x41\x9f\x85\x4a\xad\x0e\x75\xf3\xda\x47\x8a\x47\x00\x00\x00\xff\xff\x01\xd7\xb5\x1c\x4f\x01\x00\x00")
+
+func _002_tenantDownSqlBytes() ([]byte, error) {
+	return bindataRead(
+		__002_tenantDownSql,
+		"002_tenant.down.sql",
+	)
+}
+
+func _002_tenantDownSql() (*asset, error) {
+	bytes, err := _002_tenantDownSqlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "002_tenant.down.sql", size: 335, mode: os.FileMode(0664), modTime: time.Unix(1795498220, 0)}
+	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0xb7, 0x20, 0x6, 0x8d, 0x5, 0x12, 0x31, 0x70, 0xd8, 0xad, 0xd3, 0x2c, 0x8c, 0x6b, 0x84, 0xb5, 0xff, 0x8a, 0x5e, 0x78, 0xe2, 0x87, 0xa8, 0xf6, 0x1c, 0x1b, 0x18, 0x28, 0xb1, 0x75, 0x45, 0x59}}
+	return a, nil
+}
+
+var __002_tenantUpSql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x84\x8e\x41\xaa\x83\x30\x14\x45\xe7\xae\xe2\xce\xfc\xc2\xdf\x81\xa3\xd4\xa4\x50\x48\x93\x22\x4f\x70\x16\x42\xa3\xe5\x81\xc6\x82\xaf\xd0\xe5\x77\x26\x08\xa5\x8e\xef\xe1\x9e\xa3\x2c\x99\x16\xa4\x4e\xd6\x20\x2f\xc2\x23\xdf\xa3\xf0\x92\xd7\x30\x2d\x0f\x28\xad\xd1\x78\xdb\x5d\x1d\x64\xc8\x31\x4b\xe0\x04\x32\x3d\xc1\x79\x82\xeb\xac\x85\x36\x67\xd5\x59\x42\x99\x86\x31\xbe\x26\x29\xeb\x42\xb7\xfe\x86\x8b\xd3\xa6\x07\xa7\x77\xd8\xdf\x72\xaa\x8b\xa6\x35\x8a\xcc\x0f\x04\xde\x7d\xa9\xf9\xdb\x1a\xfe\x77\x6b\xe0\x54\x1d\x58\x85\xe7\x61\x95\x38\x3f\x0f\xe5\x1b\x79\xdc\xb0\xa1\x55\x5d\x7c\x02\x00\x00\xff\xff\x76\xca\x13\xa5\x48\x01\x00\x00")
+
+func _002_tenantUpSqlBytes() ([]byte, error) {
+	return bindataRead(
+		__002_tenantUpSql,
+		"002_tenant.up.sql",
+	)
+}
+
+func _002_tenantUpSql() (*asset, error) {
+	bytes, err := _002_tenantUpSqlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "002_tenant.up.sql", size: 328, mode: os.FileMode(0664), modTime: time.Unix(1795498220, 0)}
+	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x65, 0x6e, 0xd, 0x89, 0x8f, 0x3e, 0xbe, 0xde, 0x3c, 0x31, 0xd3, 0xa8, 0xce, 0xe5, 0xc0, 0x95, 0x8c, 0x5a, 0x4b, 0x30, 0x48, 0x9e, 0x34, 0xe3, 0xad, 0xdc, 0x5f, 0x36, 0x36, 0x48, 0x95, 0x29}}
 	return a, nil
 }
 
@@ -200,8 +242,10 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"001_init.down.sql": _001_initDownSql,
-	"001_init.up.sql":   _001_initUpSql,
+	"001_init.down.sql":   _001_initDownSql,
+	"001_init.up.sql":     _001_initUpSql,
+	"002_tenant.down.sql": _002_tenantDownSql,
+	"002_tenant.up.sql":   _002_tenantUpSql,
 }
 
 // AssetDebug is true if the assets were built with the debug flag enabled.
@@ -250,8 +294,10 @@ type bintree struct {
 }
 
 var _bintree = &bintree{nil, map[string]*bintree{
-	"001_init.down.sql": {_001_initDownSql, map[string]*bintree{}},
-	"001_init.up.sql":   {_001_initUpSql, map[string]*bintree{}},
+	"001_init.down.sql":   {_001_initDownSql, map[string]*bintree{}},
+	"001_init.up.sql":     {_001_initUpSql, map[string]*bintree{}},
+	"002_tenant.down.sql": {_002_tenantDownSql, map[string]*bintree{}},
+	"002_tenant.up.sql":   {_002_tenantUpSql, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory.

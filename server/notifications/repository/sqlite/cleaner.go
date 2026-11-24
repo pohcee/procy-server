@@ -13,6 +13,7 @@ type Closeable interface {
 }
 
 type cleaner struct {
+	ctx     context.Context
 	closer  chan struct{}
 	logger  *logger.Logger
 	keepFor time.Duration
@@ -24,8 +25,11 @@ func (c cleaner) Close() error {
 	return nil
 }
 
-func StartCleaner(logger *logger.Logger, r repository, keepFor time.Duration, checkEvery time.Duration) Closeable {
+// StartCleaner periodically deletes the notifications of ctx's tenant that are older than keepFor. It stops on
+// Close or when ctx is done.
+func StartCleaner(ctx context.Context, logger *logger.Logger, r repository, keepFor time.Duration, checkEvery time.Duration) Closeable {
 	c := cleaner{
+		ctx:     ctx,
 		closer:  make(chan struct{}),
 		logger:  logger,
 		keepFor: keepFor,
@@ -43,6 +47,9 @@ func StartCleaner(logger *logger.Logger, r repository, keepFor time.Duration, ch
 			case <-c.closer:
 				logger.Infof("closed notifications cleaner id: %s", jam)
 				return
+			case <-ctx.Done():
+				logger.Infof("stopped notifications cleaner id: %s", jam)
+				return
 			}
 		}
 	}()
@@ -53,10 +60,15 @@ func StartCleaner(logger *logger.Logger, r repository, keepFor time.Duration, ch
 func (c cleaner) cleanOld() {
 	before := time.Now().Add(-c.keepFor).UTC()
 	c.logger.Infof("cleaning ", before.Format("2006-01-02 15:04:05"))
-	ctx := context.Background()
-	_, err := c.repo.db.ExecContext(
-		ctx,
-		"DELETE FROM `notifications_log` WHERE timestamp <= ?",
+	tid, err := tenantOf(c.ctx)
+	if err != nil {
+		c.logger.Errorf("cleaning notifications failed: %v", err)
+		return
+	}
+	_, err = c.repo.db.ExecContext(
+		c.ctx,
+		"DELETE FROM `notifications_log` WHERE tenant_id = ? AND timestamp <= ?",
+		tid,
 		before.Format("2006-01-02 15:04:05"),
 	)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/share/refs"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type DispatcherTestSuite struct {
@@ -25,9 +26,9 @@ var problemIdentifiable = refs.GenerateIdentifiable("Problem")
 
 func (suite *DispatcherTestSuite) TestDispatcherCreatesNotification() {
 	notification := notifications.NotificationData{Target: "smtp", Content: "test-content-mail", ContentType: notifications.ContentTypeTextHTML}
-	ni, err := suite.dispatcher.Dispatch(context.Background(), problemIdentifiable, notification)
+	ni, err := suite.dispatcher.Dispatch(tenant.WithID(context.Background(), tenant.Default), problemIdentifiable, notification)
 	suite.NoError(err)
-	details, found, err := suite.store.Details(context.Background(), ni)
+	details, found, err := suite.store.Details(tenant.WithID(context.Background(), tenant.Default), ni)
 	suite.NoError(err)
 	suite.True(found)
 	suite.Equal(notifications.NotificationDetails{
@@ -41,7 +42,7 @@ func (suite *DispatcherTestSuite) TestDispatcherCreatesNotification() {
 
 func (suite *DispatcherTestSuite) TestDispatcherErrorsOnBadContentType() {
 	notification := notifications.NotificationData{Target: "smtp", Content: "test-content-mail", ContentType: "fail"}
-	_, err := suite.dispatcher.Dispatch(context.Background(), problemIdentifiable, notification)
+	_, err := suite.dispatcher.Dispatch(tenant.WithID(context.Background(), tenant.Default), problemIdentifiable, notification)
 	suite.Error(err)
 }
 func TestDispatcherTestSuite(t *testing.T) {

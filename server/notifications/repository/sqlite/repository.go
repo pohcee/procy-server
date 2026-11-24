@@ -14,6 +14,7 @@ import (
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/query"
 	"github.com/openrport/openrport/share/refs"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type Repository interface {
@@ -32,6 +33,8 @@ const MaxOutAndErrorSize = 2000 // limit outs to 2k characters
 
 const RecipientsSeparator = "@|@"
 
+// repository stores the notification log. Every method is scoped to the tenant carried by its context and fails
+// with tenant.ErrMissing when there is none.
 type repository struct {
 	db        *sqlx.DB
 	converter *query.SQLConverter
@@ -40,13 +43,25 @@ type repository struct {
 	L *logger.Logger
 }
 
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("notifications: %w", err)
+	}
+	return id, nil
+}
+
 func (r repository) Count(ctx context.Context, options *query.ListOptions) (int, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
 	var res int
 
 	countOptions := *options
 	countOptions.Pagination = nil
-	q := "SELECT COUNT(*) FROM notifications_log ORDER by notification_id"
-	params := []interface{}{}
+	q := "SELECT COUNT(*) FROM notifications_log WHERE tenant_id = ?"
+	params := []interface{}{tid}
 	q, params = r.converter.AppendOptionsToQuery(&countOptions, q, params)
 
 	row := r.db.QueryRowContext(
@@ -54,7 +69,7 @@ func (r repository) Count(ctx context.Context, options *query.ListOptions) (int,
 		q,
 		params...,
 	)
-	err := row.Scan(&res)
+	err = row.Scan(&res)
 	return res, err
 }
 
@@ -72,6 +87,7 @@ func (r repository) SetDone(ctx context.Context, details notifications.Notificat
 }
 
 type SQLNotification struct {
+	TenantID       tenant.ID  `db:"tenant_id"`
 	NotificationID string     `db:"notification_id"`
 	Timestamp      *time.Time `db:"timestamp"`
 	ContentType    string     `db:"contentType"`
@@ -85,7 +101,13 @@ type SQLNotification struct {
 	Err            string     `db:"err"`
 }
 
-func (r repository) Create(_ context.Context, details notifications.NotificationDetails) error {
+func (r repository) Create(ctx context.Context, details notifications.NotificationDetails) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	// the notification is saved later, on the processor's goroutine: it carries the tenant along
+	details.Tenant = tid
 
 	if !details.Target.Valid() {
 		return fmt.Errorf("invalid target: %v", details.Target)
@@ -102,8 +124,13 @@ func (r repository) Create(_ context.Context, details notifications.Notification
 }
 
 func (r repository) save(ctx context.Context, details notifications.NotificationDetails) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 
 	n := SQLNotification{
+		TenantID:       tid,
 		NotificationID: details.ID.ID(),
 		Timestamp:      nil,
 		ReferenceID:    details.RefID.String(),
@@ -127,12 +154,12 @@ func (r repository) save(ctx context.Context, details notifications.Notification
 		n.Err = details.Err
 	}
 
-	_, err := r.db.NamedExecContext(
+	_, err = r.db.NamedExecContext(
 		ctx,
 		"INSERT INTO `notifications_log` "+
-			" (`notification_id`, `contentType`, `reference_id`, `transport`, `recipients`, `state`, `subject`, `body`, `out`, `err`)"+
+			" (`tenant_id`, `notification_id`, `contentType`, `reference_id`, `transport`, `recipients`, `state`, `subject`, `body`, `out`, `err`)"+
 			" VALUES "+
-			"(:notification_id, :contentType, :reference_id, :transport, :recipients, :state, :subject, :body, :out, :err)",
+			"(:tenant_id, :notification_id, :contentType, :reference_id, :transport, :recipients, :state, :subject, :body, :out, :err)",
 		n,
 	)
 
@@ -140,11 +167,15 @@ func (r repository) save(ctx context.Context, details notifications.Notification
 }
 
 func (r repository) Details(ctx context.Context, nid string) (notifications.NotificationDetails, bool, error) {
-	q := "SELECT * FROM `notifications_log` WHERE `notification_id` = ? order by oid asc"
-
 	empty := notifications.NotificationDetails{}
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return empty, false, err
+	}
+	q := "SELECT * FROM `notifications_log` WHERE `tenant_id` = ? AND `notification_id` = ? order by oid asc"
+
 	entities := []SQLNotification{}
-	err := r.db.SelectContext(ctx, &entities, q, nid)
+	err = r.db.SelectContext(ctx, &entities, q, tid, nid)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return empty, false, nil
@@ -182,6 +213,7 @@ func (r repository) Details(ctx context.Context, nid string) (notifications.Noti
 		Out:    last.Out,
 		Err:    last.Err,
 		Target: notifications.FigureOutTarget(entity.Transport),
+		Tenant: entity.TenantID,
 	}
 	tmp := details
 
@@ -189,15 +221,26 @@ func (r repository) Details(ctx context.Context, nid string) (notifications.Noti
 }
 
 func (r repository) List(ctx context.Context, options *query.ListOptions) ([]notifications.NotificationSummary, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var res []notifications.NotificationSummary
 
 	q := `
 SELECT notification_id, state, transport, timestamp, out, err
-FROM notifications_log ORDER by timestamp desc`
-	params := []interface{}{}
-	q, params = r.converter.AppendOptionsToQuery(options, q, params)
+FROM notifications_log WHERE tenant_id = ?`
+	params := []interface{}{tid}
+	listOptions := query.ListOptions{}
+	if options != nil {
+		listOptions = *options
+	}
+	if len(listOptions.Sorts) == 0 {
+		listOptions.Sorts = []query.SortOption{{Column: "timestamp", IsASC: false}}
+	}
+	q, params = r.converter.AppendOptionsToQuery(&listOptions, q, params)
 
-	err := r.db.SelectContext(
+	err = r.db.SelectContext(
 		ctx,
 		&res,
 		q,
