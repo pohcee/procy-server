@@ -66,19 +66,44 @@ func (c *fakeUIConn) messages(t *testing.T) []map[string]interface{} {
 	return res
 }
 
+// jobIDGenMu guards swapping generateNewJobID in tests: multi-client jobs a
+// test started may still be asking the test wiring for IDs while the test's
+// cleanup restores the original generator.
+var jobIDGenMu sync.RWMutex
+
+// setJobIDGenerator replaces generateNewJobID until the end of the test.
+func setJobIDGenerator(t *testing.T, gen func() (string, error)) {
+	t.Helper()
+	jobIDGenMu.Lock()
+	orig := generateNewJobID
+	generateNewJobID = gen
+	jobIDGenMu.Unlock()
+	t.Cleanup(func() {
+		jobIDGenMu.Lock()
+		generateNewJobID = orig
+		jobIDGenMu.Unlock()
+	})
+}
+
+// newJobIDForTest calls the current generateNewJobID.
+func newJobIDForTest() (string, error) {
+	jobIDGenMu.RLock()
+	gen := generateNewJobID
+	jobIDGenMu.RUnlock()
+	return gen()
+}
+
 // sequentialJobIDs makes generateNewJobID deterministic for the test.
 func sequentialJobIDs(t *testing.T) {
 	t.Helper()
-	orig := generateNewJobID
 	var mu sync.Mutex
 	n := 0
-	generateNewJobID = func() (string, error) {
+	setJobIDGenerator(t, func() (string, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		n++
 		return fmt.Sprintf("jid-%d", n), nil
-	}
-	t.Cleanup(func() { generateNewJobID = orig })
+	})
 }
 
 func rawJobDetails(t *testing.T, jp *jobs.SqliteProvider, jid string) string {

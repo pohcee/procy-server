@@ -90,11 +90,11 @@ func (p *JobProviderMock) Close() error {
 
 func TestHandlePostCommand(t *testing.T) {
 	var testJID string
-	generateNewJobID = func() (string, error) {
+	setJobIDGenerator(t, func() (string, error) {
 		uuid, err := random.UUID4()
 		testJID = uuid
 		return uuid, err
-	}
+	})
 	testUser := "test-user"
 
 	defaultTimeout := 60
