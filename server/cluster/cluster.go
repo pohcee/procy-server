@@ -80,9 +80,13 @@ var _ Coordinator = Standalone{}
 
 func (Standalone) NodeID() string { return "" }
 
-func (Standalone) Tenants(context.Context) ([]tenant.ID, error) { return []tenant.ID{tenant.Default}, nil }
+func (Standalone) Tenants(context.Context) ([]tenant.ID, error) {
+	return []tenant.ID{tenant.Default}, nil
+}
 
-func (Standalone) Lease(context.Context, string, tenant.ID, time.Duration) (bool, error) { return true, nil }
+func (Standalone) Lease(context.Context, string, tenant.ID, time.Duration) (bool, error) {
+	return true, nil
+}
 
 func (Standalone) ClaimRun(context.Context, string, time.Time) (bool, error) { return true, nil }
 

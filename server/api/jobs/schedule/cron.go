@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	cron "github.com/robfig/cron/v3"
 
@@ -23,6 +24,9 @@ type CronImplementation struct {
 	cronParser cron.ScheduleParser
 	cron       *cron.Cron
 	mapping    map[cronKey]cron.EntryID
+	// alignEvery makes "@every d" fire at multiples of d since the Unix epoch instead of d after the entry was
+	// added, so every node of a cluster fires a schedule at the same instants (and claims the same fire time).
+	alignEvery bool
 }
 
 func newCron(ctx context.Context) *CronImplementation {
@@ -62,12 +66,21 @@ func (c *CronImplementation) Add(ctx context.Context, id string, schedule string
 		return err
 	}
 
+	if every, ok := sch.(cron.ConstantDelaySchedule); ok && c.alignEvery {
+		sch = alignedEvery{every: every.Delay}
+	}
+
+	key := cronKey{tenant: tid, id: id}
+	if old, ok := c.mapping[key]; ok {
+		// never two entries for one schedule
+		c.cron.Remove(old)
+	}
 	runCtx := tenant.WithID(c.ctx, tid)
 	entryID := c.cron.Schedule(sch, cron.FuncJob(func() {
-		f(runCtx, id)
+		f(withFireTime(runCtx, fireTime(sch, time.Now())), id)
 	}))
 
-	c.mapping[cronKey{tenant: tid, id: id}] = entryID
+	c.mapping[key] = entryID
 
 	return nil
 }
@@ -89,4 +102,44 @@ func (c *CronImplementation) Remove(ctx context.Context, id string) {
 	}
 	c.cron.Remove(entryID)
 	delete(c.mapping, key)
+}
+
+// alignedEvery fires every `every`, at multiples of it since the Unix epoch.
+type alignedEvery struct{ every time.Duration }
+
+func (a alignedEvery) Next(t time.Time) time.Time {
+	return t.Truncate(a.every).Add(a.every)
+}
+
+// fireTime is the time the run of sch starting at now was due: the latest time not after now that sch fires at.
+// The cron starts a run a moment after its time, so for a spec (minute resolution) it is the latest match in the
+// minute up to now; for an aligned "@every" the multiple of its period now is in.
+func fireTime(sch cron.Schedule, now time.Time) time.Time {
+	switch s := sch.(type) {
+	case alignedEvery:
+		return now.Truncate(s.every)
+	case cron.ConstantDelaySchedule:
+		return now.Truncate(time.Second)
+	}
+	var fire time.Time
+	for t := sch.Next(now.Add(-time.Minute)); !t.IsZero() && !t.After(now); t = sch.Next(t) {
+		fire = t
+	}
+	if fire.IsZero() {
+		return now.Truncate(time.Minute)
+	}
+	return fire
+}
+
+type fireTimeKey struct{}
+
+func withFireTime(ctx context.Context, t time.Time) context.Context {
+	return context.WithValue(ctx, fireTimeKey{}, t)
+}
+
+// FireTimeFrom returns the time the scheduled run of ctx was due, if ctx is the context of a run started by the
+// cron.
+func FireTimeFrom(ctx context.Context) (time.Time, bool) {
+	t, ok := ctx.Value(fireTimeKey{}).(time.Time)
+	return t, ok
 }
