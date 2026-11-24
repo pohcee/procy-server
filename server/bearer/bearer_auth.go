@@ -14,6 +14,7 @@ import (
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/routes"
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 const (
@@ -25,6 +26,9 @@ type AppTokenClaims struct {
 	Username  string  `json:"username,omitempty"`
 	SessionID int64   `json:"sessionID,omitempty"`
 	Scopes    []Scope `json:"scopes,omitempty"`
+	// TenantID is the tenant the session belongs to (#34). Tokens issued before it was added have
+	// none; they are valid in the default tenant only.
+	TenantID tenant.ID `json:"tid,omitempty"`
 	jwt.StandardClaims
 }
 
@@ -87,6 +91,10 @@ func CreateAuthToken(
 	if username == "" {
 		return "", errors.New("username cannot be empty")
 	}
+	tid, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", err
+	}
 
 	expiresAt := time.Now().Add(lifetime)
 
@@ -108,7 +116,8 @@ func CreateAuthToken(
 		StandardClaims: jwt.StandardClaims{
 			Id: randomTokenID(),
 		},
-		Scopes: scopes,
+		Scopes:   scopes,
+		TenantID: tid,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte(JWTSecret))
@@ -195,6 +204,24 @@ func ValidateBearerToken(
 	if !tokCtx.JwtToken.Valid || tokCtx.AppClaims.Username == "" {
 		l.Errorf(
 			"Token is invalid or user name is empty",
+			tokCtx.AppClaims.Username,
+		)
+		return false, session.APISession{}, nil
+	}
+
+	tid, err := tenant.FromContext(ctx)
+	if err != nil {
+		return false, session.APISession{}, err
+	}
+	// A token is valid only in the tenant it was issued in; one without a tenant predates the claim
+	// and was issued in the default tenant.
+	tokenTenant := tokCtx.AppClaims.TenantID
+	if tokenTenant == "" {
+		tokenTenant = tenant.Default
+	}
+	if tokenTenant != tid {
+		l.Errorf(
+			"Token of %s was issued in another tenant",
 			tokCtx.AppClaims.Username,
 		)
 		return false, session.APISession{}, nil

@@ -123,7 +123,10 @@ func TestInitClientRepositoryLoadsContextTenant(t *testing.T) {
 	got, err := repo.GetByID(ctxFor("a"), "in-a")
 	require.NoError(t, err)
 	assert.NotNil(t, got)
-	assert.Empty(t, repo.GetAllClients(ctxFor("b")))
+	// another tenant is loaded on its first use, and sees only its own clients
+	inB := repo.GetAllClients(ctxFor("b"))
+	require.Len(t, inB, 1)
+	assert.Equal(t, "in-b", inB[0].GetID())
 
 	_, err = InitClientRepository(context.Background(), p, nil, testLog)
 	assert.ErrorIs(t, err, tenant.ErrMissing)

@@ -16,9 +16,12 @@ import (
 
 // ClientRepository is an in-memory cache of clients backed by a ClientStore. Its state is kept per tenant:
 // every method works on the tenant carried by its context and never sees clients of another tenant.
+// A tenant the cache holds no state for is loaded from the store on its first use (#34).
 type ClientRepository struct {
-	// in-memory state, by tenant and client id
+	// in-memory state, by tenant and client id; a tenant has an entry once its stored clients are loaded
 	clientState map[tenant.ID]map[string]*clientdata.Client
+	// loads in progress, by tenant; the channel is closed when the load is over
+	loads map[tenant.ID]chan struct{}
 	// db based store
 	clientStore ClientStore
 
@@ -58,6 +61,7 @@ func newClientRepository(tid tenant.ID, initialClients []*clientdata.Client, kee
 
 	return &ClientRepository{
 		clientState:             map[tenant.ID]map[string]*clientdata.Client{tid: clients},
+		loads:                   map[tenant.ID]chan struct{}{},
 		clientStore:             store,
 		logger:                  logger,
 		keepDisconnectedClients: keepDisconnectedClients,
@@ -103,6 +107,10 @@ func (r *ClientRepository) Save(ctx context.Context, cl *clientdata.Client) erro
 		return err
 	}
 
+	if err := r.loadTenant(ctx, tid); err != nil {
+		return err
+	}
+
 	store := r.getStore()
 
 	if store != nil {
@@ -135,6 +143,10 @@ func (r *ClientRepository) Delete(ctx context.Context, client *clientdata.Client
 
 	tid, err := tenantOf(ctx)
 	if err != nil {
+		return err
+	}
+
+	if err := r.loadTenant(ctx, tid); err != nil {
 		return err
 	}
 
@@ -229,6 +241,9 @@ func (r *ClientRepository) DeleteObsolete(ctx context.Context) ([]*clientdata.Cl
 	if err != nil {
 		return nil, err
 	}
+	if err := r.loadTenant(ctx, tid); err != nil {
+		return nil, err
+	}
 	store := r.getStore()
 
 	if store != nil {
@@ -286,7 +301,7 @@ func (r *ClientRepository) GetByID(ctx context.Context, id string) (*clientdata.
 	if err != nil {
 		return nil, err
 	}
-	client := r.getClient(tid, id)
+	client := r.getClient(ctx, tid, id)
 
 	if client != nil && client.Obsolete(r.GetKeepDisconnectedClients()) {
 		return nil, nil
@@ -300,7 +315,7 @@ func (r *ClientRepository) GetActiveByID(ctx context.Context, id string) (*clien
 	if err != nil {
 		return nil, err
 	}
-	client := r.getClient(tid, id)
+	client := r.getClient(ctx, tid, id)
 
 	if client != nil && !client.IsConnected() {
 		return nil, nil
@@ -428,10 +443,15 @@ func (r *ClientRepository) queryTenantClients(ctx context.Context, queryFn Clien
 		r.log().Errorf("%v", err)
 		return make([]*clientdata.Client, 0)
 	}
+	if err := r.loadTenant(ctx, tid); err != nil {
+		r.log().Errorf("%v", err)
+		return make([]*clientdata.Client, 0)
+	}
 	return r.queryClients(tid, queryFn)
 }
 
 // queryClients returns a new slice of the tenant's clients that match queryFn. queryFn runs without the lock held.
+// The tenant must have been loaded (loadTenant).
 func (r *ClientRepository) queryClients(tid tenant.ID, queryFn ClientQueryFn) (matchingClients []*clientdata.Client) {
 	r.mu.RLock()
 	clients := make([]*clientdata.Client, 0, len(r.clientState[tid]))
@@ -449,7 +469,13 @@ func (r *ClientRepository) queryClients(tid tenant.ID, queryFn ClientQueryFn) (m
 	return matchingClients
 }
 
-func (r *ClientRepository) getClient(tid tenant.ID, clientID string) (client *clientdata.Client) {
+// getClient returns the tenant's client, loading the tenant first if needed; nil when there is none or the
+// load failed (logged).
+func (r *ClientRepository) getClient(ctx context.Context, tid tenant.ID, clientID string) (client *clientdata.Client) {
+	if err := r.loadTenant(ctx, tid); err != nil {
+		r.log().Errorf("%v", err)
+		return nil
+	}
 	r.mu.RLock()
 	client = r.clientState[tid][clientID]
 	r.mu.RUnlock()
@@ -471,4 +497,64 @@ func (r *ClientRepository) removeClient(tid tenant.ID, clientID string) {
 	r.mu.Lock()
 	delete(r.clientState[tid], clientID)
 	r.mu.Unlock()
+}
+
+// loadTenant makes sure the cache holds the state of the tenant, loading its stored clients on first use
+// (LoadInitialClients, which marks the ones stored as connected disconnected). Without a store the tenant starts
+// empty. The load runs without the main lock held and once per tenant at a time: concurrent first uses wait for
+// it. A failed load is not cached; the next use tries again.
+func (r *ClientRepository) loadTenant(ctx context.Context, tid tenant.ID) error {
+	r.mu.RLock()
+	_, loaded := r.clientState[tid]
+	r.mu.RUnlock()
+	if loaded {
+		return nil
+	}
+
+	r.mu.Lock()
+	if _, loaded := r.clientState[tid]; loaded {
+		r.mu.Unlock()
+		return nil
+	}
+	if done, loading := r.loads[tid]; loading {
+		r.mu.Unlock()
+		<-done
+		r.mu.RLock()
+		_, loaded := r.clientState[tid]
+		r.mu.RUnlock()
+		if !loaded {
+			return fmt.Errorf("failed to load the clients of tenant %q", tid)
+		}
+		return nil
+	}
+	store := r.clientStore
+	if store == nil {
+		r.clientState[tid] = make(map[string]*clientdata.Client)
+		r.mu.Unlock()
+		return nil
+	}
+	done := make(chan struct{})
+	r.loads[tid] = done
+	l := r.logger
+	r.mu.Unlock()
+
+	// the load is not cancelled with the request that happens to trigger it
+	all, err := LoadInitialClients(context.WithoutCancel(ctx), store, l)
+
+	r.mu.Lock()
+	delete(r.loads, tid)
+	if err == nil {
+		clients := make(map[string]*clientdata.Client, len(all))
+		for _, c := range all {
+			clients[c.GetID()] = c
+		}
+		r.clientState[tid] = clients
+	}
+	r.mu.Unlock()
+	close(done)
+
+	if err != nil {
+		return fmt.Errorf("failed to load the clients of tenant %q: %w", tid, err)
+	}
+	return nil
 }

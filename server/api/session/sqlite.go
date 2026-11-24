@@ -113,7 +113,7 @@ func (p *SqliteProvider) add(ctx context.Context, session APISession) (sessionID
 }
 
 func (p *SqliteProvider) update(ctx context.Context, session APISession) (sessionID int64, err error) {
-	_, err = p.db.NamedExecContext(
+	result, err := p.db.NamedExecContext(
 		ctx,
 		"UPDATE api_sessions"+
 			"  SET expires_at=:expires_at,username=:username,"+
@@ -123,6 +123,9 @@ func (p *SqliteProvider) update(ctx context.Context, session APISession) (sessio
 	)
 	if err != nil {
 		return 0, fmt.Errorf("unable to update api session: %w", err)
+	}
+	if n, err := result.RowsAffected(); err == nil && n == 0 {
+		return 0, fmt.Errorf("unable to update api session %d: %w", session.SessionID, ErrNotFound)
 	}
 
 	sessionID = session.SessionID

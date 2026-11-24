@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -56,7 +57,28 @@ func (p *Cache) Get(ctx context.Context, sessionID int64) (found bool, sessionIn
 	if err != nil {
 		return false, APISession{}, err
 	}
-	return p.getFromCache(tid, sessionID)
+	found, sessionInfo, err = p.getFromCache(tid, sessionID)
+	if err != nil || found {
+		return found, sessionInfo, err
+	}
+	return p.getFromStorage(ctx, tid, sessionID)
+}
+
+// getFromStorage reads a session missing from the cache (one this cache never loaded, e.g. of a tenant other than
+// the one it was built for, or one saved by another process) and caches it until it expires. An expired session is
+// not returned.
+func (p *Cache) getFromStorage(ctx context.Context, tid tenant.ID, sessionID int64) (found bool, sessionInfo APISession, err error) {
+	found, sessionInfo, err = p.storage.Get(ctx, sessionID)
+	if err != nil || !found {
+		return false, APISession{}, err
+	}
+	ttl := time.Until(sessionInfo.ExpiresAt)
+	if ttl <= 0 {
+		return false, APISession{}, nil
+	}
+	sessionInfo.TenantID = tid
+	p.cache.Set(cacheKey(tid, sessionID), sessionInfo, ttl)
+	return true, sessionInfo, nil
 }
 
 func (p *Cache) Save(ctx context.Context, session APISession) (sessionID int64, err error) {
@@ -67,6 +89,10 @@ func (p *Cache) Save(ctx context.Context, session APISession) (sessionID int64, 
 	// always save to storage as we want the token last access time saved
 	sessionID, err = p.storage.Save(ctx, session)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			// deleted meanwhile (logout): don't bring it back into the cache
+			p.cache.Delete(cacheKey(tid, session.SessionID))
+		}
 		return -1, err
 	}
 
@@ -122,16 +148,31 @@ func (p *Cache) GetAllByUser(ctx context.Context, username string) (sessions []A
 	if err != nil {
 		return nil, err
 	}
-	sessions = make([]APISession, 0)
-	// just query the go-cache tokens. they will be more up to date than the storage tokens.
+	// the storage holds every live session, also those this cache never loaded (of another tenant than the one it
+	// was built for, or saved by another process); cached entries are more up to date, so they win
+	byID := map[int64]APISession{}
+	stored, err := p.storage.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range stored {
+		if s.Username == username {
+			s.TenantID = tid
+			byID[s.SessionID] = s
+		}
+	}
 	for _, item := range p.cache.Items() {
 		session, ok := item.Object.(APISession)
 		if !ok {
 			return nil, fmt.Errorf("invalid cache entry: expected *APISession, got %T", item.Object)
 		}
 		if session.TenantID == tid && session.Username == username {
-			sessions = append(sessions, session)
+			byID[session.SessionID] = session
 		}
+	}
+	sessions = make([]APISession, 0, len(byID))
+	for _, s := range byID {
+		sessions = append(sessions, s)
 	}
 
 	// sort into oldest accessed first
