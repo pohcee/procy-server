@@ -44,11 +44,11 @@ func (suite *QueuingTestSuite) SetupTest() {
 		ms:         make([]*models.Measurement, 0),
 		saveCalled: make(chan struct{}),
 	}
-	suite.q = monitoring.NewMeasurementQueuing(testLog, suite.saver, 0)
+	suite.q = monitoring.NewMeasurementQueuing(context.Background(), testLog, suite.saver, 0)
 }
 
 func (suite *QueuingTestSuite) TestEnqueue() {
-	suite.q.Notify(models.Measurement{})
+	suite.q.Notify(context.Background(), models.Measurement{})
 	<-suite.saver.saveCalled
 	suite.Equal(suite.saver.count.Load(), int64(1))
 }
@@ -56,16 +56,16 @@ func (suite *QueuingTestSuite) TestEnqueue() {
 func (suite *QueuingTestSuite) TestSlowEnqueue() {
 	suite.saver.slow.Store(true)
 	stopper := time.Now()
-	suite.q.Notify(models.Measurement{})
+	suite.q.Notify(context.Background(), models.Measurement{})
 
 	suite.Less(time.Since(stopper), time.Millisecond)
 }
 
 func (suite *QueuingTestSuite) TestCleanClose() {
 	suite.saver.slow.Store(true)
-	suite.q.Notify(models.Measurement{})
+	suite.q.Notify(context.Background(), models.Measurement{})
 	_ = suite.q.Close()
-	suite.q.Notify(models.Measurement{})
+	suite.q.Notify(context.Background(), models.Measurement{})
 	suite.Equal(suite.saver.count.Load(), int64(1))
 }
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type saver interface {
@@ -14,14 +15,23 @@ type saver interface {
 }
 
 type MeasurementSaver interface {
-	Notify(models.Measurement) bool
+	// Notify enqueues a measurement. It is saved for the tenant carried by ctx.
+	Notify(ctx context.Context, measurement models.Measurement) bool
 	Close() error
+}
+
+// queuedMeasurement carries the tenant captured at enqueue time, so the measurement is saved for the tenant
+// of the client it came from.
+type queuedMeasurement struct {
+	tenant      tenant.ID
+	measurement models.Measurement
 }
 
 type queue struct {
 	saver    saver
-	queue    chan models.Measurement
+	queue    chan queuedMeasurement
 	ctx      context.Context
+	saveCtx  context.Context
 	cancelFn context.CancelFunc
 	wg       sync.WaitGroup
 	logger   *logger.Logger
@@ -33,11 +43,13 @@ func (q *queue) Close() error {
 	return nil
 }
 
-func (q *queue) Notify(measurement models.Measurement) bool {
+func (q *queue) Notify(ctx context.Context, measurement models.Measurement) bool {
+	// a missing tenant is kept empty: the repository then refuses the save rather than guessing a tenant
+	tid, _ := tenant.FromContext(ctx)
 	select {
 	case <-q.ctx.Done():
 		return false
-	case q.queue <- measurement:
+	case q.queue <- queuedMeasurement{tenant: tid, measurement: measurement}:
 		return true
 	}
 }
@@ -52,21 +64,27 @@ func (q *queue) process() {
 			q.saveAllEnqueuedMeasurements() // drain chan
 			return                          // quit processing
 		case m := <-q.queue:
-			if err := q.saver.SaveMeasurement(q.ctx, &m); err != nil {
-				q.logger.Errorf("Failed to save measurement for client %s: %s", m.ClientID, err)
-			}
+			q.save(m)
 		}
 	}
 
+}
+
+func (q *queue) save(item queuedMeasurement) {
+	ctx := q.saveCtx
+	if item.tenant != "" {
+		ctx = tenant.WithID(ctx, item.tenant)
+	}
+	if err := q.saver.SaveMeasurement(ctx, &item.measurement); err != nil {
+		q.logger.Errorf("Failed to save measurement for client %s: %s", item.measurement.ClientID, err)
+	}
 }
 
 func (q *queue) saveAllEnqueuedMeasurements() {
 	for {
 		select {
 		case m := <-q.queue:
-			if err := q.saver.SaveMeasurement(q.ctx, &m); err != nil {
-				q.logger.Errorf("Failed to save measurement for client %s: %s", m.ClientID, err)
-			}
+			q.save(m)
 		default:
 			return
 		}
@@ -92,13 +110,18 @@ func (q *queue) logQueueLength() {
 	}
 }
 
-func NewMeasurementQueuing(logger *logger.Logger, saver saver, queueSize int) MeasurementSaver {
-	ctx, cfn := context.WithCancel(context.Background())
+// NewMeasurementQueuing starts a queue that saves measurements in the background. It stops when ctx is done
+// or on Close; enqueued measurements are still saved on the way out.
+func NewMeasurementQueuing(ctx context.Context, logger *logger.Logger, saver saver, queueSize int) MeasurementSaver {
+	// saves outlive the cancellation, so the shutdown drain doesn't fail on a cancelled context
+	saveCtx := tenant.WithID(context.WithoutCancel(ctx), "")
+	ctx, cfn := context.WithCancel(ctx)
 
 	q := &queue{
 		saver:    saver,
-		queue:    make(chan models.Measurement, queueSize),
+		queue:    make(chan queuedMeasurement, queueSize),
 		ctx:      ctx,
+		saveCtx:  saveCtx,
 		cancelFn: cfn,
 		logger:   logger,
 	}

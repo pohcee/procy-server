@@ -395,7 +395,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	clientLog.Debugf("opened %s within %s", clientBanner, time.Since(ts2))
 
 	// now run handler for other client requests and connections
-	go cl.handleSSHRequests(clientLog, clientID, reqs)
+	go cl.handleSSHRequests(client.GetContext(), clientLog, clientID, reqs)
 	go cl.handleSSHChannels(clientLog.GetLogger(), chans)
 
 	// wait until we're disconnected from the client
@@ -470,7 +470,9 @@ func (cl *ClientListener) replyConnectionError(r *ssh.Request, err error) {
 	}
 }
 
-func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, clientID string, reqs <-chan *ssh.Request) {
+// handleSSHRequests serves the requests of a connected client. clientCtx is the client's context: work the device
+// originates (measurements, audit entries) belongs to its tenant.
+func (cl *ClientListener) handleSSHRequests(clientCtx context.Context, clientLog *logger.DynamicLogger, clientID string, reqs <-chan *ssh.Request) {
 	clientService := cl.getClientService()
 
 	for r := range reqs {
@@ -609,7 +611,7 @@ func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, cli
 			measurement.ClientID = clientID
 			measurement.Timestamp = time.Now().UTC()
 
-			cl.server.monitoringQueue.Notify(measurement)
+			cl.server.monitoringQueue.Notify(clientCtx, measurement)
 
 			if rportplus.IsPlusEnabled(cl.server.config.PlusConfig) {
 				alertingCap := cl.server.plusManager.GetAlertingCapabilityEx()
