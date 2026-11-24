@@ -15,12 +15,12 @@ import (
 	"github.com/openrport/openrport/share/tenant"
 )
 
-func newTestStore(t *testing.T) *Store {
+func newTestStore(t *testing.T) *SQLiteStore {
 	t.Helper()
-	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), library.AssetNames(), library.Asset, sqlite.DataSourceOptions{WALEnabled: false})
+	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), library.FS, sqlite.DataSourceOptions{WALEnabled: false})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	return NewStore(db)
+	return NewSQLiteStore(db)
 }
 
 // testCtx carries the default tenant, as the server context does on a standalone server.
@@ -51,12 +51,12 @@ func testEntry(id, name string) (Entry, Version) {
 	return e, v
 }
 
-func addVersion(t *testing.T, s *Store, id string, n int, at time.Time) {
+func addVersion(t *testing.T, s *SQLiteStore, id string, n int, at time.Time) {
 	t.Helper()
 	addVersionIn(t, s, testCtx, id, n, at)
 }
 
-func addVersionIn(t *testing.T, s *Store, ctx context.Context, id string, n int, at time.Time) {
+func addVersionIn(t *testing.T, s *SQLiteStore, ctx context.Context, id string, n int, at time.Time) {
 	t.Helper()
 	c := testContent("A")
 	c.Description = fmt.Sprintf("d%d", n)
@@ -65,12 +65,12 @@ func addVersionIn(t *testing.T, s *Store, ctx context.Context, id string, n int,
 	require.NoError(t, s.AddVersion(ctx, e, v, n-1))
 }
 
-func versionNumbers(t *testing.T, s *Store, id string) []int {
+func versionNumbers(t *testing.T, s *SQLiteStore, id string) []int {
 	t.Helper()
 	return versionNumbersIn(t, s, testCtx, id)
 }
 
-func versionNumbersIn(t *testing.T, s *Store, ctx context.Context, id string) []int {
+func versionNumbersIn(t *testing.T, s *SQLiteStore, ctx context.Context, id string) []int {
 	t.Helper()
 	vs, err := s.Versions(ctx, id)
 	require.NoError(t, err)
@@ -229,8 +229,8 @@ func TestStoreMeta(t *testing.T) {
 
 	tx, err := s.db.BeginTxx(ctx, nil)
 	require.NoError(t, err)
-	require.NoError(t, s.SetMeta(ctx, tx, "k", "v"))
-	require.NoError(t, s.SetMeta(ctx, tx, "k", "v2"))
+	require.NoError(t, s.setMeta(ctx, tx, "k", "v"))
+	require.NoError(t, s.setMeta(ctx, tx, "k", "v2"))
 	require.NoError(t, tx.Commit())
 
 	val, ok, err := s.Meta(ctx, "k")

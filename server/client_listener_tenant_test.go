@@ -70,9 +70,7 @@ func TestCmdResultAuditEntryIsSavedForTheClientsTenant(t *testing.T) {
 	t.Cleanup(func() { jp.Close() })
 	require.NoError(t, jp.CreateJob(tenant.WithID(context.Background(), "a"), &models.Job{JID: "j1", ClientID: "c1", Status: models.JobStatusRunning, StartedAt: time.Now()}))
 
-	serverCtx := tenant.WithID(context.Background(), tenant.Default)
-	al, err := auditlog.New(serverCtx, testLog, noClients{}, t.TempDir(), auditlogconfig.Config{Enable: true, Rotation: auditlogconfig.RotationMonthly}, DataSourceOptions)
-	require.NoError(t, err)
+	al := newTestAuditLog(t)
 	t.Cleanup(func() { al.Close() })
 
 	cfg := &chconfig.Config{}
@@ -100,9 +98,7 @@ func TestCmdResultAuditEntryIsSavedForTheClientsTenant(t *testing.T) {
 }
 
 func TestUploadAuditEntryIsSavedForTheClientsTenant(t *testing.T) {
-	serverCtx := tenant.WithID(context.Background(), tenant.Default)
-	al, err := auditlog.New(serverCtx, testLog, noClients{}, t.TempDir(), auditlogconfig.Config{Enable: true, Rotation: auditlogconfig.RotationMonthly}, DataSourceOptions)
-	require.NoError(t, err)
+	al := newTestAuditLog(t)
 	t.Cleanup(func() { al.Close() })
 	api := &APIListener{Logger: testLog, Server: &Server{auditLog: al}}
 
@@ -121,4 +117,16 @@ func TestUploadAuditEntryIsSavedForTheClientsTenant(t *testing.T) {
 	entries := res.Data.([]*auditlog.Entry)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "u1", entries[0].ID)
+}
+
+// newTestAuditLog is an enabled audit log with monthly rotation in a temp dir, run in the default tenant's context.
+func newTestAuditLog(t *testing.T) *auditlog.AuditLog {
+	t.Helper()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
+	cfg := auditlogconfig.Config{Enable: true, Rotation: auditlogconfig.RotationMonthly}
+	p, err := auditlog.NewRotationProvider(ctx, testLog, cfg.RotationPeriod(), t.TempDir(), DataSourceOptions)
+	require.NoError(t, err)
+	al, err := auditlog.New(ctx, testLog, noClients{}, cfg, p)
+	require.NoError(t, err)
+	return al
 }

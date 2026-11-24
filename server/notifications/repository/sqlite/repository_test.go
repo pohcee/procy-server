@@ -21,11 +21,11 @@ var testLog = logger.NewLogger("client", logger.LogOutput{File: os.Stdout}, logg
 
 type RepositoryTestSuite struct {
 	suite.Suite
-	repository repo.Repository
+	repository notifications.Repository
 }
 
 func (suite *RepositoryTestSuite) SetupTest() {
-	db, err := sqlite.New(":memory:", repo.AssetNames(), repo.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(":memory:", repo.Migrations, sqlite.DataSourceOptions{})
 	suite.NoError(err)
 
 	suite.repository = repo.NewRepository(db, testLog)

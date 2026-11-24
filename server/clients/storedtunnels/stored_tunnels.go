@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/share/query"
 	"github.com/openrport/openrport/share/random"
@@ -39,9 +37,10 @@ type Manager struct {
 	provider Provider
 }
 
-func New(db *sqlx.DB) *Manager {
+// New returns a manager storing tunnels in p.
+func New(p Provider) *Manager {
 	return &Manager{
-		provider: newSQLiteProvider(db),
+		provider: p,
 	}
 }
 

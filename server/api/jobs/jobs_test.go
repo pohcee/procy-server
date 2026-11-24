@@ -23,7 +23,7 @@ var testLog = logger.NewLogger("jobs-test", logger.LogOutput{File: os.Stdout}, l
 
 func TestJobsSqliteProvider(t *testing.T) {
 	ctx := ctxFor(tenant.Default)
-	jobsDB, err := sqlite.New(":memory:", jobs.AssetNames(), jobs.Asset, DataSourceOptions)
+	jobsDB, err := sqlite.New(":memory:", jobs.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(jobsDB, testLog)
 	defer p.Close()
@@ -93,7 +93,7 @@ func TestJobsSqliteProvider(t *testing.T) {
 
 func TestCreateJob(t *testing.T) {
 	ctx := ctxFor(tenant.Default)
-	jobsDB, err := sqlite.New(":memory:", jobs.AssetNames(), jobs.Asset, DataSourceOptions)
+	jobsDB, err := sqlite.New(":memory:", jobs.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(jobsDB, testLog)
 	defer p.Close()
@@ -115,7 +115,7 @@ func TestCreateJob(t *testing.T) {
 
 func TestCreateJobPatchesLibraryFieldsOfExistingJob(t *testing.T) {
 	ctx := ctxFor(tenant.Default)
-	jobsDB, err := sqlite.New(":memory:", jobs.AssetNames(), jobs.Asset, DataSourceOptions)
+	jobsDB, err := sqlite.New(":memory:", jobs.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(jobsDB, testLog)
 	defer p.Close()

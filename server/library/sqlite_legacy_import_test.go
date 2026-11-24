@@ -13,12 +13,12 @@ import (
 	"github.com/openrport/openrport/db/sqlite"
 )
 
-func newLegacyDB(t *testing.T) (*sqlx.DB, *Store) {
+func newLegacyDB(t *testing.T) (*sqlx.DB, *SQLiteStore) {
 	t.Helper()
-	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), library.AssetNames(), library.Asset, sqlite.DataSourceOptions{WALEnabled: false})
+	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), library.FS, sqlite.DataSourceOptions{WALEnabled: false})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	return db, NewStore(db)
+	return db, NewSQLiteStore(db)
 }
 
 var (
@@ -48,7 +48,7 @@ func TestImportLegacyMapsOSByInterpreter(t *testing.T) {
 	seedScript(t, db, "s4", "nointerp", "", false, "[]")
 	seedCommand(t, db, "c1", "ls", "ls -la")
 
-	n, err := ImportLegacy(testCtx, db, s)
+	n, err := s.ImportLegacy(testCtx)
 	require.NoError(t, err)
 	assert.Equal(t, 5, n)
 
@@ -77,7 +77,7 @@ func TestImportLegacyKeepsAuthorship(t *testing.T) {
 	db, s := newLegacyDB(t)
 	seedScript(t, db, "s1", "one", "", false, "[]")
 	seedCommand(t, db, "c1", "two", "uptime")
-	_, err := ImportLegacy(testCtx, db, s)
+	_, err := s.ImportLegacy(testCtx)
 	require.NoError(t, err)
 
 	e, err := s.Get(testCtx, "s1")
@@ -103,7 +103,7 @@ func TestImportLegacyKeepsAuthorship(t *testing.T) {
 func TestImportLegacyKeepsNonAbsoluteCommand(t *testing.T) {
 	db, s := newLegacyDB(t)
 	seedCommand(t, db, "c1", "weird", "echo a | grep a")
-	_, err := ImportLegacy(testCtx, db, s)
+	_, err := s.ImportLegacy(testCtx)
 	require.NoError(t, err)
 	e, err := s.Get(testCtx, "c1")
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestImportLegacyNameClash(t *testing.T) {
 	seedScript(t, db, "same", "restart rport", "", false, "[]")
 	seedCommand(t, db, "same", "restart rport", "systemctl restart rport")
 
-	n, err := ImportLegacy(testCtx, db, s)
+	n, err := s.ImportLegacy(testCtx)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
 
@@ -131,12 +131,12 @@ func TestImportLegacyNameClash(t *testing.T) {
 func TestImportLegacyRunsOnce(t *testing.T) {
 	db, s := newLegacyDB(t)
 	seedScript(t, db, "s1", "one", "", false, "[]")
-	n, err := ImportLegacy(testCtx, db, s)
+	n, err := s.ImportLegacy(testCtx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 
 	seedCommand(t, db, "c1", "late", "ls")
-	n, err = ImportLegacy(testCtx, db, s)
+	n, err = s.ImportLegacy(testCtx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 
@@ -146,8 +146,8 @@ func TestImportLegacyRunsOnce(t *testing.T) {
 }
 
 func TestImportLegacyEmptyStillMarksDone(t *testing.T) {
-	db, s := newLegacyDB(t)
-	n, err := ImportLegacy(testCtx, db, s)
+	_, s := newLegacyDB(t)
+	n, err := s.ImportLegacy(testCtx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 	v, ok, err := s.Meta(testCtx, "legacy_import")
@@ -165,7 +165,7 @@ func TestImportLegacyNameClashWhitespaceAndScripts(t *testing.T) {
 	seedCommand(t, db, "c2", "a ", "ls")
 	seedCommand(t, db, "c3", "a (command)", "ls")
 
-	n, err := ImportLegacy(testCtx, db, s)
+	n, err := s.ImportLegacy(testCtx)
 	require.NoError(t, err)
 	assert.Equal(t, 6, n)
 
@@ -193,7 +193,7 @@ func TestImportLegacyMixedCaseInterpreterAndNulls(t *testing.T) {
 	_, err := db.Exec("INSERT INTO `scripts` (`id`, `name`, `created_at`, `created_by`, `updated_at`, `updated_by`, `interpreter`, `is_sudo`, `cwd`, `script`, `tags`, `timeout_sec`) VALUES ('s2', 'nulls', ?, 'a', ?, 'b', NULL, 0, NULL, 'echo', '[]', 0)", created, updated)
 	require.NoError(t, err)
 
-	n, err := ImportLegacy(testCtx, db, s)
+	n, err := s.ImportLegacy(testCtx)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
 

@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-
 	"github.com/gorilla/websocket"
 	"github.com/jpillora/requestlog"
 	"golang.org/x/crypto/ssh"

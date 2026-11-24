@@ -6,14 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	bindata "github.com/golang-migrate/migrate/v4/source/go_bindata"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	monitoringmigration "github.com/openrport/openrport/db/migration/monitoring"
+	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
 	"github.com/openrport/openrport/share/tenant"
@@ -26,16 +24,7 @@ func migrateTo(t *testing.T, path string, version uint) *sqlx.DB {
 	t.Helper()
 	db, err := sqlx.Connect("sqlite3", path)
 	require.NoError(t, err)
-	src, err := bindata.WithInstance(bindata.Resource(monitoringmigration.AssetNames(), monitoringmigration.Asset))
-	require.NoError(t, err)
-	drv, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
-	require.NoError(t, err)
-	m, err := migrate.NewWithInstance("go-bindata", src, "sqlite3", drv)
-	require.NoError(t, err)
-	err = m.Migrate(version)
-	if err != migrate.ErrNoChange {
-		require.NoError(t, err)
-	}
+	require.NoError(t, sqlite.MigrateTo(db, monitoringmigration.FS, version))
 	return db
 }
 
@@ -50,7 +39,7 @@ func tenantMeasurement(clientID string, ts time.Time, cpu float64) *models.Measu
 }
 
 func TestMeasurementsRequireTenant(t *testing.T) {
-	p, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	p, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer p.Close()
 	ctx := context.Background()
@@ -73,7 +62,7 @@ func TestMeasurementsRequireTenant(t *testing.T) {
 }
 
 func TestMeasurementsIsolateTenants(t *testing.T) {
-	p, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	p, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer p.Close()
 	a, b := ctxFor("a"), ctxFor("b")
@@ -130,7 +119,7 @@ func TestUpgradeKeepsMeasurementsInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	p, err := NewSqliteProvider(path, DataSourceOptions, testLog)
+	p, err := openTestSqliteProvider(path, DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer p.Close()
 
@@ -142,7 +131,7 @@ func TestUpgradeKeepsMeasurementsInDefaultTenant(t *testing.T) {
 
 func TestDowngradeKeepsOnlyDefaultMeasurements(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "monitoring.db")
-	p, err := NewSqliteProvider(path, DataSourceOptions, testLog)
+	p, err := openTestSqliteProvider(path, DataSourceOptions, testLog)
 	require.NoError(t, err)
 	require.NoError(t, p.CreateMeasurement(ctxFor(tenant.Default), tenantMeasurement("c1", measurement1, 1)))
 	require.NoError(t, p.CreateMeasurement(ctxFor("other"), tenantMeasurement("c1", measurement1.Add(time.Second), 2)))

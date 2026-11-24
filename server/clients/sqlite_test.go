@@ -15,7 +15,7 @@ func TestClientsSqliteProvider(t *testing.T) {
 	keepLost := hour
 	p := NewFakeClientProvider(t, &keepLost)
 	defer p.Close()
-	noObsoleteProvider := newSqliteProvider(p.db, nil)
+	noObsoleteProvider := NewSQLiteStore(p.db, nil)
 
 	// verify add clients
 	c1 := New(t).Logger(testLog).Build()                                                   // active

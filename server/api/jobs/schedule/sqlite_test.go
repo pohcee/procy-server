@@ -63,9 +63,9 @@ var testData = []*Schedule{
 }
 
 func TestGet(t *testing.T) {
-	db, err := sqlite.New(":memory:", jobsmigration.AssetNames(), jobsmigration.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", jobsmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
-	dbProv := newSQLiteProvider(db)
+	dbProv := NewSQLiteProvider(db)
 	defer dbProv.Close()
 	ctx := ctxFor(tenant.Default)
 
@@ -82,9 +82,9 @@ func TestGet(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	db, err := sqlite.New(":memory:", jobsmigration.AssetNames(), jobsmigration.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", jobsmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
-	dbProv := newSQLiteProvider(db)
+	dbProv := NewSQLiteProvider(db)
 	defer dbProv.Close()
 
 	err = addTestData(dbProv.db)
@@ -97,9 +97,9 @@ func TestList(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	db, err := sqlite.New(":memory:", jobsmigration.AssetNames(), jobsmigration.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", jobsmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
-	dbProv := newSQLiteProvider(db)
+	dbProv := NewSQLiteProvider(db)
 	defer dbProv.Close()
 	ctx := ctxFor(tenant.Default)
 
@@ -113,9 +113,9 @@ func TestCreate(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	db, err := sqlite.New(":memory:", jobsmigration.AssetNames(), jobsmigration.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", jobsmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
-	dbProv := newSQLiteProvider(db)
+	dbProv := NewSQLiteProvider(db)
 	defer dbProv.Close()
 	ctx := ctxFor(tenant.Default)
 
@@ -135,9 +135,9 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	db, err := sqlite.New(":memory:", jobsmigration.AssetNames(), jobsmigration.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", jobsmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
-	dbProv := newSQLiteProvider(db)
+	dbProv := NewSQLiteProvider(db)
 	defer dbProv.Close()
 	ctx := ctxFor(tenant.Default)
 
@@ -161,9 +161,9 @@ func TestDelete(t *testing.T) {
 }
 
 func TestCountJobsInProgress(t *testing.T) {
-	db, err := sqlite.New(":memory:", jobsmigration.AssetNames(), jobsmigration.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", jobsmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
-	dbProv := newSQLiteProvider(db)
+	dbProv := NewSQLiteProvider(db)
 	defer dbProv.Close()
 	ctx := ctxFor(tenant.Default)
 

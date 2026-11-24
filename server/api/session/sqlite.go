@@ -8,8 +8,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/db/migration/api_sessions"
-	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/share/tenant"
 )
 
@@ -19,13 +17,11 @@ type SqliteProvider struct {
 	db *sqlx.DB
 }
 
-func NewSqliteProvider(dbPath string, dataSourceOptions sqlite.DataSourceOptions) (*SqliteProvider, error) {
-	db, err := sqlite.New(dbPath, api_sessions.AssetNames(), api_sessions.Asset, dataSourceOptions)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create api session DB instance: %w", err)
-	}
+var _ StorageProvider = (*SqliteProvider)(nil)
 
-	return &SqliteProvider{db: db}, nil
+// NewSqliteProvider stores the sessions in db, an opened and migrated API sessions database.
+func NewSqliteProvider(db *sqlx.DB) *SqliteProvider {
+	return &SqliteProvider{db: db}
 }
 
 func tenantOf(ctx context.Context) (tenant.ID, error) {

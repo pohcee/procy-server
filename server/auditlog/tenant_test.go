@@ -10,9 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	bindata "github.com/golang-migrate/migrate/v4/source/go_bindata"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,22 +31,13 @@ func migrateTo(t *testing.T, path string, version uint) *sqlx.DB {
 	t.Helper()
 	db, err := sqlx.Connect("sqlite3", path)
 	require.NoError(t, err)
-	src, err := bindata.WithInstance(bindata.Resource(auditlogmigration.AssetNames(), auditlogmigration.Asset))
-	require.NoError(t, err)
-	drv, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
-	require.NoError(t, err)
-	m, err := migrate.NewWithInstance("go-bindata", src, "sqlite3", drv)
-	require.NoError(t, err)
-	err = m.Migrate(version)
-	if err != migrate.ErrNoChange {
-		require.NoError(t, err)
-	}
+	require.NoError(t, sqlite.MigrateTo(db, auditlogmigration.FS, version))
 	return db
 }
 
 func newTenantProvider(t *testing.T) *SQLiteProvider {
 	t.Helper()
-	p, err := newSQLiteProvider(t.TempDir(), DataSourceOptions)
+	p, err := openSQLiteProvider(t.TempDir(), DataSourceOptions)
 	require.NoError(t, err)
 	t.Cleanup(func() { p.Close() })
 	return p
@@ -158,7 +146,7 @@ func TestUpgradeKeepsAuditlogInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	p, err := newSQLiteProvider(dir, DataSourceOptions)
+	p, err := openSQLiteProvider(dir, DataSourceOptions)
 	require.NoError(t, err)
 	defer p.Close()
 	assert.Equal(t, []string{"legacy"}, listUsernames(t, p, ctxFor(tenant.Default)))
@@ -166,7 +154,7 @@ func TestUpgradeKeepsAuditlogInDefaultTenant(t *testing.T) {
 
 func TestDowngradeKeepsOnlyDefaultAuditlog(t *testing.T) {
 	dir := t.TempDir()
-	p, err := newSQLiteProvider(dir, DataSourceOptions)
+	p, err := openSQLiteProvider(dir, DataSourceOptions)
 	require.NoError(t, err)
 	require.NoError(t, p.Save(ctxFor(tenant.Default), &Entry{Timestamp: time.Now(), Username: "default"}))
 	require.NoError(t, p.Save(ctxFor("other"), &Entry{Timestamp: time.Now(), Username: "other"}))
@@ -188,14 +176,14 @@ func TestRotatedOldAuditlogIsReadAsDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	rotation, err := newRotationProvider(ctxFor(tenant.Default), tenantTestLog, time.Minute, dir, DataSourceOptions)
+	rotation, err := NewRotationProvider(ctxFor(tenant.Default), tenantTestLog, time.Minute, dir, DataSourceOptions)
 	require.NoError(t, err)
 	defer rotation.Close()
 	assert.Empty(t, listUsernames(t, rotation, ctxFor(tenant.Default)), "rotated on init")
 	require.NoError(t, rotation.Save(ctxFor(tenant.Default), &Entry{Timestamp: time.Now(), Username: "new"}))
 	assert.Equal(t, []string{"new"}, listUsernames(t, rotation, ctxFor(tenant.Default)))
 
-	db, err := sqlite.New(path.Join(dir, time.Now().Format(rotatedFilename)), auditlogmigration.AssetNames(), auditlogmigration.Asset, DataSourceOptions)
+	db, err := sqlite.New(path.Join(dir, time.Now().Format(rotatedFilename)), auditlogmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
 	rotated := &SQLiteProvider{db: db, converter: query.NewSQLConverter(db.DriverName())}
 	defer rotated.Close()
@@ -204,7 +192,7 @@ func TestRotatedOldAuditlogIsReadAsDefault(t *testing.T) {
 
 func TestRotationLoopStopsWithItsContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctxFor(tenant.Default))
-	rotation, err := newRotationProvider(ctx, tenantTestLog, time.Hour, t.TempDir(), DataSourceOptions)
+	rotation, err := NewRotationProvider(ctx, tenantTestLog, time.Hour, t.TempDir(), DataSourceOptions)
 	require.NoError(t, err)
 	defer rotation.Close()
 	cancel()

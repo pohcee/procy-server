@@ -117,7 +117,7 @@ func TestInitClientRepositoryLoadsContextTenant(t *testing.T) {
 	require.NoError(t, p.Save(ctxFor("a"), New(t).ID("in-a").DisconnectedDuration(time.Minute).Logger(testLog).Build()))
 	require.NoError(t, p.Save(ctxFor("b"), New(t).ID("in-b").DisconnectedDuration(time.Minute).Logger(testLog).Build()))
 
-	repo, err := InitClientRepository(ctxFor("a"), p.db, nil, testLog)
+	repo, err := InitClientRepository(ctxFor("a"), p, nil, testLog)
 	require.NoError(t, err)
 
 	got, err := repo.GetByID(ctxFor("a"), "in-a")
@@ -125,7 +125,7 @@ func TestInitClientRepositoryLoadsContextTenant(t *testing.T) {
 	assert.NotNil(t, got)
 	assert.Empty(t, repo.GetAllClients(ctxFor("b")))
 
-	_, err = InitClientRepository(context.Background(), p.db, nil, testLog)
+	_, err = InitClientRepository(context.Background(), p, nil, testLog)
 	assert.ErrorIs(t, err, tenant.ErrMissing)
 }
 

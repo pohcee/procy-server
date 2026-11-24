@@ -71,7 +71,7 @@ var demoData = []APIToken{
 }
 
 func TestGet(t *testing.T) {
-	db, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	dbProv := NewSqliteProvider(db)
 	defer dbProv.Close()
@@ -95,7 +95,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	db, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	dbProv := NewSqliteProvider(db)
 	t.Cleanup(func() { dbProv.Close() })
@@ -115,7 +115,7 @@ func TestList(t *testing.T) {
 
 func TestCreate(t *testing.T) {
 
-	db, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	dbProv := NewSqliteProvider(db)
 	defer dbProv.Close()
@@ -144,7 +144,7 @@ func TestCreate(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 
-	db, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	dbProv := NewSqliteProvider(db)
 	defer dbProv.Close()
@@ -178,7 +178,7 @@ func TestUpdate(t *testing.T) {
 	test.AssertRowsEqual(t, dbProv.db, expectedRows, q, []interface{}{})
 }
 func TestUpdateOneAtATimeName(t *testing.T) {
-	db, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	dbProv := NewSqliteProvider(db)
 	defer dbProv.Close()
@@ -212,7 +212,7 @@ func TestUpdateOneAtATimeName(t *testing.T) {
 }
 
 func TestUpdateOneAtATimeExpiresAt(t *testing.T) {
-	db, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	dbProv := NewSqliteProvider(db)
 	defer dbProv.Close()
@@ -246,7 +246,7 @@ func TestUpdateOneAtATimeExpiresAt(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	db, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	dbProv := NewSqliteProvider(db)
 	defer dbProv.Close()

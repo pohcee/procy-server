@@ -8,9 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	bindata "github.com/golang-migrate/migrate/v4/source/go_bindata"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,16 +27,7 @@ func migrateTo(t *testing.T, path string, version uint) *sqlx.DB {
 	t.Helper()
 	db, err := sqlx.Connect("sqlite3", path)
 	require.NoError(t, err)
-	src, err := bindata.WithInstance(bindata.Resource(library.AssetNames(), library.Asset))
-	require.NoError(t, err)
-	drv, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
-	require.NoError(t, err)
-	m, err := migrate.NewWithInstance("go-bindata", src, "sqlite3", drv)
-	require.NoError(t, err)
-	err = m.Migrate(version)
-	if err != migrate.ErrNoChange {
-		require.NoError(t, err)
-	}
+	require.NoError(t, sqlite.MigrateTo(db, library.FS, version))
 	return db
 }
 
@@ -68,7 +56,7 @@ func TestStoreRequiresTenant(t *testing.T) {
 	_, err = s.ByBuiltinKey(ctx, "k")
 	assert.ErrorIs(t, err, tenant.ErrMissing)
 
-	_, err = ImportLegacy(ctx, s.db, s)
+	_, err = s.ImportLegacy(ctx)
 	assert.ErrorIs(t, err, tenant.ErrMissing)
 	_, _, _, err = SyncBuiltins(ctx, s, []Builtin{testBuiltin("b1", "B", "echo")}, "1", t0)
 	assert.ErrorIs(t, err, tenant.ErrMissing)
@@ -77,7 +65,7 @@ func TestStoreRequiresTenant(t *testing.T) {
 	tx, err := s.db.BeginTxx(context.Background(), nil)
 	require.NoError(t, err)
 	defer tx.Rollback() //nolint:errcheck
-	assert.ErrorIs(t, s.SetMeta(ctx, tx, "k", "v"), tenant.ErrMissing)
+	assert.ErrorIs(t, s.setMeta(ctx, tx, "k", "v"), tenant.ErrMissing)
 }
 
 func TestStoreIsolatesTenants(t *testing.T) {
@@ -147,7 +135,7 @@ func TestStoreIsolatesTenants(t *testing.T) {
 	// meta per tenant
 	tx, err := s.db.BeginTxx(a, nil)
 	require.NoError(t, err)
-	require.NoError(t, s.SetMeta(a, tx, "k", "va"))
+	require.NoError(t, s.setMeta(a, tx, "k", "va"))
 	require.NoError(t, tx.Commit())
 	_, ok, err := s.Meta(b, "k")
 	require.NoError(t, err)
@@ -184,7 +172,7 @@ func TestImportLegacyIsDefaultOnly(t *testing.T) {
 	db, s := newLegacyDB(t)
 	seedScript(t, db, "s1", "one", "", false, "[]")
 
-	n, err := ImportLegacy(ctxFor("a"), db, s)
+	n, err := s.ImportLegacy(ctxFor("a"))
 	require.NoError(t, err)
 	assert.Zero(t, n)
 	list, err := s.List(ctxFor("a"), true)
@@ -194,7 +182,7 @@ func TestImportLegacyIsDefaultOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, done)
 
-	n, err = ImportLegacy(ctxFor(tenant.Default), db, s)
+	n, err = s.ImportLegacy(ctxFor(tenant.Default))
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 }
@@ -246,10 +234,10 @@ func TestUpgradeKeepsLibraryInDefaultTenant(t *testing.T) {
 	ins("INSERT INTO `library_meta` (`key`, `value`) VALUES ('legacy_import', '0')")
 	require.NoError(t, old.Close())
 
-	db, err := sqlite.New(path, library.AssetNames(), library.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(path, library.FS, sqlite.DataSourceOptions{})
 	require.NoError(t, err)
 	defer db.Close()
-	s := NewStore(db)
+	s := NewSQLiteStore(db)
 	ctx := ctxFor(tenant.Default)
 
 	all, err := s.List(ctx, true)
@@ -281,7 +269,7 @@ func TestUpgradeKeepsLibraryInDefaultTenant(t *testing.T) {
 	assert.Zero(t, updated)
 
 	// the legacy import does not run again
-	n, err := ImportLegacy(ctx, db, s)
+	n, err := s.ImportLegacy(ctx)
 	require.NoError(t, err)
 	assert.Zero(t, n)
 
@@ -292,9 +280,9 @@ func TestUpgradeKeepsLibraryInDefaultTenant(t *testing.T) {
 
 func TestDowngradeKeepsOnlyDefaultLibrary(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "library.db")
-	db, err := sqlite.New(path, library.AssetNames(), library.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(path, library.FS, sqlite.DataSourceOptions{})
 	require.NoError(t, err)
-	s := NewStore(db)
+	s := NewSQLiteStore(db)
 	for _, tid := range []tenant.ID{tenant.Default, "a"} {
 		ctx := ctxFor(tid)
 		e, v := testEntry("id1", "A")
@@ -303,7 +291,7 @@ func TestDowngradeKeepsOnlyDefaultLibrary(t *testing.T) {
 		addVersionIn(t, s, ctx, "id1", 2, t0.Add(time.Hour))
 		tx, err := db.BeginTxx(ctx, nil)
 		require.NoError(t, err)
-		require.NoError(t, s.SetMeta(ctx, tx, "k", string(tid)))
+		require.NoError(t, s.setMeta(ctx, tx, "k", string(tid)))
 		require.NoError(t, tx.Commit())
 	}
 	require.NoError(t, db.Close())

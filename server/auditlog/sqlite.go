@@ -21,20 +21,27 @@ type SQLiteProvider struct {
 	converter *query.SQLConverter
 }
 
-func newSQLiteProvider(dataDir string, dataSourceOptions sqlite.DataSourceOptions) (*SQLiteProvider, error) {
+var _ Provider = (*SQLiteProvider)(nil)
+
+// NewSQLiteProvider stores the entries in db, an opened and migrated audit log database.
+func NewSQLiteProvider(db *sqlx.DB) *SQLiteProvider {
+	return &SQLiteProvider{
+		db:        db,
+		converter: query.NewSQLConverter(db.DriverName()),
+	}
+}
+
+// openSQLiteProvider opens auditlog.db in dataDir and always migrates it: rotation creates new files at runtime.
+func openSQLiteProvider(dataDir string, dataSourceOptions sqlite.DataSourceOptions) (*SQLiteProvider, error) {
 	db, err := sqlite.New(
 		path.Join(dataDir, sqliteFilename),
-		auditlog.AssetNames(),
-		auditlog.Asset,
+		auditlog.FS,
 		dataSourceOptions,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return &SQLiteProvider{
-		db:        db,
-		converter: query.NewSQLConverter(db.DriverName()),
-	}, nil
+	return NewSQLiteProvider(db), nil
 }
 
 func tenantOf(ctx context.Context) (tenant.ID, error) {

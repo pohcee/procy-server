@@ -7,9 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	bindata "github.com/golang-migrate/migrate/v4/source/go_bindata"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +25,7 @@ func ctxFor(id tenant.ID) context.Context { return tenant.WithID(context.Backgro
 
 func newTenantTestProvider(t *testing.T) *SqliteProvider {
 	t.Helper()
-	db, err := sqlite.New(":memory:", jobs.AssetNames(), jobs.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", jobs.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(db, testLog)
 	t.Cleanup(func() { p.Close() })
@@ -40,16 +37,7 @@ func migrateTo(t *testing.T, path string, version uint) *sqlx.DB {
 	t.Helper()
 	db, err := sqlx.Connect("sqlite3", path)
 	require.NoError(t, err)
-	src, err := bindata.WithInstance(bindata.Resource(jobs.AssetNames(), jobs.Asset))
-	require.NoError(t, err)
-	drv, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
-	require.NoError(t, err)
-	m, err := migrate.NewWithInstance("go-bindata", src, "sqlite3", drv)
-	require.NoError(t, err)
-	err = m.Migrate(version)
-	if err != migrate.ErrNoChange {
-		require.NoError(t, err)
-	}
+	require.NoError(t, sqlite.MigrateTo(db, jobs.FS, version))
 	return db
 }
 
@@ -168,7 +156,7 @@ func TestUpgradeKeepsJobsInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	db, err := sqlite.New(path, jobs.AssetNames(), jobs.Asset, DataSourceOptions)
+	db, err := sqlite.New(path, jobs.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(db, testLog)
 	defer p.Close()
@@ -193,7 +181,7 @@ func TestUpgradeKeepsJobsInDefaultTenant(t *testing.T) {
 
 func TestDowngradeKeepsOnlyDefaultTenantJobs(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "jobs.db")
-	db, err := sqlite.New(path, jobs.AssetNames(), jobs.Asset, DataSourceOptions)
+	db, err := sqlite.New(path, jobs.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(db, testLog)
 	for _, tid := range []tenant.ID{tenant.Default, "a"} {

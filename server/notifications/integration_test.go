@@ -25,7 +25,7 @@ var testLog = logger.NewLogger("client", logger.LogOutput{File: os.Stdout}, logg
 type NotificationsIntegrationTestSuite struct {
 	suite.Suite
 	dispatcher     notifications.Dispatcher
-	store          notificationsrepo.Repository
+	store          notifications.Repository
 	server         *smtpmock.Server
 	runner         notifications.Processor
 	mailConsumer   notifications.Consumer
@@ -33,7 +33,7 @@ type NotificationsIntegrationTestSuite struct {
 }
 
 func (suite *NotificationsIntegrationTestSuite) SetupTest() {
-	db, err := sqlite.New(":memory:", notificationsrepo.AssetNames(), notificationsrepo.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(":memory:", notificationsrepo.Migrations, sqlite.DataSourceOptions{})
 	suite.NoError(err)
 	suite.store = notificationsrepo.NewRepository(db, testLog)
 	suite.dispatcher = notifications.NewDispatcher(suite.store)

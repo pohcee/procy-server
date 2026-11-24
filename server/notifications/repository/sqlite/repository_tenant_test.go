@@ -7,9 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	bindata "github.com/golang-migrate/migrate/v4/source/go_bindata"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,22 +26,13 @@ func migrateTo(t *testing.T, path string, version uint) *sqlx.DB {
 	t.Helper()
 	db, err := sqlx.Connect("sqlite3", path)
 	require.NoError(t, err)
-	src, err := bindata.WithInstance(bindata.Resource(repo.AssetNames(), repo.Asset))
-	require.NoError(t, err)
-	drv, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
-	require.NoError(t, err)
-	m, err := migrate.NewWithInstance("go-bindata", src, "sqlite3", drv)
-	require.NoError(t, err)
-	err = m.Migrate(version)
-	if err != migrate.ErrNoChange {
-		require.NoError(t, err)
-	}
+	require.NoError(t, sqlite.MigrateTo(db, repo.Migrations, version))
 	return db
 }
 
-func newTenantRepo(t *testing.T) repo.Repository {
+func newTenantRepo(t *testing.T) *repo.Repository {
 	t.Helper()
-	db, err := sqlite.New(":memory:", repo.AssetNames(), repo.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(":memory:", repo.Migrations, sqlite.DataSourceOptions{})
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	return repo.NewRepository(db, testLog)
@@ -133,7 +121,7 @@ func TestUpgradeKeepsNotificationsInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	db, err := sqlite.New(path, repo.AssetNames(), repo.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(path, repo.Migrations, sqlite.DataSourceOptions{})
 	require.NoError(t, err)
 	defer db.Close()
 	r := repo.NewRepository(db, testLog)
@@ -146,7 +134,7 @@ func TestUpgradeKeepsNotificationsInDefaultTenant(t *testing.T) {
 
 func TestDowngradeKeepsOnlyDefaultNotifications(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "notifications.db")
-	db, err := sqlite.New(path, repo.AssetNames(), repo.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(path, repo.Migrations, sqlite.DataSourceOptions{})
 	require.NoError(t, err)
 	r := repo.NewRepository(db, testLog)
 	n := GenerateNotification()
@@ -162,7 +150,7 @@ func TestDowngradeKeepsOnlyDefaultNotifications(t *testing.T) {
 }
 
 func TestCleanerOnlyCleansItsTenant(t *testing.T) {
-	db, err := sqlite.New(":memory:", repo.AssetNames(), repo.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(":memory:", repo.Migrations, sqlite.DataSourceOptions{})
 	require.NoError(t, err)
 	defer db.Close()
 	r := repo.NewRepository(db, testLog)

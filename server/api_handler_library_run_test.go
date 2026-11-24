@@ -28,7 +28,7 @@ import (
 type libraryRunEnv struct {
 	*libraryEntriesEnv
 	jp    *jobs.SqliteProvider
-	store *library.Store
+	store *library.SQLiteStore
 	conns []*test.ConnMock
 }
 
@@ -54,11 +54,11 @@ func newLibraryRunEnv(t *testing.T) *libraryRunEnv {
 	al.jobProvider = jp
 	al.clientGroupProvider = makeGroupsProvider(t, DataSourceOptions)
 
-	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), librarymigration.AssetNames(), librarymigration.Asset, sqlite.DataSourceOptions{WALEnabled: false})
+	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), librarymigration.FS, sqlite.DataSourceOptions{WALEnabled: false})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	store := library.NewStore(db)
+	store := library.NewSQLiteStore(db)
 	al.libraryManager = library.NewManager(store, func() time.Time { now = now.Add(time.Minute); return now })
 
 	r := mux.NewRouter()

@@ -6,9 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	bindata "github.com/golang-migrate/migrate/v4/source/go_bindata"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +19,7 @@ func ctxFor(id tenant.ID) context.Context { return tenant.WithID(context.Backgro
 
 func newTenantTestProvider(t *testing.T) *SqliteProvider {
 	t.Helper()
-	db, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(db)
 	t.Cleanup(func() { p.Close() })
@@ -38,16 +35,7 @@ func migrateTokensTo(t *testing.T, path string, version uint) *sqlx.DB {
 	t.Helper()
 	db, err := sqlx.Connect("sqlite3", path)
 	require.NoError(t, err)
-	src, err := bindata.WithInstance(bindata.Resource(api_token.AssetNames(), api_token.Asset))
-	require.NoError(t, err)
-	drv, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
-	require.NoError(t, err)
-	m, err := migrate.NewWithInstance("go-bindata", src, "sqlite3", drv)
-	require.NoError(t, err)
-	err = m.Migrate(version)
-	if err != migrate.ErrNoChange {
-		require.NoError(t, err)
-	}
+	require.NoError(t, sqlite.MigrateTo(db, api_token.FS, version))
 	return db
 }
 
@@ -129,7 +117,7 @@ func TestTokenUpgradeKeepsTokensInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	db, err := sqlite.New(path, api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(path, api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(db)
 	defer p.Close()
@@ -147,7 +135,7 @@ func TestTokenUpgradeKeepsTokensInDefaultTenant(t *testing.T) {
 
 func TestTokenDowngradeKeepsOnlyDefaultTenant(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "api_token.db")
-	db, err := sqlite.New(path, api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(path, api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(db)
 	require.NoError(t, p.Save(ctxFor(tenant.Default), tok("u", "prefix01", "n", "default")))

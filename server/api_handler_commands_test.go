@@ -11,10 +11,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -684,8 +686,7 @@ func TestHandlePostMultiClientCommand(t *testing.T) {
 
 			jobsDB, err := sqlite.New(
 				":memory:",
-				jobsmigration.AssetNames(),
-				jobsmigration.Asset,
+				jobsmigration.FS,
 				DataSourceOptions,
 			)
 			require.NoError(t, err)
@@ -847,8 +848,7 @@ func TestHandlePostMultiClientCommandWithPausedClient(t *testing.T) {
 
 			jobsDB, err := sqlite.New(
 				":memory:",
-				jobsmigration.AssetNames(),
-				jobsmigration.Asset,
+				jobsmigration.FS,
 				DataSourceOptions,
 			)
 			require.NoError(t, err)
@@ -2103,21 +2103,31 @@ func makeJobsProvider(t *testing.T, dataSourceOptions sqlite.DataSourceOptions, 
 	t.Helper()
 	jobsDB, err := sqlite.New(
 		":memory:",
-		jobsmigration.AssetNames(),
-		jobsmigration.Asset,
+		jobsmigration.FS,
 		dataSourceOptions,
 	)
 	require.NoError(t, err)
 	jp = jobs.NewSqliteProvider(jobsDB, testLog)
+	testJobsDBs.Store(jp, jobsDB)
 	return jp
+}
+
+// testJobsDBs maps every provider made by makeJobsProvider to its database, for tests that read
+// raw rows or store schedules in the same file.
+var testJobsDBs sync.Map
+
+func jobsDBOf(t *testing.T, jp *jobs.SqliteProvider) *sqlx.DB {
+	t.Helper()
+	db, ok := testJobsDBs.Load(jp)
+	require.True(t, ok, "jobs provider not made by makeJobsProvider")
+	return db.(*sqlx.DB)
 }
 
 func makeGroupsProvider(t *testing.T, dataSourceOptions sqlite.DataSourceOptions) (gp *cgroups.SqliteProvider) {
 	t.Helper()
 	groupsDB, err := sqlite.New(
 		":memory:",
-		client_groups.AssetNames(),
-		client_groups.Asset,
+		client_groups.FS,
 		dataSourceOptions,
 	)
 	require.NoError(t, err)
@@ -2129,7 +2139,7 @@ func makeGroupsProvider(t *testing.T, dataSourceOptions sqlite.DataSourceOptions
 
 func makeScheduleManager(t *testing.T, jp *jobs.SqliteProvider, jobRunner schedule.JobRunner, testLog *logger.Logger) (scheduleManager *schedule.Manager) {
 	t.Helper()
-	scheduleManager = schedule.NewManager(tenant.WithID(context.Background(), tenant.Default), jobRunner, jp.GetDB(), testLog, 30)
+	scheduleManager = schedule.NewManager(tenant.WithID(context.Background(), tenant.Default), jobRunner, schedule.NewSQLiteProvider(jobsDBOf(t, jp)), testLog, 30)
 
 	return scheduleManager
 }

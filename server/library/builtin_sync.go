@@ -2,7 +2,6 @@ package library
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -12,30 +11,13 @@ import (
 
 const builtinAuthor = "procy"
 
-// ByBuiltinKey returns the entry (deleted or not) created for a built-in key, or nil.
-func (s *Store) ByBuiltinKey(ctx context.Context, key string) (*Entry, error) {
-	tid, err := tenantOf(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var id string
-	err = s.db.GetContext(ctx, &id, "SELECT `id` FROM `entries` WHERE `tenant_id` = ? AND `builtin_key` = ?", tid, key)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return s.Get(ctx, id)
-}
-
 func builtinSuffixed(name string) string { return name + " (built-in)" }
 
 // SyncBuiltins makes sure every shipped built-in has an entry: missing ones are
 // created, changed ones get a new version. Deleted built-ins stay deleted and
 // user entries are never touched. A user entry using a built-in's name makes
 // the built-in "<name> (built-in)". It syncs the tenant carried by ctx.
-func SyncBuiltins(ctx context.Context, store *Store, builtins []Builtin, version string, now time.Time) (created, updated int, skipped []string, err error) {
+func SyncBuiltins(ctx context.Context, store Repository, builtins []Builtin, version string, now time.Time) (created, updated int, skipped []string, err error) {
 	if _, err := tenantOf(ctx); err != nil {
 		return 0, 0, nil, err
 	}
@@ -70,7 +52,7 @@ func SyncBuiltins(ctx context.Context, store *Store, builtins []Builtin, version
 }
 
 // freeName picks the first of the candidates no other live entry uses; "" if none.
-func freeName(ctx context.Context, store *Store, id string, candidates ...string) (string, error) {
+func freeName(ctx context.Context, store Repository, id string, candidates ...string) (string, error) {
 	live, err := store.ListLive(ctx)
 	if err != nil {
 		return "", err
@@ -90,7 +72,7 @@ func freeName(ctx context.Context, store *Store, id string, candidates ...string
 	return "", nil
 }
 
-func createBuiltin(ctx context.Context, store *Store, b Builtin, version string, now time.Time) error {
+func createBuiltin(ctx context.Context, store Repository, b Builtin, version string, now time.Time) error {
 	id, err := random.UUID4()
 	if err != nil {
 		return err
@@ -117,7 +99,7 @@ func createBuiltin(ctx context.Context, store *Store, b Builtin, version string,
 
 // updateBuiltin adds a version when the shipped content differs from the active
 // one. It reports whether a version was added.
-func updateBuiltin(ctx context.Context, store *Store, e *Entry, b Builtin, version string, now time.Time) (bool, error) {
+func updateBuiltin(ctx context.Context, store Repository, e *Entry, b Builtin, version string, now time.Time) (bool, error) {
 	for attempt := 0; attempt < 2; attempt++ {
 		shipped := b.Content
 		if e.Name != shipped.Name && e.Name != builtinSuffixed(shipped.Name) {

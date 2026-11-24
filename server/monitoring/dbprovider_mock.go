@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
 )
@@ -51,9 +49,5 @@ func (p *DBProviderMock) DeleteMeasurementsBefore(ctx context.Context, compare t
 }
 
 func (p *DBProviderMock) Close() error {
-	return nil
-}
-
-func (p *DBProviderMock) DB() *sqlx.DB {
 	return nil
 }
