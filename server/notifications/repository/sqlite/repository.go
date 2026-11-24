@@ -130,13 +130,13 @@ func (r *Repository) save(ctx context.Context, details notifications.Notificatio
 		ContentType:    string(details.Data.ContentType),
 	}
 
-	if len(details.Out) > MaxNotificationsQueue {
+	if len(details.Out) > MaxOutAndErrorSize {
 		n.Out = details.Out[:MaxOutAndErrorSize]
 	} else {
 		n.Out = details.Out
 	}
 
-	if len(details.Err) > MaxNotificationsQueue {
+	if len(details.Err) > MaxOutAndErrorSize {
 		n.Err = details.Err[:MaxOutAndErrorSize]
 	} else {
 		n.Err = details.Err
