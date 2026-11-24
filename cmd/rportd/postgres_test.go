@@ -68,11 +68,14 @@ func TestMigratePostgres(t *testing.T) {
 	writePostgresConfig(t, d.AppURL)
 	setFlag(t, migrateDSN, d.OwnerURL)
 	setFlag(t, migrateGrantTo, pgtest.AppRole)
+	setFlag(t, migrateDevice, pgtest.DeviceRole)
 
 	out, written := commandOutput(t)
 	require.NoError(t, runMigrate(out))
 	assert.Regexp(t, `applied [1-9][0-9]* migration\(s\)`, written())
 	assert.Contains(t, written(), "granted the application privileges to "+pgtest.AppRole)
+	assert.Contains(t, written(), "granted the device privileges to "+pgtest.DeviceRole)
+	require.NoError(t, postgres.CheckDeviceRole(context.Background(), d.Device))
 
 	// the application role can now run a node
 	ctx := context.Background()

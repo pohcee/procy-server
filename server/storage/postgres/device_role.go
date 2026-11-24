@@ -8,7 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// DeviceFunctions are the functions the device database role may execute (migration 0350): lookups on the device
+// DeviceFunctions are the functions the device database role may execute (migration 1100): lookups on the device
 // path and the ingest functions. migrate.GrantDevice grants EXECUTE on them; CheckDeviceRole requires it.
 var DeviceFunctions = []string{
 	"device_tenants()",

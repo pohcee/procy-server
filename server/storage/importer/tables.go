@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/openrport/openrport/server/clientsauth"
 )
 
 // Entity names in the report.
@@ -80,8 +82,10 @@ func names(cols []col) []string {
 
 // --- client credentials ------------------------------------------------------
 
-// writeClientAuth copies the client credentials with their ids and their passwords as stored. A client auth id is
-// unique across tenants (a connecting client doesn't name its tenant): one another tenant uses is skipped.
+// writeClientAuth copies the client credentials with their ids and the argon2id hashes of their passwords (a
+// standalone server compares the stored password as it is, so whatever is stored is the password, even one that
+// looks like a hash). A client auth id is unique across tenants (a connecting client doesn't name its tenant): one
+// another tenant uses is skipped.
 func (im *importer) writeClientAuth(w *writer) error {
 	if im.auth == nil {
 		return nil
@@ -90,7 +94,11 @@ func (im *importer) writeClientAuth(w *writer) error {
 	var taken []string
 	for _, cr := range im.creds {
 		count.Read++
-		added, err := w.insertOne("clients_auth", []string{"id", "password"}, []any{cr.ID, cr.Password})
+		hash, err := clientsauth.HashPassword(cr.Password)
+		if err != nil {
+			return err
+		}
+		added, err := w.insertOne("clients_auth", []string{"id", "password"}, []any{cr.ID, hash})
 		if err != nil {
 			return err
 		}

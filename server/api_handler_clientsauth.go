@@ -77,6 +77,16 @@ func (al *APIListener) handlePostClientsAuth(w http.ResponseWriter, req *http.Re
 		return
 	}
 
+	// a provider that stores only hashes (clusters) can't show the password later: it may generate one, and the
+	// response carries it, once
+	hashed := clientsauth.StoresHashes(al.clientAuthProvider)
+	if hashed && newClient.Password == "" {
+		if newClient.Password, err = clientsauth.GeneratePassword(); err != nil {
+			al.jsonErrorResponse(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+
 	if len(newClient.Password) < MinCredentialsLength {
 		al.jsonErrorResponseWithDetail(w, http.StatusBadRequest, ErrCodeInvalidRequest, "Invalid or missing password.", fmt.Sprintf("Min size is %d.", MinCredentialsLength))
 		return
@@ -99,6 +109,10 @@ func (al *APIListener) handlePostClientsAuth(w http.ResponseWriter, req *http.Re
 
 	al.Infof("ClientAuth %q created.", newClient.ID)
 
+	if hashed {
+		al.writeJSONResponse(w, http.StatusCreated, api.NewSuccessPayload(newClient))
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 }
 

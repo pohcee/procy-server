@@ -19,6 +19,25 @@ type ClientAuthOptions struct {
 	// only tenant.Default). The suite then runs its round trips in that tenant, checks that another tenant is
 	// refused with tenant.ErrNotSupported, and skips the isolation checks. Empty means any tenant is served.
 	OnlyTenant tenant.ID
+	// Hashed is set for a provider that stores only password hashes (a clientsauth.Verifier): Get and GetFiltered
+	// then return no password, and the suite checks passwords with clientsauth.Verify.
+	Hashed bool
+}
+
+// assertPassword checks that got (as Get or GetFiltered returned it) has the password pw.
+func assertPassword(ctx context.Context, t *testing.T, p clientsauth.Provider, opts ClientAuthOptions, got *clientsauth.ClientAuth, pw string) {
+	t.Helper()
+	if !opts.Hashed {
+		assert.Equal(t, pw, got.Password)
+		return
+	}
+	assert.Empty(t, got.Password, "a hashing provider never returns the password or its hash")
+	ok, err := clientsauth.Verify(ctx, p, got.ID, []byte(pw))
+	require.NoError(t, err)
+	assert.True(t, ok, "the password verifies")
+	ok, err = clientsauth.Verify(ctx, p, got.ID, []byte(pw+"x"))
+	require.NoError(t, err)
+	assert.False(t, ok, "another password doesn't")
 }
 
 // ClientAuth checks a writeable clientsauth.Provider.
@@ -52,14 +71,16 @@ func ClientAuth(t *testing.T, newRepo Factory[clientsauth.Provider], opts Client
 
 		got, err := p.Get(ctx, "c1")
 		require.NoError(t, err)
-		assert.Equal(t, &clientsauth.ClientAuth{ID: "c1", Password: "pw1"}, got)
+		require.NotNil(t, got)
+		assert.Equal(t, "c1", got.ID)
+		assertPassword(ctx, t, p, opts, got, "pw1")
 
 		added, err = p.Add(ctx, &clientsauth.ClientAuth{ID: "c1", Password: "other"})
 		require.NoError(t, err)
 		assert.False(t, added, "an existing id is reported, not replaced")
 		got, err = p.Get(ctx, "c1")
 		require.NoError(t, err)
-		assert.Equal(t, "pw1", got.Password)
+		assertPassword(ctx, t, p, opts, got, "pw1")
 
 		missing, err := p.Get(ctx, "nope")
 		require.NoError(t, err)
@@ -87,7 +108,7 @@ func ClientAuth(t *testing.T, newRepo Factory[clientsauth.Provider], opts Client
 		require.NoError(t, err)
 		assert.Equal(t, 6, count)
 		assert.Equal(t, []string{"Other", "client-1", "client-2", "client-3", "client-4", "client-5"}, clientAuthIDs(list), "sorted by id")
-		assert.Equal(t, "pw1", list[1].Password)
+		assertPassword(ctx, t, p, opts, list[1], "pw1")
 
 		list, count, err = p.GetFiltered(ctx, &query.ListOptions{Pagination: query.NewPagination(2, 2)})
 		require.NoError(t, err)
