@@ -89,7 +89,7 @@ func TestCoordinatorTenantsActiveOnly(t *testing.T) {
 	require.NoError(t, err)
 	got, err := newCoordinator(t, d, "n").Tenants(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, []tenant.ID{"a", "default"}, got)
+	assert.ElementsMatch(t, []tenant.ID{"a", "default", "_system"}, got, "the system tenant (platform operators) is active too")
 }
 
 func TestCoordinatorClientListenerLease(t *testing.T) {

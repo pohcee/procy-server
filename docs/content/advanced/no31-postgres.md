@@ -140,8 +140,20 @@ The vault values are decrypted with the old vault passphrase and encrypted again
 ## Tenants
 
 `rportd tenant add ID [NAME] --dsn <owner URL>` adds another tenant. Its users log in to the same server, and each
-login lands in its tenant. Schedules and clean-ups run for every active tenant. In this preview, devices connect
-only to the `default` tenant.
+login lands in its tenant. Schedules and clean-ups run for every active tenant.
+
+Devices of every tenant connect to the same client listener. Client auth ids are unique across all tenants, so the
+id a device logs in with tells the server its tenant; creating a credential whose id another tenant uses fails
+(HTTP 409). Everything the device does afterwards (command results, measurements, tunnels) belongs to that tenant.
+
+* A tenant that is not `active` (for example `suspended`) refuses its devices when they connect. Devices that are
+  connected at that moment stay connected until they reconnect.
+* `max_clients` in the `tenants` table limits how many clients a tenant may have (clients connected or disconnected
+  within `keep_disconnected_clients`, as the client list shows them). Empty (the default) means no limit. A client
+  the tenant already has always reconnects; a new one is refused once the limit is reached.
+
+A refused device logs the reason, for example `connection refused: the organization's limit of 10 clients is
+reached`, and the server logs a line naming the client, its client auth id and the tenant.
 
 ## Running several servers
 
@@ -241,6 +253,56 @@ node (session affinity) for:
 * login attempts and bans: each node counts failed logins on its own;
 * device pairing codes;
 * live job output in the UI (websockets) and uploads in progress.
+
+## Organizations and platform operators
+
+A tenant is an organization. **Platform operators** manage the organizations of a server: they are the
+administrators of the reserved system organization `_system`, which `rportd migrate` creates. Operators log in with
+the normal login. Inside `_system` they get only their own account, the operator users and groups, the `_system`
+audit log and the operator API; they can't see or act in another organization through the rest of the API. No device
+can belong to `_system`.
+
+After upgrading, run `rportd migrate --grant-to <application role>` once more: the application role needs `EXECUTE`
+on the functions through which operators change organizations (it can still only read the `tenants` table).
+
+Create the first operator, then manage organizations with `rportd org` (`--dsn` is the schema owner or the
+application role; default `[storage] dsn`):
+
+```shell
+rportd org add-admin _system ops@example.com -c /etc/rport/rportd.conf   # prints a one-time password
+rportd org add acme "Acme Corp" --device-limit 50 -c /etc/rport/rportd.conf
+rportd org add-admin acme alice@example.com -c /etc/rport/rportd.conf
+rportd org list -c /etc/rport/rportd.conf                                # --json for JSON
+rportd org set-limit acme 100 -c /etc/rport/rportd.conf                  # or "unlimited"
+rportd org suspend acme -c /etc/rport/rportd.conf
+rportd org activate acme -c /etc/rport/rportd.conf
+```
+
+* `add-admin` creates a user in the organization's Administrators group with a generated password, printed once.
+  The password must be changed at the first login. Logins are unique across organizations.
+* `suspend` takes effect on the next request: the organization's users can't log in, and their sessions and API
+  tokens stop working. `activate` undoes it. Organizations are not deleted.
+* The device limit is the most devices an organization may have (unlimited when not set). In this preview it is
+  stored and shown, and enforced only once devices of every organization connect (device login per organization).
+
+The same actions are in the **operator API** under `/api/v1/operator` (see the API reference, tag *Operator*), for
+administrators of `_system` only: other organizations get 404, other `_system` users 403, and servers on SQLite
+have no operator API.
+
+| Method | Path | Does |
+|---|---|---|
+| `GET` | `/operator/organizations` | list organizations (id, name, status, created, device count, device limit, user count) |
+| `POST` | `/operator/organizations` | create: `{"id": "acme", "name": "Acme Corp", "device_limit": 50}` |
+| `GET` | `/operator/organizations/{id}` | one organization |
+| `POST` | `/operator/organizations/{id}/suspend` | suspend |
+| `POST` | `/operator/organizations/{id}/activate` | reactivate |
+| `PUT` | `/operator/organizations/{id}/device-limit` | `{"device_limit": 100}` (`null`: unlimited) |
+| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; returns the generated password once |
+
+Every change, from the API or the CLI, is written to the audit log of `_system` (application
+`operator.organization` or `operator.organization.admin`; the CLI as user `cli:<system user>`), whether or not
+the audit log is enabled in the configuration. `GET /api/v1/status` reports `capabilities.operator: true` to
+operators.
 
 ## Developing
 

@@ -14,6 +14,7 @@ import (
 	"github.com/openrport/openrport/server/api/middleware"
 	"github.com/openrport/openrport/server/api/uploads"
 	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/routes"
 	"github.com/openrport/openrport/share/security"
 	"github.com/openrport/openrport/share/tenant"
@@ -56,6 +57,12 @@ func (al *APIListener) initRouter() {
 	secureAPI := api.NewRoute().Subrouter()
 	if !al.insecureForTests {
 		secureAPI.Use(al.wrapWithAuthMiddleware(false))
+	}
+	// the platform operators' tenant gets its own account routes and the operator API only
+	systemGuard := operator.SystemTenantGuard(al.responder())
+	secureAPI.Use(systemGuard)
+	if al.operatorAPI != nil {
+		al.operatorAPI.Mount(secureAPI.PathPrefix(operator.RoutePrefix).Subrouter())
 	}
 	secureAPI.HandleFunc("/status", al.handleGetStatus).Methods(http.MethodGet)
 	secureAPI.HandleFunc("/me", al.handleGetMe).Methods(http.MethodGet)
@@ -211,10 +218,10 @@ func (al *APIListener) initRouter() {
 
 	// web sockets
 	// common auth middleware is not used due to JS issue https://stackoverflow.com/questions/22383089/is-it-possible-to-use-bearer-authentication-for-websocket-upgrade-requests
-	api.HandleFunc("/ws/commands", al.wsAuth(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleCommandsWS)))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/library-entries", al.wsAuth(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleLibraryEntriesWS)))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/scripts", al.wsAuth(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleScriptsWS)))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/uploads", al.wsAuth(al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.uploads.HandleUploadsWS)))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/commands", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleCommandsWS))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/library-entries", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleLibraryEntriesWS))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/scripts", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleScriptsWS))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/uploads", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.uploads.HandleUploadsWS))))).Methods(http.MethodGet)
 
 	if al.config.API.EnableWsTestEndpoints {
 		api.HandleFunc("/test/commands/ui", al.wsCommands)

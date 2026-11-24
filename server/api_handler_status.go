@@ -47,10 +47,17 @@ func (al *APIListener) handleGetStatus(w http.ResponseWriter, req *http.Request)
 		"used_ports":                al.config.Server.UsedPortsRaw,
 		"monitoring_enabled":        al.config.Monitoring.Enabled,
 		"password_min_length":       al.config.API.PasswordMinLength,
-		"capabilities":              al.statusCapabilities(),
+		"capabilities":              al.requestCapabilities(req),
 	})
 
 	al.writeJSONResponse(w, http.StatusOK, response)
+}
+
+// requestCapabilities returns statusCapabilities with those that depend on the requesting user.
+func (al *APIListener) requestCapabilities(req *http.Request) capabilities.Capabilities {
+	c := al.statusCapabilities()
+	c.Operator = al.operatorAPI != nil && al.operatorAPI.IsOperator(req.Context())
+	return c
 }
 
 // statusCapabilities returns the capabilities reported by the status endpoint.

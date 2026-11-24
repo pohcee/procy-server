@@ -7,6 +7,7 @@ import (
 
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/api/middleware"
+	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/pairing"
 	"github.com/openrport/openrport/share/security"
 )
@@ -38,6 +39,8 @@ func (al *APIListener) registerPairingRoutes(r *mux.Router) {
 		al.pairing.HandleDeposit(w, r, api.GetUser(r.Context(), al.Logger))
 	})
 	deposit = al.wrapAdminAccessMiddleware(deposit)
+	// the platform operators' tenant has no devices
+	deposit = operator.SystemTenantGuard(al.responder())(deposit)
 	if !al.insecureForTests {
 		deposit = al.wrapWithAuthMiddleware(false)(deposit)
 	}

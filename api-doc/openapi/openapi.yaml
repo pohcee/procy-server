@@ -33,6 +33,10 @@ tags:
     description: For more details https://procy.sh/docs/get-started/command-execution/
   - name: Users
     description: For more details https://procy.sh/docs/get-started/users/
+  - name: Operator
+    description: >-
+      Platform operator API (Postgres servers only): manage the organizations of the server. Available to
+      administrators of the system organization `_system`.
 paths:
   /login:
     $ref: paths/login.yaml
@@ -58,6 +62,18 @@ paths:
     $ref: paths/me_token.yaml
   /status:
     $ref: paths/status.yaml
+  /operator/organizations:
+    $ref: paths/operator_organizations.yaml
+  /operator/organizations/{id}:
+    $ref: paths/operator_organizations_{id}.yaml
+  /operator/organizations/{id}/suspend:
+    $ref: paths/operator_organizations_{id}_suspend.yaml
+  /operator/organizations/{id}/activate:
+    $ref: paths/operator_organizations_{id}_activate.yaml
+  /operator/organizations/{id}/device-limit:
+    $ref: paths/operator_organizations_{id}_device-limit.yaml
+  /operator/organizations/{id}/admins:
+    $ref: paths/operator_organizations_{id}_admins.yaml
   /clients:
     $ref: paths/clients.yaml
   /tunnels:

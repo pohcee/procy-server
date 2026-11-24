@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type mockSSHConn struct {
@@ -124,4 +126,19 @@ func TestClientsStatusDeterminationTask(t *testing.T) {
 	log, err := os.ReadFile(logfile)
 	assert.NoError(t, err, "error reading log file")
 	assert.Contains(t, string(log), fmt.Sprintf("ping to  [4] failed: conn.SendRequest(ping), timeout %s exceeded", timeout))
+}
+
+// The status check pings the clients of every tenant connected to this node, not only the server's tenant.
+func TestClientsStatusCheckCoversEveryTenant(t *testing.T) {
+	cr := clients.NewClientRepository(nil, nil, testLog)
+	a := tenant.WithID(context.Background(), "a")
+	c := clients.New(t).ID("ca").Connection(mockSSHConn{shallFail: true}).Logger(testLog).Build()
+	assert.NoError(t, cr.Save(a, c))
+	assert.ElementsMatch(t, []tenant.ID{tenant.Default, "a"}, cr.Tenants())
+
+	task := NewClientsStatusCheckTask(testLog, cr, 120*time.Second, time.Second)
+	assert.NoError(t, task.Run(tenant.WithID(context.Background(), tenant.Default)))
+	got, err := cr.GetByID(a, "ca")
+	assert.NoError(t, err)
+	assert.NotNil(t, got.GetDisconnectedAt(), "the failed ping of tenant a's client marks it disconnected")
 }
