@@ -36,6 +36,9 @@ type Capabilities struct {
 	ScheduledJobs bool `json:"scheduled_jobs"`
 	// Library: the script and command library.
 	Library bool `json:"library"`
+	// Operator: the operator API (/api/v1/operator) is available to the requesting user, a platform operator.
+	// Reported only when true, so servers without operators report nothing new.
+	Operator bool `json:"operator,omitempty"`
 }
 
 // FromConfig returns the capabilities offered by a server running with cfg.

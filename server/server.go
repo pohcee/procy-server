@@ -32,6 +32,7 @@ import (
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
+	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/ports"
 	"github.com/openrport/openrport/server/scheduler"
 	"github.com/openrport/openrport/server/vault"
@@ -125,6 +126,9 @@ type ServerOpts struct {
 	// admin gives through the API (#34). The vault then needs no initialisation, init, unlock and lock answer 409,
 	// and GET /api/v1/status reports the vault_passphrase capability as false.
 	VaultKeys vault.KeyProvider
+	// Operator, when set, serves the platform operator API (/api/v1/operator) to the administrators of the system
+	// tenant (Postgres nodes). Nil: no operator API, as on standalone servers.
+	Operator operator.Service
 	// Cluster, when set, is how the server shares its database with other nodes: background work runs for every
 	// active tenant on one node at a time, scheduled runs are claimed, and what the server caches follows the
 	// changes other nodes make. nil means cluster.Standalone (the default tenant, everything runs here).
@@ -335,6 +339,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		// nil means tenant.DefaultResolver
 		TenantResolver: opts.TenantResolver,
 		VaultKeys:      s.vaultKeys,
+		Operator:       opts.Operator,
 		// in a cluster old notifications are deleted per tenant by a leased task (Run)
 		NoNotificationsCleaner: s.cluster.Clustered(),
 	})

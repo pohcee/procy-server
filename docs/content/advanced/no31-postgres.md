@@ -195,6 +195,56 @@ node (session affinity) for:
 * device pairing codes;
 * live job output in the UI (websockets) and uploads in progress.
 
+## Organizations and platform operators
+
+A tenant is an organization. **Platform operators** manage the organizations of a server: they are the
+administrators of the reserved system organization `_system`, which `rportd migrate` creates. Operators log in with
+the normal login. Inside `_system` they get only their own account, the operator users and groups, the `_system`
+audit log and the operator API; they can't see or act in another organization through the rest of the API. No device
+can belong to `_system`.
+
+After upgrading, run `rportd migrate --grant-to <application role>` once more: the application role needs `EXECUTE`
+on the functions through which operators change organizations (it can still only read the `tenants` table).
+
+Create the first operator, then manage organizations with `rportd org` (`--dsn` is the schema owner or the
+application role; default `[storage] dsn`):
+
+```shell
+rportd org add-admin _system ops@example.com -c /etc/rport/rportd.conf   # prints a one-time password
+rportd org add acme "Acme Corp" --device-limit 50 -c /etc/rport/rportd.conf
+rportd org add-admin acme alice@example.com -c /etc/rport/rportd.conf
+rportd org list -c /etc/rport/rportd.conf                                # --json for JSON
+rportd org set-limit acme 100 -c /etc/rport/rportd.conf                  # or "unlimited"
+rportd org suspend acme -c /etc/rport/rportd.conf
+rportd org activate acme -c /etc/rport/rportd.conf
+```
+
+* `add-admin` creates a user in the organization's Administrators group with a generated password, printed once.
+  The password must be changed at the first login. Logins are unique across organizations.
+* `suspend` takes effect on the next request: the organization's users can't log in, and their sessions and API
+  tokens stop working. `activate` undoes it. Organizations are not deleted.
+* The device limit is the most devices an organization may have (unlimited when not set). In this preview it is
+  stored and shown, and enforced only once devices of every organization connect (device login per organization).
+
+The same actions are in the **operator API** under `/api/v1/operator` (see the API reference, tag *Operator*), for
+administrators of `_system` only: other organizations get 404, other `_system` users 403, and servers on SQLite
+have no operator API.
+
+| Method | Path | Does |
+|---|---|---|
+| `GET` | `/operator/organizations` | list organizations (id, name, status, created, device count, device limit, user count) |
+| `POST` | `/operator/organizations` | create: `{"id": "acme", "name": "Acme Corp", "device_limit": 50}` |
+| `GET` | `/operator/organizations/{id}` | one organization |
+| `POST` | `/operator/organizations/{id}/suspend` | suspend |
+| `POST` | `/operator/organizations/{id}/activate` | reactivate |
+| `PUT` | `/operator/organizations/{id}/device-limit` | `{"device_limit": 100}` (`null`: unlimited) |
+| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; returns the generated password once |
+
+Every change, from the API or the CLI, is written to the audit log of `_system` (application
+`operator.organization` or `operator.organization.admin`; the CLI as user `cli:<system user>`), whether or not
+the audit log is enabled in the configuration. `GET /api/v1/status` reports `capabilities.operator: true` to
+operators.
+
 ## Developing
 
 `go run ./server/storage/postgres/pgtest/devdb` starts a throwaway Postgres without Docker and prints a `[storage]`

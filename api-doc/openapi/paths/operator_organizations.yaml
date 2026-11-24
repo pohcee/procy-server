@@ -1,0 +1,106 @@
+get:
+  tags:
+    - Operator
+  summary: List the organizations. Platform operators only
+  description: >-
+    Every organization of the server, oldest first, with its device and user counts. Available on Postgres
+    servers to administrators of the system organization `_system`.
+  operationId: OperatorOrganizationsGet
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/Organization.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization, or the organization does not exist
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+post:
+  tags:
+    - Operator
+  summary: Create an organization. Platform operators only
+  description: Create an active organization with the built-in library entries. Written to the audit log of `_system`.
+  operationId: OperatorOrganizationsPost
+  requestBody:
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - id
+          properties:
+            id:
+              type: string
+              description: >-
+                1 to 63 lower-case letters, digits, '-' or '_', starting with a letter or digit
+              example: acme
+            name:
+              type: string
+              description: Display name; defaults to the id
+            device_limit:
+              type: integer
+              nullable: true
+              minimum: 0
+              description: The most devices the organization may have; null or missing is unlimited
+    required: true
+  responses:
+    '201':
+      description: Created
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/Organization.yaml
+    '400':
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization, or the organization does not exist
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: The organization ID is taken
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

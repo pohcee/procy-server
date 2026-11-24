@@ -1,0 +1,71 @@
+post:
+  tags:
+    - Operator
+  summary: Create an administrator of an organization. Platform operators only
+  description: >-
+    Create a user in the organization's Administrators group with a generated password, returned once. The
+    password must be changed at the first login. With the id `_system` it creates another platform operator.
+    Written to the audit log of `_system` (without the password).
+  operationId: OperatorOrganizationAdminsPost
+  parameters:
+    - name: id
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+  requestBody:
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - username
+          properties:
+            username:
+              type: string
+              description: Login, unique across all organizations
+            two_fa_send_to:
+              type: string
+              description: Where 2FA tokens are sent; required when the server sends 2FA tokens
+    required: true
+  responses:
+    '201':
+      description: Created
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/OrganizationAdmin.yaml
+    '400':
+      description: Invalid request parameters or the username is taken
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization, or the organization does not exist
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: The organization is suspended
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

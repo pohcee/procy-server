@@ -1,0 +1,30 @@
+type: object
+description: An organization (tenant) as platform operators see it
+properties:
+  id:
+    type: string
+    description: Organization ID
+    example: acme
+  name:
+    type: string
+    example: Acme Corp
+  status:
+    type: string
+    enum:
+      - active
+      - suspended
+    description: Users of a suspended organization can't log in, and their sessions and API tokens stop working.
+  created_at:
+    type: string
+    format: date-time
+  device_count:
+    type: integer
+    description: Number of devices (clients) the organization has
+  device_limit:
+    type: integer
+    nullable: true
+    minimum: 0
+    description: The most devices the organization may have; null is unlimited
+  user_count:
+    type: integer
+    description: Number of users of the organization
