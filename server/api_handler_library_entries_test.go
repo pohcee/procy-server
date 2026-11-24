@@ -20,6 +20,7 @@ import (
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type libraryEntriesEnv struct {
@@ -47,7 +48,7 @@ func newLibraryEntriesEnv(t *testing.T) *libraryEntriesEnv {
 func (e *libraryEntriesEnv) do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
-	req = req.WithContext(api.WithUser(req.Context(), "admin"))
+	req = req.WithContext(api.WithUser(tenant.WithID(req.Context(), tenant.Default), "admin"))
 	w := httptest.NewRecorder()
 	e.router.ServeHTTP(w, req)
 	return w
@@ -227,7 +228,7 @@ func TestLibraryEntryWriteBodyLimit(t *testing.T) {
 	form := func(method, path, body string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req = req.WithContext(api.WithUser(req.Context(), "admin"))
+		req = req.WithContext(api.WithUser(tenant.WithID(req.Context(), tenant.Default), "admin"))
 		w := httptest.NewRecorder()
 		e.router.ServeHTTP(w, req)
 		return w

@@ -18,6 +18,7 @@ import (
 	"github.com/openrport/openrport/server/cgroups"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func TestHandlePostScheduleMultiClientJobWithTags(t *testing.T) {
@@ -210,7 +211,7 @@ func TestHandlePostScheduleMultiClientJobWithTags(t *testing.T) {
 			al.clientGroupProvider = gp
 			al.scheduleManager = scheduleManager
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 
 			err := gp.Create(ctx, g1)
 			assert.NoError(t, err)
@@ -439,7 +440,7 @@ func TestHandlePostUpdateScheduleMultiClientJobWithTags(t *testing.T) {
 			al.clientGroupProvider = gp
 			al.scheduleManager = scheduleManager
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 
 			err := gp.Create(ctx, g1)
 			assert.NoError(t, err)

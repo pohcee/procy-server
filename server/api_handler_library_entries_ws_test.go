@@ -13,13 +13,14 @@ import (
 
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/ws"
 )
 
 func (e *libraryRunEnv) dialLibraryWS(t *testing.T) *websocket.Conn {
 	t.Helper()
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		e.al.handleLibraryEntriesWS(w, r.WithContext(api.WithUser(r.Context(), "admin")))
+		e.al.handleLibraryEntriesWS(w, r.WithContext(api.WithUser(tenant.WithID(r.Context(), tenant.Default), "admin")))
 	})
 	s := httptest.NewServer(h)
 	t.Cleanup(s.Close)

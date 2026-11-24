@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/types"
 )
 
@@ -42,6 +43,8 @@ var OptionsListDefaultFields = map[string][]string{
 }
 
 type ClientGroup struct {
+	// TenantID is set by the provider from the request context; never exposed in the API.
+	TenantID          tenant.ID         `json:"-" db:"tenant_id"`
 	ID                string            `json:"id" db:"id"`
 	Description       string            `json:"description" db:"description"`
 	Params            *ClientParams     `json:"params" db:"params"`

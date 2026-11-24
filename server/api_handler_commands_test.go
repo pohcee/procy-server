@@ -37,8 +37,8 @@ import (
 	"github.com/openrport/openrport/share/query"
 	"github.com/openrport/openrport/share/random"
 	"github.com/openrport/openrport/share/security"
-	"github.com/openrport/openrport/share/test"
 	"github.com/openrport/openrport/share/tenant"
+	"github.com/openrport/openrport/share/test"
 	"github.com/openrport/openrport/share/ws"
 )
 
@@ -303,7 +303,7 @@ func TestHandlePostCommand(t *testing.T) {
 				connMock.ReturnResponsePayload = tc.connReturnResp // override stubbed success payload
 			}
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 			req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/clients/%s/commands", tc.cid), strings.NewReader(tc.requestBody))
 			req = req.WithContext(ctx)
 
@@ -695,7 +695,7 @@ func TestHandlePostMultiClientCommand(t *testing.T) {
 
 			connMock1.ReturnErr = tc.connReturnErr
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/commands", strings.NewReader(tc.requestBody))
 			req = req.WithContext(ctx)
 
@@ -856,7 +856,7 @@ func TestHandlePostMultiClientCommandWithPausedClient(t *testing.T) {
 			defer jp.Close()
 			al.jobProvider = jp
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/commands", strings.NewReader(tc.requestBody))
 			req = req.WithContext(ctx)
 
@@ -1019,7 +1019,7 @@ func TestHandlePostMultiClientCommandWithGroupIDs(t *testing.T) {
 			al.jobProvider = jp
 			al.clientGroupProvider = gp
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 
 			err := gp.Create(ctx, g1)
 			assert.NoError(t, err)
@@ -1248,7 +1248,7 @@ func TestHandlePostMultiClientCommandWithTags(t *testing.T) {
 			al.jobProvider = jp
 			al.clientGroupProvider = gp
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 
 			err := gp.Create(ctx, g1)
 			assert.NoError(t, err)
@@ -1486,7 +1486,7 @@ func TestHandlePostMultiClientWSCommandWithTags(t *testing.T) {
 			al.jobProvider = jp
 			al.clientGroupProvider = gp
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 
 			err := gp.Create(ctx, g1)
 			assert.NoError(t, err)
@@ -1494,7 +1494,7 @@ func TestHandlePostMultiClientWSCommandWithTags(t *testing.T) {
 			assert.NoError(t, err)
 
 			// setup a web socket server running the handler under test
-			s := httptest.NewServer(al.wsAuth(http.HandlerFunc(al.handleCommandsWS)))
+			s := httptest.NewServer(tenant.Middleware(tenant.DefaultResolver{})(al.wsAuth(http.HandlerFunc(al.handleCommandsWS))))
 			defer s.Close()
 
 			// prep the test user auth
@@ -1720,7 +1720,7 @@ func TestHandlePostMultiClientScriptWithTags(t *testing.T) {
 			al.jobProvider = jp
 			al.clientGroupProvider = gp
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 
 			err := gp.Create(ctx, g1)
 			assert.NoError(t, err)
@@ -1960,7 +1960,7 @@ func TestHandlePostMultiClientWSScriptWithTags(t *testing.T) {
 			al.jobProvider = jp
 			al.clientGroupProvider = gp
 
-			ctx := api.WithUser(context.Background(), testUser)
+			ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), testUser)
 
 			err := gp.Create(ctx, g1)
 			assert.NoError(t, err)
@@ -1968,7 +1968,7 @@ func TestHandlePostMultiClientWSScriptWithTags(t *testing.T) {
 			assert.NoError(t, err)
 
 			// setup a web socket server running the handler under test
-			s := httptest.NewServer(al.wsAuth(http.HandlerFunc(al.handleScriptsWS)))
+			s := httptest.NewServer(tenant.Middleware(tenant.DefaultResolver{})(al.wsAuth(http.HandlerFunc(al.handleScriptsWS))))
 			defer s.Close()
 
 			// prep the test user auth
