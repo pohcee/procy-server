@@ -19,6 +19,7 @@ import (
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/test"
 	"github.com/openrport/openrport/share/ws"
 )
@@ -158,7 +159,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		done := make(chan bool)
 		al.testDone = done
 
-		multiJob, err := al.StartMultiClientJob(context.Background(), &jobs.MultiJobRequest{
+		multiJob, err := al.StartMultiClientJob(tenant.WithID(context.Background(), tenant.Default), &jobs.MultiJobRequest{
 			ClientIDs:      []string{"c1", "c2", "c3"},
 			Command:        "uname -a",
 			Cwd:            "/tmp",
@@ -177,7 +178,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		assert.JSONEq(t, wantTypedJobDetailsPaused, rawJobDetails(t, jp, "jid-3"))
 		assert.JSONEq(t, fmt.Sprintf(wantTypedJobDetailsRunning, 3), rawJobDetails(t, jp, "jid-4"))
 
-		got, err := jp.GetMultiJob(context.Background(), "jid-1")
+		got, err := jp.GetMultiJob(tenant.WithID(context.Background(), tenant.Default), "jid-1")
 		require.NoError(t, err)
 		require.Len(t, got.Jobs, 3)
 		assert.Equal(t, map[string]string{
@@ -193,7 +194,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		al, jp, cls, conns := typedRunFixture(t)
 		uiConn := &fakeUIConn{}
 		uiConnTS := ws.NewConcurrentWebSocket(uiConn, testLog)
-		ctx := api.WithUser(context.Background(), "tester")
+		ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), "tester")
 
 		al.handleCommandsExecutionWS(ctx, uiConnTS, &jobs.MultiJobRequest{
 			ClientIDs:      []string{"c1", "c2", "c3"},
@@ -234,7 +235,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		al.testDone = done
 		uiConn := &fakeUIConn{}
 		uiConnTS := ws.NewConcurrentWebSocket(uiConn, testLog)
-		ctx := api.WithUser(context.Background(), "tester")
+		ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), "tester")
 		abort := true
 
 		al.handleCommandsExecutionWS(ctx, uiConnTS, &jobs.MultiJobRequest{
@@ -245,7 +246,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 			OrderedClients: []*clientdata.Client{cls[1], cls[0]},
 		}, nil)
 
-		got, err := jp.GetMultiJob(context.Background(), "jid-1")
+		got, err := jp.GetMultiJob(tenant.WithID(context.Background(), tenant.Default), "jid-1")
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{"jid-2": models.JobStatusFailed}, jobStatuses(got))
 		assert.True(t, uiConn.closed)
@@ -260,7 +261,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		al.testDone = done
 		abort := true
 
-		_, err := al.StartMultiClientJob(context.Background(), &jobs.MultiJobRequest{
+		_, err := al.StartMultiClientJob(tenant.WithID(context.Background(), tenant.Default), &jobs.MultiJobRequest{
 			ClientIDs:      []string{"c2", "c1"},
 			Command:        "uname -a",
 			TimeoutSec:     30,
@@ -274,7 +275,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("api run did not finish")
 		}
-		got, err := jp.GetMultiJob(context.Background(), "jid-1")
+		got, err := jp.GetMultiJob(tenant.WithID(context.Background(), tenant.Default), "jid-1")
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{"jid-2": models.JobStatusFailed}, jobStatuses(got))
 	})
@@ -288,8 +289,8 @@ type doneSignalingJobProvider struct {
 	al *APIListener
 }
 
-func (p *doneSignalingJobProvider) CreateJob(job *models.Job) error {
-	err := p.SqliteProvider.CreateJob(job)
+func (p *doneSignalingJobProvider) CreateJob(ctx context.Context, job *models.Job) error {
+	err := p.SqliteProvider.CreateJob(ctx, job)
 	if job.Status == models.JobStatusRunning && job.MultiJobID != nil {
 		if ch := p.al.jobsDoneChannel.Get(*job.MultiJobID); ch != nil {
 			finished := *job
@@ -338,10 +339,10 @@ func linuxOnlyEntry(c *clientdata.Client) (library.JobSpec, string) {
 
 func runExecutor(t *testing.T, al *APIListener, uiConn *ws.ConcurrentWebSocket, mj *models.MultiJob, cls []*clientdata.Client, specFor clientSpecFunc) {
 	t.Helper()
-	require.NoError(t, al.jobProvider.SaveMultiJob(mj))
+	require.NoError(t, al.jobProvider.SaveMultiJob(tenant.WithID(context.Background(), tenant.Default), mj))
 	finished := make(chan struct{})
 	go func() {
-		al.runMultiClientJob(uiConn, mj, cls, specFor)
+		al.runMultiClientJob(tenant.WithID(context.Background(), tenant.Default), uiConn, mj, cls, specFor)
 		close(finished)
 	}()
 	select {
@@ -353,7 +354,7 @@ func runExecutor(t *testing.T, al *APIListener, uiConn *ws.ConcurrentWebSocket, 
 
 func jobsByClient(t *testing.T, jp *jobs.SqliteProvider, multiJobID string) map[string]*models.Job {
 	t.Helper()
-	mj, err := jp.GetMultiJob(context.Background(), multiJobID)
+	mj, err := jp.GetMultiJob(tenant.WithID(context.Background(), tenant.Default), multiJobID)
 	require.NoError(t, err)
 	res := map[string]*models.Job{}
 	for _, j := range mj.Jobs {
@@ -436,7 +437,7 @@ func TestExecutorRecordsLibraryFields(t *testing.T) {
 
 	runExecutor(t, al, nil, mj, cls, linuxOnlyEntry)
 
-	gotMJ, err := jp.GetMultiJob(context.Background(), "multi-1")
+	gotMJ, err := jp.GetMultiJob(tenant.WithID(context.Background(), tenant.Default), "multi-1")
 	require.NoError(t, err)
 	assert.Equal(t, "entry-1", gotMJ.LibraryEntryID)
 	assert.Equal(t, 3, gotMJ.LibraryVersion)

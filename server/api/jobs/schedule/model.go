@@ -9,6 +9,7 @@ import (
 
 	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 const (
@@ -23,10 +24,12 @@ type Schedule struct {
 	LastExecution *Execution `json:"last_execution"`
 }
 
-func (s Schedule) ToDB() DBSchedule {
+// ToDB returns the row of s in tenant tid.
+func (s Schedule) ToDB(tid tenant.ID) DBSchedule {
 	return DBSchedule{
-		Base:    s.Base,
-		Details: s.Details,
+		TenantID: tid,
+		Base:     s.Base,
+		Details:  s.Details,
 	}
 }
 
@@ -44,6 +47,8 @@ func (s *Schedule) GetClientTags() (clientTags *models.JobClientTags) {
 
 // DBSchedule is used for saving to database and has details in one json db column
 type DBSchedule struct {
+	// TenantID is set by the provider from the context; never exposed in the API.
+	TenantID tenant.ID `json:"-" db:"tenant_id"`
 	Base
 	Details Details `db:"details"`
 	Execution

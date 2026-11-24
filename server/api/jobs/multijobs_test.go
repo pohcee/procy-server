@@ -1,7 +1,6 @@
 package jobs
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -13,10 +12,11 @@ import (
 	"github.com/openrport/openrport/server/test/jb"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func TestMultiJobsSqliteProvider(t *testing.T) {
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 	jobsDB, err := sqlite.New(":memory:", jobs.AssetNames(), jobs.Asset, DataSourceOptions)
 	require.NoError(t, err)
 	p := NewSqliteProvider(jobsDB, testLog)
@@ -32,12 +32,12 @@ func TestMultiJobsSqliteProvider(t *testing.T) {
 	job1 := jb.NewMulti(t).JID("1111").StartedAt(t1.Add(-time.Hour)).WithJobs().WithSudo().Build()
 	job2 := jb.NewMulti(t).JID("2222").StartedAt(t1).WithCwd("/root").Build() // jid used to check the order by
 	job3 := jb.NewMulti(t).JID("3333").StartedAt(t1).Build()
-	require.NoError(t, p.SaveMultiJob(job1))
+	require.NoError(t, p.SaveMultiJob(ctx, job1))
 	for _, j := range job1.Jobs {
-		require.NoError(t, p.SaveJob(j))
+		require.NoError(t, p.SaveJob(ctx, j))
 	}
-	require.NoError(t, p.SaveMultiJob(job2))
-	require.NoError(t, p.SaveMultiJob(job3))
+	require.NoError(t, p.SaveMultiJob(ctx, job2))
+	require.NoError(t, p.SaveMultiJob(ctx, job3))
 
 	// verify added jobs
 	gotJob1, err := p.GetMultiJob(ctx, job1.JID)
@@ -80,7 +80,7 @@ func TestMultiJobsSqliteProvider(t *testing.T) {
 	job1.Concurrent = true
 	job1.StartedAt = t1.Add(time.Second)
 
-	require.NoError(t, p.SaveMultiJob(job1))
+	require.NoError(t, p.SaveMultiJob(ctx, job1))
 	gotJob1, err = p.GetMultiJob(ctx, job1.JID)
 	require.NoError(t, err)
 	require.NotNil(t, gotJob1)

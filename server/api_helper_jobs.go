@@ -28,22 +28,23 @@ var generateNewJobID = func() (string, error) {
 }
 
 type JobProvider interface {
-	GetByJID(clientID, jid string) (*models.Job, error)
+	GetByJID(ctx context.Context, clientID, jid string) (*models.Job, error)
 	List(ctx context.Context, options *query.ListOptions) ([]*models.Job, error)
 	Count(ctx context.Context, options *query.ListOptions) (int, error)
 	// SaveJob creates or updates a job
-	SaveJob(job *models.Job) error
+	SaveJob(ctx context.Context, job *models.Job) error
 	// CreateJob creates a new job. If already exist with a given JID - do nothing and return nil
-	CreateJob(job *models.Job) error
+	CreateJob(ctx context.Context, job *models.Job) error
 	GetMultiJob(ctx context.Context, jid string) (*models.MultiJob, error)
 	GetMultiJobSummaries(ctx context.Context, options *query.ListOptions) ([]*models.MultiJobSummary, error)
 	CountMultiJobs(ctx context.Context, options *query.ListOptions) (int, error)
-	SaveMultiJob(multiJob *models.MultiJob) error
+	SaveMultiJob(ctx context.Context, multiJob *models.MultiJob) error
 	CleanupJobsMultiJobs(context.Context, int) error
 	Close() error
 }
 
 func (al *APIListener) createAndRunJob(
+	ctx context.Context,
 	uiConnTS *ws.ConcurrentWebSocket,
 	multiJobID *string,
 	jid, createdBy string,
@@ -93,7 +94,7 @@ func (al *APIListener) createAndRunJob(
 		return err
 	}
 
-	if dbErr := al.jobProvider.CreateJob(&curJob); dbErr != nil {
+	if dbErr := al.jobProvider.CreateJob(ctx, &curJob); dbErr != nil {
 		// just log it, cmd is running, when it's finished it can be saved on result return
 		al.Errorf("%s, Failed to persist job: %v", logPrefix, dbErr)
 	}
@@ -163,20 +164,21 @@ func (al *APIListener) StartMultiClientJob(ctx context.Context, multiJobRequest 
 		Concurrent:  multiJobRequest.ExecuteConcurrently,
 		AbortOnErr:  abortOnErr,
 	}
-	if err := al.jobProvider.SaveMultiJob(multiJob); err != nil {
+	if err := al.jobProvider.SaveMultiJob(ctx, multiJob); err != nil {
 		return nil, err
 	}
 
-	go al.executeMultiClientJob(multiJob, multiJobRequest.OrderedClients)
+	go al.executeMultiClientJob(ctx, multiJob, multiJobRequest.OrderedClients)
 
 	return multiJob, nil
 }
 
 func (al *APIListener) executeMultiClientJob(
+	ctx context.Context,
 	job *models.MultiJob,
 	orderedClients []*clientdata.Client,
 ) {
-	al.runMultiClientJob(nil, job, orderedClients, sameSpecForAll(typedJobSpec(job)))
+	al.runMultiClientJob(ctx, nil, job, orderedClients, sameSpecForAll(typedJobSpec(job)))
 }
 
 // serverURLPlaceholder is filled with the public server URL in built-in entries.
@@ -210,7 +212,7 @@ func (al *APIListener) StartLibraryMultiJob(ctx context.Context, entryID string,
 	if err != nil {
 		return nil, err
 	}
-	go al.runMultiClientJob(nil, multiJob, req.OrderedClients, specFor)
+	go al.runMultiClientJob(ctx, nil, multiJob, req.OrderedClients, specFor)
 	return multiJob, nil
 }
 
@@ -303,7 +305,7 @@ func (al *APIListener) prepareLibraryMultiJob(ctx context.Context, entryID strin
 		LibraryEntryID: entry.ID,
 		LibraryVersion: entry.ActiveVersion,
 	}
-	if err := al.jobProvider.SaveMultiJob(multiJob); err != nil {
+	if err := al.jobProvider.SaveMultiJob(ctx, multiJob); err != nil {
 		return nil, nil, err
 	}
 

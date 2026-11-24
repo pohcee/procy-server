@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -75,7 +76,7 @@ func TestWSRunEntryStreamsResults(t *testing.T) {
 	// a result from an old client that does not echo the library fields
 	cl := &ClientListener{logger: testLog, server: e.al.Server}
 	res := `{"jid":"` + linuxJID + `","multi_job_id":"` + mjid + `","client_id":"c-linux","status":"successful","started_at":"2026-01-01T00:00:00Z","result":{"stdout":"up 1 day"}}`
-	_, err := cl.saveCmdResult([]byte(res))
+	_, err := cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(res))
 	require.NoError(t, err)
 
 	live := readWSMap(t, conn)
@@ -112,7 +113,7 @@ func TestWSRunEntryNoTargets(t *testing.T) {
 
 func TestTypedResultForwardedUntouched(t *testing.T) {
 	e := newLibraryRunEnv(t)
-	require.NoError(t, e.jp.CreateJob(&models.Job{JID: "t1", ClientID: "c-linux", Status: models.JobStatusRunning, StartedAt: time.Now()}))
+	require.NoError(t, e.jp.CreateJob(tenant.WithID(context.Background(), tenant.Default), &models.Job{JID: "t1", ClientID: "c-linux", Status: models.JobStatusRunning, StartedAt: time.Now()}))
 
 	received := make(chan []byte, 1)
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +137,7 @@ func TestTypedResultForwardedUntouched(t *testing.T) {
 
 	raw := `{"jid":"t1","client_id":"c-linux","status":"successful",  "started_at":"2026-01-01T00:00:00Z"}`
 	cl := &ClientListener{logger: testLog, server: e.al.Server}
-	_, err = cl.saveCmdResult([]byte(raw))
+	_, err = cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(raw))
 	require.NoError(t, err)
 	select {
 	case m := <-received:

@@ -96,7 +96,7 @@ func (al *APIListener) handleCommandsExecutionWS(
 			IsSudo:      inboundMsg.IsSudo,
 			IsScript:    inboundMsg.IsScript,
 		}
-		if err := al.jobProvider.SaveMultiJob(multiJob); err != nil {
+		if err := al.jobProvider.SaveMultiJob(ctx, multiJob); err != nil {
 			uiConnTS.WriteError("Failed to persist a new multi-client job.", err)
 			return
 		}
@@ -105,12 +105,13 @@ func (al *APIListener) handleCommandsExecutionWS(
 
 		uiConnTS.SetWritesBeforeClose(len(inboundMsg.OrderedClients))
 
-		al.runMultiClientJob(uiConnTS, multiJob, inboundMsg.OrderedClients, sameSpecForAll(typedJobSpec(multiJob)))
+		al.runMultiClientJob(ctx, uiConnTS, multiJob, inboundMsg.OrderedClients, sameSpecForAll(typedJobSpec(multiJob)))
 		return
 	}
 
 	// single client, no multi-job
 	al.createAndRunJob( //nolint:errcheck // error is logged, nothing to act on here
+		ctx,
 		uiConnTS,
 		nil,
 		jid,
