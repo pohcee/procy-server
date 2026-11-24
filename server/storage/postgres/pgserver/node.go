@@ -47,8 +47,8 @@ func OpenOwner(ctx context.Context, cfg *chconfig.Config, ownerDSN string) (*sql
 
 // NodeOpts returns the server options of a node on the Postgres database db (connected as the application role,
 // migrated): base with every repository on Postgres, the tenant of each request from the resolver, the vault keys of
-// [vault] key_provider, and, for [storage] role = "api", no client listener and work on clients refused as not
-// connected. It refuses a database that is not migrated (run rportd migrate) and a connection row-level security
+// [vault] key_provider, devices of every tenant connecting (DeviceTenants), and, for [storage] role = "api", no client
+// listener and work on clients refused as not connected. It refuses a database that is not migrated (run rportd migrate) and a connection row-level security
 // would not apply to (superuser, BYPASSRLS or table owner). release frees what NodeOpts opened (not db); call it
 // after the server stopped.
 func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chserver.ServerOpts, logw io.Writer) (_ *chserver.ServerOpts, release func(), _ error) {
@@ -80,6 +80,9 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 	if cfg.Storage.Role == chconfig.StorageRoleAPI {
 		opts.DisableClientListener = true
 		opts.Dispatcher = NotConnectedDispatcher{}
+	} else {
+		// devices of every tenant connect; their client auth id names the tenant
+		opts.DeviceTenants = NewDeviceTenants(db)
 	}
 
 	keys, closeFn, err := VaultKeys(ctx, cfg, db, logw)

@@ -427,6 +427,18 @@ func (r *ClientRepository) getNonObsoleteClientsByUser(ctx context.Context, user
 	return matchingClients
 }
 
+// Tenants returns the tenants the cache holds clients for: those whose clients were loaded, because a client of
+// theirs connected or their clients were asked for.
+func (r *ClientRepository) Tenants() []tenant.ID {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]tenant.ID, 0, len(r.clientState))
+	for tid := range r.clientState {
+		out = append(out, tid)
+	}
+	return out
+}
+
 func (r *ClientRepository) log() (l *logger.Logger) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

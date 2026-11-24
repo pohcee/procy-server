@@ -38,6 +38,7 @@ import (
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/security"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/ws"
 )
 
@@ -83,6 +84,9 @@ type ClientListenerOptions struct {
 	PlusManager  rportplus.Manager
 	// Capabilities are sent to every client that connects.
 	Capabilities *models.Capabilities
+	// DeviceTenants, when set, finds the tenant of each connecting device from its client auth id and decides
+	// whether the tenant takes it (status, client limit). nil: every device belongs to the listener's tenant.
+	DeviceTenants DeviceTenants
 }
 
 // listenerServices holds the options under the names the listener code uses.
@@ -98,6 +102,7 @@ type listenerServices struct {
 	monitoringQueue    monitoring.MeasurementSaver
 	plusManager        rportplus.Manager
 	capabilities       *models.Capabilities
+	deviceTenants      DeviceTenants
 }
 
 type ClientListener struct {
@@ -113,6 +118,7 @@ type ClientListener struct {
 	requestLogOptions *requestlog.Options
 	bannedClientAuths *security.BanList
 	bannedIPs         *security.MaxBadAttemptsBanList
+	admission         deviceAdmission
 
 	clientIndexAutoIncrement int32
 
@@ -176,6 +182,7 @@ func NewClientListener(o ClientListenerOptions) (*ClientListener, error) {
 		monitoringQueue:    o.Measurements,
 		plusManager:        o.PlusManager,
 		capabilities:       o.Capabilities,
+		deviceTenants:      o.DeviceTenants,
 	}
 	privateKey := o.PrivateKey
 	config := server.config
@@ -243,10 +250,24 @@ func (cl *ClientListener) authUser(c ssh.ConnMetadata, password []byte) (*ssh.Pe
 		return nil, ErrTooManyRequests
 	}
 
-	// the listener context is the server context, so the credentials are looked up in its tenant
-	clientAuth, err := cl.server.clientAuthProvider.Get(cl.getCtx(), clientAuthID)
+	// the listener context is the server context, so the credentials are looked up in its tenant, unless the
+	// listener serves several tenants: then the client auth id names the tenant
+	ctx := cl.getCtx()
+	var perms *ssh.Permissions
+	var clientAuth *clientsauth.ClientAuth
+	tid, found, err := cl.tenantOfClientAuth(ctx, clientAuthID)
 	if err != nil {
 		return nil, err
+	}
+	if found {
+		if tid != "" {
+			ctx = tenant.WithID(ctx, tid)
+			perms = &ssh.Permissions{Extensions: map[string]string{permTenant: string(tid)}}
+		}
+		clientAuth, err = cl.server.clientAuthProvider.Get(ctx, clientAuthID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	ip := cl.getIP(c.RemoteAddr())
@@ -263,7 +284,20 @@ func (cl *ClientListener) authUser(c ssh.ConnMetadata, password []byte) (*ssh.Pe
 	if cl.bannedIPs != nil {
 		cl.bannedIPs.AddSuccessAttempt(ip)
 	}
-	return nil, nil
+	return perms, nil
+}
+
+// tenantOfClientAuth returns the tenant holding the client auth id when the listener serves several tenants, and
+// whether one holds it; otherwise "" and true (the credentials are looked up in the listener's tenant).
+func (cl *ClientListener) tenantOfClientAuth(ctx context.Context, clientAuthID string) (tenant.ID, bool, error) {
+	if cl.server.deviceTenants == nil {
+		return "", true, nil
+	}
+	tid, found, err := cl.server.deviceTenants.TenantOfClientAuth(ctx, clientAuthID)
+	if err != nil {
+		return "", false, err
+	}
+	return tid, found && tid != "", nil
 }
 
 func (cl *ClientListener) getIP(addr net.Addr) string {
@@ -457,10 +491,22 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	ctx, cancel := context.WithCancel(cl.getCtx())
+	// the device runs in its tenant: everything it does later (job results, measurements, tunnels) is the tenant's
+	ctx := cl.getCtx()
+	tid := deviceTenantOf(sshConn)
+	if tid != "" {
+		ctx = tenant.WithID(ctx, tid)
+	}
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	admitted, err := cl.admitDevice(ctx, tid, clientID, clientAuthID, clientLog)
+	if err != nil {
+		cl.replyConnectionError(r, err)
+		return
+	}
 	client, err := cl.getClientService().StartClient(ctx, clientAuthID, clientID, sshConn, clientHostname(req.Host), cl.server.config.Server.AuthMultiuseCreds, connRequest, clientLog.GetLogger())
+	admitted()
 	if err != nil {
 		cl.replyConnectionError(r, err)
 		return

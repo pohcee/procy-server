@@ -122,6 +122,10 @@ type ServerOpts struct {
 	// admin gives through the API (#34). The vault then needs no initialisation, init, unlock and lock answer 409,
 	// and GET /api/v1/status reports the vault_passphrase capability as false.
 	VaultKeys vault.KeyProvider
+	// DeviceTenants, when set, lets devices of every tenant connect: the client listener finds each device's tenant
+	// from its client auth id and refuses devices of tenants that are not active or have reached their client limit
+	// (#34). nil: devices belong to the default tenant.
+	DeviceTenants DeviceTenants
 }
 
 // NewServer creates and returns a new rport server
@@ -265,6 +269,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 			Measurements:  s.monitoringQueue,
 			PlusManager:   s.plusManager,
 			Capabilities:  s.capabilities,
+			DeviceTenants: opts.DeviceTenants,
 		})
 		if err != nil {
 			return nil, err
