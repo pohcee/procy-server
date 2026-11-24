@@ -165,3 +165,78 @@ func TestShipperRetriesAfterOutage(t *testing.T) {
 	assert.Equal(t, []string{"before-restart", "during-outage"}, sink.shipped[KindJobResult])
 	sink.mu.Unlock()
 }
+
+type rejectingSink struct{ failKind Kind }
+
+func (s rejectingSink) Ship(_ context.Context, kind Kind, items []Item) ([]Status, error) {
+	if kind == s.failKind {
+		return nil, errors.New("down for this kind")
+	}
+	out := make([]Status, len(items))
+	for i, it := range items {
+		out[i] = Status{Key: it.Key, Outcome: "rejected: no"}
+	}
+	return out, nil
+}
+
+// A rejected job result is kept in the dead letters, never dropped; another kind's failure doesn't stop it.
+func TestRejectedJobResultsAreKept(t *testing.T) {
+	o := open(t, filepath.Join(t.TempDir(), "outbox.db"), 0)
+	require.NoError(t, o.Add(ctx, KindJobResult, "a", "j", []byte(`{}`)))
+	require.NoError(t, o.Add(ctx, KindMeasurement, "a", "m", []byte(`{}`)))
+	require.NoError(t, o.Add(ctx, KindAudit, "a", "au", []byte(`{}`)))
+	s := &Shipper{Outbox: o, Sink: rejectingSink{failKind: KindClientState}}
+	require.NoError(t, o.Add(ctx, KindClientState, "a", "st", []byte(`{}`)))
+	n, err := s.ShipAll(ctx)
+	require.Error(t, err, "client state failed")
+	assert.Equal(t, 3, n, "the other kinds were shipped")
+	dl, err := o.DeadLetters(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, dl, "the job result is kept")
+	assert.Equal(t, []string{"st"}, keys(t, o, KindClientState))
+	assert.Empty(t, keys(t, o, KindAudit), "a rejected audit entry is dropped")
+}
+
+type countingSink struct{ sizes []int }
+
+func (s *countingSink) Ship(_ context.Context, _ Kind, items []Item) ([]Status, error) {
+	s.sizes = append(s.sizes, len(items))
+	out := make([]Status, len(items))
+	for i, it := range items {
+		out[i] = Status{Key: it.Key, Outcome: "applied"}
+	}
+	return out, nil
+}
+
+func TestBatchesCappedByBytes(t *testing.T) {
+	o := open(t, filepath.Join(t.TempDir(), "outbox.db"), 0)
+	big := make([]byte, 400)
+	for i := range big {
+		big[i] = 'x'
+	}
+	for i := 0; i < 5; i++ {
+		require.NoError(t, o.Add(ctx, KindJobResult, "a", fmt.Sprintf("j%d", i), big))
+	}
+	sink := &countingSink{}
+	n, err := (&Shipper{Outbox: o, Sink: sink, MaxBatchBytes: 1000}).ShipAll(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 5, n)
+	assert.Equal(t, []int{2, 2, 1}, sink.sizes)
+
+	// an item larger than the cap still ships, alone
+	require.NoError(t, o.Add(ctx, KindJobResult, "a", "huge", make([]byte, 5000)))
+	sink.sizes = nil
+	_, err = (&Shipper{Outbox: o, Sink: sink, MaxBatchBytes: 1000}).ShipAll(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []int{1}, sink.sizes)
+}
+
+// Keys repeat across tenants: statuses in order are matched by position.
+func TestSameKeyInTwoTenants(t *testing.T) {
+	o := open(t, filepath.Join(t.TempDir(), "outbox.db"), 0)
+	require.NoError(t, o.Add(ctx, KindMeasurement, "a", "k", []byte(`{}`)))
+	require.NoError(t, o.Add(ctx, KindMeasurement, "b", "k", []byte(`{}`)))
+	n, err := (&Shipper{Outbox: o, Sink: &countingSink{}}).ShipAll(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+}

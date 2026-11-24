@@ -2,6 +2,8 @@ package postgres_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -38,7 +40,7 @@ func TestDeviceRoleHasNoTableAccess(t *testing.T) {
 	}
 	_, err := d.Device.ExecContext(ctx, "INSERT INTO client_state (tenant_id, client_id, client_auth_id, details, reported_at) VALUES ('a', 'c', 'x', '{}', now())")
 	assert.True(t, isPermissionDenied(err), "%v", err)
-	_, err = d.Device.ExecContext(ctx, "SELECT rport_prune_ingest_keys('1 day')")
+	_, err = d.Device.ExecContext(ctx, `SELECT rport_ingest_claim('{"tenant_id":"a","key":"k"}', 'audit')`)
 	assert.True(t, isPermissionDenied(err), "%v", err)
 	_, err = d.Device.ExecContext(ctx, "CREATE TABLE mine (x int)")
 	assert.True(t, isPermissionDenied(err), "%v", err)
@@ -59,10 +61,10 @@ func TestCheckDeviceRole(t *testing.T) {
 	assert.NoError(t, postgres.CheckDeviceRole(ctx, d.Device))
 
 	// a device login that may run another SECURITY DEFINER function is refused
-	_, err = d.Owner.ExecContext(ctx, "GRANT EXECUTE ON FUNCTION rport_prune_ingest_keys(interval) TO "+pgtest.DeviceRole)
+	_, err = d.Owner.ExecContext(ctx, "GRANT EXECUTE ON FUNCTION rport_ingest_claim(jsonb, text) TO "+pgtest.DeviceRole)
 	require.NoError(t, err)
-	assert.ErrorContains(t, postgres.CheckDeviceRole(ctx, d.Device), "rport_prune_ingest_keys")
-	_, err = d.Owner.ExecContext(ctx, "REVOKE EXECUTE ON FUNCTION rport_prune_ingest_keys(interval) FROM "+pgtest.DeviceRole)
+	assert.ErrorContains(t, postgres.CheckDeviceRole(ctx, d.Device), "rport_ingest_claim")
+	_, err = d.Owner.ExecContext(ctx, "REVOKE EXECUTE ON FUNCTION rport_ingest_claim(jsonb, text) FROM "+pgtest.DeviceRole)
 	require.NoError(t, err)
 
 	// one without the grants is told to run the grant
@@ -185,11 +187,6 @@ func TestIngestIdempotent(t *testing.T) {
 	require.NoError(t, d.Owner.Get(&details, "SELECT details::text FROM client_state"))
 	assert.Equal(t, `{"name": "dev"}`, details, "allowed_user_groups is never taken from a device")
 
-	// key prune
-	exec(t, d.Owner, "UPDATE ingest_keys SET received_at = now() - interval '10 days'")
-	var pruned int
-	require.NoError(t, d.Owner.Get(&pruned, "SELECT rport_prune_ingest_keys('7 days')"))
-	assert.Equal(t, 5, pruned, "the older state report claimed its key too")
 }
 
 func TestIngestRejectsInvalidItems(t *testing.T) {
@@ -317,4 +314,60 @@ func TestDeviceFunctionsNonSuperuserOwner(t *testing.T) {
 	var n int
 	require.NoError(t, devDB.Get(&n, "SELECT count(*) FROM device_client('a', 'c1')"))
 	assert.Equal(t, 1, n)
+}
+
+func TestIngestReviewCases(t *testing.T) {
+	d := pgtest.New(t, "a")
+	// an indexed value too long for its index (random, so it doesn't compress) is rejected, not an error for the
+	// whole batch
+	raw := make([]byte, 6000)
+	_, _ = rand.Read(raw)
+	res := ingest(t, d.Device, "ingest_audit",
+		map[string]any{"tenant_id": "a", "key": "big", "timestamp": t0, "application": "x", "action": "y", "client_hostname": hex.EncodeToString(raw)},
+		map[string]any{"tenant_id": "a", "key": "ok", "timestamp": t0, "application": "x", "action": "y"})
+	assert.Equal(t, []string{"rejected", "applied"}, statuses(res))
+
+	// a connection event without node_id
+	exec(t, d.Owner, "INSERT INTO clients_auth (tenant_id, id, password) VALUES ('a', 'auth-a', $1)", fakeHash)
+	res = ingest(t, d.Device, "ingest_connection_events", map[string]any{"tenant_id": "a", "key": "e", "client_id": "c1", "client_auth_id": "auth-a", "event": "connected", "at": t0})
+	assert.Equal(t, []string{"applied"}, statuses(res))
+
+	// library fields: a result without them keeps the stored ones; a create after a result keeps the result
+	exec(t, d.Owner, `INSERT INTO jobs (tenant_id, jid, status, started_at, created_by, client_id, details)
+		VALUES ('a', 'lib', 'running', now(), 'x', 'c1', '{"command":"x","library_entry_id":"e1","library_version":3,"os":"linux"}')`)
+	res = ingest(t, d.Device, "ingest_job_results", map[string]any{"tenant_id": "a", "key": "r", "jid": "lib", "client_id": "c1",
+		"status": "successful", "started_at": t0, "finished_at": t0, "created_by": "x", "details": `{"command":"x","result":{"stdout":"done"}}`})
+	assert.Equal(t, []string{"applied"}, statuses(res))
+	var details string
+	require.NoError(t, d.Owner.Get(&details, "SELECT details FROM jobs WHERE jid = 'lib'"))
+	assert.JSONEq(t, `{"command":"x","result":{"stdout":"done"},"library_entry_id":"e1","library_version":3,"os":"linux"}`, details)
+
+	res = ingest(t, d.Device, "ingest_job_results",
+		map[string]any{"tenant_id": "a", "key": "fast", "jid": "j2", "client_id": "c1", "status": "successful", "started_at": t0, "finished_at": t0, "created_by": "x", "details": `{"result":{"stdout":"fast"}}`},
+		map[string]any{"tenant_id": "a", "key": "create", "jid": "j2", "client_id": "c1", "status": "running", "started_at": t0, "created_by": "x", "create_only": true, "details": `{"library_entry_id":"e2","library_version":1}`})
+	assert.Equal(t, []string{"applied", "applied"}, statuses(res))
+	var status string
+	require.NoError(t, d.Owner.Get(&status, "SELECT status FROM jobs WHERE jid = 'j2'"))
+	assert.Equal(t, "successful", status, "the later create keeps the result")
+	require.NoError(t, d.Owner.Get(&details, "SELECT details FROM jobs WHERE jid = 'j2'"))
+	assert.JSONEq(t, `{"result":{"stdout":"fast"},"library_entry_id":"e2","library_version":1}`, details, "and adds its library fields")
+}
+
+// Lookups by tenant and id use the primary keys, not a scan of every tenant's clients.
+func TestClientRecordsUsesIndexes(t *testing.T) {
+	d := pgtest.New(t, "a")
+	exec(t, d.Owner, "SET enable_seqscan = off")
+	var plan []string
+	require.NoError(t, d.Owner.Select(&plan, "EXPLAIN SELECT * FROM client_records WHERE tenant_id = 'a' AND id = 'x'"))
+	joined := strings.Join(plan, "\n")
+	assert.NotContains(t, joined, "Seq Scan", joined)
+	assert.NotContains(t, joined, "Full Join", joined)
+}
+
+func TestCheckDeviceRoleRefusesMembership(t *testing.T) {
+	d := pgtest.New(t)
+	ctx := context.Background()
+	exec(t, d.Owner, "GRANT pg_read_server_files TO "+pgtest.DeviceRole)
+	t.Cleanup(func() { _, _ = d.Owner.Exec("REVOKE pg_read_server_files FROM " + pgtest.DeviceRole) })
+	assert.ErrorContains(t, postgres.CheckDeviceRole(ctx, d.Device), "member of pg_read_server_files")
 }

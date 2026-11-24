@@ -37,7 +37,7 @@ CREATE INDEX client_connection_events_client ON client_connection_events (tenant
 SELECT rport_enable_rls('client_connection_events');
 
 -- Idempotency keys of the ingested items (measurements use their primary key instead): an item whose key is here
--- was applied already and is reported as a duplicate. Pruned by rport_prune_ingest_keys.
+-- was applied already and is reported as a duplicate. Pruned by the cluster upkeep of the api processes.
 CREATE TABLE ingest_keys (
     tenant_id   text        NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     kind        text        NOT NULL,
@@ -71,10 +71,11 @@ $$;
 -- client_records is what the API reads as the clients: the admin-set record joined with the device-reported state.
 -- With a state row, everything comes from it except allowed_user_groups, which only an admin sets (taken from
 -- clients, empty without a clients row). Without one, the clients row as it is (nodes with role "all" keep
--- everything there). security_invoker: row-level security of the reader applies.
+-- everything there). A UNION ALL rather than a FULL JOIN, so a filter on tenant_id and id reaches the primary keys.
+-- security_invoker: row-level security of the reader applies.
 CREATE VIEW client_records WITH (security_invoker = true) AS
-SELECT coalesce(s.tenant_id, c.tenant_id) AS tenant_id,
-       coalesce(s.client_id, c.id)        AS id,
+SELECT c.tenant_id,
+       c.id,
        CASE WHEN s.client_id IS NULL THEN c.client_auth_id ELSE s.client_auth_id END   AS client_auth_id,
        CASE WHEN s.client_id IS NULL THEN c.disconnected_at ELSE s.disconnected_at END AS disconnected_at,
        CASE WHEN s.client_id IS NULL THEN c.details
@@ -82,7 +83,15 @@ SELECT coalesce(s.tenant_id, c.tenant_id) AS tenant_id,
                   || jsonb_build_object('allowed_user_groups', rport_admin_groups(c.details)))::text
        END AS details
 FROM clients c
-FULL JOIN client_state s ON s.tenant_id = c.tenant_id AND s.client_id = c.id;
+LEFT JOIN client_state s ON s.tenant_id = c.tenant_id AND s.client_id = c.id
+UNION ALL
+SELECT s.tenant_id,
+       s.client_id,
+       s.client_auth_id,
+       s.disconnected_at,
+       ((s.details - 'allowed_user_groups') || '{"allowed_user_groups": []}'::jsonb)::text
+FROM client_state s
+WHERE NOT EXISTS (SELECT 1 FROM clients c WHERE c.tenant_id = s.tenant_id AND c.id = s.client_id);
 
 -- Cross-tenant reads for the device_* functions: while the transaction-local setting rport.cross_tenant_read is
 -- 'on', the role that ran this migration (the schema owner, which the SECURITY DEFINER functions run as) reads these
@@ -225,12 +234,45 @@ BEGIN
 END
 $$;
 
+-- rport_job_library_merge returns the job document incoming with the library fields (library_entry_id,
+-- library_version, os) of stored where incoming has none (older clients don't echo them back). incoming as it is
+-- when nothing is added or either document can't be read as jsonb.
+CREATE FUNCTION rport_job_library_merge(stored text, incoming text) RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE s jsonb; i jsonb; o jsonb; k text;
+BEGIN
+    IF stored IS NULL OR incoming IS NULL THEN
+        RETURN incoming;
+    END IF;
+    BEGIN
+        s := stored::jsonb;
+        i := incoming::jsonb;
+    EXCEPTION WHEN others THEN
+        RETURN incoming;
+    END;
+    IF jsonb_typeof(s) <> 'object' OR jsonb_typeof(i) <> 'object' THEN
+        RETURN incoming;
+    END IF;
+    o := i;
+    FOREACH k IN ARRAY ARRAY['library_entry_id', 'library_version', 'os'] LOOP
+        IF (o -> k) IS NULL AND (s -> k) IS NOT NULL THEN
+            o := o || jsonb_build_object(k, s -> k);
+        END IF;
+    END LOOP;
+    IF o = i THEN
+        RETURN incoming;
+    END IF;
+    RETURN o::text;
+END
+$$;
+
 -- ingest_job_results: job results. Fields: jid, client_id, status, started_at, finished_at (null while running),
--- created_by, multi_job_id (null or an existing multi-job), details (the job document as text, valid JSON).
--- Creates the job or replaces it, as the job store's SaveJob; a job of another client is rejected.
+-- created_by, multi_job_id (null or an existing multi-job), details (the job document as text, valid JSON), and
+-- create_only (optional). Creates the job or replaces it, as the job store's SaveJob, keeping the stored library
+-- fields the item lacks; with create_only = true, as CreateJob: an existing job is kept, only the item's library
+-- fields are added to it (a fast result can arrive before the job's creation). A job of another client is rejected.
 CREATE FUNCTION ingest_job_results(batch jsonb) RETURNS TABLE (out_key text, out_status text)
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE prev_tenant text := current_setting('rport.tenant_id', true); it jsonb; why text; v_jid text; v_client text; v_multi text; v_owner text; v_details text;
+DECLARE prev_tenant text := current_setting('rport.tenant_id', true); it jsonb; why text; v_jid text; v_client text; v_multi text; v_owner text; v_details text; v_create boolean;
 BEGIN
     PERFORM rport_ingest_batch(batch);
     FOR it IN SELECT e FROM jsonb_array_elements(batch) AS e LOOP
@@ -244,6 +286,7 @@ BEGIN
                 v_multi := nullif(it ->> 'multi_job_id', '');
                 v_details := rport_ingest_text(it, 'details', 16777216);
                 PERFORM v_details::json;
+                v_create := coalesce((it ->> 'create_only')::boolean, false);
                 IF (it ->> 'status') NOT IN ('running', 'successful', 'failed', 'unknown', 'skipped') THEN
                     RAISE EXCEPTION 'invalid status %', it ->> 'status' USING ERRCODE = 'data_exception';
                 END IF;
@@ -257,18 +300,27 @@ BEGIN
                 END IF;
                 IF NOT rport_ingest_claim(it, 'job_result') THEN
                     out_status := 'duplicate';
+                ELSIF v_create THEN
+                    INSERT INTO jobs (tenant_id, jid, status, started_at, finished_at, created_by, client_id,
+                                      multi_job_id, details)
+                    VALUES (it ->> 'tenant_id', v_jid, it ->> 'status', (it ->> 'started_at')::timestamptz,
+                            (it ->> 'finished_at')::timestamptz, rport_ingest_text(it, 'created_by', 1000, true),
+                            v_client, v_multi, v_details)
+                    ON CONFLICT (tenant_id, jid) DO UPDATE SET
+                        details = rport_job_library_merge(EXCLUDED.details, jobs.details);
                 ELSE
                     INSERT INTO jobs (tenant_id, jid, status, started_at, finished_at, created_by, client_id,
                                       multi_job_id, details)
                     VALUES (it ->> 'tenant_id', v_jid, it ->> 'status', (it ->> 'started_at')::timestamptz,
-                            (it ->> 'finished_at')::timestamptz, rport_ingest_text(it, 'created_by', 200, true),
+                            (it ->> 'finished_at')::timestamptz, rport_ingest_text(it, 'created_by', 1000, true),
                             v_client, v_multi, v_details)
                     ON CONFLICT (tenant_id, jid) DO UPDATE SET
                         status = EXCLUDED.status, started_at = EXCLUDED.started_at,
                         finished_at = EXCLUDED.finished_at, created_by = EXCLUDED.created_by,
-                        multi_job_id = EXCLUDED.multi_job_id, details = EXCLUDED.details;
+                        multi_job_id = EXCLUDED.multi_job_id,
+                        details = rport_job_library_merge(jobs.details, EXCLUDED.details);
                 END IF;
-            EXCEPTION WHEN data_exception OR integrity_constraint_violation THEN
+            EXCEPTION WHEN data_exception OR integrity_constraint_violation OR program_limit_exceeded THEN
                 why := SQLERRM;
             END;
         END IF;
@@ -310,7 +362,7 @@ BEGIN
                 IF NOT FOUND THEN
                     out_status := 'duplicate';
                 END IF;
-            EXCEPTION WHEN data_exception OR integrity_constraint_violation THEN
+            EXCEPTION WHEN data_exception OR integrity_constraint_violation OR program_limit_exceeded THEN
                 why := SQLERRM;
             END;
         END IF;
@@ -323,7 +375,8 @@ BEGIN
 END
 $$;
 
--- ingest_connection_events: fields client_id, client_auth_id, event ('connected' or 'disconnected'), at, node_id.
+-- ingest_connection_events: fields client_id, client_auth_id, event ('connected' or 'disconnected'), at, node_id
+-- (optional).
 CREATE FUNCTION ingest_connection_events(batch jsonb) RETURNS TABLE (out_key text, out_status text)
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE prev_tenant text := current_setting('rport.tenant_id', true); it jsonb; why text;
@@ -341,9 +394,9 @@ BEGIN
                     INSERT INTO client_connection_events (tenant_id, client_id, client_auth_id, event, at, node_id)
                     VALUES (it ->> 'tenant_id', rport_ingest_text(it, 'client_id', 200),
                             rport_ingest_text(it, 'client_auth_id', 200), it ->> 'event',
-                            (it ->> 'at')::timestamptz, coalesce(rport_ingest_text(it, 'node_id', 200, true), ''));
+                            (it ->> 'at')::timestamptz, CASE WHEN it ? 'node_id' THEN rport_ingest_text(it, 'node_id', 200, true) ELSE '' END);
                 END IF;
-            EXCEPTION WHEN data_exception OR integrity_constraint_violation THEN
+            EXCEPTION WHEN data_exception OR integrity_constraint_violation OR program_limit_exceeded THEN
                 why := SQLERRM;
             END;
         END IF;
@@ -379,7 +432,7 @@ BEGIN
                             it ->> 'username', it ->> 'remote_ip', it ->> 'affected_id', it ->> 'client_id',
                             it ->> 'client_hostname', it ->> 'request', it ->> 'response');
                 END IF;
-            EXCEPTION WHEN data_exception OR integrity_constraint_violation THEN
+            EXCEPTION WHEN data_exception OR integrity_constraint_violation OR program_limit_exceeded THEN
                 why := SQLERRM;
             END;
         END IF;
@@ -433,7 +486,7 @@ BEGIN
                         out_status := 'duplicate';
                     END IF;
                 END IF;
-            EXCEPTION WHEN data_exception OR integrity_constraint_violation THEN
+            EXCEPTION WHEN data_exception OR integrity_constraint_violation OR program_limit_exceeded THEN
                 why := SQLERRM;
             END;
         END IF;
@@ -446,26 +499,8 @@ BEGIN
 END
 $$;
 
--- rport_prune_ingest_keys deletes idempotency keys older than keep, in every tenant; it returns how many. A batch
--- shipped again after that is applied again, so keep must be far longer than a device process holds items.
-CREATE FUNCTION rport_prune_ingest_keys(keep interval) RETURNS bigint
-    LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE prev_tenant text := current_setting('rport.tenant_id', true); t text; n bigint := 0; d bigint;
-BEGIN
-    FOR t IN SELECT id FROM tenants LOOP
-        PERFORM set_config('rport.tenant_id', t, true);
-        DELETE FROM ingest_keys WHERE tenant_id = t AND received_at < now() - keep;
-        GET DIAGNOSTICS d = ROW_COUNT;
-        n := n + d;
-    END LOOP;
-    PERFORM set_config('rport.tenant_id', coalesce(prev_tenant, ''), true);
-    RETURN n;
-END
-$$;
-
--- Functions are executable by PUBLIC by default; these are granted explicitly (migrate.GrantDevice, GrantApp).
+-- Functions are executable by PUBLIC by default; these are granted explicitly (migrate.GrantDevice).
 REVOKE EXECUTE ON FUNCTION device_tenants(), device_client_auth(text), device_client(text, text),
     device_client_groups(text), device_stored_tunnels(text, text), rport_ingest_item(jsonb),
     rport_ingest_claim(jsonb, text), ingest_job_results(jsonb), ingest_measurements(jsonb),
-    ingest_connection_events(jsonb), ingest_audit(jsonb), report_client_state(jsonb),
-    rport_prune_ingest_keys(interval) FROM PUBLIC;
+    ingest_connection_events(jsonb), ingest_audit(jsonb), report_client_state(jsonb) FROM PUBLIC;

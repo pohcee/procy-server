@@ -25,16 +25,33 @@ var DeviceFunctions = []string{
 
 // CheckDeviceRole returns an error unless the role db connects as has no more privilege than the device role
 // needs (a node with [storage] role = "device"): no superuser, BYPASSRLS or table ownership (as CheckAppRole), no
-// privilege on any table, view or sequence, no CREATE on a schema, EXECUTE on every one of DeviceFunctions and on
+// CREATEROLE or CREATEDB, no membership in any role, no privilege on any table, view, sequence or column, no CREATE
+// on a schema, EXECUTE on every one of DeviceFunctions and on
 // no other SECURITY DEFINER function. So a break-in through the device listener can't read accounts, tokens or the
 // vault with the node's login.
 func CheckDeviceRole(ctx context.Context, db *sqlx.DB) error {
 	if err := CheckAppRole(ctx, db); err != nil {
 		return err
 	}
-	var name string
-	if err := db.GetContext(ctx, &name, "SELECT current_user"); err != nil {
+	var r struct {
+		Name       string `db:"name"`
+		CreateRole bool   `db:"createrole"`
+		CreateDB   bool   `db:"createdb"`
+		MemberOf   string `db:"member_of"`
+	}
+	if err := db.GetContext(ctx, &r, `SELECT current_user AS name, rolcreaterole AS createrole, rolcreatedb AS createdb,
+		coalesce((SELECT string_agg(g.rolname, ', ' ORDER BY g.rolname) FROM pg_auth_members m
+			JOIN pg_roles g ON g.oid = m.roleid WHERE m.member = r.oid), '') AS member_of
+		FROM pg_roles r WHERE r.rolname = current_user`); err != nil {
 		return fmt.Errorf("pg: check role: %w", err)
+	}
+	name := r.Name
+	switch {
+	case r.CreateRole, r.CreateDB:
+		return fmt.Errorf("pg: role %q may create roles or databases, more than the device role needs", name)
+	case r.MemberOf != "":
+		// a member gets the rights of its roles (also the predefined pg_read_server_files and the like)
+		return fmt.Errorf("pg: role %q is a member of %s, more than the device role needs", name, r.MemberOf)
 	}
 	var tables []string
 	err := db.SelectContext(ctx, &tables, `SELECT n.nspname || '.' || c.relname FROM pg_class c
@@ -42,7 +59,8 @@ func CheckDeviceRole(ctx context.Context, db *sqlx.DB) error {
 		WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname NOT LIKE 'pg_toast%'
 			AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
 			AND (CASE WHEN c.relkind = 'S' THEN has_sequence_privilege(current_user, c.oid, 'USAGE, SELECT, UPDATE')
-				ELSE has_table_privilege(current_user, c.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER') END)
+				ELSE has_table_privilege(current_user, c.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+					OR has_any_column_privilege(current_user, c.oid, 'SELECT, INSERT, UPDATE, REFERENCES') END)
 		ORDER BY 1`)
 	if err != nil {
 		return fmt.Errorf("pg: check role: %w", err)

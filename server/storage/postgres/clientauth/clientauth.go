@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
 
@@ -140,7 +141,9 @@ func (s *Store) Add(ctx context.Context, client *clientsauth.ClientAuth) (bool, 
 	if err != nil {
 		return false, err
 	}
-	hash, err := hashOf(client.Password)
+	// always hashed, even a value that looks like a hash: a stored hash with crafted parameters would make every
+	// login attempt with this id expensive
+	hash, err := clientsauth.HashPassword(client.Password)
 	if err != nil {
 		return false, err
 	}
@@ -177,15 +180,6 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// hashOf returns the hash to store for password: password itself when it is a hash already (credentials copied
-// from another cluster database), its argon2id hash otherwise.
-func hashOf(password string) (string, error) {
-	if clientsauth.IsHash(password) {
-		return password, nil
-	}
-	return clientsauth.HashPassword(password)
-}
-
 // Verify reports whether password is the one of the credentials id in the context's tenant. A password stored
 // before credentials were hashed (see HashStored) is compared as it is, in constant time.
 func (s *Store) Verify(ctx context.Context, id string, password []byte) (bool, error) {
@@ -210,7 +204,8 @@ func (s *Store) Verify(ctx context.Context, id string, password []byte) (bool, e
 // password stored before hashing, compared in constant time. Callers that found the stored value themselves (a
 // lookup of the credential across tenants, as device login does) use it to check the password.
 func CheckStored(stored string, password []byte) bool {
-	if clientsauth.IsHash(stored) {
+	if strings.HasPrefix(stored, "$argon2id$") {
+		// a hash, or what looks like one: never compared as plaintext
 		return clientsauth.VerifyHash(stored, password)
 	}
 	return stored != "" && subtle.ConstantTimeCompare([]byte(stored), password) == 1
@@ -229,10 +224,13 @@ func HashStored(ctx context.Context, owner *sqlx.DB) (int, error) {
 		err := postgres.InTenantID(ctx, owner, tenant.ID(t), func(tx *sqlx.Tx) error {
 			var rows []clientsauth.ClientAuth
 			if err := tx.SelectContext(ctx, &rows, `SELECT id, password FROM clients_auth
-				WHERE tenant_id = $1 AND password IS NOT NULL AND password NOT LIKE '$argon2id$%' FOR UPDATE`, t); err != nil {
+				WHERE tenant_id = $1 AND password IS NOT NULL FOR UPDATE`, t); err != nil {
 				return err
 			}
 			for _, r := range rows {
+				if clientsauth.IsHash(r.Password) {
+					continue
+				}
 				h, err := clientsauth.HashPassword(r.Password)
 				if err != nil {
 					return err

@@ -249,3 +249,29 @@ func TestSaveAdminFieldsOfReportedClient(t *testing.T) {
 	assert.Equal(t, []string{"ops"}, got.GetAllowedUserGroups())
 	assert.Equal(t, "reported", got.GetName())
 }
+
+// Obsolescence follows client_records: a client connected per its reported state keeps its ACL even when its
+// clients row says it disconnected long ago; a save by a node holding the connection replaces the reported state.
+func TestDeleteObsoleteFollowsReportedState(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	ctx := repotest.Ctx(repotest.TenantA)
+	_, err := d.Owner.Exec(`INSERT INTO clients (tenant_id, id, client_auth_id, disconnected_at, details)
+		VALUES ('a', 'dev', 'auth', now() - interval '30 days', '{"name":"old","allowed_user_groups":["admins"]}')`)
+	require.NoError(t, err)
+	_, err = d.Owner.Exec(`INSERT INTO client_state (tenant_id, client_id, client_auth_id, details, reported_at)
+		VALUES ('a', 'dev', 'auth', '{"name":"now"}', now())`)
+	require.NoError(t, err)
+	keep := 24 * time.Hour
+	s := New(d.App, &keep)
+	require.NoError(t, s.DeleteObsolete(ctx, testLog))
+	c, err := s.Get(ctx, "dev", testLog)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	assert.Equal(t, []string{"admins"}, c.GetAllowedUserGroups())
+
+	c.Name = "saved by the holder"
+	require.NoError(t, s.Save(ctx, c))
+	var n int
+	require.NoError(t, d.Owner.Get(&n, "SELECT count(*) FROM client_state"))
+	assert.Zero(t, n)
+}

@@ -3,10 +3,12 @@ package device
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +49,12 @@ func enqueue(ctx context.Context, ob *outbox.Outbox, kind outbox.Kind, key strin
 	tid, err := postgres.TenantOf(ctx)
 	if err != nil {
 		return err
+	}
+	for k, v := range item {
+		// a NUL can't be stored in Postgres text or jsonb: one would make the whole batch fail
+		if str, ok := v.(string); ok && strings.ContainsRune(str, 0) {
+			item[k] = strings.ReplaceAll(str, "\x00", "")
+		}
 	}
 	item["tenant_id"] = string(tid)
 	item["key"] = key
@@ -187,7 +195,11 @@ func (c *Clients) Save(ctx context.Context, cl *clientdata.Client) error {
 		c.connected = map[string]bool{}
 	}
 	was, known := c.connected[k]
-	c.connected[k] = connected
+	if connected {
+		c.connected[k] = true
+	} else {
+		delete(c.connected, k) // a disconnected client is forgotten; its next connection is new
+	}
 	c.mu.Unlock()
 	if known && was == connected || !known && !connected {
 		return nil
@@ -293,7 +305,9 @@ type Jobs struct{ Outbox *outbox.Outbox }
 var _ jobs.Provider = Jobs{}
 
 // SaveJob ships the job as it is (created or replaced, as the job store's SaveJob).
-func (j Jobs) SaveJob(ctx context.Context, job *models.Job) error {
+func (j Jobs) SaveJob(ctx context.Context, job *models.Job) error { return j.ship(ctx, job, false) }
+
+func (j Jobs) ship(ctx context.Context, job *models.Job, createOnly bool) error {
 	cols, err := pgjobs.EncodeJob(job)
 	if err != nil {
 		return err
@@ -306,11 +320,15 @@ func (j Jobs) SaveJob(ctx context.Context, job *models.Job) error {
 	if err := json.Unmarshal(b, &item); err != nil {
 		return err
 	}
+	if createOnly {
+		item["create_only"] = true
+	}
 	return enqueue(ctx, j.Outbox, outbox.KindJobResult, newKey(), item)
 }
 
-// CreateJob ships the job like SaveJob.
-func (j Jobs) CreateJob(ctx context.Context, job *models.Job) error { return j.SaveJob(ctx, job) }
+// CreateJob ships the job to be created if it doesn't exist (as the job store's CreateJob: a result saved first is
+// kept, only the job's library fields are added to it).
+func (j Jobs) CreateJob(ctx context.Context, job *models.Job) error { return j.ship(ctx, job, true) }
 
 func (Jobs) GetByJID(context.Context, string, string) (*models.Job, error)   { return nil, nil }
 func (Jobs) List(context.Context, *query.ListOptions) ([]*models.Job, error) { return nil, nil }
@@ -344,7 +362,8 @@ func (m Monitoring) CreateMeasurement(ctx context.Context, ms *models.Measuremen
 		item["net_wan_in"], item["net_wan_out"] = ms.NetWan.In, ms.NetWan.Out
 	}
 	// one measurement per client and time: the key says so, so a repeat is ignored by the outbox already
-	key := ms.ClientID + "@" + ms.Timestamp.UTC().Format(time.RFC3339Nano)
+	sum := sha256.Sum256([]byte(ms.ClientID + "@" + ms.Timestamp.UTC().Format(time.RFC3339Nano)))
+	key := "m-" + hex.EncodeToString(sum[:16])
 	return enqueue(ctx, m.Outbox, outbox.KindMeasurement, key, item)
 }
 

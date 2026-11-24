@@ -288,6 +288,13 @@ func (c *Coordinator) upkeep(ctx context.Context) {
 }
 
 // prune removes old feed rows and run claims, on one node at a time.
+// IngestKeyRetention is how long the idempotency keys of shipped items are kept: far longer than a device process
+// keeps an item in its outbox, or a batch shipped again after that would be applied twice.
+const IngestKeyRetention = 7 * 24 * time.Hour
+
+// ConnectionEventRetention is how long client connection events are kept.
+const ConnectionEventRetention = 30 * 24 * time.Hour
+
 func (c *Coordinator) prune(ctx context.Context) {
 	ok, err := c.Lease(ctx, "cluster-upkeep", "", upkeepInterval+upkeepInterval/2)
 	if err != nil {
@@ -309,8 +316,17 @@ func (c *Coordinator) prune(ctx context.Context) {
 	}
 	for _, tid := range tenants {
 		err := postgres.InTenantID(ctx, c.db, tid, func(tx *sqlx.Tx) error {
-			_, err := tx.ExecContext(ctx, "DELETE FROM schedule_runs WHERE tenant_id = $1 AND claimed_at < now() - make_interval(secs => $2)",
-				string(tid), ScheduleRunRetention.Seconds())
+			if _, err := tx.ExecContext(ctx, "DELETE FROM schedule_runs WHERE tenant_id = $1 AND claimed_at < now() - make_interval(secs => $2)",
+				string(tid), ScheduleRunRetention.Seconds()); err != nil {
+				return err
+			}
+			// what device processes shipped (migration 1100): idempotency keys and connection events
+			if _, err := tx.ExecContext(ctx, "DELETE FROM ingest_keys WHERE tenant_id = $1 AND received_at < now() - make_interval(secs => $2)",
+				string(tid), IngestKeyRetention.Seconds()); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(ctx, "DELETE FROM client_connection_events WHERE tenant_id = $1 AND at < now() - make_interval(secs => $2)",
+				string(tid), ConnectionEventRetention.Seconds())
 			return err
 		})
 		if err != nil {

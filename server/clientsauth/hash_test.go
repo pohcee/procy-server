@@ -27,7 +27,9 @@ func TestHashRoundTrip(t *testing.T) {
 
 func TestVerifyHashRefusesNonHashes(t *testing.T) {
 	for _, s := range []string{"", "s3cret", "$argon2id$", "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$", "$2a$10$abcdefghijklmnopqrstuv",
-		"$argon2id$v=19$m=99999999,t=2,p=1$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNoaGFzaA", // too much memory
+		"$argon2id$v=19$m=99999999,t=2,p=1$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNoaGFzaA",   // too much memory
+		"$argon2id$v=19$m=1048576,t=16,p=255$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNoaGFzaA", // a DoS hash
+		"$argon2id$v=19$m=1,t=1,p=1$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNoaGFzaA",          // trivially weak
 		"$argon2i$v=19$m=19456,t=2,p=1$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNoaGFzaA"} {
 		assert.False(t, IsHash(s), s)
 		assert.False(t, VerifyHash(s, []byte(s)), s)

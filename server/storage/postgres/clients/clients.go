@@ -120,8 +120,18 @@ func (s *Store) Save(ctx context.Context, c *clientdata.Client) error {
 				disconnected_at = EXCLUDED.disconnected_at,
 				details = EXCLUDED.details`,
 			string(tid), sc.ID, sc.ClientAuthID, sc.DisconnectedAt, sc.Details)
-		return err
+		if err != nil {
+			return err
+		}
+		return dropReportedState(ctx, tx, tid, sc.ID)
 	})
+}
+
+// dropReportedState deletes the state a device process reported for client id: a node that holds the client's
+// connection (role "all") just saved the whole record, which must not be hidden by an older report.
+func dropReportedState(ctx context.Context, tx *sqlx.Tx, tid tenant.ID, id string) error {
+	_, err := tx.ExecContext(ctx, "DELETE FROM client_state WHERE tenant_id = $1 AND client_id = $2", string(tid), id)
+	return err
 }
 
 func (s *Store) DeleteObsolete(ctx context.Context, _ *logger.Logger) error {
@@ -134,9 +144,14 @@ func (s *Store) DeleteObsolete(ctx context.Context, _ *logger.Logger) error {
 	}
 	cutoff := s.cutoff()
 	return postgres.InTenantID(ctx, s.db, tid, func(tx *sqlx.Tx) error {
-		for _, tbl := range []string{"client_state", "clients"} {
-			if _, err := tx.ExecContext(ctx, "DELETE FROM "+tbl+" WHERE tenant_id = $1 AND disconnected_at IS NOT NULL AND disconnected_at < $2",
-				string(tid), cutoff); err != nil {
+		// obsolete as the API sees the client (client_records), both rows of it
+		var ids []string
+		if err := tx.SelectContext(ctx, &ids, "SELECT id FROM client_records WHERE tenant_id = $1 AND disconnected_at IS NOT NULL AND disconnected_at < $2",
+			string(tid), cutoff); err != nil {
+			return err
+		}
+		for _, tbl := range []string{"client_state WHERE tenant_id = $1 AND client_id", "clients WHERE tenant_id = $1 AND id"} {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM "+tbl+" = ANY($2)", string(tid), ids); err != nil {
 				return err
 			}
 		}
@@ -250,7 +265,8 @@ func (s *Store) SaveAdminFields(ctx context.Context, c *clientdata.Client) error
 }
 
 // SaveKeepingACL saves c with the allowed user groups as stored (and sets them on c): a save of what a client
-// reported must not undo an ACL change another node made since this node cached the client.
+// reported must not undo an ACL change another node made since this node cached the client. Like Save, it replaces
+// what a device process reported about c.
 func (s *Store) SaveKeepingACL(ctx context.Context, c *clientdata.Client) error {
 	tid, err := postgres.TenantOf(ctx)
 	if err != nil {
@@ -264,6 +280,9 @@ func (s *Store) SaveKeepingACL(ctx context.Context, c *clientdata.Client) error 
 		if stored != nil {
 			c.SetAllowedUserGroups(stored.GetAllowedUserGroups())
 		}
-		return upsert(ctx, tx, tid, c)
+		if err := upsert(ctx, tx, tid, c); err != nil {
+			return err
+		}
+		return dropReportedState(ctx, tx, tid, c.GetID())
 	})
 }

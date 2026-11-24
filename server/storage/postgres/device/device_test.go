@@ -236,3 +236,28 @@ func TestOutboxShipsAfterDatabaseOutage(t *testing.T) {
 	}, 10*time.Second, 50*time.Millisecond)
 	require.Eventually(t, func() bool { n, _ := ob.Count(context.Background(), ""); return n == 0 }, 5*time.Second, 20*time.Millisecond)
 }
+
+// An item the database can't store (a raw NUL in a string fails the jsonb cast of the whole batch) is rejected on
+// its own; the other items of the batch are applied.
+func TestSinkIsolatesBadItem(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	ob := openOutbox(t, filepath.Join(t.TempDir(), "outbox.db"))
+	ctx := context.Background()
+	require.NoError(t, ob.Add(ctx, outbox.KindAudit, "a", "good1", []byte(`{"tenant_id":"a","key":"good1","timestamp":"2026-11-24T10:00:00Z","application":"x","action":"y"}`)))
+	require.NoError(t, ob.Add(ctx, outbox.KindAudit, "a", "nul", []byte(`{"tenant_id":"a","key":"nul","timestamp":"2026-11-24T10:00:00Z","application":"x\u0000","action":"y"}`)))
+	require.NoError(t, ob.Add(ctx, outbox.KindAudit, "a", "good2", []byte(`{"tenant_id":"a","key":"good2","timestamp":"2026-11-24T10:00:00Z","application":"x","action":"y"}`)))
+	n, err := (&outbox.Shipper{Outbox: ob, Sink: Sink{DB: d.Device}, Log: testLog}).ShipAll(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 3, n)
+	var audits int
+	require.NoError(t, d.Owner.Get(&audits, "SELECT count(*) FROM auditlog"))
+	assert.Equal(t, 2, audits)
+
+	// the stores strip NULs before they reach the outbox
+	require.NoError(t, AuditLog{Outbox: ob}.Save(repotest.Ctx(repotest.TenantA), &auditlog.Entry{Timestamp: time.Now(), Application: "a\x00b", Action: "z"}))
+	_, err = (&outbox.Shipper{Outbox: ob, Sink: Sink{DB: d.Device}}).ShipAll(ctx)
+	require.NoError(t, err)
+	var app string
+	require.NoError(t, d.Owner.Get(&app, "SELECT application FROM auditlog WHERE action = 'z'"))
+	assert.Equal(t, "ab", app)
+}

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -24,10 +25,17 @@ const (
 	hashSaltLen   = 16
 	hashKeyLen    = 32
 	hashPrefix    = "$argon2id$"
-	// maxHashMemoryKiB bounds what a stored hash may ask for, so a crafted hash can't exhaust memory.
-	maxHashMemoryKiB = 1024 * 1024
-	maxHashTime      = 16
+	// A stored hash's parameters must lie near the defaults: a crafted hash can neither exhaust a device process's
+	// memory or CPU nor be trivially weak.
+	minHashMemoryKiB = 8 * 1024
+	maxHashMemoryKiB = 64 * 1024
+	maxHashTime      = 4
+	maxHashThreads   = 4
 )
+
+// verifySlots bounds the argon2 computations running at once (each takes hashMemoryKiB), so a burst of logins
+// can't exhaust memory.
+var verifySlots = make(chan struct{}, max(2, runtime.NumCPU()))
 
 var b64 = base64.RawStdEncoding
 
@@ -56,7 +64,9 @@ func VerifyHash(hash string, password []byte) bool {
 	if err != nil {
 		return false
 	}
+	verifySlots <- struct{}{}
 	key := argon2.IDKey(password, h.salt, h.time, h.memory, h.threads, uint32(len(h.key))) //nolint:gosec // G115: key length checked in parseHash
+	<-verifySlots
 	return subtle.ConstantTimeCompare(key, h.key) == 1
 }
 
@@ -84,7 +94,8 @@ func parseHash(s string) (*parsedHash, error) {
 	if _, err := fmt.Sscanf(parts[1], "m=%d,t=%d,p=%d", &h.memory, &h.time, &h.threads); err != nil {
 		return nil, errBadHash
 	}
-	if h.memory == 0 || h.memory > maxHashMemoryKiB || h.time == 0 || h.time > maxHashTime || h.threads == 0 {
+	if h.memory < minHashMemoryKiB || h.memory > maxHashMemoryKiB || h.time == 0 || h.time > maxHashTime ||
+		h.threads == 0 || h.threads > maxHashThreads {
 		return nil, errBadHash
 	}
 	var err error

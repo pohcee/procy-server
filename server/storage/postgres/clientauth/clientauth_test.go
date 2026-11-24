@@ -128,13 +128,19 @@ func TestPasswordsStoredHashed(t *testing.T) {
 	assert.True(t, CheckStored(stored, []byte("secret")))
 	assert.False(t, CheckStored(stored, []byte("Secret")))
 
-	// a hash is stored as it is (copied from another cluster database)
+	// a value that looks like a hash is hashed too (a crafted hash would make every login with the id expensive)
 	added, err = s.Add(ctx, &clientsauth.ClientAuth{ID: "c2", Password: stored})
 	require.NoError(t, err)
 	require.True(t, added)
 	ok, err := s.Verify(ctx, "c2", []byte("secret"))
 	require.NoError(t, err)
-	assert.True(t, ok)
+	assert.False(t, ok)
+	ok, err = s.Verify(ctx, "c2", []byte(stored))
+	require.NoError(t, err)
+	assert.True(t, ok, "the value is the password")
+
+	// a stored value with the hash prefix that isn't a valid hash is never compared as plaintext
+	assert.False(t, CheckStored("$argon2id$garbage", []byte("$argon2id$garbage")))
 
 	ok, err = s.Verify(ctx, "missing", []byte("secret"))
 	require.NoError(t, err)

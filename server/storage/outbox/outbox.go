@@ -79,7 +79,17 @@ const schema = `CREATE TABLE IF NOT EXISTS outbox (
 	UNIQUE (kind, tenant_id, key)
 );
 CREATE INDEX IF NOT EXISTS outbox_kind ON outbox (kind, id);
-CREATE INDEX IF NOT EXISTS outbox_tenant_kind ON outbox (tenant_id, kind, id);`
+CREATE INDEX IF NOT EXISTS outbox_tenant_kind ON outbox (tenant_id, kind, id);
+CREATE TABLE IF NOT EXISTS dead_letters (
+	id        INTEGER PRIMARY KEY,
+	kind      TEXT    NOT NULL,
+	tenant_id TEXT    NOT NULL,
+	key       TEXT    NOT NULL,
+	payload   BLOB    NOT NULL,
+	added_at  DATETIME NOT NULL,
+	reason    TEXT    NOT NULL,
+	failed_at DATETIME NOT NULL
+);`
 
 // Open opens (creating it when missing) the outbox file at path.
 func Open(path string, opts Options) (*Outbox, error) {
@@ -126,6 +136,13 @@ func (o *Outbox) Add(ctx context.Context, kind Kind, tid tenant.ID, key string, 
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	var dup int
+	if err := tx.GetContext(ctx, &dup, "SELECT count(*) FROM outbox WHERE kind = ? AND tenant_id = ? AND key = ?", kind, tid, key); err != nil {
+		return fmt.Errorf("outbox: add: %w", err)
+	}
+	if dup > 0 {
+		return nil // stored already
+	}
 	var n int
 	if err := tx.GetContext(ctx, &n, "SELECT count(*) FROM outbox WHERE tenant_id = ?", tid); err != nil {
 		return fmt.Errorf("outbox: add: %w", err)
@@ -193,6 +210,31 @@ func (o *Outbox) Remove(ctx context.Context, ids []int64) error {
 		return fmt.Errorf("outbox: remove: %w", err)
 	}
 	return nil
+}
+
+// DeadLetter moves items the database rejected into the file's dead_letters table with reason, where they are
+// kept (for job results, which are never dropped) for an operator to look at.
+func (o *Outbox) DeadLetter(ctx context.Context, it Item, reason string) error {
+	tx, err := o.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("outbox: dead letter: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO dead_letters (id, kind, tenant_id, key, payload, added_at, reason, failed_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, it.ID, it.Kind, it.Tenant, it.Key, it.Payload, it.Added, reason, time.Now().UTC()); err != nil {
+		return fmt.Errorf("outbox: dead letter: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM outbox WHERE id = ?", it.ID); err != nil {
+		return fmt.Errorf("outbox: dead letter: %w", err)
+	}
+	return tx.Commit()
+}
+
+// DeadLetters returns how many items were moved to the dead letters.
+func (o *Outbox) DeadLetters(ctx context.Context) (int, error) {
+	var n int
+	err := o.db.GetContext(ctx, &n, "SELECT count(*) FROM dead_letters")
+	return n, err
 }
 
 // Count returns how many items the outbox holds for tid, or for every tenant when tid is empty.
