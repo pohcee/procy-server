@@ -80,6 +80,7 @@ type Server struct {
 	authDB              *sqlx.DB
 	uiJobWebSockets     ws.WebSocketCache // used to push job result to UI
 	uploadWebSockets    sync.Map
+	fileGrants          *fileGrants
 	jobsDoneChannel     jobResultChanMap // used for sequential command execution to know when command is finished
 	auditLog            *auditlog.AuditLog
 	capabilities        *models.Capabilities
@@ -116,6 +117,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		config:           config,
 		uiJobWebSockets:  ws.NewWebSocketCache(),
 		uploadWebSockets: sync.Map{},
+		fileGrants:       newFileGrants(),
 		jobsDoneChannel: jobResultChanMap{
 			m: make(map[string]chan *models.Job),
 		},

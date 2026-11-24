@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/sftp"
 
 	"github.com/gorilla/websocket"
 	"github.com/jpillora/requestlog"
@@ -397,7 +396,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 
 	// now run handler for other client requests and connections
 	go cl.handleSSHRequests(client.GetContext(), clientLog, clientID, reqs)
-	go cl.handleSSHChannels(clientLog.GetLogger(), chans)
+	go cl.handleSSHChannels(sshConn, clientLog.GetLogger(), chans)
 
 	// wait until we're disconnected from the client
 	if err = sshConn.Wait(); err != nil {
@@ -721,7 +720,7 @@ func (cl *ClientListener) saveCmdResult(ctx context.Context, respBytes []byte) (
 	return &resp, nil
 }
 
-func (cl *ClientListener) handleSSHChannels(clientLog *logger.Logger, chans <-chan ssh.NewChannel) {
+func (cl *ClientListener) handleSSHChannels(sshConn ssh.Conn, clientLog *logger.Logger, chans <-chan ssh.NewChannel) {
 	for ch := range chans {
 		ch := ch
 		extraData := string(ch.ExtraData())
@@ -739,7 +738,7 @@ func (cl *ClientListener) handleSSHChannels(clientLog *logger.Logger, chans <-ch
 
 		switch ch.ChannelType() {
 		case "session":
-			cl.handleSessionChannel(stream, clientLog)
+			cl.handleSessionChannel(sshConn, stream, clientLog)
 		case models.ChannelStdout, models.ChannelStderr:
 			go func() {
 				err := cl.handleOutputChannel(ch.ChannelType(), ch.ExtraData(), clientLog, stream)
@@ -835,15 +834,12 @@ func (cl *ClientListener) handleReq(req *ssh.Request, clientLog *logger.Logger) 
 	}
 }
 
-func (cl *ClientListener) handleSessionChannel(stream ssh.Channel, clientLog *logger.Logger) {
-	server, err := sftp.NewServer(
-		stream,
-		sftp.ReadOnly(),
-	)
-	if err != nil {
-		clientLog.Debugf("Failed to create sftp server: %s", err)
-		return
-	}
+// handleSessionChannel serves SFTP to a client. The client can read only the files that are
+// being sent to it over this connection (see sendFileToClient); everything else is refused.
+func (cl *ClientListener) handleSessionChannel(sshConn ssh.Conn, stream io.ReadWriteCloser, clientLog *logger.Logger) {
+	server := newDeviceFileServer(stream, func(path string) bool {
+		return cl.server.fileGrants.Allowed(sshConn, path)
+	})
 
 	if err := server.Serve(); err == io.EOF {
 		e := server.Close()

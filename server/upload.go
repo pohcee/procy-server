@@ -281,8 +281,13 @@ func (al *APIListener) sendFileToClient(wg *sync.WaitGroup, file *models.Uploade
 		}
 		return
 	}
+	conn := cl.GetConnection()
+	// The client fetches the file over SFTP while it handles the request.
+	revoke := al.Server.fileGrants.Grant(conn, file.SourceFilePath)
+	defer revoke()
+
 	resp := &models.UploadResponse{}
-	err := comm.SendRequestAndGetResponse(cl.GetConnection(), comm.RequestTypeUpload, file, resp, al.Log())
+	err := comm.SendRequestAndGetResponse(conn, comm.RequestTypeUpload, file, resp, al.Log())
 
 	resChan <- &uploadResult{
 		err:    err,
