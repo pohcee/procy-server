@@ -33,14 +33,19 @@ func writeConfig(t *testing.T, conf string) {
 	t.Cleanup(func() { *cfgPath = prev })
 }
 
-// writePostgresConfig writes the config of a Postgres node connecting with dsn.
+// writePostgresConfig writes the config of a Postgres node connecting with dsn, its vault managed by a local key file.
 func writePostgresConfig(t *testing.T, dsn string) {
 	t.Helper()
+	keyFile := filepath.Join(t.TempDir(), "vault.key")
+	require.NoError(t, os.WriteFile(keyFile, []byte(strings.Repeat("ab", 32)+"\n"), 0600))
 	writeConfig(t, "[server]\n"+
 		"  data_dir = \""+t.TempDir()+"\"\n"+
 		"[storage]\n"+
 		"  backend = \"postgres\"\n"+
-		"  dsn = \""+dsn+"\"\n")
+		"  dsn = \""+dsn+"\"\n"+
+		"[vault]\n"+
+		"  key_provider = \"local\"\n"+
+		"  local_key_file = \""+strings.ReplaceAll(keyFile, `\`, `\\`)+"\"\n")
 }
 
 func setFlag(t *testing.T, flag *string, value string) {
