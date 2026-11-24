@@ -18,6 +18,7 @@ import (
 
 	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	chserver "github.com/openrport/openrport/server"
@@ -277,48 +278,7 @@ func init() {
 	lFlags := RootCmd.Flags()
 	pFlags := RootCmd.PersistentFlags()
 
-	lFlags.StringP("addr", "a", "", "")
-	lFlags.String("url", "", "")
-	lFlags.String("key", "", "")
-	lFlags.String("authfile", "", "")
-	lFlags.String("auth", "", "")
-	lFlags.String("auth-table", "", "")
-	lFlags.String("proxy", "", "")
-	lFlags.String("api-addr", "", "")
-	lFlags.String("api-authfile", "", "")
-	lFlags.String("api-auth", "", "")
-	lFlags.String("api-auth-user-table", "", "")
-	lFlags.String("api-auth-group-table", "", "")
-	lFlags.String("api-jwt-secret", "", "")
-	lFlags.String("api-doc-root", "", "")
-	lFlags.String("api-cert-file", "", "")
-	lFlags.String("api-key-file", "", "")
-	lFlags.String("api-access-log-file", "", "")
-	lFlags.String("db-type", "", "")
-	lFlags.String("db-name", "", "")
-	lFlags.String("db-host", "", "")
-	lFlags.String("db-user", "", "")
-	lFlags.String("db-password", "", "")
-	lFlags.StringP("log-file", "l", "", "")
-	lFlags.String("log-level", "", "")
-	lFlags.StringSlice("use-ports", nil, "")
-	lFlags.StringSliceP("exclude-ports", "e", nil, "")
-	lFlags.String("data-dir", "", "")
-	lFlags.Duration("save-clients-interval", 0, "")
-	lFlags.Int64("max-request-bytes", 0, "")
-	lFlags.Int64("max-filepush-bytes", 0, "")
-	lFlags.Int64("max-request-bytes-client", 0, "")
-	lFlags.Duration("check-port-timeout", 0, "")
-	lFlags.Bool("auth-write", false, "")
-	lFlags.Bool("auth-multiuse-creds", false, "")
-	lFlags.Bool("equate-clientauthid-clientid", false, "")
-	lFlags.Int("run-remote-cmd-timeout-sec", 0, "")
-	lFlags.Bool("allow-root", false, "")
-	lFlags.Int64("monitoring-data-storage-days", 0, "")
-	lFlags.String("tunnel-proxy-cert-file", "", "")
-	lFlags.String("tunnel-proxy-key-file", "", "")
-	lFlags.String("novnc-root", "", "")
-	lFlags.String("guacd-address", "", "")
+	addServerFlags(lFlags)
 
 	cfgPath = pFlags.StringP("config", "c", "", "location of the config file")
 	svcCommand = lFlags.String("service", "", "")
@@ -384,56 +344,110 @@ func init() {
 	viperCfg.SetDefault("notifications.notification_script_dir", "/usr/local/lib/rport/notification_scripts")
 }
 
-func bindPFlags() {
-	pFlags := RootCmd.PersistentFlags()
-	// map config fields to CLI args:
-	// _ is used to ignore errors to pass linter check
-	_ = viperCfg.BindPFlag("server.address", pFlags.Lookup("addr"))
-	_ = viperCfg.BindPFlag("server.url", pFlags.Lookup("url"))
-	_ = viperCfg.BindPFlag("server.key_seed", pFlags.Lookup("key"))
-	_ = viperCfg.BindPFlag("server.auth", pFlags.Lookup("auth"))
-	_ = viperCfg.BindPFlag("server.auth_file", pFlags.Lookup("authfile"))
-	_ = viperCfg.BindPFlag("server.auth_table", pFlags.Lookup("auth-table"))
-	_ = viperCfg.BindPFlag("server.auth_multiuse_creds", pFlags.Lookup("auth-multiuse-creds"))
-	_ = viperCfg.BindPFlag("server.equate_clientauthid_clientid", pFlags.Lookup("equate-clientauthid-clientid"))
-	_ = viperCfg.BindPFlag("server.auth_write", pFlags.Lookup("auth-write"))
-	_ = viperCfg.BindPFlag("server.proxy", pFlags.Lookup("proxy"))
-	_ = viperCfg.BindPFlag("server.used_ports", pFlags.Lookup("use-ports"))
-	_ = viperCfg.BindPFlag("server.excluded_ports", pFlags.Lookup("exclude-ports"))
-	_ = viperCfg.BindPFlag("server.data_dir", pFlags.Lookup("data-dir"))
-	_ = viperCfg.BindPFlag("server.max_request_bytes_client", pFlags.Lookup("max-request-bytes-client"))
-	_ = viperCfg.BindPFlag("server.check_port_timeout", pFlags.Lookup("check-port-timeout"))
-	_ = viperCfg.BindPFlag("server.run_remote_cmd_timeout_sec", pFlags.Lookup("run-remote-cmd-timeout-sec"))
-	_ = viperCfg.BindPFlag("server.allow_root", pFlags.Lookup("allow-root"))
-	_ = viperCfg.BindPFlag("server.tunnel_proxy_cert_file", pFlags.Lookup("tunnel-proxy-cert-file"))
-	_ = viperCfg.BindPFlag("server.tunnel_proxy_key_file", pFlags.Lookup("tunnel-proxy-key-file"))
-	_ = viperCfg.BindPFlag("server.novnc_root", pFlags.Lookup("novnc-root"))
-	_ = viperCfg.BindPFlag("server.guacd_address", pFlags.Lookup("guacd-address"))
+// addServerFlags registers the flags that override config file settings when the server starts.
+func addServerFlags(lFlags *pflag.FlagSet) {
+	lFlags.StringP("addr", "a", "", "")
+	lFlags.String("url", "", "")
+	lFlags.String("key", "", "")
+	lFlags.String("authfile", "", "")
+	lFlags.String("auth", "", "")
+	lFlags.String("auth-table", "", "")
+	lFlags.String("proxy", "", "")
+	lFlags.String("api-addr", "", "")
+	lFlags.String("api-authfile", "", "")
+	lFlags.String("api-auth", "", "")
+	lFlags.String("api-auth-user-table", "", "")
+	lFlags.String("api-auth-group-table", "", "")
+	lFlags.String("api-jwt-secret", "", "")
+	lFlags.String("api-doc-root", "", "")
+	lFlags.String("api-cert-file", "", "")
+	lFlags.String("api-key-file", "", "")
+	lFlags.String("api-access-log-file", "", "")
+	lFlags.String("db-type", "", "")
+	lFlags.String("db-name", "", "")
+	lFlags.String("db-host", "", "")
+	lFlags.String("db-user", "", "")
+	lFlags.String("db-password", "", "")
+	lFlags.StringP("log-file", "l", "", "")
+	lFlags.String("log-level", "", "")
+	lFlags.StringSlice("use-ports", nil, "")
+	lFlags.StringSliceP("exclude-ports", "e", nil, "")
+	lFlags.String("data-dir", "", "")
+	lFlags.Duration("save-clients-interval", 0, "")
+	lFlags.Int64("max-request-bytes", 0, "")
+	lFlags.Int64("max-filepush-bytes", 0, "")
+	lFlags.Int64("max-request-bytes-client", 0, "")
+	lFlags.Duration("check-port-timeout", 0, "")
+	lFlags.Bool("auth-write", false, "")
+	lFlags.Bool("auth-multiuse-creds", false, "")
+	lFlags.Bool("equate-clientauthid-clientid", false, "")
+	lFlags.Int("run-remote-cmd-timeout-sec", 0, "")
+	lFlags.Bool("allow-root", false, "")
+	lFlags.Int64("monitoring-data-storage-days", 0, "")
+	lFlags.String("tunnel-proxy-cert-file", "", "")
+	lFlags.String("tunnel-proxy-key-file", "", "")
+	lFlags.String("novnc-root", "", "")
+	lFlags.String("guacd-address", "", "")
+}
 
-	_ = viperCfg.BindPFlag("logging.log_file", pFlags.Lookup("log-file"))
-	_ = viperCfg.BindPFlag("logging.log_level", pFlags.Lookup("log-level"))
+// bindPFlags maps the server flags in fs to config keys. A flag overrides the config file only when it is set.
+func bindPFlags(v *viper.Viper, fs *pflag.FlagSet) error {
+	bindings := [][2]string{
+		{"server.address", "addr"},
+		{"server.url", "url"},
+		{"server.key_seed", "key"},
+		{"server.auth", "auth"},
+		{"server.auth_file", "authfile"},
+		{"server.auth_table", "auth-table"},
+		{"server.auth_multiuse_creds", "auth-multiuse-creds"},
+		{"server.equate_clientauthid_clientid", "equate-clientauthid-clientid"},
+		{"server.auth_write", "auth-write"},
+		{"server.proxy", "proxy"},
+		{"server.used_ports", "use-ports"},
+		{"server.excluded_ports", "exclude-ports"},
+		{"server.data_dir", "data-dir"},
+		{"server.max_request_bytes_client", "max-request-bytes-client"},
+		{"server.check_port_timeout", "check-port-timeout"},
+		{"server.run_remote_cmd_timeout_sec", "run-remote-cmd-timeout-sec"},
+		{"server.allow_root", "allow-root"},
+		{"server.tunnel_proxy_cert_file", "tunnel-proxy-cert-file"},
+		{"server.tunnel_proxy_key_file", "tunnel-proxy-key-file"},
+		{"server.novnc_root", "novnc-root"},
+		{"server.guacd_address", "guacd-address"},
 
-	_ = viperCfg.BindPFlag("api.address", pFlags.Lookup("api-addr"))
-	_ = viperCfg.BindPFlag("api.auth", pFlags.Lookup("api-auth"))
-	_ = viperCfg.BindPFlag("api.auth_file", pFlags.Lookup("api-authfile"))
-	_ = viperCfg.BindPFlag("api.auth_user_table", pFlags.Lookup("api-auth-user-table"))
-	_ = viperCfg.BindPFlag("api.auth_group_table", pFlags.Lookup("api-auth-group-table"))
-	_ = viperCfg.BindPFlag("api.jwt_secret", pFlags.Lookup("api-jwt-secret"))
-	_ = viperCfg.BindPFlag("api.doc_root", pFlags.Lookup("api-doc-root"))
-	_ = viperCfg.BindPFlag("api.cert_file", pFlags.Lookup("api-cert-file"))
-	_ = viperCfg.BindPFlag("api.key_file", pFlags.Lookup("api-key-file"))
-	_ = viperCfg.BindPFlag("api.access_log_file", pFlags.Lookup("api-access-log-file"))
-	_ = viperCfg.BindPFlag("api.max_request_bytes", pFlags.Lookup("max-request-bytes"))
-	_ = viperCfg.BindPFlag("api.max_filepush_size", pFlags.Lookup("max-filepush-bytes"))
-	_ = viperCfg.BindPFlag("database.db_type", pFlags.Lookup("db-type"))
-	_ = viperCfg.BindPFlag("database.db_name", pFlags.Lookup("db-name"))
-	_ = viperCfg.BindPFlag("database.db_host", pFlags.Lookup("db-host"))
-	_ = viperCfg.BindPFlag("database.db_user", pFlags.Lookup("db-user"))
-	_ = viperCfg.BindPFlag("database.db_password", pFlags.Lookup("db-password"))
+		{"logging.log_file", "log-file"},
+		{"logging.log_level", "log-level"},
 
-	_ = viperCfg.BindPFlag("monitoring.data_storage_duration", pFlags.Lookup("monitoring-data-storage-duration"))
-	_ = viperCfg.BindPFlag("monitoring.enabled", pFlags.Lookup("monitoring-enabled"))
-	_ = viperCfg.BindPFlag("monitoring.data_storage_days", pFlags.Lookup("monitoring-data-storage-days"))
+		{"api.address", "api-addr"},
+		{"api.auth", "api-auth"},
+		{"api.auth_file", "api-authfile"},
+		{"api.auth_user_table", "api-auth-user-table"},
+		{"api.auth_group_table", "api-auth-group-table"},
+		{"api.jwt_secret", "api-jwt-secret"},
+		{"api.doc_root", "api-doc-root"},
+		{"api.cert_file", "api-cert-file"},
+		{"api.key_file", "api-key-file"},
+		{"api.access_log_file", "api-access-log-file"},
+		{"api.max_request_bytes", "max-request-bytes"},
+		{"api.max_filepush_size", "max-filepush-bytes"},
+		{"database.db_type", "db-type"},
+		{"database.db_name", "db-name"},
+		{"database.db_host", "db-host"},
+		{"database.db_user", "db-user"},
+		{"database.db_password", "db-password"},
+
+		{"monitoring.data_storage_days", "monitoring-data-storage-days"},
+	}
+	for _, b := range bindings {
+		f := fs.Lookup(b[1])
+		if f == nil {
+			return fmt.Errorf("flag --%s is not defined", b[1])
+		}
+		if err := v.BindPFlag(b[0], f); err != nil {
+			return fmt.Errorf("flag --%s: %w", b[1], err)
+		}
+	}
+	return nil
 }
 
 func main() {
@@ -494,7 +508,9 @@ func runMain(*cobra.Command, []string) {
 	}
 
 	// Bind command line arguments late, so they're not included in validation for service install
-	bindPFlags()
+	if err := bindPFlags(viperCfg, RootCmd.Flags()); err != nil {
+		log.Fatal(err)
+	}
 
 	err := decodeAndValidateConfig(&mLog)
 	if err != nil {
