@@ -19,11 +19,11 @@ import (
 	"github.com/openrport/openrport/server/storage/postgres/sessions"
 	pgstoredtunnels "github.com/openrport/openrport/server/storage/postgres/storedtunnels"
 	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
+	pgvault "github.com/openrport/openrport/server/storage/postgres/vault"
 )
 
 // Repositories returns every repository of the server on the Postgres database db, so the server opens no SQLite
-// file. The vault is unavailableVault; NewServer replaces it with its Postgres storage when a managed key provider
-// is given.
+// file. The vault storage serves both the passphrase vault and a managed key provider (ServerOpts.VaultKeys).
 func Repositories(db *sqlx.DB, cfg *chconfig.Config) *chserver.Repositories {
 	return &chserver.Repositories{
 		Clients:       pgclients.New(db, keepDisconnectedClients(cfg)),
@@ -36,7 +36,7 @@ func Repositories(db *sqlx.DB, cfg *chconfig.Config) *chserver.Repositories {
 		Library:       pglibrary.New(db),
 		APITokens:     apitokens.New(db),
 		APISessions:   sessions.New(db),
-		Vault:         unavailableVault{},
+		Vault:         pgvault.NewFactory(pgvault.New(db)),
 		AuditLog:      pgauditlog.New(db),
 		Users:         pgusers.New(db),
 		ClientAuth:    clientauth.New(db),

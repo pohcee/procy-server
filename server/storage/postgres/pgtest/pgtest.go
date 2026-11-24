@@ -162,6 +162,18 @@ type DB struct {
 // New creates a fresh, migrated database for t (dropped at the end of the test) in which the tenants given exist.
 func New(t testing.TB, tenants ...tenant.ID) *DB {
 	t.Helper()
+	return newDB(t, true, tenants...)
+}
+
+// NewEmpty creates a fresh database for t (dropped at the end of the test) that is not migrated: no tables and no
+// grants, for tests of migrating it (rportd migrate) or of refusing an unmigrated one.
+func NewEmpty(t testing.TB) *DB {
+	t.Helper()
+	return newDB(t, false)
+}
+
+func newDB(t testing.TB, migrated bool, tenants ...tenant.ID) *DB {
+	t.Helper()
 	if os.Getenv(EnvDatabaseURL) == "" {
 		t.Skip("Postgres test: set " + EnvDatabaseURL + " to a superuser URL or to \"embedded\" to run it")
 	}
@@ -191,11 +203,13 @@ func New(t testing.TB, tenants ...tenant.ID) *DB {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { owner.Close() })
-	if _, err := migrate.Up(ctx, owner); err != nil {
-		t.Fatal(err)
-	}
-	if err := migrate.GrantApp(ctx, owner, AppRole); err != nil {
-		t.Fatal(err)
+	if migrated {
+		if _, err := migrate.Up(ctx, owner); err != nil {
+			t.Fatal(err)
+		}
+		if err := migrate.GrantApp(ctx, owner, AppRole); err != nil {
+			t.Fatal(err)
+		}
 	}
 	appURL := withDatabase(t, adminURL, name, AppRole, appPassword)
 	app, err := postgres.Open(ctx, appURL)
