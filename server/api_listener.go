@@ -212,10 +212,11 @@ func NewAPIListener(
 	tokenProvider := authorization.NewSqliteProvider(apiTokenDb)
 	tokenManager := authorization.NewManager(tokenProvider)
 
-	userService, err := users.NewAPIServiceFromConfig(ctx, server.authDB, config)
+	usersProvider, err := users.NewProviderFromConfig(ctx, server.authDB, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed init api users service: %w", err)
 	}
+	userService := users.NewAPIServiceFromConfig(ctx, usersProvider, config)
 
 	var HTTPServerOptions []chshare.ServerOption
 	if config.API.CertFile != "" && config.API.KeyFile != "" {
