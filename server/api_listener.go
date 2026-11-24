@@ -557,7 +557,8 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 }
 
 // isClientsAuthRoute reports whether urlpath is one of the client credential routes a clients-auth token may use:
-// the path, not any path containing the text (an organization id may contain "clients-auth").
+// the path, not any path containing the text (a client ID, a user name or an organization id may contain
+// "clients-auth").
 func isClientsAuthRoute(urlpath string) bool {
 	rest := strings.TrimPrefix(urlpath, routes.AllRoutesPrefix)
 	return rest == "/clients-auth" || strings.HasPrefix(rest, "/clients-auth/")
