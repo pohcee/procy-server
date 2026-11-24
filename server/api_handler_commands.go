@@ -225,6 +225,24 @@ func (al *APIListener) handleGetMultiClientCommandJobs(w http.ResponseWriter, re
 		return
 	}
 
+	// Same rule as GET /commands/{job_id}: only an admin or the user who created the multi-client job sees its jobs.
+	multiJob, err := al.jobProvider.GetMultiJob(req.Context(), multiJobID)
+	if err != nil {
+		al.jsonErrorResponseWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to find a multi-client job[id=%q].", multiJobID), err)
+		return
+	}
+	if multiJob != nil {
+		curUser, err := al.getUserModelForAuth(req.Context())
+		if err != nil {
+			al.jsonError(w, err)
+			return
+		}
+		if !curUser.IsAdmin() && multiJob.CreatedBy != curUser.Username {
+			al.jsonErrorResponseWithError(w, http.StatusForbidden, "forbidden", fmt.Errorf("you are not allowed to access items created by another user"))
+			return
+		}
+	}
+
 	options.Filters = append(options.Filters, query.FilterOption{Column: []string{"multi_job_id"}, Values: []string{multiJobID}})
 	result, err := al.jobProvider.List(req.Context(), options)
 	if err != nil {
@@ -498,6 +516,16 @@ func (al *APIListener) handleGetMultiClientCommands(w http.ResponseWriter, req *
 	if err != nil {
 		al.jsonError(w, err)
 		return
+	}
+
+	// Non-admins see only the multi-client jobs they created, as GET /commands/{job_id} allows.
+	curUser, err := al.getUserModelForAuth(req.Context())
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	if !curUser.IsAdmin() {
+		listOptions.Filters = append(listOptions.Filters, query.FilterOption{Column: []string{"created_by"}, Values: []string{curUser.Username}})
 	}
 
 	result, err := al.jobProvider.GetMultiJobSummaries(req.Context(), listOptions)

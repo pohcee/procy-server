@@ -20,6 +20,22 @@ import (
 // A job's multi_job_id always names a multi-job saved before it, as the server does; an implementation may
 // enforce that reference.
 func Jobs(t *testing.T, newRepo Factory[jobs.Provider]) {
+	t.Run("GetByJIDOnlyFindsTheClientsOwnJob", func(t *testing.T) {
+		p := newRepo(t)
+		ctx := tenant.WithID(context.Background(), tenant.Default)
+		job := jb.New(t).JID("j-of-c2").ClientID("c2").Build()
+		require.NoError(t, p.CreateJob(ctx, job))
+
+		got, err := p.GetByJID(ctx, "c1", "j-of-c2")
+		require.NoError(t, err)
+		assert.Nil(t, got, "a job of another client must not be found through this client")
+
+		got, err = p.GetByJID(ctx, "c2", "j-of-c2")
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, "c2", got.ClientID)
+	})
+
 	t.Run("MissingTenant", func(t *testing.T) {
 		p := newRepo(t)
 		ctx := context.Background()

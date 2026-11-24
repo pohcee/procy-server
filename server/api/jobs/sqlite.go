@@ -55,7 +55,7 @@ func (p *SqliteProvider) GetByJID(ctx context.Context, clientID, jid string) (*m
 		return nil, err
 	}
 	res := &jobSqlite{}
-	err = p.db.GetContext(ctx, res, jobsQuery+" AND j.jid=?", tid, jid)
+	err = p.db.GetContext(ctx, res, jobsQuery+" AND j.client_id=? AND j.jid=?", tid, clientID, jid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
