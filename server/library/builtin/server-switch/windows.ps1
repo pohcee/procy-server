@@ -5,3 +5,4 @@ $ErrorActionPreference = 'Stop'
 $script = 'C:\Windows\Temp\rport-update.ps1'
 Invoke-WebRequest -UseBasicParsing -Uri '{{server_url}}/pairing/update' -OutFile $script
 & $script -s
+exit $LASTEXITCODE

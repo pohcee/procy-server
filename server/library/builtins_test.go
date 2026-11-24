@@ -34,6 +34,14 @@ func TestBuiltinsLoad(t *testing.T) {
 			assert.Equal(t, b.Key != "os-updates", strings.Contains(impl.Code, "{{server_url}}/pairing/update"))
 		}
 	}
+	// "& $script" alone leaves the job successful when the update script exits 1 (its trap turns
+	// errors into exit 1); the wrapper must pass the exit code on.
+	for _, b := range bs[0:3:3] {
+		if b.Key == "os-updates" {
+			continue
+		}
+		assert.True(t, strings.HasSuffix(strings.TrimSpace(b.Content.Implementations[OSWindows].Code), "exit $LASTEXITCODE"), b.Key)
+	}
 	sw := bs[2].Content.Implementations
 	assert.Contains(t, sw[OSLinux].Code, "rport-update.sh -S\n")
 	assert.Contains(t, sw[OSWindows].Code, "& $script -s\n")
