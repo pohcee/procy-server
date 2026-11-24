@@ -1,7 +1,6 @@
 package chserver
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -96,28 +95,28 @@ func TestClientsStatusDeterminationTask(t *testing.T) {
 	task := NewClientsStatusCheckTask(myTestLog, cr, 120*time.Second, timeout)
 
 	// Check the last heartbeat of c1 has changed due to the ping sent
-	err = task.Run(context.Background())
+	err = task.Run(clientsTestCtx)
 	assert.NoError(t, err)
-	tcl1, err := cr.GetByID("1")
+	tcl1, err := cr.GetByID(clientsTestCtx, "1")
 	assert.NoError(t, err)
 	assert.IsType(t, &time.Time{}, tcl1.GetLastHeartbeatAt())
 	t.Logf("tcl1: LastHeartbeatAt: %s", tcl1.GetLastHeartbeatAt())
 
 	// Check the last heartbeat of c2 has not changed because the task must skip this client
-	tcl2, err := cr.GetByID("2")
+	tcl2, err := cr.GetByID(clientsTestCtx, "2")
 	assert.NoError(t, err)
 	assert.Equal(t, &now, tcl2.GetLastHeartbeatAt(), "LastHeartbeatAt of tcl2 must not change")
 	t.Logf("tcl2: LastHeartbeatAt: %s", tcl2.GetLastHeartbeatAt())
 
 	// Check the status of c3 changed to disconnected
-	tcl3, err := cr.GetByID("3")
+	tcl3, err := cr.GetByID(clientsTestCtx, "3")
 	assert.NoError(t, err)
 	assert.NotNil(t, tcl3.GetDisconnectedAt())
 	assert.Equal(t, "disconnected", string(tcl3.CalculateConnectionState()))
 	t.Logf("tcl3: GetDisconnectedAt(): %s", tcl3.GetDisconnectedAt())
 
 	// Check the status of c4 changed to disconnected caused by a timeout
-	tcl4, err := cr.GetByID("4")
+	tcl4, err := cr.GetByID(clientsTestCtx, "4")
 	assert.NoError(t, err)
 	assert.NotNil(t, tcl4.GetDisconnectedAt())
 	assert.Equal(t, "disconnected", string(tcl4.CalculateConnectionState()))

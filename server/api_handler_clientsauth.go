@@ -135,14 +135,14 @@ func (al *APIListener) handleDeleteClientAuth(w http.ResponseWriter, req *http.R
 		return
 	}
 
-	allClients := al.clientService.GetAllByClientID(clientAuthID)
+	allClients := al.clientService.GetAllByClientID(req.Context(), clientAuthID)
 	if !force && len(allClients) > 0 {
 		al.jsonErrorResponseWithErrCode(w, http.StatusConflict, ErrCodeClientAuthHasClient, fmt.Sprintf("Client Auth expected to have no active or disconnected bound client(s), got %d.", len(allClients)))
 		return
 	}
 
 	for _, s := range allClients {
-		if err := al.clientService.ForceDelete(s); err != nil {
+		if err := al.clientService.ForceDelete(req.Context(), s); err != nil {
 			al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 			return
 		}

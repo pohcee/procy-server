@@ -38,41 +38,41 @@ func TestCRWithExpiration(t *testing.T) {
 	repo := NewClientRepository([]*clientdata.Client{c1, c2}, &exp, testLog)
 
 	assert := assert.New(t)
-	assert.NoError(repo.Save(c3))
-	assert.NoError(repo.Save(c4))
+	assert.NoError(repo.Save(defaultCtx, c3))
+	assert.NoError(repo.Save(defaultCtx, c4))
 
-	gotCount := repo.Count()
+	gotCount := repo.Count(defaultCtx)
 	assert.Equal(3, gotCount)
 
-	gotCountActive := repo.CountActive()
+	gotCountActive := repo.CountActive(defaultCtx)
 	assert.Equal(1, gotCountActive)
 
-	gotCountDisconnected, err := repo.CountDisconnected()
+	gotCountDisconnected, err := repo.CountDisconnected(defaultCtx)
 	assert.NoError(err)
 	assert.Equal(2, gotCountDisconnected)
 
-	gotClients := repo.GetAllClients()
+	gotClients := repo.GetAllClients(defaultCtx)
 	assert.ElementsMatch([]*clientdata.Client{c1, c2, c3}, gotClients)
 
 	// active
-	gotClient, err := repo.GetActiveByID(c1.GetID())
+	gotClient, err := repo.GetActiveByID(defaultCtx, c1.GetID())
 	assert.NoError(err)
 	assert.Equal(c1, gotClient)
 
 	// disconnected
-	gotClient, err = repo.GetActiveByID(c2.GetID())
+	gotClient, err = repo.GetActiveByID(defaultCtx, c2.GetID())
 	assert.NoError(err)
 	assert.Nil(gotClient)
 
-	deleted, err := repo.DeleteObsolete()
+	deleted, err := repo.DeleteObsolete(defaultCtx)
 	assert.NoError(err)
 	require.Len(t, deleted, 1)
 	assert.Equal(c4, deleted[0])
-	gotClients = repo.GetAllClients()
+	gotClients = repo.GetAllClients(defaultCtx)
 	assert.ElementsMatch([]*clientdata.Client{c1, c2, c3}, gotClients)
 
-	assert.NoError(repo.Delete(c3))
-	gotClients = repo.GetAllClients()
+	assert.NoError(repo.Delete(defaultCtx, c3))
+	gotClients = repo.GetAllClients(defaultCtx)
 	assert.NoError(err)
 	assert.ElementsMatch([]*clientdata.Client{c1, c2}, gotClients)
 }
@@ -85,37 +85,37 @@ func TestCRWithNoExpiration(t *testing.T) {
 	c4Active.DisconnectedAt = nil
 
 	assert := assert.New(t)
-	assert.NoError(repo.Save(c4Active))
+	assert.NoError(repo.Save(defaultCtx, c4Active))
 
-	gotCount := repo.Count()
+	gotCount := repo.Count(defaultCtx)
 	assert.Equal(4, gotCount)
 
-	gotCountActive := repo.CountActive()
+	gotCountActive := repo.CountActive(defaultCtx)
 	assert.Equal(2, gotCountActive)
 
-	gotCountDisconnected, err := repo.CountDisconnected()
+	gotCountDisconnected, err := repo.CountDisconnected(defaultCtx)
 	assert.NoError(err)
 	assert.Equal(2, gotCountDisconnected)
 
-	gotClients := repo.GetAllClients()
+	gotClients := repo.GetAllClients(defaultCtx)
 	assert.ElementsMatch([]*clientdata.Client{c1, c2, c3, c4Active}, gotClients)
 
 	// active
-	gotClient, err := repo.GetActiveByID(c1.GetID())
+	gotClient, err := repo.GetActiveByID(defaultCtx, c1.GetID())
 	assert.NoError(err)
 	assert.Equal(c1, gotClient)
 
 	// disconnected
-	gotClient, err = repo.GetActiveByID(c2.GetID())
+	gotClient, err = repo.GetActiveByID(defaultCtx, c2.GetID())
 	assert.NoError(err)
 	assert.Nil(gotClient)
 
-	deleted, err := repo.DeleteObsolete()
+	deleted, err := repo.DeleteObsolete(defaultCtx)
 	assert.NoError(err)
 	assert.Len(deleted, 0)
 
-	assert.NoError(repo.Delete(c4Active))
-	gotClients = repo.GetAllClients()
+	assert.NoError(repo.Delete(defaultCtx, c4Active))
+	gotClients = repo.GetAllClients(defaultCtx)
 	assert.ElementsMatch([]*clientdata.Client{c1, c2, c3}, gotClients)
 }
 
@@ -512,7 +512,7 @@ func TestCRWithFilter(t *testing.T) {
 
 			repo := NewClientRepository([]*clientdata.Client{c1, c2, c5}, nil, testLog)
 
-			actualClients, err := repo.GetFilteredUserClients(admin, tc.filters, nil)
+			actualClients, err := repo.GetFilteredUserClients(defaultCtx, admin, tc.filters, nil)
 			require.NoError(t, err)
 
 			actualClientIDs := make([]string, 0, len(actualClients))
@@ -528,7 +528,7 @@ func TestCRWithFilter(t *testing.T) {
 
 func TestCRWithUnsupportedFilter(t *testing.T) {
 	repo := NewClientRepository([]*clientdata.Client{c1}, nil, testLog)
-	_, err := repo.GetFilteredUserClients(admin, []query.FilterOption{
+	_, err := repo.GetFilteredUserClients(defaultCtx, admin, []query.FilterOption{
 		{
 			Column: []string{"unknown_field"},
 			Values: []string{
@@ -597,7 +597,7 @@ func TestGetUserClients(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// when
-			gotClients := repo.GetUserClients(tc.user, clientGroups)
+			gotClients := repo.GetUserClients(defaultCtx, tc.user, clientGroups)
 			t.Logf("Access ganted to %d clients", len(gotClients))
 
 			// then

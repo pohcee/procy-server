@@ -34,7 +34,7 @@ func (t *ClientsStatusCheckTask) Run(ctx context.Context) error {
 	timerStart := time.Now()
 	var confirmedClients = 0
 
-	dueClients, totalClientsCount := t.getDueClients()
+	dueClients, totalClientsCount := t.getDueClients(ctx)
 	if len(dueClients) == 0 {
 		// Nothing to do
 		t.log.Debugf("ended after %s, no clients to ping", time.Since(timerStart))
@@ -82,10 +82,10 @@ func (t *ClientsStatusCheckTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func (t *ClientsStatusCheckTask) getDueClients() (dueClients []*clientdata.Client, totalCount int) {
+func (t *ClientsStatusCheckTask) getDueClients(ctx context.Context) (dueClients []*clientdata.Client, totalCount int) {
 	var confirmedClients = 0
 	var now = time.Now()
-	activeClients := t.clientsRepo.GetAllActiveClients()
+	activeClients := t.clientsRepo.GetAllActiveClients(ctx)
 	for _, c := range activeClients {
 		// Shorten the threshold aka make heartbeat older than it is because the ping response is stored after this check.
 		// Clients would get checked only every second time otherwise.

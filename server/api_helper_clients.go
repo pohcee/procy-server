@@ -50,7 +50,7 @@ func (al *APIListener) getOrderedClientsWithValidation(
 		}
 	} else {
 		// do tags
-		targetedClients, err = al.getOrderedClientsByTag(params.GetClientTags())
+		targetedClients, err = al.getOrderedClientsByTag(ctx, params.GetClientTags())
 		if err != nil {
 			return nil, 0, err
 		}
@@ -77,7 +77,7 @@ func (al *APIListener) getOrderedClients(
 	}
 	groupClientsFoundCount = len(groupClients)
 
-	orderedClients, usedClientIDs, err := al.makeClientsList(clientIDs)
+	orderedClients, usedClientIDs, err := al.makeClientsList(ctx, clientIDs)
 	if err != nil {
 		return orderedClients, groupClientsFoundCount, err
 	}
@@ -116,16 +116,16 @@ func (al *APIListener) makeGroupClientsList(ctx context.Context, groupIDs []stri
 		}
 		groups = append(groups, group)
 	}
-	return al.clientService.GetByGroups(groups)
+	return al.clientService.GetByGroups(ctx, groups)
 }
 
-func (al *APIListener) makeClientsList(clientIDs []string) (orderedClients []*clientdata.Client, usedClientIDs map[string]bool, err error) {
+func (al *APIListener) makeClientsList(ctx context.Context, clientIDs []string) (orderedClients []*clientdata.Client, usedClientIDs map[string]bool, err error) {
 	orderedClients = make([]*clientdata.Client, 0)
 	usedClientIDs = make(map[string]bool)
 
 	for _, cid := range clientIDs {
 		// TODO: doesn't GetByID exclude disconnected clients? if so, how can allowDisconnected work?
-		client, err := al.clientService.GetByID(cid)
+		client, err := al.clientService.GetByID(ctx, cid)
 		if err != nil {
 			err = errors2.APIError{
 				Message:    fmt.Sprintf("Failed to find a client with id=%q.", cid),
@@ -149,12 +149,12 @@ func (al *APIListener) makeClientsList(clientIDs []string) (orderedClients []*cl
 	return orderedClients, usedClientIDs, nil
 }
 
-func (al *APIListener) getOrderedClientsByTag(clientTags *models.JobClientTags) (
+func (al *APIListener) getOrderedClientsByTag(ctx context.Context, clientTags *models.JobClientTags) (
 	orderedClients []*clientdata.Client,
 	err error,
 ) {
 	// find the clientIDs that have matching tags
-	orderedClients, err = al.clientService.GetClientsByTag(clientTags.Tags, clientTags.Operator, true /* allowDisconnected */)
+	orderedClients, err = al.clientService.GetClientsByTag(ctx, clientTags.Tags, clientTags.Operator, true /* allowDisconnected */)
 	if err != nil {
 		err = errors2.APIError{
 			Message:    "Unable to get active clients by tags",

@@ -2,12 +2,16 @@ package storedtunnels
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jmoiron/sqlx"
 
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
+// SQLiteProvider stores tunnels saved for a client. Every method is scoped to the tenant carried by its
+// context and fails with tenant.ErrMissing when there is none.
 type SQLiteProvider struct {
 	db        *sqlx.DB
 	converter *query.SQLConverter
@@ -20,9 +24,23 @@ func newSQLiteProvider(db *sqlx.DB) *SQLiteProvider {
 	}
 }
 
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("stored tunnels: %w", err)
+	}
+	return id, nil
+}
+
 func (p *SQLiteProvider) Insert(ctx context.Context, t *StoredTunnel) error {
-	_, err := p.db.NamedExecContext(ctx,
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	t.TenantID = tid
+	_, err = p.db.NamedExecContext(ctx,
 		`INSERT INTO stored_tunnels (
+			tenant_id,
 			id,
 			client_id,
 			created_at,
@@ -34,6 +52,7 @@ func (p *SQLiteProvider) Insert(ctx context.Context, t *StoredTunnel) error {
 			acl,
 			further_options
 		) VALUES (
+			:tenant_id,
 			:id,
 			:client_id,
 			:created_at,
@@ -52,7 +71,12 @@ func (p *SQLiteProvider) Insert(ctx context.Context, t *StoredTunnel) error {
 }
 
 func (p *SQLiteProvider) Update(ctx context.Context, t *StoredTunnel) error {
-	_, err := p.db.NamedExecContext(ctx,
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	t.TenantID = tid
+	_, err = p.db.NamedExecContext(ctx,
 		`UPDATE stored_tunnels SET
 			name = :name,
 			scheme = :scheme,
@@ -61,7 +85,7 @@ func (p *SQLiteProvider) Update(ctx context.Context, t *StoredTunnel) error {
 			public_port = :public_port,
 			acl = :acl,
 			further_options = :further_options
-		WHERE client_id = :client_id AND id = :id`,
+		WHERE tenant_id = :tenant_id AND client_id = :client_id AND id = :id`,
 		t,
 	)
 
@@ -71,12 +95,17 @@ func (p *SQLiteProvider) Update(ctx context.Context, t *StoredTunnel) error {
 func (p *SQLiteProvider) List(ctx context.Context, clientID string, options *query.ListOptions) ([]*StoredTunnel, error) {
 	values := []*StoredTunnel{}
 
-	q := "SELECT * FROM stored_tunnels WHERE client_id = ?"
-	params := []interface{}{clientID}
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return values, err
+	}
+
+	q := "SELECT * FROM stored_tunnels WHERE tenant_id = ? AND client_id = ?"
+	params := []interface{}{tid, clientID}
 
 	q, params = p.converter.AppendOptionsToQuery(options, q, params)
 
-	err := p.db.SelectContext(ctx, &values, q, params...)
+	err = p.db.SelectContext(ctx, &values, q, params...)
 	if err != nil {
 		return values, err
 	}
@@ -87,14 +116,19 @@ func (p *SQLiteProvider) List(ctx context.Context, clientID string, options *que
 func (p *SQLiteProvider) Count(ctx context.Context, clientID string, options *query.ListOptions) (int, error) {
 	var result int
 
-	q := "SELECT COUNT(*) FROM stored_tunnels WHERE client_id = ?"
-	params := []interface{}{clientID}
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	q := "SELECT COUNT(*) FROM stored_tunnels WHERE tenant_id = ? AND client_id = ?"
+	params := []interface{}{tid, clientID}
 
 	countOptions := *options
 	countOptions.Pagination = nil
 	q, params = p.converter.AppendOptionsToQuery(&countOptions, q, params)
 
-	err := p.db.GetContext(ctx, &result, q, params...)
+	err = p.db.GetContext(ctx, &result, q, params...)
 	if err != nil {
 		return 0, err
 	}
@@ -103,6 +137,10 @@ func (p *SQLiteProvider) Count(ctx context.Context, clientID string, options *qu
 }
 
 func (p *SQLiteProvider) Delete(ctx context.Context, clientID, id string) error {
-	_, err := p.db.ExecContext(ctx, "DELETE FROM stored_tunnels WHERE client_id = ? AND id = ?", clientID, id)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = p.db.ExecContext(ctx, "DELETE FROM stored_tunnels WHERE tenant_id = ? AND client_id = ? AND id = ?", tid, clientID, id)
 	return err
 }

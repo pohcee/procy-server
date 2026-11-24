@@ -396,7 +396,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	clientLog.Debugf("opened %s within %s", clientBanner, time.Since(ts2))
 
 	// now run handler for other client requests and connections
-	go cl.handleSSHRequests(clientLog, clientID, reqs)
+	go cl.handleSSHRequests(client.GetContext(), clientLog, clientID, reqs)
 	go cl.handleSSHChannels(clientLog.GetLogger(), chans)
 
 	// wait until we're disconnected from the client
@@ -405,7 +405,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	}
 	clientLog.Debugf("close %s", clientBanner)
 
-	err = cl.getClientService().Terminate(client)
+	err = cl.getClientService().Terminate(ctx, client)
 	if err != nil {
 		cl.log().Errorf("could not terminate client: %s", err)
 	}
@@ -471,7 +471,9 @@ func (cl *ClientListener) replyConnectionError(r *ssh.Request, err error) {
 	}
 }
 
-func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, clientID string, reqs <-chan *ssh.Request) {
+// handleSSHRequests handles requests sent by a connected client. ctx is the client's context: device-originated
+// work belongs to the client's tenant.
+func (cl *ClientListener) handleSSHRequests(ctx context.Context, clientLog *logger.DynamicLogger, clientID string, reqs <-chan *ssh.Request) {
 	clientService := cl.getClientService()
 
 	for r := range reqs {
@@ -496,7 +498,7 @@ func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, cli
 			clientLog.Debugf("received connection request on existing connection. asking the client to reconnect.")
 			// IMPORTANT: the client is checking for the word "reconnect" in reply errors
 			cl.replyConnectionError(r, errors.New("unexpected connection request. please reconnect"))
-			client, err := clientService.GetRepo().GetActiveByID(clientID)
+			client, err := clientService.GetRepo().GetActiveByID(ctx, clientID)
 			if err != nil {
 				clientLog.Debugf("unable to get client: %v", err)
 				continue
@@ -506,7 +508,7 @@ func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, cli
 				continue
 			}
 			clientLog.Debugf("terminating client due for reconnect")
-			err = clientService.Terminate(client)
+			err = clientService.Terminate(ctx, client)
 			if err != nil {
 				clientLog.Debugf("failed to terminate client due for reconnect: %v", err)
 			}
@@ -520,7 +522,7 @@ func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, cli
 			}
 			// ts := time.Now()
 			_ = r.Reply(true, nil)
-			err := clientService.SetLastHeartbeat(clientID, time.Now())
+			err := clientService.SetLastHeartbeat(ctx, clientID, time.Now())
 			if err != nil {
 				clientLog.Errorf("Failed to save heartbeat: %s", err)
 				continue
@@ -555,6 +557,7 @@ func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, cli
 				auditLogEntry.WithID(job.JID)
 			}
 			auditLogEntry.
+				WithContext(ctx).
 				WithResponse(job).
 				WithClientID(clientID).
 				Save()
@@ -584,7 +587,7 @@ func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, cli
 				clientLog.Errorf("Failed to unmarshal updates status: %s", err)
 				continue
 			}
-			err = clientService.SetUpdatesStatus(clientID, updatesStatus)
+			err = clientService.SetUpdatesStatus(ctx, clientID, updatesStatus)
 			if err != nil {
 				clientLog.Errorf("Failed to save updates status: %s", err)
 				continue
@@ -627,7 +630,7 @@ func (cl *ClientListener) handleSSHRequests(clientLog *logger.DynamicLogger, cli
 				continue
 			}
 			IPAddresses.UpdatedAt = time.Now().UTC()
-			err = clientService.SetIPAddresses(clientID, IPAddresses)
+			err = clientService.SetIPAddresses(ctx, clientID, IPAddresses)
 			if err != nil {
 				clientLog.Errorf("Failed to save IPAddresses status: %s", err)
 				continue

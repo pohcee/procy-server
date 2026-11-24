@@ -1227,7 +1227,7 @@ func TestHandlePostMultiClientCommandWithTags(t *testing.T) {
 
 			// make sure the repo has the test clients
 			for _, cl := range clientList {
-				err := al.clientService.GetRepo().Save(cl)
+				err := al.clientService.GetRepo().Save(clientsTestCtx, cl)
 				assert.NoError(t, err)
 			}
 
@@ -1465,7 +1465,7 @@ func TestHandlePostMultiClientWSCommandWithTags(t *testing.T) {
 
 			// make sure the repo has the test clients
 			for _, cl := range clientList {
-				err := al.clientService.GetRepo().Save(cl)
+				err := al.clientService.GetRepo().Save(clientsTestCtx, cl)
 				assert.NoError(t, err)
 			}
 
@@ -1699,7 +1699,7 @@ func TestHandlePostMultiClientScriptWithTags(t *testing.T) {
 
 			// make sure the repo has the test clients
 			for _, cl := range clientList {
-				err := al.clientService.GetRepo().Save(cl)
+				err := al.clientService.GetRepo().Save(clientsTestCtx, cl)
 				assert.NoError(t, err)
 			}
 
@@ -1939,7 +1939,7 @@ func TestHandlePostMultiClientWSScriptWithTags(t *testing.T) {
 
 			// make sure the repo has the test clients
 			for _, cl := range clientList {
-				err := al.clientService.GetRepo().Save(cl)
+				err := al.clientService.GetRepo().Save(clientsTestCtx, cl)
 				assert.NoError(t, err)
 			}
 

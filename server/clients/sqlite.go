@@ -17,6 +17,7 @@ import (
 	chshare "github.com/openrport/openrport/share/clientconfig"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type ClientStore interface {
@@ -27,6 +28,8 @@ type ClientStore interface {
 	Close() error
 }
 
+// SqliteProvider stores clients. Every method is scoped to the tenant carried by its context
+// and fails with tenant.ErrMissing when there is none.
 type SqliteProvider struct {
 	db                      *sqlx.DB
 	keepDisconnectedClients *time.Duration
@@ -36,12 +39,25 @@ func newSqliteProvider(db *sqlx.DB, keepDisconnectedClients *time.Duration) *Sql
 	return &SqliteProvider{db: db, keepDisconnectedClients: keepDisconnectedClients}
 }
 
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("clients: %w", err)
+	}
+	return id, nil
+}
+
 func (p *SqliteProvider) GetAll(ctx context.Context, l *logger.Logger) ([]*clientdata.Client, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var res []*clientSqlite
-	err := p.db.SelectContext(
+	err = p.db.SelectContext(
 		ctx,
 		&res,
-		"SELECT * FROM clients WHERE disconnected_at IS NULL OR DATETIME(disconnected_at) >= DATETIME(?) OR ?",
+		"SELECT * FROM clients WHERE tenant_id = ? AND (disconnected_at IS NULL OR DATETIME(disconnected_at) >= DATETIME(?) OR ?)",
+		tid,
 		p.keepDisconnectedClientsStart(),
 		p.keepDisconnectedClients == nil,
 	)
@@ -53,8 +69,12 @@ func (p *SqliteProvider) GetAll(ctx context.Context, l *logger.Logger) ([]*clien
 
 // test only
 func (p *SqliteProvider) get(ctx context.Context, id string, l *logger.Logger) (*clientdata.Client, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	res := &clientSqlite{}
-	err := p.db.GetContext(ctx, res, "SELECT * FROM clients WHERE id = ?", id)
+	err = p.db.GetContext(ctx, res, "SELECT * FROM clients WHERE tenant_id = ? AND id = ?", tid, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -65,14 +85,19 @@ func (p *SqliteProvider) get(ctx context.Context, id string, l *logger.Logger) (
 }
 
 func (p *SqliteProvider) Save(ctx context.Context, client *clientdata.Client) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 
 	clientForSQL := convertToSqlite(client)
+	clientForSQL.TenantID = tid
 
-	_, err := sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
+	_, err = sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
 
 		_, err = p.db.NamedExecContext(
 			ctx,
-			"INSERT OR REPLACE INTO clients (id, client_auth_id, disconnected_at, details) VALUES (:id, :client_auth_id, :disconnected_at, :details)",
+			"INSERT OR REPLACE INTO clients (tenant_id, id, client_auth_id, disconnected_at, details) VALUES (:tenant_id, :id, :client_auth_id, :disconnected_at, :details)",
 			clientForSQL,
 		)
 
@@ -83,11 +108,16 @@ func (p *SqliteProvider) Save(ctx context.Context, client *clientdata.Client) er
 }
 
 func (p *SqliteProvider) DeleteObsolete(ctx context.Context, l *logger.Logger) error {
-	_, err := sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
 
 		_, err = p.db.ExecContext(
 			ctx,
-			"DELETE FROM clients WHERE disconnected_at IS NOT NULL AND DATETIME(disconnected_at) < DATETIME(?) AND ?",
+			"DELETE FROM clients WHERE tenant_id = ? AND disconnected_at IS NOT NULL AND DATETIME(disconnected_at) < DATETIME(?) AND ?",
+			tid,
 			p.keepDisconnectedClientsStart(),
 			p.keepDisconnectedClients != nil,
 		)
@@ -99,9 +129,13 @@ func (p *SqliteProvider) DeleteObsolete(ctx context.Context, l *logger.Logger) e
 }
 
 func (p *SqliteProvider) Delete(ctx context.Context, id string, l *logger.Logger) error {
-	_, err := sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
 
-		_, err = p.db.ExecContext(ctx, "DELETE FROM clients WHERE id = ?", id)
+		_, err = p.db.ExecContext(ctx, "DELETE FROM clients WHERE tenant_id = ? AND id = ?", tid, id)
 
 		return nil, err
 	}, "delete", l)
@@ -171,6 +205,7 @@ func convertToSqlite(c *clientdata.Client) (res *clientSqlite) {
 }
 
 type clientSqlite struct {
+	TenantID       tenant.ID      `db:"tenant_id"`
 	ID             string         `db:"id"`
 	ClientAuthID   string         `db:"client_auth_id"`
 	DisconnectedAt sql.NullTime   `db:"disconnected_at"` // DisconnectedAt is a time when a client was disconnected. If nil - it's connected.

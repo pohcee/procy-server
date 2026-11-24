@@ -321,7 +321,10 @@ func (s *Server) HandlePlusLicenseInfoAvailable() {
 	s.Logger.Debugf("received license info from rport-plus")
 
 	if s.clientListener != nil && s.clientListener.server.clientService != nil {
-		s.clientListener.server.clientService.UpdateClientStatus()
+		// the listener context is the server context; it is nil until the listener has started (no clients yet)
+		if ctx := s.clientListener.getCtx(); ctx != nil {
+			s.clientListener.server.clientService.UpdateClientStatus(ctx)
+		}
 	}
 }
 

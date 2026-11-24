@@ -1,6 +1,7 @@
 package auditlog
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,6 +25,25 @@ type Entry struct {
 	Response       string    `db:"response" json:"response"`
 
 	al *AuditLog
+	// ctx carries the tenant the entry belongs to
+	ctx context.Context
+}
+
+// WithContext sets the context (and so the tenant) of an entry not made from an HTTP request.
+func (e *Entry) WithContext(ctx context.Context) *Entry {
+	if e == nil {
+		return e
+	}
+
+	e.ctx = ctx
+	return e
+}
+
+func (e *Entry) context() context.Context {
+	if e.ctx == nil {
+		return context.Background()
+	}
+	return e.ctx
 }
 
 func (e *Entry) WithID(id interface{}) *Entry {
@@ -40,6 +60,7 @@ func (e *Entry) WithHTTPRequest(req *http.Request) *Entry {
 		return e
 	}
 
+	e.ctx = req.Context()
 	e.Username = api.GetUser(req.Context(), e.al.logger)
 	e.RemoteIP = chshare.RemoteIP(req)
 
@@ -93,7 +114,7 @@ func (e *Entry) WithClientID(cid string) *Entry {
 
 	e.ClientID = cid
 
-	client, err := e.al.clientGetter.GetByID(cid)
+	client, err := e.al.clientGetter.GetByID(e.context(), cid)
 	if err != nil {
 		e.al.logger.Errorf("Could not get client for auditlog: %v", err)
 		return e

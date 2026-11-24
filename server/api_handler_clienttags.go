@@ -47,7 +47,7 @@ func (al *APIListener) handleGetClientTags(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	clients := al.clientService.GetUserClients(groups, curUser)
+	clients := al.clientService.GetUserClients(req.Context(), groups, curUser)
 
 	clientIDsByTag := make(map[string][]string)
 	for _, client := range clients {

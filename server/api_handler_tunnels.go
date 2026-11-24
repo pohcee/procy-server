@@ -38,7 +38,7 @@ func (al *APIListener) handleGetTunnels(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	clients := al.clientService.GetUserClients(clientGroups, curUser)
+	clients := al.clientService.GetUserClients(req.Context(), clientGroups, curUser)
 
 	tunnels := make([]TunnelPayload, 0)
 	for _, c := range clients {

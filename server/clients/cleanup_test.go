@@ -1,7 +1,7 @@
 package clients
 
 import (
-	"context"
+	"github.com/openrport/openrport/share/tenant"
 	"testing"
 	"time"
 
@@ -13,7 +13,7 @@ import (
 
 func TestCleanup(t *testing.T) {
 	// given
-	ctx := context.Background()
+	ctx := defaultCtx
 	c1 := New(t).ID("client-1").Logger(testLog).Build()                                               // active
 	c2 := New(t).ID("client-2").DisconnectedDuration(5 * time.Minute).Logger(testLog).Build()         // disconnected
 	c3 := New(t).ID("client-3").DisconnectedDuration(time.Hour + time.Minute).Logger(testLog).Build() // obsolete
@@ -21,7 +21,7 @@ func TestCleanup(t *testing.T) {
 	p := NewFakeClientProvider(t, &hour, c1, c2, c3)
 	defer p.Close()
 	clientsRepo := NewClientRepositoryWithDB(clients, &hour, p, testLog)
-	require.Len(t, clientsRepo.clientState, 3)
+	require.Len(t, clientsRepo.clientState[tenant.Default], 3)
 	gotObsolete, err := p.get(ctx, c3.GetID(), testLog)
 	require.NoError(t, err)
 
@@ -33,7 +33,7 @@ func TestCleanup(t *testing.T) {
 
 	// then
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, getValues(clientsRepo.clientState), []*clientdata.Client{c1, c2})
+	assert.ElementsMatch(t, getValues(clientsRepo.clientState[tenant.Default]), []*clientdata.Client{c1, c2})
 	gotClients, err := p.GetAll(ctx, testLog)
 	assert.NoError(t, err)
 
@@ -45,7 +45,7 @@ func TestCleanup(t *testing.T) {
 
 func TestCleanupDisabled(t *testing.T) {
 	// given
-	ctx := context.Background()
+	ctx := defaultCtx
 	c1 := New(t).Logger(testLog).Build()                                                      // active
 	c2 := New(t).DisconnectedDuration(5 * time.Minute).Logger(testLog).Build()                // disconnected
 	c3 := New(t).DisconnectedDuration(365*24*time.Hour + time.Minute).Logger(testLog).Build() // disconnected longer
@@ -53,7 +53,7 @@ func TestCleanupDisabled(t *testing.T) {
 	p := NewFakeClientProvider(t, nil, c1, c2, c3)
 	defer p.Close()
 	clientsRepo := NewClientRepositoryWithDB(clients, nil, p, testLog)
-	require.Len(t, clientsRepo.clientState, 3)
+	require.Len(t, clientsRepo.clientState[tenant.Default], 3)
 
 	task := NewCleanupTask(testLog, clientsRepo)
 
@@ -62,7 +62,7 @@ func TestCleanupDisabled(t *testing.T) {
 
 	// then
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, getValues(clientsRepo.clientState), []*clientdata.Client{c1, c2, c3})
+	assert.ElementsMatch(t, getValues(clientsRepo.clientState[tenant.Default]), []*clientdata.Client{c1, c2, c3})
 }
 
 func getValues(clients map[string]*clientdata.Client) []*clientdata.Client {

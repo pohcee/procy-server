@@ -558,7 +558,7 @@ func TestHandleDeleteClientAuth(t *testing.T) {
 			require.NoError(err)
 			assert.ElementsMatch(tc.wantClientsAuth, clients, "clients auth not as expected")
 			assert.Equal(tc.wantClosedConn, mockConn.closed)
-			allClients := al.clientService.GetAll()
+			allClients := al.clientService.GetAll(clientsTestCtx)
 			assert.ElementsMatch(tc.wantClients, allClients)
 		})
 	}

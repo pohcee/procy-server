@@ -17,7 +17,7 @@ func (al *APIListener) handleGetStoredTunnels(w http.ResponseWriter, req *http.R
 	vars := mux.Vars(req)
 	clientID := vars[routes.ParamClientID]
 
-	client, err := al.clientService.GetByID(clientID)
+	client, err := al.clientService.GetByID(ctx, clientID)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -42,7 +42,7 @@ func (al *APIListener) handlePostStoredTunnels(w http.ResponseWriter, req *http.
 	vars := mux.Vars(req)
 	clientID := vars[routes.ParamClientID]
 
-	client, err := al.clientService.GetByID(clientID)
+	client, err := al.clientService.GetByID(ctx, clientID)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -74,7 +74,7 @@ func (al *APIListener) handleDeleteStoredTunnel(w http.ResponseWriter, req *http
 	clientID := vars[routes.ParamClientID]
 	tunnelID := vars["tunnel_id"]
 
-	client, err := al.clientService.GetByID(clientID)
+	client, err := al.clientService.GetByID(ctx, clientID)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -100,7 +100,7 @@ func (al *APIListener) handlePutStoredTunnel(w http.ResponseWriter, req *http.Re
 	clientID := vars[routes.ParamClientID]
 	tunnelID := vars["tunnel_id"]
 
-	client, err := al.clientService.GetByID(clientID)
+	client, err := al.clientService.GetByID(ctx, clientID)
 	if err != nil {
 		al.jsonError(w, err)
 		return
