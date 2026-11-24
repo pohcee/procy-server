@@ -27,35 +27,35 @@ func TestDatabaseProvider(t *testing.T) {
 	filter := &query.ListOptions{
 		Pagination: query.NewPagination(5, 0),
 	}
-	clients, _, err := p.GetFiltered(filter)
+	clients, _, err := p.GetFiltered(defaultCtx, filter)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*ClientAuth{}, clients)
 
 	// add new client
-	added, err := p.Add(c)
+	added, err := p.Add(defaultCtx, c)
 	require.NoError(t, err)
 	assert.True(t, added)
 
 	// should contain client
-	clients, _, err = p.GetFiltered(filter)
+	clients, _, err = p.GetFiltered(defaultCtx, filter)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*ClientAuth{c}, clients)
 
-	client, err := p.Get(c.ID)
+	client, err := p.Get(defaultCtx, c.ID)
 	require.NoError(t, err)
 	assert.Equal(t, c, client)
 
 	// add existing client
-	added, err = p.Add(c)
+	added, err = p.Add(defaultCtx, c)
 	require.NoError(t, err)
 	assert.False(t, added)
 
 	// delete client
-	err = p.Delete(c.ID)
+	err = p.Delete(defaultCtx, c.ID)
 	require.NoError(t, err)
 
 	// final empty
-	clients, _, err = p.GetFiltered(filter)
+	clients, _, err = p.GetFiltered(defaultCtx, filter)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*ClientAuth{}, clients)
 }

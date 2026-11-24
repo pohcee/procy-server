@@ -1,6 +1,7 @@
 package clientsauth
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/mattn/go-sqlite3"
 
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 
 	"github.com/openrport/openrport/share/enums"
 )
@@ -31,7 +33,10 @@ func NewDatabaseProvider(DB *sqlx.DB, tableName string) *DatabaseProvider {
 	}
 }
 
-func (c *DatabaseProvider) GetFiltered(filter *query.ListOptions) ([]*ClientAuth, int, error) {
+func (c *DatabaseProvider) GetFiltered(ctx context.Context, filter *query.ListOptions) ([]*ClientAuth, int, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, 0, err
+	}
 
 	filter.Sorts = append(filter.Sorts, query.SortOption{Column: "id", IsASC: true})
 	rQuery, rParams := c.converter.ConvertListOptionsToQuery(filter, fmt.Sprintf("SELECT id,password FROM %s", c.tableName))
@@ -39,25 +44,31 @@ func (c *DatabaseProvider) GetFiltered(filter *query.ListOptions) ([]*ClientAuth
 	filter.Sorts = nil
 	cQuery, cParams := c.converter.ConvertListOptionsToQuery(filter, fmt.Sprintf("SELECT COUNT(id) FROM %s", c.tableName))
 	var count = 0
-	if err := c.db.Get(&count, cQuery, cParams...); err != nil {
+	if err := c.db.GetContext(ctx, &count, cQuery, cParams...); err != nil {
 		return nil, 0, err
 	}
 	var result = []*ClientAuth{}
-	err := c.db.Select(&result, rQuery, rParams...)
+	err := c.db.SelectContext(ctx, &result, rQuery, rParams...)
 	return result, count, err
 }
 
-func (c *DatabaseProvider) Get(id string) (*ClientAuth, error) {
+func (c *DatabaseProvider) Get(ctx context.Context, id string) (*ClientAuth, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, err
+	}
 	result := &ClientAuth{}
-	err := c.db.Get(result, fmt.Sprintf("SELECT id, password FROM %s WHERE id = ?", c.tableName), id)
+	err := c.db.GetContext(ctx, result, fmt.Sprintf("SELECT id, password FROM %s WHERE id = ?", c.tableName), id)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	return result, err
 }
 
-func (c *DatabaseProvider) Add(client *ClientAuth) (bool, error) {
-	_, err := c.db.NamedExec(fmt.Sprintf("INSERT INTO %s (id, password) VALUES (:id, :password)", c.tableName), client)
+func (c *DatabaseProvider) Add(ctx context.Context, client *ClientAuth) (bool, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return false, err
+	}
+	_, err := c.db.NamedExecContext(ctx, fmt.Sprintf("INSERT INTO %s (id, password) VALUES (:id, :password)", c.tableName), client)
 	if err != nil {
 		// Check for client already exists error
 		switch typeErr := err.(type) {
@@ -75,8 +86,11 @@ func (c *DatabaseProvider) Add(client *ClientAuth) (bool, error) {
 	return true, nil
 }
 
-func (c *DatabaseProvider) Delete(id string) error {
-	_, err := c.db.Exec(fmt.Sprintf("DELETE FROM %s WHERE id = ?", c.tableName), id)
+func (c *DatabaseProvider) Delete(ctx context.Context, id string) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
+	_, err := c.db.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE id = ?", c.tableName), id)
 	return err
 }
 

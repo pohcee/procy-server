@@ -1,10 +1,12 @@
 package clientsauth
 
 import (
+	"context"
 	"errors"
 
 	"github.com/openrport/openrport/share/enums"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type SingleProvider struct {
@@ -22,7 +24,10 @@ func NewSingleProvider(id, password string) *SingleProvider {
 	}
 }
 
-func (c *SingleProvider) GetFiltered(filter *query.ListOptions) ([]*ClientAuth, int, error) {
+func (c *SingleProvider) GetFiltered(ctx context.Context, filter *query.ListOptions) ([]*ClientAuth, int, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, 0, err
+	}
 	var ca = []*ClientAuth{c.client}
 	if len(filter.Filters) > 0 {
 		match, err := query.MatchesFilters(ca[0], filter.Filters)
@@ -41,18 +46,27 @@ func (c *SingleProvider) GetFiltered(filter *query.ListOptions) ([]*ClientAuth, 
 	return ca, 1, nil
 }
 
-func (c *SingleProvider) Get(id string) (*ClientAuth, error) {
+func (c *SingleProvider) Get(ctx context.Context, id string) (*ClientAuth, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, err
+	}
 	if c.client.ID == id {
 		return c.client, nil
 	}
 	return nil, nil
 }
 
-func (c *SingleProvider) Add(*ClientAuth) (bool, error) {
+func (c *SingleProvider) Add(ctx context.Context, _ *ClientAuth) (bool, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return false, err
+	}
 	return false, errors.New("not implemented")
 }
 
-func (c *SingleProvider) Delete(string) error {
+func (c *SingleProvider) Delete(ctx context.Context, _ string) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	return errors.New("not implemented")
 }
 

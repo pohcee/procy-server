@@ -162,7 +162,8 @@ func (cl *ClientListener) authUser(c ssh.ConnMetadata, password []byte) (*ssh.Pe
 		return nil, ErrTooManyRequests
 	}
 
-	clientAuth, err := cl.server.clientAuthProvider.Get(clientAuthID)
+	// the listener context is the server context, so the credentials are looked up in its tenant
+	clientAuth, err := cl.server.clientAuthProvider.Get(cl.getCtx(), clientAuthID)
 	if err != nil {
 		return nil, err
 	}

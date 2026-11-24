@@ -27,7 +27,7 @@ const (
 func (al *APIListener) handleGetClientAuth(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	clientAuthID := vars[routes.ParamClientAuthID]
-	clientAuth, err := al.clientAuthProvider.Get(clientAuthID)
+	clientAuth, err := al.clientAuthProvider.Get(req.Context(), clientAuthID)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -48,7 +48,7 @@ func (al *APIListener) handleGetClientsAuth(w http.ResponseWriter, req *http.Req
 		al.jsonError(w, errs)
 		return
 	}
-	rClients, count, err := al.clientAuthProvider.GetFiltered(options)
+	rClients, count, err := al.clientAuthProvider.GetFiltered(req.Context(), options)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
@@ -82,7 +82,7 @@ func (al *APIListener) handlePostClientsAuth(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	added, err := al.clientAuthProvider.Add(&newClient)
+	added, err := al.clientAuthProvider.Add(req.Context(), &newClient)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
@@ -125,7 +125,7 @@ func (al *APIListener) handleDeleteClientAuth(w http.ResponseWriter, req *http.R
 		}
 	}
 
-	existing, err := al.clientAuthProvider.Get(clientAuthID)
+	existing, err := al.clientAuthProvider.Get(req.Context(), clientAuthID)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
@@ -148,7 +148,7 @@ func (al *APIListener) handleDeleteClientAuth(w http.ResponseWriter, req *http.R
 		}
 	}
 
-	err = al.clientAuthProvider.Delete(clientAuthID)
+	err = al.clientAuthProvider.Delete(req.Context(), clientAuthID)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
