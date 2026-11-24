@@ -1,0 +1,13 @@
+type: object
+description: A created administrator. The password is generated, returned only once, and must be changed at the first login.
+properties:
+  organization:
+    type: string
+  username:
+    type: string
+  password:
+    type: string
+    description: Generated password, shown only once
+  password_expired:
+    type: boolean
+    description: Always true; the first login sets a new password (login with `new_password`)
