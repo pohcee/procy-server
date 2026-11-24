@@ -23,16 +23,22 @@ import (
 	rportplus "github.com/openrport/openrport/plus"
 	alertingcap "github.com/openrport/openrport/plus/capabilities/alerting"
 	"github.com/openrport/openrport/plus/capabilities/alerting/transformers"
+	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/api/middleware"
 	"github.com/openrport/openrport/server/auditlog"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/server/clientsauth"
+	"github.com/openrport/openrport/server/dispatch"
+	"github.com/openrport/openrport/server/jobrunner"
+	"github.com/openrport/openrport/server/monitoring"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/security"
+	"github.com/openrport/openrport/share/ws"
 )
 
 const (
@@ -54,9 +60,49 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
+// ClientListenerOptions are what the client listener needs from the rest of the server. Config,
+// PrivateKey, ClientService and ClientAuth are required. Without JobsDone and UIJobStreams job
+// results are saved but no sequential run or UI stream is told about them (a process without the
+// API and the job runner).
+type ClientListenerOptions struct {
+	Config *chconfig.Config
+	// PrivateKey is the server's SSH host key.
+	PrivateKey ssh.Signer
+	// ClientService keeps the connected clients.
+	ClientService clients.ClientService
+	// ClientAuth checks the credentials clients connect with.
+	ClientAuth clientsauth.Provider
+	AuditLog   *auditlog.AuditLog
+	// Jobs saves the job results clients send.
+	Jobs         jobs.Provider
+	JobsDone     *jobrunner.DoneChannels
+	UIJobStreams *ws.WebSocketCache
+	// FileGrants are the files clients may fetch over SFTP (granted by dispatch.Local uploads).
+	FileGrants   *dispatch.FileGrants
+	Measurements monitoring.MeasurementSaver
+	PlusManager  rportplus.Manager
+	// Capabilities are sent to every client that connects.
+	Capabilities *models.Capabilities
+}
+
+// listenerServices holds the options under the names the listener code uses.
+type listenerServices struct {
+	config             *chconfig.Config
+	clientService      clients.ClientService
+	clientAuthProvider clientsauth.Provider
+	auditLog           *auditlog.AuditLog
+	jobProvider        jobs.Provider
+	jobsDoneChannel    *jobrunner.DoneChannels
+	uiJobWebSockets    *ws.WebSocketCache
+	fileGrants         *dispatch.FileGrants
+	monitoringQueue    monitoring.MeasurementSaver
+	plusManager        rportplus.Manager
+	capabilities       *models.Capabilities
+}
+
 type ClientListener struct {
 	logger  *logger.Logger
-	server  *Server
+	server  *listenerServices
 	ctx     context.Context
 	stopped atomic.Bool
 
@@ -94,7 +140,39 @@ func (cl *ClientListener) getClientService() (cs clients.ClientService) {
 	return cl.server.clientService
 }
 
-func NewClientListener(server *Server, privateKey ssh.Signer) (*ClientListener, error) {
+// NewClientListener returns the listener clients connect to. It needs no API listener or job runner.
+func NewClientListener(o ClientListenerOptions) (*ClientListener, error) {
+	switch {
+	case o.Config == nil:
+		return nil, errors.New("client listener: Config is required")
+	case o.PrivateKey == nil:
+		return nil, errors.New("client listener: PrivateKey is required")
+	case o.ClientService == nil:
+		return nil, errors.New("client listener: ClientService is required")
+	case o.ClientAuth == nil:
+		return nil, errors.New("client listener: ClientAuth is required")
+	}
+	server := &listenerServices{
+		config:             o.Config,
+		clientService:      o.ClientService,
+		clientAuthProvider: o.ClientAuth,
+		auditLog:           o.AuditLog,
+		jobProvider:        o.Jobs,
+		jobsDoneChannel:    o.JobsDone,
+		uiJobWebSockets:    o.UIJobStreams,
+		fileGrants:         o.FileGrants,
+		monitoringQueue:    o.Measurements,
+		plusManager:        o.PlusManager,
+		capabilities:       o.Capabilities,
+	}
+	if server.jobsDoneChannel == nil {
+		server.jobsDoneChannel = jobrunner.NewDoneChannels()
+	}
+	if server.uiJobWebSockets == nil {
+		streams := ws.NewWebSocketCache()
+		server.uiJobWebSockets = &streams
+	}
+	privateKey := o.PrivateKey
 	config := server.config
 
 	// semaphore to limit number of active pending SSH connections

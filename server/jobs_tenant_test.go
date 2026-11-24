@@ -14,17 +14,16 @@ import (
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/ws"
 )
 
 // A job result sent by a device is saved in the tenant of the device's client context.
 func TestCmdResultSavedInClientTenant(t *testing.T) {
 	jp := makeJobsProvider(t, DataSourceOptions, testLog)
 	t.Cleanup(func() { jp.Close() })
-	cl := &ClientListener{logger: testLog, server: &Server{
+	cl := &ClientListener{logger: testLog, server: &listenerServices{
 		config:          &chconfig.Config{Server: chconfig.ServerConfig{MaxRequestBytesClient: 1024 * 1024}},
 		jobProvider:     jp,
-		uiJobWebSockets: ws.NewWebSocketCache(),
+		uiJobWebSockets: newUIStreams(),
 	}}
 
 	reqs := make(chan *ssh.Request, 1)
@@ -82,10 +81,10 @@ func TestMultiJobRunSavedInRequestTenant(t *testing.T) {
 func TestCmdResultSavedAfterClientContextCancelled(t *testing.T) {
 	jp := makeJobsProvider(t, DataSourceOptions, testLog)
 	t.Cleanup(func() { jp.Close() })
-	cl := &ClientListener{logger: testLog, server: &Server{
+	cl := &ClientListener{logger: testLog, server: &listenerServices{
 		config:          &chconfig.Config{Server: chconfig.ServerConfig{MaxRequestBytesClient: 1024 * 1024}},
 		jobProvider:     jp,
-		uiJobWebSockets: ws.NewWebSocketCache(),
+		uiJobWebSockets: newUIStreams(),
 	}}
 	clientCtx, cancel := context.WithCancel(tenant.WithID(context.Background(), tenant.Default))
 	cancel()

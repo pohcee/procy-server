@@ -39,7 +39,7 @@ func TestAuthUserUsesListenerContextTenant(t *testing.T) {
 	cl := &ClientListener{
 		logger:            testLog,
 		bannedClientAuths: security.NewBanList(time.Second),
-		server: &Server{
+		server: &listenerServices{
 			config:             &chconfig.Config{},
 			clientAuthProvider: clientsauth.NewSingleProvider("auth1", "secret"),
 		},
@@ -68,7 +68,7 @@ func TestClientRequestsAreSavedInClientTenant(t *testing.T) {
 	}
 	cl := &ClientListener{
 		logger: testLog,
-		server: &Server{
+		server: &listenerServices{
 			config:        &chconfig.Config{Server: chconfig.ServerConfig{MaxRequestBytesClient: 1024 * 1024}},
 			clientService: clients.NewClientService(nil, nil, repo, testLog, nil),
 		},

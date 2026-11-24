@@ -10,6 +10,7 @@ import (
 	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/ws"
 )
 
 // liveClients is al's client service as it is when a request is dispatched: tests often set or
@@ -108,4 +109,27 @@ func useLocalDispatcher(al *APIListener) {
 		panic(err)
 	}
 	al.jobRunner = runner
+}
+
+// newUIStreams returns an empty UI job stream cache for a hand-built client listener.
+func newUIStreams() *ws.WebSocketCache {
+	c := ws.NewWebSocketCache()
+	return &c
+}
+
+// listenerServicesOf is what NewServer gives the client listener from s.
+func listenerServicesOf(s *Server) *listenerServices {
+	return &listenerServices{
+		config:             s.config,
+		clientService:      s.clientService,
+		clientAuthProvider: s.clientAuthProvider,
+		auditLog:           s.auditLog,
+		jobProvider:        s.jobProvider,
+		jobsDoneChannel:    s.jobsDoneChannel,
+		uiJobWebSockets:    &s.uiJobWebSockets,
+		fileGrants:         s.fileGrants,
+		monitoringQueue:    s.monitoringQueue,
+		plusManager:        s.plusManager,
+		capabilities:       s.capabilities,
+	}
 }

@@ -30,8 +30,11 @@ func (m *DoneChannels) Del(jobID string) {
 	delete(m.m, jobID)
 }
 
-// Get returns the channel of jobID, or nil.
+// Get returns the channel of jobID, or nil; a nil map has no channels.
 func (m *DoneChannels) Get(jobID string) chan *models.Job {
+	if m == nil {
+		return nil
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.m[jobID]

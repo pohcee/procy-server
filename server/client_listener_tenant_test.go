@@ -20,7 +20,6 @@ import (
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/ws"
 )
 
 type notifiedMeasurement struct {
@@ -45,7 +44,7 @@ func TestMeasurementFromClientIsQueuedWithTheClientsTenant(t *testing.T) {
 	cfg := &chconfig.Config{}
 	cfg.Monitoring.Enabled = true
 	cfg.Server.MaxRequestBytesClient = 1 << 20
-	cl := &ClientListener{server: &Server{config: cfg, monitoringQueue: queue}}
+	cl := &ClientListener{server: &listenerServices{config: cfg, monitoringQueue: queue}}
 
 	reqs := make(chan *ssh.Request, 1)
 	reqs <- &ssh.Request{Type: comm.RequestTypeSaveMeasurement, Payload: []byte(`{"cpu_usage_percent": 12}`)}
@@ -75,7 +74,7 @@ func TestCmdResultAuditEntryIsSavedForTheClientsTenant(t *testing.T) {
 
 	cfg := &chconfig.Config{}
 	cfg.Server.MaxRequestBytesClient = 1 << 20
-	cl := &ClientListener{logger: testLog, server: &Server{config: cfg, jobProvider: jp, uiJobWebSockets: ws.NewWebSocketCache(), auditLog: al}}
+	cl := &ClientListener{logger: testLog, server: &listenerServices{config: cfg, jobProvider: jp, uiJobWebSockets: newUIStreams(), auditLog: al}}
 
 	reqs := make(chan *ssh.Request, 1)
 	reqs <- &ssh.Request{Type: comm.RequestTypeCmdResult, Payload: []byte(`{"jid":"j1","client_id":"c1","status":"successful"}`)}

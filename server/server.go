@@ -235,7 +235,22 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.clientAuthProvider = repos.ClientAuth
 
-	s.clientListener, err = NewClientListener(s, privateKey)
+	s.capabilities = capabilities.NewServerCapabilities(&config.Monitoring)
+
+	s.clientListener, err = NewClientListener(ClientListenerOptions{
+		Config:        config,
+		PrivateKey:    privateKey,
+		ClientService: s.clientService,
+		ClientAuth:    s.clientAuthProvider,
+		AuditLog:      s.auditLog,
+		Jobs:          s.jobProvider,
+		JobsDone:      s.jobsDoneChannel,
+		UIJobStreams:  &s.uiJobWebSockets,
+		FileGrants:    s.fileGrants,
+		Measurements:  s.monitoringQueue,
+		PlusManager:   s.plusManager,
+		Capabilities:  s.capabilities,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -264,8 +279,6 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	if err != nil {
 		return nil, err
 	}
-
-	s.capabilities = capabilities.NewServerCapabilities(&config.Monitoring)
 
 	s.scheduleManager, err = schedule.New(ctx, s.Logger, repos.Schedules, s.jobRunner, config.Server.RunRemoteCmdTimeoutSec)
 	if err != nil {
@@ -304,10 +317,10 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 func (s *Server) HandlePlusLicenseInfoAvailable() {
 	s.Logger.Debugf("received license info from rport-plus")
 
-	if s.clientListener != nil && s.clientListener.server.clientService != nil {
+	if s.clientListener != nil && s.clientService != nil {
 		// the listener context is the server context; it is nil until the listener has started (no clients yet)
 		if ctx := s.clientListener.getCtx(); ctx != nil {
-			s.clientListener.server.clientService.UpdateClientStatus(ctx)
+			s.clientService.UpdateClientStatus(ctx)
 		}
 	}
 }
@@ -373,7 +386,7 @@ func (s *Server) Run(ctx context.Context) error {
 	// TODO(m-terel): add graceful shutdown of background task
 	if s.config.Server.PurgeDisconnectedClients {
 		s.Infof("Period to keep disconnected clients is set to %v", s.config.Server.KeepDisconnectedClients)
-		go scheduler.Run(ctx, s.Logger, clients.NewCleanupTask(s.Logger, s.clientListener.server.clientService.GetRepo()), s.config.Server.PurgeDisconnectedClientsInterval)
+		go scheduler.Run(ctx, s.Logger, clients.NewCleanupTask(s.Logger, s.clientService.GetRepo()), s.config.Server.PurgeDisconnectedClientsInterval)
 		s.Infof("Task to purge disconnected clients will run with interval %v", s.config.Server.PurgeDisconnectedClientsInterval)
 	} else {
 		s.Debugf("Task to purge disconnected clients disabled")
@@ -382,7 +395,7 @@ func (s *Server) Run(ctx context.Context) error {
 	// Run a task to Check the client connections status by sending and receiving pings
 	clientsStatusCheckTask := NewClientsStatusCheckTask(
 		s.Logger,
-		s.clientListener.server.clientService.GetRepo(),
+		s.clientService.GetRepo(),
 		s.config.Server.CheckClientsConnectionInterval,
 		s.config.Server.CheckClientsConnectionTimeout,
 	)

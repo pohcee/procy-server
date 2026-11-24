@@ -74,7 +74,7 @@ func TestWSRunEntryStreamsResults(t *testing.T) {
 	require.NotEmpty(t, linuxJID)
 
 	// a result from an old client that does not echo the library fields
-	cl := &ClientListener{logger: testLog, server: e.al.Server}
+	cl := &ClientListener{logger: testLog, server: listenerServicesOf(e.al.Server)}
 	res := `{"jid":"` + linuxJID + `","multi_job_id":"` + mjid + `","client_id":"c-linux","status":"successful","started_at":"2026-01-01T00:00:00Z","result":{"stdout":"up 1 day"}}`
 	_, err := cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(res))
 	require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestTypedResultForwardedUntouched(t *testing.T) {
 	}()
 
 	raw := `{"jid":"t1","client_id":"c-linux","status":"successful",  "started_at":"2026-01-01T00:00:00Z"}`
-	cl := &ClientListener{logger: testLog, server: e.al.Server}
+	cl := &ClientListener{logger: testLog, server: listenerServicesOf(e.al.Server)}
 	_, err = cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(raw))
 	require.NoError(t, err)
 	select {

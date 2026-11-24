@@ -95,7 +95,7 @@ func TestClientListenerSessionChannelServesOnlyGrantedFiles(t *testing.T) {
 	grants := dispatch.NewFileGrants()
 	conn := test.NewConnMock()
 	defer grants.Grant(conn, granted)()
-	cl := &ClientListener{server: &Server{fileGrants: grants}}
+	cl := &ClientListener{server: &listenerServices{fileGrants: grants}}
 
 	serverSide, clientSide := net.Pipe()
 	go cl.handleSessionChannel(conn, serverSide, testLog)
