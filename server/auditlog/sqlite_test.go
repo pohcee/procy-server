@@ -8,6 +8,7 @@ import (
 
 	"github.com/openrport/openrport/db/migration/auditlog"
 	"github.com/openrport/openrport/db/sqlite"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/test"
 )
 
@@ -31,7 +32,7 @@ func TestSqliteSave(t *testing.T) {
 		Request:        `{"k1": "v1"}`,
 		Response:       `{"k1": "v1"}`,
 	}
-	err = dbProv.Save(e)
+	err = dbProv.Save(ctxFor(tenant.Default), e)
 	require.NoError(t, err)
 
 	expectedRows := []map[string]interface{}{
@@ -46,6 +47,7 @@ func TestSqliteSave(t *testing.T) {
 			"client_hostname": e.ClientHostName,
 			"request":         e.Request,
 			"response":        e.Response,
+			"tenant_id":       "default",
 		},
 	}
 	q := "SELECT * FROM auditlog"

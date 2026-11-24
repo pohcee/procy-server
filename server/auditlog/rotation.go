@@ -20,6 +20,8 @@ const (
 )
 
 type RotationProvider struct {
+	ctx               context.Context
+	loopDone          chan struct{}
 	logger            *logger.Logger
 	period            time.Duration
 	ticker            *time.Ticker
@@ -30,20 +32,25 @@ type RotationProvider struct {
 	sqlite *SQLiteProvider
 }
 
-func newRotationProvider(l *logger.Logger, period time.Duration, dataDir string, dataSourceOptions sqlite.DataSourceOptions) (*RotationProvider, error) {
+// newRotationProvider opens the current audit log file and rotates it every period, until ctx is done or Close.
+func newRotationProvider(ctx context.Context, l *logger.Logger, period time.Duration, dataDir string, dataSourceOptions sqlite.DataSourceOptions) (*RotationProvider, error) {
 	sqlite, err := newSQLiteProvider(dataDir, dataSourceOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	r := &RotationProvider{
-		logger:  l,
-		period:  period,
-		dataDir: dataDir,
-		sqlite:  sqlite,
-		ticker:  time.NewTicker(period),
+		ctx:      ctx,
+		loopDone: make(chan struct{}),
+		logger:   l,
+		period:   period,
+		dataDir:  dataDir,
+		// reopening after a rotation uses the same options as the first open
+		dataSourceOptions: dataSourceOptions,
+		sqlite:            sqlite,
+		ticker:            time.NewTicker(period),
 	}
-	err = r.rotateIfNeeded()
+	err = r.rotateIfNeeded(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -54,10 +61,16 @@ func newRotationProvider(l *logger.Logger, period time.Duration, dataDir string,
 }
 
 func (r *RotationProvider) rotationLoop() {
-	for range r.ticker.C {
-		err := r.rotate()
-		if err != nil {
-			r.logger.Errorf("Could not rotate auditlog: %v", err)
+	defer close(r.loopDone)
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-r.ticker.C:
+			err := r.rotate()
+			if err != nil {
+				r.logger.Errorf("Could not rotate auditlog: %v", err)
+			}
 		}
 	}
 }
@@ -86,8 +99,8 @@ func (r *RotationProvider) rotate() error {
 	return nil
 }
 
-func (r *RotationProvider) rotateIfNeeded() error {
-	oldest, err := r.sqlite.OldestTimestamp(context.Background())
+func (r *RotationProvider) rotateIfNeeded(ctx context.Context) error {
+	oldest, err := r.sqlite.OldestTimestamp(ctx)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil
@@ -102,10 +115,10 @@ func (r *RotationProvider) rotateIfNeeded() error {
 	return nil
 }
 
-func (r *RotationProvider) Save(e *Entry) error {
+func (r *RotationProvider) Save(ctx context.Context, e *Entry) error {
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
-	return r.sqlite.Save(e)
+	return r.sqlite.Save(ctx, e)
 }
 func (r *RotationProvider) List(ctx context.Context, l *query.ListOptions) ([]*Entry, error) {
 	r.mtx.RLock()

@@ -247,6 +247,7 @@ func (al *APIListener) consumeUploadResults(resChan chan *uploadResult, uploadRe
 				WithResponse(output).
 				WithID(uploadRequest.UploadedFile.ID).
 				WithClient(res.client).
+				WithContext(res.client.GetContext()).
 				Save()
 		} else {
 			al.Infof(
@@ -260,6 +261,7 @@ func (al *APIListener) consumeUploadResults(resChan chan *uploadResult, uploadRe
 				WithResponse(output).
 				WithID(uploadRequest.UploadedFile.ID).
 				WithClient(res.client).
+				WithContext(res.client.GetContext()).
 				Save()
 		}
 

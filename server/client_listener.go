@@ -556,6 +556,7 @@ func (cl *ClientListener) handleSSHRequests(clientCtx context.Context, clientLog
 				auditLogEntry.WithID(job.JID)
 			}
 			auditLogEntry.
+				WithContext(clientCtx).
 				WithResponse(job).
 				WithClientID(clientID).
 				Save()

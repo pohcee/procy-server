@@ -251,6 +251,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	}
 
 	s.auditLog, err = auditlog.New(
+		ctx,
 		logger.NewLogger("auditlog", config.Logging.LogOutput, config.Logging.LogLevel),
 		s.clientService,
 		s.config.Server.DataDir,

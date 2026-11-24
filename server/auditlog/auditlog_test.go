@@ -1,6 +1,7 @@
 package auditlog
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/openrport/openrport/db/migration/auditlog"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var DataSourceOptions = sqlite.DataSourceOptions{WALEnabled: false}
@@ -21,7 +23,7 @@ func TestNotEnabled(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 
 	mockProvider := &mockProvider{}
-	auditLog, err := New(nil, nil, "", config.Config{Enable: false}, DataSourceOptions)
+	auditLog, err := New(context.Background(), nil, nil, "", config.Config{Enable: false}, DataSourceOptions)
 	require.NoError(t, err)
 	auditLog.provider = mockProvider
 
@@ -142,13 +144,14 @@ func TestList(t *testing.T) {
 	}
 	defer auditLog.Close()
 
-	auditLog.Entry(ApplicationLibraryScript, ActionCreate).Save()
-	auditLog.Entry(ApplicationLibraryScript, ActionUpdate).Save()
-	auditLog.Entry(ApplicationLibraryCommand, ActionCreate).Save()
+	ctx := ctxFor(tenant.Default)
+	auditLog.Entry(ApplicationLibraryScript, ActionCreate).WithContext(ctx).Save()
+	auditLog.Entry(ApplicationLibraryScript, ActionUpdate).WithContext(ctx).Save()
+	auditLog.Entry(ApplicationLibraryCommand, ActionCreate).WithContext(ctx).Save()
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			r := httptest.NewRequest("GET", "/auditlog?"+tc.filter, nil)
+			r := httptest.NewRequest("GET", "/auditlog?"+tc.filter, nil).WithContext(ctx)
 			result, err := auditLog.List(r, &tc.user)
 			if tc.expectedError != "" {
 				assert.Error(t, err, tc.expectedError)

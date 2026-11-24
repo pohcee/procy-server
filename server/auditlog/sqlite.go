@@ -2,6 +2,7 @@ package auditlog
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"time"
 
@@ -10,8 +11,11 @@ import (
 	"github.com/openrport/openrport/db/migration/auditlog"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
+// SQLiteProvider stores audit log entries. Save, List and Count are scoped to the tenant carried by their context
+// and fail with tenant.ErrMissing when there is none.
 type SQLiteProvider struct {
 	db        *sqlx.DB
 	converter *query.SQLConverter
@@ -33,9 +37,24 @@ func newSQLiteProvider(dataDir string, dataSourceOptions sqlite.DataSourceOption
 	}, nil
 }
 
-func (p *SQLiteProvider) Save(e *Entry) error {
-	_, err := p.db.NamedExec(
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("auditlog: %w", err)
+	}
+	return id, nil
+}
+
+func (p *SQLiteProvider) Save(ctx context.Context, e *Entry) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	e.TenantID = tid
+	_, err = p.db.NamedExecContext(
+		ctx,
 		`INSERT INTO auditlog (
+			tenant_id,
 			timestamp,
 			username,
 			remote_ip,
@@ -47,6 +66,7 @@ func (p *SQLiteProvider) Save(e *Entry) error {
 			request,
 			response
 		) VALUES (
+			:tenant_id,
 			:timestamp,
 			:username,
 			:remote_ip,
@@ -66,12 +86,16 @@ func (p *SQLiteProvider) Save(e *Entry) error {
 
 func (p *SQLiteProvider) List(ctx context.Context, options *query.ListOptions) ([]*Entry, error) {
 	values := []*Entry{}
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return values, err
+	}
 
-	q := "SELECT * FROM `auditlog`"
+	q := "SELECT * FROM `auditlog` WHERE `tenant_id` = ?"
 
-	q, params := p.converter.ConvertListOptionsToQuery(options, q)
+	q, params := p.converter.AppendOptionsToQuery(options, q, []interface{}{tid})
 
-	err := p.db.SelectContext(ctx, &values, q, params...)
+	err = p.db.SelectContext(ctx, &values, q, params...)
 	if err != nil {
 		return values, err
 	}
@@ -80,14 +104,18 @@ func (p *SQLiteProvider) List(ctx context.Context, options *query.ListOptions) (
 }
 
 func (p *SQLiteProvider) Count(ctx context.Context, options *query.ListOptions) (int, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
 	var result int
 
-	q := "SELECT COUNT(*) FROM `auditlog`"
+	q := "SELECT COUNT(*) FROM `auditlog` WHERE `tenant_id` = ?"
 	countOptions := *options
 	countOptions.Pagination = nil
-	q, params := p.converter.ConvertListOptionsToQuery(&countOptions, q)
+	q, params := p.converter.AppendOptionsToQuery(&countOptions, q, []interface{}{tid})
 
-	err := p.db.GetContext(ctx, &result, q, params...)
+	err = p.db.GetContext(ctx, &result, q, params...)
 	if err != nil {
 		return 0, err
 	}
@@ -95,6 +123,7 @@ func (p *SQLiteProvider) Count(ctx context.Context, options *query.ListOptions) 
 	return result, nil
 }
 
+// OldestTimestamp returns the oldest entry of any tenant: rotation works on the whole file.
 func (p *SQLiteProvider) OldestTimestamp(ctx context.Context) (time.Time, error) {
 	var ts time.Time
 	q := "SELECT timestamp FROM auditlog ORDER BY timestamp ASC LIMIT 1"

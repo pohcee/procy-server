@@ -188,7 +188,7 @@ type mockProvider struct {
 	entries []Entry
 }
 
-func (p *mockProvider) Save(e *Entry) error {
+func (p *mockProvider) Save(_ context.Context, e *Entry) error {
 	p.entries = append(p.entries, *e)
 	return nil
 }
