@@ -9,22 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"go.etcd.io/bbolt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 
-	// sql drivers
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/mattn/go-sqlite3"
-
-	"github.com/patrickmn/go-cache"
-
-	"github.com/openrport/openrport/db/migration/client_groups"
-	clientsmigration "github.com/openrport/openrport/db/migration/clients"
-	jobsmigration "github.com/openrport/openrport/db/migration/jobs"
-	monitoringmigration "github.com/openrport/openrport/db/migration/monitoring"
-	"github.com/openrport/openrport/db/sqlite"
 	rportplus "github.com/openrport/openrport/plus"
 	alertingcap "github.com/openrport/openrport/plus/capabilities/alerting"
 	"github.com/openrport/openrport/server/acme"
@@ -73,24 +61,25 @@ type Server struct {
 	apiListener         *APIListener
 	config              *chconfig.Config
 	clientService       clients.ClientService
-	clientDB            *sqlx.DB
 	clientAuthProvider  clientsauth.Provider
 	jobProvider         JobProvider
 	clientGroupProvider cgroups.ClientGroupProvider
 	monitoringService   monitoring.Service
-	authDB              *sqlx.DB
-	uiJobWebSockets     ws.WebSocketCache // used to push job result to UI
-	uploadWebSockets    sync.Map
-	jobsDoneChannel     jobResultChanMap // used for sequential command execution to know when command is finished
-	auditLog            *auditlog.AuditLog
-	capabilities        *models.Capabilities
-	scheduleManager     *schedule.Manager
-	filesAPI            files.FileAPI
-	plusManager         rportplus.Manager
-	caddyServer         *caddy.Server
-	acme                *acme.Acme
-	alertingService     alertingcap.Service
-	monitoringQueue     monitoring.MeasurementSaver
+	// repos is the storage of every domain; storageClosers close the SQLite files no repository closes.
+	repos            *Repositories
+	storageClosers   []func() error
+	uiJobWebSockets  ws.WebSocketCache // used to push job result to UI
+	uploadWebSockets sync.Map
+	jobsDoneChannel  jobResultChanMap // used for sequential command execution to know when command is finished
+	auditLog         *auditlog.AuditLog
+	capabilities     *models.Capabilities
+	scheduleManager  *schedule.Manager
+	filesAPI         files.FileAPI
+	plusManager      rportplus.Manager
+	caddyServer      *caddy.Server
+	acme             *acme.Acme
+	alertingService  alertingcap.Service
+	monitoringQueue  monitoring.MeasurementSaver
 	// capabilitiesOverride is ServerOpts.Capabilities; nil reports the computed capabilities.
 	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
 }
@@ -98,6 +87,13 @@ type Server struct {
 type ServerOpts struct {
 	FilesAPI    files.FileAPI
 	PlusManager rportplus.Manager
+	// Repositories, when set, replaces the storage of the domains whose field is set; nil fields (or a nil
+	// Repositories) get the SQLite implementation in the data directory.
+	Repositories *Repositories
+	// SkipMigrations opens the SQLite files without migrating them and refuses to start unless every one is at the
+	// latest version (run "rportd migrate" first). Files the server creates while running (the vault on init, the
+	// audit log after a rotation) are migrated regardless.
+	SkipMigrations bool
 	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
 	// It receives the capabilities computed from the config and returns the ones to report.
 	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
@@ -175,72 +171,27 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		s.Errorf("Failed to store fingerprint %q in file %q: %v", fingerprint, fingerprintFile, err)
 	}
 
-	jobsDB, err := sqlite.New(
-		path.Join(config.Server.DataDir, "jobs.db"),
-		jobsmigration.FS,
-		config.Server.GetSQLiteDataSourceOptions(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create jobs DB instance: %v", err)
-	}
-
-	s.jobProvider = jobs.NewSqliteProvider(jobsDB, s.Logger)
-
-	groupsDB, err := sqlite.New(
-		path.Join(config.Server.DataDir, "client_groups.db"),
-		client_groups.FS,
-		config.Server.GetSQLiteDataSourceOptions(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client_groups DB instance: %v", err)
-	}
-
-	s.clientGroupProvider, err = cgroups.NewSqliteProvider(groupsDB)
+	repos, storage, err := openSQLiteRepositories(ctx, config, opts.Repositories, opts.SkipMigrations, s.Logger)
 	if err != nil {
 		return nil, err
 	}
+	s.repos = repos
+	s.storageClosers = storage.shutdown
 
-	monitoringDBPath := path.Join(config.Server.DataDir, "monitoring.db")
-	monitoringDB, err := sqlite.New(monitoringDBPath, monitoringmigration.FS, config.Server.GetSQLiteDataSourceOptions())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create monitoring DB instance: %v", err)
-	}
-	s.Logger.Infof("initialized database at %s", monitoringDBPath)
-	monitoringProvider := monitoring.NewSqliteProvider(monitoringDB, s.Logger)
+	s.jobProvider = repos.Jobs
+	s.clientGroupProvider = repos.ClientGroups
 
 	// even if monitoring disabled, always create the monitoring service to support queries of past data etc
-	s.monitoringService = monitoring.NewService(monitoringProvider, s.Logger.Fork("monitoring"))
+	s.monitoringService = monitoring.NewService(repos.Monitoring, s.Logger.Fork("monitoring"))
 
 	s.monitoringQueue = monitoring.NewMeasurementQueuing(ctx, s.Logger.Fork("measurements-queue"), s.monitoringService, 10000)
-
-	sourceOptions := config.Server.GetSQLiteDataSourceOptions()
-
-	// particularly the client.db needs performant db access, so allow multi-threaded access
-	// and use the RetryWhenBusy fn to ensure writes succeed if we get a busy error due to
-	// concurrent thread access.
-	sourceOptions.MaxOpenConnections = DefaultMaxClientDBConnections
-
-	s.clientDB, err = sqlite.New(
-		path.Join(config.Server.DataDir, "clients.db"),
-		clientsmigration.FS,
-		sourceOptions,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create clients DB instance: %v", err)
-	}
-
-	// keepDisconnectedClients is nil when cleanup of clients is disabled (keep clients forever)
-	var keepDisconnectedClients *time.Duration
-	if config.Server.PurgeDisconnectedClients {
-		keepDisconnectedClients = &config.Server.KeepDisconnectedClients
-	}
 
 	s.clientService, err = clients.InitClientService(
 		ctx,
 		&s.config.Server.InternalTunnelProxyConfig,
 		ports.NewPortDistributor(config.AllowedPorts()),
-		clients.NewSQLiteStore(s.clientDB, keepDisconnectedClients),
-		keepDisconnectedClients,
+		repos.Clients,
+		keepDisconnectedClients(config),
 		s.Logger,
 		s.acme,
 	)
@@ -255,36 +206,12 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	}
 
 	auditLogLogger := logger.NewLogger("auditlog", config.Logging.LogOutput, config.Logging.LogLevel)
-	var auditLogProvider auditlog.Provider
-	if s.config.API.AuditLog.Enable {
-		auditLogProvider, err = auditlog.NewRotationProvider(
-			ctx,
-			auditLogLogger,
-			s.config.API.AuditLog.RotationPeriod(),
-			s.config.Server.DataDir,
-			s.config.Server.GetSQLiteDataSourceOptions(),
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-	s.auditLog, err = auditlog.New(ctx, auditLogLogger, s.clientService, s.config.API.AuditLog, auditLogProvider)
+	s.auditLog, err = auditlog.New(ctx, auditLogLogger, s.clientService, s.config.API.AuditLog, repos.AuditLog)
 	if err != nil {
 		return nil, err
 	}
 
-	if config.Database.Driver != "" {
-		s.authDB, err = sqlx.Connect(config.Database.Driver, config.Database.Dsn)
-		if err != nil {
-			return nil, err
-		}
-		s.Infof("DB: successfully connected to %s", config.Database.DsnForLogs())
-	}
-
-	s.clientAuthProvider, err = getClientProvider(config, s.authDB)
-	if err != nil {
-		return nil, err
-	}
+	s.clientAuthProvider = repos.ClientAuth
 
 	s.clientListener, err = NewClientListener(s, privateKey)
 	if err != nil {
@@ -300,7 +227,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.capabilities = capabilities.NewServerCapabilities(&config.Monitoring)
 
-	s.scheduleManager, err = schedule.New(ctx, s.Logger, schedule.NewSQLiteProvider(jobsDB), s.apiListener, config.Server.RunRemoteCmdTimeoutSec)
+	s.scheduleManager, err = schedule.New(ctx, s.Logger, repos.Schedules, s.apiListener, config.Server.RunRemoteCmdTimeoutSec)
 	if err != nil {
 		return nil, err
 	}
@@ -371,20 +298,13 @@ func (s *Server) StartPlusAlertingService(alertingCap alertingcap.CapabilityEx,
 	return as, nil
 }
 
-func getClientProvider(config *chconfig.Config, db *sqlx.DB) (clientsauth.Provider, error) {
-	if config.Server.AuthTable != "" {
-		return clientsauth.NewDatabaseProvider(db, config.Server.AuthTable), nil
+// keepDisconnectedClients is how long disconnected clients are kept, or nil when they are kept forever (purging is
+// disabled).
+func keepDisconnectedClients(config *chconfig.Config) *time.Duration {
+	if config.Server.PurgeDisconnectedClients {
+		return &config.Server.KeepDisconnectedClients
 	}
-
-	if config.Server.AuthFile != "" {
-		return clientsauth.NewFileProvider(config.Server.AuthFile, cache.New(60*time.Minute, 15*time.Minute)), nil
-	}
-
-	if config.Server.Auth != "" {
-		return clientsauth.NewSingleProvider(config.Server.AuthID, config.Server.AuthPassword), nil
-	}
-
-	return nil, errors.New("client authentication must to be enabled: set either 'auth' or 'auth_file'")
+	return nil
 }
 
 func initPrivateKey(seed string) (ssh.Signer, error) {
@@ -526,10 +446,6 @@ func (s *Server) Close() error {
 		wg.Go(s.caddyServer.Close)
 	}
 
-	if s.authDB != nil {
-		wg.Go(s.authDB.Close)
-	}
-	wg.Go(s.clientDB.Close)
 	wg.Go(s.jobProvider.Close)
 
 	wg.Go(s.clientGroupProvider.Close)
@@ -547,6 +463,11 @@ func (s *Server) Close() error {
 	})
 
 	wg.Go(s.monitoringQueue.Close)
+
+	// the SQLite files (and the [database] connection) that no repository closes
+	for _, closeFn := range s.storageClosers {
+		wg.Go(closeFn)
+	}
 
 	// TODO: (rs):  should we be shutting down the other plugin capabilities here?
 	if s.alertingService != nil {

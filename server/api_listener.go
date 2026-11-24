@@ -9,23 +9,16 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gorilla/mux"
 	"github.com/jpillora/requestlog"
 
-	"github.com/openrport/openrport/db/migration/api_sessions"
-	"github.com/openrport/openrport/db/migration/api_token"
-	"github.com/openrport/openrport/db/migration/library"
-	"github.com/openrport/openrport/db/migration/vaults"
-	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/notifications/channels/rmailer"
 	"github.com/openrport/openrport/server/notifications/channels/scriptRunner"
@@ -48,7 +41,6 @@ import (
 	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/enums"
-	"github.com/openrport/openrport/share/files"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/random"
 	"github.com/openrport/openrport/share/security"
@@ -89,7 +81,6 @@ type APIListener struct {
 
 	notificationsStorage   notifications.Repository
 	notificationsProcessor notifications.Processor
-	notificationsDB        *sqlx.DB
 	notificationsCleaner   notificationsSQLite.Closeable
 
 	mu sync.RWMutex
@@ -138,31 +129,11 @@ func NewAPIListener(
 
 	vaultLogger := logger.NewLogger("vault", config.Logging.LogOutput, config.Logging.LogLevel)
 
-	vaultDBProviderFactory := vault.NewStatefulDbProviderFactory(
-		func() (vault.DbProvider, error) {
-			vaultDBPath := config.GetVaultDBPath()
-			vaultDB, err := sqlite.New(vaultDBPath, vaults.FS, vault.DataSourceOptions)
-			if err != nil {
-				return nil, fmt.Errorf("failed init vault DB instance: %w", err)
-			}
-			vaultLogger.Infof("initialized database at %s", vaultDBPath)
-			return vault.NewSqliteProvider(vaultDB, vaultLogger), nil
-		},
-		&vault.NotInitDbProvider{},
-	)
-
-	db, err := sqlite.New(
-		path.Join(config.Server.DataDir, "notifications.db"),
-		notificationsSQLite.Migrations,
-		config.Server.GetSQLiteDataSourceOptions(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to bootstrap api: %v", err)
-	}
+	repos := server.repos
 
 	notificationsLogger := server.Logger.Fork("notifications")
 
-	store := notificationsSQLite.NewRepository(db, server.Logger)
+	store := repos.Notifications
 	scriptConsumer := scriptRunner.NewConsumer(notificationsLogger.Fork("scriptrunner"), config.Notifications.NotificationScriptDir)
 
 	notificationConsumers := []notifications.Consumer{scriptConsumer}
@@ -179,52 +150,21 @@ func NewAPIListener(
 		notificationConsumers = append(notificationConsumers, logConsumer)
 	}
 
-	notificationLogger := logger.NewLogger("cleaner", config.Logging.LogOutput, logger.LogLevelInfo)
 	notificationProcessor := notifications.NewProcessor(notificationsLogger, store, notificationConsumers...)
-	notificationsCleaner := notificationsSQLite.StartCleaner(ctx, notificationLogger, store, config.Notifications.LogStorageDuration, config.Notifications.CleanupInterval)
-
-	// init vault DB if it already exists
-	fs := files.NewFileSystem()
-	exist, err := fs.Exist(config.GetVaultDBPath())
-	if err != nil {
-		return nil, fmt.Errorf("failed to check if vault DB %q exists: %v", config.GetVaultDBPath(), err)
-	}
-	if exist {
-		err := vaultDBProviderFactory.Init()
-		if err != nil {
-			return nil, err
-		}
+	var notificationsCleaner notificationsSQLite.Closeable
+	if cleanable, ok := store.(notificationsSQLite.Cleanable); ok {
+		notificationLogger := logger.NewLogger("cleaner", config.Logging.LogOutput, logger.LogLevelInfo)
+		notificationsCleaner = notificationsSQLite.StartCleaner(ctx, notificationLogger, cleanable, config.Notifications.LogStorageDuration, config.Notifications.CleanupInterval)
+	} else {
+		notificationsLogger.Debugf("the notifications repository does not delete old entries; the cleaner is not started")
 	}
 
-	libraryDb, err := sqlite.New(
-		path.Join(config.Server.DataDir, "library.db"),
-		library.FS,
-		config.Server.GetSQLiteDataSourceOptions(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed init library DB instance: %w", err)
-	}
-
-	apiTokenDb, err := sqlite.New(
-		path.Join(config.Server.DataDir, "api_token.db"),
-		api_token.FS,
-		config.Server.GetSQLiteDataSourceOptions(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed init api_token DB instance: %w", err)
-	}
-
-	libraryStore := libraryentries.NewSQLiteStore(libraryDb)
+	libraryStore := repos.Library
 	libraryManager := libraryentries.NewManager(libraryStore, time.Now)
 
-	tokenProvider := authorization.NewSqliteProvider(apiTokenDb)
-	tokenManager := authorization.NewManager(tokenProvider)
+	tokenManager := authorization.NewManager(repos.APITokens)
 
-	usersProvider, err := users.NewProviderFromConfig(ctx, server.authDB, config)
-	if err != nil {
-		return nil, fmt.Errorf("failed init api users service: %w", err)
-	}
-	userService := users.NewAPIServiceFromConfig(ctx, usersProvider, config)
+	userService := users.NewAPIServiceFromConfig(ctx, repos.Users, config)
 
 	var HTTPServerOptions []chshare.ServerOption
 	if config.API.CertFile != "" && config.API.KeyFile != "" {
@@ -252,22 +192,23 @@ func NewAPIListener(
 		requestLogOptions:      config.InitRequestLogOptions(),
 		bannedUsers:            security.NewBanList(time.Duration(config.API.UserLoginWait) * time.Second),
 		userService:            userService,
-		vaultManager:           vault.NewManager(vaultDBProviderFactory, &vault.Aes256PassManager{}, vaultLogger),
+		vaultManager:           vault.NewManager(repos.Vault, &vault.Aes256PassManager{}, vaultLogger),
 		libraryManager:         libraryManager,
 		tokenManager:           tokenManager,
-		storedTunnels:          storedtunnels.New(storedtunnels.NewSQLiteProvider(server.clientDB)),
+		storedTunnels:          storedtunnels.New(repos.StoredTunnels),
 		notificationsStorage:   store,
 		notificationsProcessor: notificationProcessor,
-		notificationsDB:        db,
 		notificationsCleaner:   notificationsCleaner,
 	}
 
-	imported, err := libraryStore.ImportLegacy(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to import scripts and commands into the library: %w", err)
-	}
-	if imported > 0 {
-		allog.Infof("imported %d scripts and commands into the library", imported)
+	if importer, ok := libraryStore.(libraryentries.LegacyImporter); ok {
+		imported, err := importer.ImportLegacy(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to import scripts and commands into the library: %w", err)
+		}
+		if imported > 0 {
+			allog.Infof("imported %d scripts and commands into the library", imported)
+		}
 	}
 
 	// Built-ins are a convenience: a failure here must not stop rportd.
@@ -359,13 +300,7 @@ func NewAPIListener(
 		a.accessLogFile = accessLogFile
 	}
 
-	sessionSQLite, err := sqlite.New(path.Join(config.Server.DataDir, "api_sessions.db"), api_sessions.FS, config.Server.GetSQLiteDataSourceOptions())
-	if err != nil {
-		return nil, fmt.Errorf("unable to create api session DB instance: %w", err)
-	}
-	sessionDB := session.NewSqliteProvider(sessionSQLite)
-
-	a.apiSessions, err = session.NewCache(ctx, bearer.DefaultTokenLifetime, cleanupAPISessionsInterval, sessionDB, nil)
+	a.apiSessions, err = session.NewCache(ctx, bearer.DefaultTokenLifetime, cleanupAPISessionsInterval, repos.APISessions, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -418,7 +353,6 @@ func (al *APIListener) Close() error {
 
 	g.Go(al.notificationsStorage.Close)
 	g.Go(al.notificationsProcessor.Close)
-	g.Go(al.notificationsDB.Close)
 
 	err := g.Wait()
 
