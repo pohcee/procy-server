@@ -14,7 +14,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source"
 	bindata "github.com/golang-migrate/migrate/v4/source/go_bindata"
 	"github.com/jmoiron/sqlx"
-	sqlite3drv "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // registers the sqlite3 driver
 
 	"github.com/openrport/openrport/share/logger"
 )
@@ -200,8 +200,7 @@ func newSourceDriver(migrations fs.FS) (source.Driver, error) {
 func WithRetryWhenBusy[R any](retryAbleFn func() (result R, err error), label string, l *logger.Logger) (result R, err error) {
 	for attempt := 1; attempt <= DefaultMaxAttempts; attempt++ {
 		if attempt > 1 && err != nil {
-			sqlErr, ok := err.(sqlite3drv.Error)
-			if ok && sqlErr.Code == sqlite3drv.ErrBusy {
+			if isBusy(err) {
 				l.Debugf("%s: attempt %d: source err = %+v\n", label, attempt, err)
 				jitter := time.Duration((rand.Intn(100))) * time.Millisecond
 				time.Sleep(defaultDelayBetweenAttempts + jitter)
