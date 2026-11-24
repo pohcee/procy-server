@@ -15,6 +15,7 @@ type ClientPayload struct {
 	ID                     *string                 `json:"id,omitempty"`
 	Name                   *string                 `json:"name,omitempty"`
 	Address                *string                 `json:"address,omitempty"`
+	ConnectedHost          *string                 `json:"connected_host,omitempty"`
 	Hostname               *string                 `json:"hostname,omitempty"`
 	OS                     *string                 `json:"os,omitempty"`
 	OSFullName             *string                 `json:"os_full_name,omitempty"`
@@ -100,6 +101,8 @@ func ConvertToClientPayload(client *clientdata.CalculatedClient, fields []query.
 			p.Version = &client.Version
 		case "address":
 			p.Address = &client.Address
+		case "connected_host":
+			p.ConnectedHost = &client.ConnectedHost
 		case "tunnels":
 			p.Tunnels = &client.Tunnels
 		case "disconnected_at":

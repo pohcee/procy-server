@@ -69,6 +69,7 @@ type Client struct {
 	Labels                 map[string]string      `json:"labels"`
 	Version                string                 `json:"version"`
 	Address                string                 `json:"address"`
+	ConnectedHost          string                 `json:"connected_host"`
 	Tunnels                []*clienttunnel.Tunnel `json:"tunnels"`
 
 	// DisconnectedAt is a time when a client was disconnected. If nil - it's connected.
@@ -697,7 +698,7 @@ func NewClientID() (string, error) {
 	return random.UUID4()
 }
 
-func NewClientFromConnRequest(ctx context.Context, existingClient *Client, clientAuthID string, clientID string, req *chshare.ConnectionRequest, clientHost string, sshConn ssh.Conn, clog *logger.Logger) (client *Client) {
+func NewClientFromConnRequest(ctx context.Context, existingClient *Client, clientAuthID string, clientID string, req *chshare.ConnectionRequest, clientHost, connectedHost string, sshConn ssh.Conn, clog *logger.Logger) (client *Client) {
 	if existingClient == nil {
 		client = &Client{
 			ID: clientID,
@@ -732,6 +733,7 @@ func NewClientFromConnRequest(ctx context.Context, existingClient *Client, clien
 	client.Version = req.Version
 	client.ClientConfiguration = req.ClientConfiguration
 	client.Address = clientHost
+	client.ConnectedHost = connectedHost
 	client.Tunnels = make([]*clienttunnel.Tunnel, 0)
 	client.DisconnectedAt = nil
 	client.ClientAuthID = clientAuthID

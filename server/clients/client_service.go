@@ -53,7 +53,7 @@ type ClientService interface {
 	UpdateClientStatus()
 
 	StartClient(
-		ctx context.Context, clientAuthID, clientID string, sshConn ssh.Conn, authMultiuseCreds bool,
+		ctx context.Context, clientAuthID, clientID string, sshConn ssh.Conn, connectedHost string, authMultiuseCreds bool,
 		req *chshare.ConnectionRequest, clog *logger.Logger,
 	) (*clientdata.Client, error)
 	Terminate(client *clientdata.Client) error
@@ -117,6 +117,7 @@ var OptionsSupportedFilters = map[string]bool{
 	"labels":                   true,
 	"version":                  true,
 	"address":                  true,
+	"connected_host":           true,
 	"client_auth_id":           true,
 	"allowed_user_groups":      true,
 	"groups":                   true,
@@ -146,6 +147,7 @@ var OptionsSupportedFields = map[string]map[string]bool{
 		"labels":                   true,
 		"version":                  true,
 		"address":                  true,
+		"connected_host":           true,
 		"tunnels":                  true,
 		"disconnected_at":          true,
 		"last_heartbeat_at":        true,
@@ -338,7 +340,7 @@ func (s *ClientServiceProvider) GetFilteredUserClients(user User, filterOptions 
 }
 
 func (s *ClientServiceProvider) StartClient(
-	ctx context.Context, clientAuthID, clientID string, sshConn ssh.Conn, authMultiuseCreds bool,
+	ctx context.Context, clientAuthID, clientID string, sshConn ssh.Conn, connectedHost string, authMultiuseCreds bool,
 	req *chshare.ConnectionRequest, clog *logger.Logger,
 ) (*clientdata.Client, error) {
 	clog.Debugf("Starting client session: %s", clientID)
@@ -400,7 +402,7 @@ func (s *ClientServiceProvider) StartClient(
 		return nil, fmt.Errorf("client auth ID is already in use: %q", clientAuthID)
 	}
 
-	client = clientdata.NewClientFromConnRequest(ctx, client, clientAuthID, clientID, req, clientHost, sshConn, clog)
+	client = clientdata.NewClientFromConnRequest(ctx, client, clientAuthID, clientID, req, clientHost, connectedHost, sshConn, clog)
 
 	client.SetConnected()
 

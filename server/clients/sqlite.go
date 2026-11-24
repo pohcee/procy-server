@@ -139,6 +139,7 @@ func convertToSqlite(c *clientdata.Client) (res *clientSqlite) {
 			Hostname:               c.Hostname,
 			Version:                c.Version,
 			Address:                c.Address,
+			ConnectedHost:          c.ConnectedHost,
 			OSFullName:             c.OSFullName,
 			OSVersion:              c.OSVersion,
 			OSVirtualizationSystem: c.OSVirtualizationSystem,
@@ -196,6 +197,7 @@ type clientDetails struct {
 	Hostname               string                 `json:"hostname"`
 	Version                string                 `json:"version"`
 	Address                string                 `json:"address"`
+	ConnectedHost          string                 `json:"connected_host,omitempty"`
 	IPv4                   []string               `json:"ipv4"`
 	IPv6                   []string               `json:"ipv6"`
 	Tags                   []string               `json:"tags"`
@@ -250,6 +252,7 @@ func (s *clientSqlite) convert(l *logger.Logger) (res *clientdata.Client) {
 		Labels:                 d.Labels,
 		Version:                d.Version,
 		Address:                d.Address,
+		ConnectedHost:          d.ConnectedHost,
 		Tunnels:                d.Tunnels,
 		OSFullName:             d.OSFullName,
 		OSVersion:              d.OSVersion,

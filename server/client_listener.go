@@ -378,7 +378,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	ctx, cancel := context.WithCancel(cl.getCtx())
 	defer cancel()
 
-	client, err := cl.getClientService().StartClient(ctx, clientAuthID, clientID, sshConn, cl.server.config.Server.AuthMultiuseCreds, connRequest, clientLog.GetLogger())
+	client, err := cl.getClientService().StartClient(ctx, clientAuthID, clientID, sshConn, clientHostname(req.Host), cl.server.config.Server.AuthMultiuseCreds, connRequest, clientLog.GetLogger())
 	if err != nil {
 		cl.replyConnectionError(r, err)
 		return

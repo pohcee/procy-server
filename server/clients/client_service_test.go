@@ -104,7 +104,7 @@ func TestStartClient(t *testing.T) {
 				logger:          testLog,
 			}
 			_, err := cs.StartClient(
-				context.Background(), tc.ClientAuthID, tc.ClientID, connMock, tc.AuthMultiuseCreds,
+				context.Background(), tc.ClientAuthID, tc.ClientID, connMock, "", tc.AuthMultiuseCreds,
 				&chshare.ConnectionRequest{}, testLog)
 			assert.Equal(t, tc.ExpectedError, err)
 		})
@@ -179,6 +179,7 @@ func TestStartClientConcurrency(t *testing.T) {
 				client.GetClientAuthID(),
 				client.GetID(),
 				mockConns[i],
+				"",
 				false,
 				&chshare.ConnectionRequest{
 					Name: client.GetName(),
@@ -216,7 +217,7 @@ func TestStartClientDisconnected(t *testing.T) {
 	}
 
 	client, err := cs.StartClient(
-		context.Background(), "test-client-auth", "disconnected-client", connMock, false,
+		context.Background(), "test-client-auth", "disconnected-client", connMock, "", false,
 		&chshare.ConnectionRequest{Name: "new-connection", Version: "0.7.0"}, testLog)
 	assert.NoError(t, err)
 
