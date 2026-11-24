@@ -34,7 +34,7 @@ func listenAndServe(t *testing.T) {
 		// Handle the ipv6 request
 		fmt.Fprintf(w, `{"ip":"::1"}`)
 	})
-	http.HandleFunc("/bad", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/bad", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "something went wrong")
 	})

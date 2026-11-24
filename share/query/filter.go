@@ -114,7 +114,7 @@ func ParseFilterOptions(values url.Values) []FilterOption {
 		}
 
 		matches := filterRegex.FindStringSubmatch(filterKey)
-		if matches == nil || len(matches) < 4 {
+		if len(matches) < 4 {
 			continue
 		}
 

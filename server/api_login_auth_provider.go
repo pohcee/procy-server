@@ -34,7 +34,7 @@ type DeviceAuthSettings struct {
 	LoginInfo    *oauth.DeviceLoginInfo `json:"details"`
 }
 
-func (al *APIListener) handleGetAuthProvider(w http.ResponseWriter, req *http.Request) {
+func (al *APIListener) handleGetAuthProvider(w http.ResponseWriter, _ *http.Request) {
 	var response api.SuccessPayload
 
 	maxTokenLifetime := al.config.API.MaxTokenLifeTimeHours
@@ -58,7 +58,7 @@ func (al *APIListener) handleGetAuthProvider(w http.ResponseWriter, req *http.Re
 	al.writeJSONResponse(w, http.StatusOK, response)
 }
 
-func (al *APIListener) handleGetAuthSettings(w http.ResponseWriter, req *http.Request) {
+func (al *APIListener) handleGetAuthSettings(w http.ResponseWriter, _ *http.Request) {
 	if !rportplus.IsPlusOAuthEnabled(al.config.PlusConfig) {
 		al.jsonErrorResponse(w, http.StatusForbidden, rportplus.ErrPlusNotAvailable)
 		return

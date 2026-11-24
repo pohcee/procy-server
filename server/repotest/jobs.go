@@ -314,10 +314,10 @@ func Jobs(t *testing.T, newRepo Factory[jobs.Provider]) {
 			for _, s := range res {
 				ids = append(ids, s.JID)
 			}
-			n, err := p.CountMultiJobs(ctx, o)
+			count, err := p.CountMultiJobs(ctx, o)
 			require.NoError(t, err)
 			if o.Pagination == nil {
-				assert.Equal(t, len(ids), n)
+				assert.Equal(t, len(ids), count)
 			}
 			return ids
 		}

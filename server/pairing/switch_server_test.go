@@ -20,7 +20,7 @@ func setClientServers(t *testing.T, conf string, args ...string) (string, error)
 	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "rport.conf")
-	require.NoError(t, os.WriteFile(path, []byte(conf), 0640))
+	require.NoError(t, os.WriteFile(path, []byte(conf), 0640)) //nolint:gosec // G306: the mode the tests check is kept
 	fns := filepath.Join(dir, "functions.sh")
 	require.NoError(t, os.WriteFile(fns, mustRead("templates/linux/functions.sh"), 0600))
 	cmd := exec.Command(sh, append([]string{"-c", `. "$0"; set_client_servers "$@"`, fns, path}, args...)...)
@@ -95,7 +95,7 @@ func TestSetClientServersWritesPrivateTempFile(t *testing.T) {
 	shimDir := t.TempDir()
 	modeFile := filepath.Join(shimDir, "mode")
 	shim := "#!/bin/sh\nstat -L -c %a /proc/$$/fd/1 > " + modeFile + "\nexec " + realAwk + " \"$@\"\n"
-	require.NoError(t, os.WriteFile(filepath.Join(shimDir, "awk"), []byte(shim), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(shimDir, "awk"), []byte(shim), 0755)) //nolint:gosec // G306: an executable shim
 	t.Setenv("PATH", shimDir+":"+os.Getenv("PATH"))
 	_, err = setClientServers(t, "[client]\n  server = 'old'\n", newServer, fallback)
 	require.NoError(t, err)

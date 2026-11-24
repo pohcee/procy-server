@@ -118,8 +118,8 @@ type failures struct {
 	reset time.Time
 }
 
-func newFailureLimiter(max int, window time.Duration, now func() time.Time) *failureLimiter {
-	return &failureLimiter{max: max, window: window, now: now, byIP: make(map[string]*failures)}
+func newFailureLimiter(maxFailures int, window time.Duration, now func() time.Time) *failureLimiter {
+	return &failureLimiter{max: maxFailures, window: window, now: now, byIP: make(map[string]*failures)}
 }
 
 // blocked reports whether ip used up its failed lookups in the current window.

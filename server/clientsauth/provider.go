@@ -2,6 +2,7 @@ package clientsauth
 
 import (
 	"context"
+
 	"github.com/openrport/openrport/share/enums"
 	"github.com/openrport/openrport/share/query"
 )

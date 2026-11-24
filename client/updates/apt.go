@@ -112,13 +112,14 @@ func (p *AptPackageManager) countSecurityUpdates(summaries []models.UpdateSummar
 }
 
 func (p *AptPackageManager) checkRebootRequired() (bool, error) {
-	if _, err := os.Stat(p.rebootRequiredFilename); err == nil {
+	_, err := os.Stat(p.rebootRequiredFilename)
+	if err == nil {
 		return true, nil
-	} else if os.IsNotExist(err) {
-		return false, nil
-	} else {
-		return false, err
 	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 func (p *AptPackageManager) getSummaries(ctx context.Context) ([]models.UpdateSummary, error) {

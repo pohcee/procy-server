@@ -15,7 +15,7 @@ import (
 
 var auditT0 = time.Date(2021, 10, 19, 13, 57, 58, 0, time.UTC)
 
-func auditUsernames(t *testing.T, p auditlog.Provider, ctx context.Context, o *query.ListOptions) []string {
+func auditUsernames(ctx context.Context, t *testing.T, p auditlog.Provider, o *query.ListOptions) []string {
 	t.Helper()
 	if o == nil {
 		o = &query.ListOptions{}
@@ -81,7 +81,7 @@ func AuditLog(t *testing.T, newProvider Factory[auditlog.Provider]) {
 		assert.Equal(t, `{"k2": "v2"}`, got.Response)
 		assert.Equal(t, TenantA, got.TenantID)
 
-		assert.Empty(t, auditUsernames(t, p, b, nil))
+		assert.Empty(t, auditUsernames(b, t, p, nil))
 	})
 
 	t.Run("EmptyFields", func(t *testing.T) {
@@ -100,8 +100,8 @@ func AuditLog(t *testing.T, newProvider Factory[auditlog.Provider]) {
 		require.NoError(t, p.Save(b, &auditlog.Entry{Timestamp: time.Now(), Username: "bob", ID: "x"}))
 		require.NoError(t, p.Save(b, &auditlog.Entry{Timestamp: time.Now(), Username: "bob2", ID: "y"}))
 
-		assert.Equal(t, []string{"alice"}, auditUsernames(t, p, a, nil))
-		assert.ElementsMatch(t, []string{"bob", "bob2"}, auditUsernames(t, p, b, nil))
+		assert.Equal(t, []string{"alice"}, auditUsernames(a, t, p, nil))
+		assert.ElementsMatch(t, []string{"bob", "bob2"}, auditUsernames(b, t, p, nil))
 
 		filtered, err := p.List(b, &query.ListOptions{Filters: []query.FilterOption{auditFilter("affected_id", query.FilterOperatorTypeEQ, "x")}})
 		require.NoError(t, err)
@@ -139,13 +139,13 @@ func AuditLog(t *testing.T, newProvider Factory[auditlog.Provider]) {
 			return o
 		}
 
-		assert.Equal(t, []string{"alex", "alice", "bob", "carol"}, auditUsernames(t, p, a, opts("username", true)))
-		assert.Equal(t, []string{"alex", "bob", "alice", "carol"}, auditUsernames(t, p, a, opts("timestamp", false)))
-		assert.Equal(t, []string{"carol", "alice", "bob", "alex"}, auditUsernames(t, p, a, opts("timestamp", true)))
-		assert.Equal(t, []string{"bob", "carol"}, auditUsernames(t, p, a, opts("remote_ip", false,
+		assert.Equal(t, []string{"alex", "alice", "bob", "carol"}, auditUsernames(a, t, p, opts("username", true)))
+		assert.Equal(t, []string{"alex", "bob", "alice", "carol"}, auditUsernames(a, t, p, opts("timestamp", false)))
+		assert.Equal(t, []string{"carol", "alice", "bob", "alex"}, auditUsernames(a, t, p, opts("timestamp", true)))
+		assert.Equal(t, []string{"bob", "carol"}, auditUsernames(a, t, p, opts("remote_ip", false,
 			auditFilter("remote_ip", query.FilterOperatorTypeEQ, "10.0.0.1", "10.0.0.3"))))
 		for _, col := range []string{"application", "action", "affected_id", "client_id", "client_hostname"} {
-			assert.Len(t, auditUsernames(t, p, a, opts(col, true)), 4, "sort by "+col)
+			assert.Len(t, auditUsernames(a, t, p, opts(col, true)), 4, "sort by "+col)
 		}
 
 		for _, tc := range []struct {
@@ -165,21 +165,21 @@ func AuditLog(t *testing.T, newProvider Factory[auditlog.Provider]) {
 			{auditFilter("timestamp", query.FilterOperatorTypeSince, auditT0.Add(2*24*time.Hour).Format("2006-01-02")), []string{"alex", "bob"}},
 			{auditFilter("timestamp", query.FilterOperatorTypeUntil, auditT0.Add(24*time.Hour).Format("2006-01-02")), []string{"carol"}},
 		} {
-			assert.Equal(t, tc.want, auditUsernames(t, p, a, opts("username", true, tc.filter)), tc.filter.String())
+			assert.Equal(t, tc.want, auditUsernames(a, t, p, opts("username", true, tc.filter)), tc.filter.String())
 			count, err := p.Count(a, opts("", false, tc.filter))
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.want), count, tc.filter.String())
 		}
 
 		// two filters are ANDed
-		assert.Equal(t, []string{"carol"}, auditUsernames(t, p, a, opts("username", true,
+		assert.Equal(t, []string{"carol"}, auditUsernames(a, t, p, opts("username", true,
 			auditFilter("application", query.FilterOperatorTypeEQ, auditlog.ApplicationLibraryScript),
 			auditFilter("action", query.FilterOperatorTypeEQ, auditlog.ActionCreate))))
 
 		// as the API asks: second page of one entry, newest first
 		paged := opts("timestamp", false, auditFilter("application", query.FilterOperatorTypeEQ, auditlog.ApplicationLibraryScript))
 		paged.Pagination = &query.Pagination{Limit: "1", Offset: "1"}
-		assert.Equal(t, []string{"carol"}, auditUsernames(t, p, a, paged))
+		assert.Equal(t, []string{"carol"}, auditUsernames(a, t, p, paged))
 		count, err := p.Count(a, paged)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count, "count ignores pagination")

@@ -275,37 +275,37 @@ func (p *SqliteProvider) handleRollback(tx *sqlx.Tx) {
 
 type NotInitDbProvider struct{}
 
-func (nidp *NotInitDbProvider) Init(ctx context.Context) error {
+func (nidp *NotInitDbProvider) Init(_ context.Context) error {
 	return ErrDatabaseNotInitialised
 }
 
-func (nidp *NotInitDbProvider) GetStatus(ctx context.Context) (DbStatus, error) {
+func (nidp *NotInitDbProvider) GetStatus(_ context.Context) (DbStatus, error) {
 	return DbStatus{}, ErrDatabaseNotInitialised
 }
 
-func (nidp *NotInitDbProvider) SetStatus(ctx context.Context, newStatus DbStatus) error {
+func (nidp *NotInitDbProvider) SetStatus(_ context.Context, _ DbStatus) error {
 	return ErrDatabaseNotInitialised
 }
 
-func (nidp *NotInitDbProvider) GetByID(ctx context.Context, id int) (val StoredValue, found bool, err error) {
+func (nidp *NotInitDbProvider) GetByID(_ context.Context, _ int) (val StoredValue, found bool, err error) {
 	err = ErrDatabaseNotInitialised
 	return
 }
 
-func (nidp *NotInitDbProvider) List(ctx context.Context, lo *query.ListOptions) ([]ValueKey, error) {
+func (nidp *NotInitDbProvider) List(_ context.Context, _ *query.ListOptions) ([]ValueKey, error) {
 	return nil, ErrDatabaseNotInitialised
 }
 
-func (nidp *NotInitDbProvider) FindByKeyAndClientID(ctx context.Context, key, clientID string) (val StoredValue, found bool, err error) {
+func (nidp *NotInitDbProvider) FindByKeyAndClientID(_ context.Context, _, _ string) (val StoredValue, found bool, err error) {
 	err = ErrDatabaseNotInitialised
 	return
 }
 
-func (nidp *NotInitDbProvider) Save(ctx context.Context, user string, idToUpdate int64, val *InputValue, nowDate time.Time) (int64, error) {
+func (nidp *NotInitDbProvider) Save(_ context.Context, _ string, _ int64, _ *InputValue, _ time.Time) (int64, error) {
 	return 0, ErrDatabaseNotInitialised
 }
 
-func (nidp *NotInitDbProvider) Delete(ctx context.Context, id int) error {
+func (nidp *NotInitDbProvider) Delete(_ context.Context, _ int) error {
 	return ErrDatabaseNotInitialised
 }
 

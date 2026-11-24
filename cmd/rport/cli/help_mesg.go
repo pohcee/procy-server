@@ -1,5 +1,6 @@
 package cli
 
+//nolint:gosec // G101: usage text with an example proxy URL
 var ClientHelp = `
   Usage: rport [options] [<server> [remote] [remote] [remote] ...]
 

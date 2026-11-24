@@ -17,7 +17,7 @@ const (
 	PermissionsAuditLog  = "auditlog"
 
 	// PermissionScripts is deprecated: it is merged into PermissionCommands.
-	// Stored groups may still carry it, so it is honoured when read.
+	// Stored groups may still carry it, so it is honored when read.
 	PermissionScripts = "scripts"
 )
 
@@ -98,7 +98,7 @@ func (permissions *Permissions) Scan(value interface{}) error {
 	return nil
 }
 
-// Value serialises the permissions for storage. The deprecated "scripts" key
+// Value serializes the permissions for storage. The deprecated "scripts" key
 // is written whenever "commands" is set, so an older rportd reading the same
 // group still grants the scripts right.
 func (permissions Permissions) Value() (driver.Value, error) {

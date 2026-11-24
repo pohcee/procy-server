@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 	"time"
@@ -148,7 +147,7 @@ func (c *FileProvider) IsWriteable() bool {
 }
 
 func (c *FileProvider) load() (map[string]string, error) {
-	b, err := ioutil.ReadFile(c.fileName)
+	b, err := os.ReadFile(c.fileName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read rport clients auth file %q: %s", c.fileName, err)
 	}

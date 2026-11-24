@@ -17,7 +17,7 @@ func (failingResolver) Resolve(*http.Request) (tenant.ID, error) { return "", er
 
 func TestMiddlewareSetsResolvedTenant(t *testing.T) {
 	var got tenant.ID
-	h := tenant.Middleware(tenant.DefaultResolver{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := tenant.Middleware(tenant.DefaultResolver{})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		got, _ = tenant.FromContext(r.Context())
 	}))
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))

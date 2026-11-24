@@ -32,7 +32,7 @@ import (
 func TestCustomHeaders(t *testing.T) {
 	var reqCount int
 	var headReq bool
-	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 		reqCount++
 		if req.Method == http.MethodGet {
 			// Check the initial connection request

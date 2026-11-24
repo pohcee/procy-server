@@ -12,10 +12,10 @@ func NewMockChannel() (*ReadWriter, *ReadWriter) {
 	r2, w2 := io.Pipe()
 
 	return &ReadWriter{
-			Reader:      r1,
-			WriteCloser: w2,
-		}, &ReadWriter{
-			Reader:      r2,
-			WriteCloser: w1,
-		}
+		Reader:      r1,
+		WriteCloser: w2,
+	}, &ReadWriter{
+		Reader:      r2,
+		WriteCloser: w1,
+	}
 }

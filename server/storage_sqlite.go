@@ -91,7 +91,7 @@ func newSQLiteFileSet(config *chconfig.Config) sqliteFileSet {
 }
 
 // sqliteDatabases returns the files the server opens at startup with this config, in opening order: every fixed
-// database, the audit log when it is enabled and the vault when it has been initialised (its file exists).
+// database, the audit log when it is enabled and the vault when it has been initialized (its file exists).
 func sqliteDatabases(config *chconfig.Config) ([]sqliteFile, error) {
 	set := newSQLiteFileSet(config)
 	files := []sqliteFile{
@@ -123,7 +123,7 @@ func fileExists(path string) (bool, error) {
 }
 
 // MigrateSQLite migrates every SQLite database the server would open with config to the latest version and closes
-// it again: the fixed databases, the audit log when it is enabled and the vault only if it has been initialised. It
+// it again: the fixed databases, the audit log when it is enabled and the vault only if it has been initialized. It
 // creates the data directory and missing databases. It logs one line per file with the version it is at.
 func MigrateSQLite(config *chconfig.Config, l *logger.Logger) error {
 	if config.Server.DataDir == "" {
@@ -392,7 +392,7 @@ func openSQLiteRepositories(ctx context.Context, config *chconfig.Config, given 
 	return &r, st, nil
 }
 
-// openSQLiteVault returns the vault factory on f. The file is created and migrated when the vault is initialised; if
+// openSQLiteVault returns the vault factory on f. The file is created and migrated when the vault is initialized; if
 // it already exists it is opened now.
 func openSQLiteVault(config *chconfig.Config, f sqliteFile, skipMigrations bool) (vault.DbProviderFactory, error) {
 	vaultLogger := logger.NewLogger("vault", config.Logging.LogOutput, config.Logging.LogLevel)

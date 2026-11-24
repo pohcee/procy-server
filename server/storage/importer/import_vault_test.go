@@ -43,7 +43,7 @@ func writeVault(t *testing.T, d *dataDir) map[int]string {
 			{Key: "db-password", Value: "s3cret", Type: vault.SecretType},
 			{ClientID: "c1", Key: "notes", Value: "**hello**", Type: vault.MarkdownType, RequiredGroup: "ops"},
 		} {
-			v, plain := v, v.Value
+			plain := v.Value
 			id, err := m.Store(ctxDefault, 0, &v, vaultUser{})
 			require.NoError(t, err)
 			out[int(id.ID)] = plain

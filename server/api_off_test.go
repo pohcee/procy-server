@@ -81,9 +81,12 @@ func TestEmptyAPIAddressRunsClientListenerOnly(t *testing.T) {
 	defer func() {
 		cancel()
 		select {
-		case <-runErr:
+		case err := <-runErr:
+			if err != nil {
+				t.Logf("Run returned: %v", err)
+			}
 		case <-time.After(10 * time.Second):
-			t.Error("Run did not return after the context was cancelled")
+			t.Error("Run did not return after the context was canceled")
 		}
 	}()
 

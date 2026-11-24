@@ -45,7 +45,7 @@ type Manager interface {
 	InitPlusManager(cfg *PlusConfig, pluginLoader loader.Loader, logger *logger.Logger)
 
 	// General registry type funcs
-	RegisterCapability(capName string, newCap Capability) (cap Capability, err error)
+	RegisterCapability(capName string, newCap Capability) (capability Capability, err error)
 	IsEnabledCapability(capName string) (isEnabled bool)
 
 	// Access specific capabilities
@@ -116,7 +116,7 @@ func (pm *ManagerProvider) InitPlusManager(cfg *PlusConfig, pluginLoader loader.
 // RegisterCapability adds a new plugin capability component, including loading
 // the relevant init func for the capability from the plugin and initializing
 // the capability (via InitProvider)
-func (pm *ManagerProvider) RegisterCapability(capName string, newCap Capability) (cap Capability, err error) {
+func (pm *ManagerProvider) RegisterCapability(capName string, newCap Capability) (capability Capability, err error) {
 	if pm.Config == nil {
 		return nil, ErrPlusNotAvailable
 	}
@@ -151,11 +151,11 @@ func (pm *ManagerProvider) IsEnabledCapability(capName string) (isEnabled bool) 
 func (pm *ManagerProvider) GetOAuthCapabilityEx() (capEx oauth.CapabilityEx) {
 	capEntry := pm.getCap(PlusOAuthCapability)
 	if capEntry != nil {
-		cap, ok := capEntry.(*oauth.Capability)
+		capability, ok := capEntry.(*oauth.Capability)
 		if !ok {
 			return nil
 		}
-		capEx = cap.GetOAuthCapabilityEx()
+		capEx = capability.GetOAuthCapabilityEx()
 		return capEx
 	}
 
@@ -166,11 +166,11 @@ func (pm *ManagerProvider) GetOAuthCapabilityEx() (capEx oauth.CapabilityEx) {
 func (pm *ManagerProvider) GetStatusCapabilityEx() (capEx status.CapabilityEx) {
 	capEntry := pm.getCap(PlusStatusCapability)
 	if capEntry != nil {
-		cap, ok := capEntry.(*status.Capability)
+		capability, ok := capEntry.(*status.Capability)
 		if !ok {
 			return nil
 		}
-		capEx = cap.GetStatusCapabilityEx()
+		capEx = capability.GetStatusCapabilityEx()
 		return capEx
 	}
 
@@ -181,11 +181,11 @@ func (pm *ManagerProvider) GetStatusCapabilityEx() (capEx status.CapabilityEx) {
 func (pm *ManagerProvider) GetExtendedPermissionCapabilityEx() (capEx extendedpermission.CapabilityEx) {
 	capEntry := pm.getCap(PlusExtendedPermissionCapability)
 	if capEntry != nil {
-		cap, ok := capEntry.(*extendedpermission.Capability)
+		capability, ok := capEntry.(*extendedpermission.Capability)
 		if !ok {
 			return nil
 		}
-		capEx = cap.GetExtendedPermissionCapabilityEx()
+		capEx = capability.GetExtendedPermissionCapabilityEx()
 		return capEx
 	}
 
@@ -196,11 +196,11 @@ func (pm *ManagerProvider) GetExtendedPermissionCapabilityEx() (capEx extendedpe
 func (pm *ManagerProvider) GetLicenseCapabilityEx() (capEx licensecap.CapabilityEx) {
 	capEntry := pm.getCap(PlusLicenseCapability)
 	if capEntry != nil {
-		cap, ok := capEntry.(*licensecap.Capability)
+		capability, ok := capEntry.(*licensecap.Capability)
 		if !ok {
 			return nil
 		}
-		capEx = cap.GetLicenseCapabilityEx()
+		capEx = capability.GetLicenseCapabilityEx()
 		return capEx
 	}
 
@@ -211,11 +211,11 @@ func (pm *ManagerProvider) GetLicenseCapabilityEx() (capEx licensecap.Capability
 func (pm *ManagerProvider) GetAlertingCapabilityEx() (capEx alertingcap.CapabilityEx) {
 	capEntry := pm.getCap(PlusAlertingCapability)
 	if capEntry != nil {
-		cap, ok := capEntry.(*alertingcap.Capability)
+		capability, ok := capEntry.(*alertingcap.Capability)
 		if !ok {
 			return nil
 		}
-		capEx = cap.GetAlertingCapabilityEx()
+		capEx = capability.GetAlertingCapabilityEx()
 		return capEx
 	}
 
@@ -233,15 +233,15 @@ func (pm *ManagerProvider) GetConfigValidator(capName string) (v validator.Valid
 }
 
 // setCap sets the capability in the capability map
-func (pm *ManagerProvider) setCap(capName string, cap Capability) {
+func (pm *ManagerProvider) setCap(capName string, capability Capability) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	pm.caps[capName] = cap
+	pm.caps[capName] = capability
 }
 
 // getCap sets the raw capability in the capability map without casting
-func (pm *ManagerProvider) getCap(capName string) (cap Capability) {
+func (pm *ManagerProvider) getCap(capName string) (capability Capability) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 

@@ -103,7 +103,7 @@ func TestImportReplaysPendingWAL(t *testing.T) {
 	for _, suffix := range []string{"", "-wal"} {
 		b, err := os.ReadFile(live.path("clients.db") + suffix)
 		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(stopped.path("clients.db")+suffix, b, 0o600))
+		require.NoError(t, os.WriteFile(stopped.path("clients.db")+suffix, b, 0o600)) //nolint:gosec // G703: a test temp dir
 	}
 	require.NoError(t, db.Close())
 	walInfo, err := os.Stat(stopped.path("clients.db-wal"))

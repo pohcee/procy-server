@@ -153,7 +153,7 @@ func TestFileAdapterReloadUsesItsContext(t *testing.T) {
 			select {
 			case <-done:
 			case <-time.After(5 * time.Second):
-				t.Fatal("reload loop didn't stop when its context was cancelled")
+				t.Fatal("reload loop didn't stop when its context was canceled")
 			}
 
 			u, err := fa.GetByUsername(defaultCtx, "user2")

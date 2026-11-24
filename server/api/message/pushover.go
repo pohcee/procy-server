@@ -25,7 +25,7 @@ func NewPushoverService(apiToken string) *PushoverService {
 
 const pushoverAPISuccessStatus = 1
 
-func (s *PushoverService) Send(ctx context.Context, data Data) error {
+func (s *PushoverService) Send(_ context.Context, data Data) error {
 	body := fmt.Sprintf(`Your RPort 2fa token:<b>%s</b>
 requested from %s
 <i>with %s</i>
@@ -70,7 +70,7 @@ func (s *PushoverService) DeliveryMethod() string {
 	return "pushover"
 }
 
-func (s *PushoverService) ValidateReceiver(ctx context.Context, pushoverUserKey string) error {
+func (s *PushoverService) ValidateReceiver(_ context.Context, pushoverUserKey string) error {
 	if pushoverUserKey == "" {
 		return errors.New("pushover user key cannot be empty")
 	}

@@ -37,7 +37,7 @@ type plusManagerForMockStatus struct {
 	rportplus.ManagerProvider
 }
 
-func (pm *plusManagerForMockStatus) RegisterCapability(capName string, newCap rportplus.Capability) (cap rportplus.Capability, err error) {
+func (pm *plusManagerForMockStatus) RegisterCapability(capName string, newCap rportplus.Capability) (capability rportplus.Capability, err error) {
 	if pm.cap == nil {
 		pm.cap = make(map[string]rportplus.Capability)
 	}

@@ -31,7 +31,7 @@ func (cap *Capability) GetInitFuncName() (name string) {
 }
 
 // InitProvider sets the capability provider to the local mock implementation
-func (cap *Capability) InitProvider(initFn plugin.Symbol) {
+func (cap *Capability) InitProvider(_ plugin.Symbol) {
 	if cap.Provider == nil {
 		cap.Provider = &MockCapabilityProvider{}
 	}
@@ -76,7 +76,7 @@ func (mp *MockCapabilityProvider) LicenseInfoAvailable() (avail bool) {
 }
 
 // SetLicenseInfoAvailableNotifier informs the runner of the notify fn to handle when the license info has been received
-func (mp *MockCapabilityProvider) SetLicenseInfoAvailableNotifier(notifyFn licensecap.LicenseInfoAvailableNotifier) {
+func (mp *MockCapabilityProvider) SetLicenseInfoAvailableNotifier(_ licensecap.LicenseInfoAvailableNotifier) {
 }
 
 // Gets the current trial mode status for rportd

@@ -33,7 +33,7 @@ func ConnectionErrorHints(server string, logger *logger.Logger, err error) error
 	}
 }
 
-func DetectTransparentProxy(serverURL string) (proxy string, allHeaders string, error error) {
+func DetectTransparentProxy(serverURL string) (proxy string, allHeaders string, detectErr error) {
 	var client = &http.Client{
 		Timeout: time.Second * 10,
 	}

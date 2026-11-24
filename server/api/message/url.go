@@ -51,6 +51,6 @@ func (s *URLService) DeliveryMethod() string {
 	return "url"
 }
 
-func (s *URLService) ValidateReceiver(ctx context.Context, email string) error {
+func (s *URLService) ValidateReceiver(_ context.Context, email string) error {
 	return email2.Validate(email)
 }

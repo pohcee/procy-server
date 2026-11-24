@@ -191,7 +191,7 @@ func TestFactoryManagedVault(t *testing.T) {
 	assert.NotContains(t, stored, "secret", "stored encrypted")
 }
 
-// The factory with passphrase vaults: each tenant's vault is initialised and unlocked on its own.
+// The factory with passphrase vaults: each tenant's vault is initialized and unlocked on its own.
 func TestFactoryPassphraseVault(t *testing.T) {
 	d := pgtest.New(t, repotest.TenantA, repotest.TenantB)
 	m := oss.NewManager(vault.NewFactory(vault.New(d.App)), &oss.Aes256PassManager{}, testLog)
@@ -212,5 +212,5 @@ func TestFactoryPassphraseVault(t *testing.T) {
 	assert.Equal(t, "v", got.Value)
 
 	_, err = m.Store(b, 0, &oss.InputValue{Key: "k", Value: "v", Type: oss.TextType}, user{})
-	assert.Error(t, err, "B's vault is not initialised")
+	assert.Error(t, err, "B's vault is not initialized")
 }

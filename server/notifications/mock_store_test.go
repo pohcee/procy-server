@@ -13,11 +13,11 @@ type MockStore struct {
 	sync.RWMutex
 }
 
-func (m *MockStore) SetDone(ctx context.Context, details notifications.NotificationDetails, out string) error {
+func (m *MockStore) SetDone(ctx context.Context, details notifications.NotificationDetails, _ string) error {
 	return m.logDone(ctx, details.ID.ID())
 }
 
-func (m *MockStore) SetError(ctx context.Context, details notifications.NotificationDetails, out, err string) error {
+func (m *MockStore) SetError(ctx context.Context, details notifications.NotificationDetails, _, err string) error {
 	return m.logError(ctx, details.ID.ID(), err)
 }
 
@@ -31,13 +31,13 @@ func (m *MockStore) logDone(_ context.Context, nid string) error {
 	return nil
 }
 
-func (m *MockStore) logError(_ context.Context, nid string, error string) error {
+func (m *MockStore) logError(_ context.Context, nid string, errMsg string) error {
 	m.Lock()
 	defer m.Unlock()
 
 	n := m.notifications[nid]
 	n.State = notifications.ProcessingStateError
-	n.Out = error
+	n.Out = errMsg
 	m.notifications[nid] = n
 	return nil
 }

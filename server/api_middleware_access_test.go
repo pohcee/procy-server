@@ -29,14 +29,14 @@ func (failingClientGroupProvider) GetAll(context.Context) ([]*cgroups.ClientGrou
 }
 
 func TestClientAccessMiddlewareStopsWhenClientGroupsCannotBeLoaded(t *testing.T) {
-	hour := time.Hour
+	keepDisconnected := time.Hour
 	c1 := clients.New(t).ID("client-1").ClientAuthID(cl1.ID).Logger(testLog).Build()
 	admin := &users.User{Username: "admin", Groups: []string{users.Administrators}}
 	al := &APIListener{
 		Logger: testLog,
 		apiServices: &apiServices{
 			config:              &chconfig.Config{},
-			clientService:       clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1}, &hour, testLog), testLog, nil),
+			clientService:       clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1}, &keepDisconnected, testLog), testLog, nil),
 			clientGroupProvider: failingClientGroupProvider{},
 		},
 		userService: &MockUsersService{UserService: users.NewAPIService(users.NewStaticProvider([]*users.User{admin}), false, 0, -1)},

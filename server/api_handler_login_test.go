@@ -500,7 +500,7 @@ func TestWrapWithAuthMiddleware(t *testing.T) {
 			}
 			al.config.API.TwoFATokenDelivery = twoFATokenDelivery
 
-			handler := al.wrapWithAuthMiddleware(false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := al.wrapWithAuthMiddleware(false)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, user.Username, api.GetUser(r.Context(), nil))
 			}))
 
@@ -621,7 +621,7 @@ func TestAPISessionUpdates(t *testing.T) {
 
 			testRunTime := time.Now()
 
-			handler := al.wrapWithAuthMiddleware(tc.Bearer != "")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := al.wrapWithAuthMiddleware(tc.Bearer != "")(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 				username := tc.Username
 				if tc.BearerUsername != "" {
 					username = tc.BearerUsername

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/netip"
@@ -367,7 +368,7 @@ func (s *ServerConfig) GetSQLiteDataSourceOptions() sqlite.DataSourceOptions {
 func (c *Config) InitRequestLogOptions() *requestlog.Options {
 	o := requestlog.DefaultOptions
 	o.Writer = c.Logging.LogOutput.File
-	o.Filter = func(r *http.Request, code int, duration time.Duration, size int64) bool {
+	o.Filter = func(_ *http.Request, _ int, _ time.Duration, _ int64) bool {
 		return c.Logging.LogLevel == logger.LogLevelInfo || c.Logging.LogLevel == logger.LogLevelDebug
 	}
 	return &o
@@ -714,14 +715,15 @@ func convertHourOrDayStringToDuration(desc string, inputStr string) (duration ti
 		return 0, fmt.Errorf("'%s' must be simple value: %w", desc, err)
 	}
 
-	if isHours {
-		duration = time.Duration(dur) * time.Hour
-	}
+	unit := time.Hour
 	if isDays {
-		duration = time.Duration(dur) * time.Hour * 24
+		unit = 24 * time.Hour
+	}
+	if dur > uint64(math.MaxInt64/unit) {
+		return 0, fmt.Errorf("'%s' is too large", desc)
 	}
 
-	return duration, nil
+	return time.Duration(dur) * unit, nil //nolint:gosec // G115: range checked above
 }
 
 func (c *Config) parseAndValidateTotPSecret() error {
@@ -929,7 +931,7 @@ func (d *DatabaseConfig) DsnForLogs() string {
 }
 
 // jwtSecretFileName holds the generated API JWT secret in the data dir when none is configured.
-const jwtSecretFileName = "rportd-jwt-secret.txt"
+const jwtSecretFileName = "rportd-jwt-secret.txt" //nolint:gosec // G101: a file name
 
 func parseAndValidateCORS(mLog *logger.MemLogger, cors []string) []string {
 	result := []string{}

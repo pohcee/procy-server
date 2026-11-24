@@ -22,7 +22,7 @@ import (
 //go:embed migrations/*.sql
 var files embed.FS
 
-// lockKey is the advisory lock that serialises concurrent migration runs.
+// lockKey is the advisory lock that serializes concurrent migration runs.
 const lockKey = 7_301_220_001
 
 // Migration is one schema change.

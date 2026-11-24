@@ -33,7 +33,7 @@ type mockClientGroupProvider struct {
 	cgroups.ClientGroupProvider
 }
 
-func (mockClientGroupProvider) GetAll(ctx context.Context) ([]*cgroups.ClientGroup, error) {
+func (mockClientGroupProvider) GetAll(_ context.Context) ([]*cgroups.ClientGroup, error) {
 	return nil, nil
 }
 
@@ -383,7 +383,7 @@ type SimpleMockClientService struct {
 	*clients.ClientServiceProvider
 }
 
-func (mcs *SimpleMockClientService) GetActiveByID(_ context.Context, id string) (*clientdata.Client, error) {
+func (mcs *SimpleMockClientService) GetActiveByID(_ context.Context, _ string) (*clientdata.Client, error) {
 	// for this test, just return the first client
 	return mcs.ActiveClients[0], nil
 }
@@ -393,7 +393,7 @@ func (mcs *SimpleMockClientService) GetByID(ctx context.Context, id string) (*cl
 	return mcs.GetActiveByID(ctx, id)
 }
 
-func (mcs *SimpleMockClientService) StartClientTunnels(_ context.Context, client *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
+func (mcs *SimpleMockClientService) StartClientTunnels(_ context.Context, _ *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
 	tunnels := make([]*clienttunnel.Tunnel, 0, 32)
 	for i, remote := range remotes {
 		tunnels = append(tunnels, makeTunnelResponse(mcs.ExpectedIDs[i], remote))

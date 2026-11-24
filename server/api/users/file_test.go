@@ -2,7 +2,6 @@ package users
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"sync"
@@ -186,7 +185,7 @@ func TestSaveUsersToFile(t *testing.T) {
 		},
 	}
 
-	tmpfile, err := ioutil.TempFile("", "example")
+	tmpfile, err := os.CreateTemp("", "example")
 	require.NoError(t, err)
 
 	fm := FileManager{

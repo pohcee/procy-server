@@ -214,9 +214,9 @@ func (w *writer) insert(table string, cols []string, rows [][]any, suffix string
 	return added, nil
 }
 
-// insertOne writes one row and reports whether it was written.
-func (w *writer) insertOne(table string, cols []string, vals []any, suffix string) (bool, error) {
-	n, err := w.insert(table, cols, [][]any{vals}, suffix)
+// insertOne writes one row unless it conflicts with an existing one and reports whether it was written.
+func (w *writer) insertOne(table string, cols []string, vals []any) (bool, error) {
+	n, err := w.insert(table, cols, [][]any{vals}, onConflictNothing)
 	return n == 1, err
 }
 

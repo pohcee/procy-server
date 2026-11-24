@@ -86,7 +86,7 @@ func startEmbedded() (func(), string, error) {
 		}
 		cache = filepath.Join(home, "rport-embedded-postgres")
 	}
-	if err := os.MkdirAll(cache, 0o755); err != nil {
+	if err := os.MkdirAll(cache, 0o755); err != nil { //nolint:gosec // G703: test cache in the user cache dir
 		return nil, "", err
 	}
 	runtime, err := os.MkdirTemp("", "rport-pgtest-")
@@ -99,7 +99,7 @@ func startEmbedded() (func(), string, error) {
 	}
 	cfg := embeddedpostgres.DefaultConfig().
 		Version(embeddedpostgres.V17).
-		Port(uint32(port)).
+		Port(uint32(port)). //nolint:gosec // G115: a TCP port
 		Username("postgres").Password("postgres").Database("postgres").
 		CachePath(cache).
 		RuntimePath(runtime).

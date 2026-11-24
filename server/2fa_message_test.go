@@ -118,7 +118,7 @@ func TestScriptMessage(t *testing.T) {
 func TestPushoverMessage(t *testing.T) {
 	// Mock the Pushover API
 	defer gock.Off() // Flush pending mocks after test execution
-	gock.Observe(func(request *http.Request, mock gock.Mock) {
+	gock.Observe(func(request *http.Request, _ gock.Mock) {
 		// Verify the post request contains our data
 		bytes, _ := httputil.DumpRequest(request, true)
 		body, err := url.QueryUnescape(string(bytes))

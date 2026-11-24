@@ -41,7 +41,7 @@ func NewSMTPService(hostPort, username, password, fromEmail string, withTLS bool
 	return s, nil
 }
 
-func (s *SMTPService) Send(ctx context.Context, data Data) error {
+func (s *SMTPService) Send(_ context.Context, data Data) error {
 	message := fmt.Sprintf(`You have requested a token for the login to your RPort server.
 The token is: %s
 
@@ -74,6 +74,6 @@ func (s *SMTPService) DeliveryMethod() string {
 	return "email"
 }
 
-func (s *SMTPService) ValidateReceiver(ctx context.Context, email string) error {
+func (s *SMTPService) ValidateReceiver(_ context.Context, email string) error {
 	return email2.Validate(email)
 }

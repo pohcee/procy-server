@@ -1,5 +1,5 @@
 // Package repotest holds contract tests that any implementation of the server's repository interfaces can run
-// (#29). Each suite takes a Factory and checks the behaviour the server relies on: a context without a tenant is
+// (#29). Each suite takes a Factory and checks the behavior the server relies on: a context without a tenant is
 // refused with tenant.ErrMissing, tenants never see each other's rows, and the round trips the API uses.
 //
 // The SQLite implementations run every suite in their own tests; another implementation runs the same suites

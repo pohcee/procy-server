@@ -51,11 +51,9 @@ func (d *dataDir) with(name string, migrations fs.FS, fn func(db *sqlx.DB)) {
 // path of a file in the data dir.
 func (d *dataDir) path(name string) string { return filepath.Join(d.dir, name) }
 
-func (d *dataDir) write(name, content string) string {
+func (d *dataDir) write(name, content string) {
 	d.t.Helper()
-	p := d.path(name)
-	require.NoError(d.t, os.WriteFile(p, []byte(content), 0o600))
-	return p
+	require.NoError(d.t, os.WriteFile(d.path(name), []byte(content), 0o600))
 }
 
 // run imports the data dir into the default tenant of a fresh database.

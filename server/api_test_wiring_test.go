@@ -91,7 +91,7 @@ func useLocalDispatcher(al *APIListener) {
 		Config:     cfg,
 		Done:       doneChannelsOf(al),
 		Logger:     testLog,
-		NewJobID:   func() (string, error) { return generateNewJobID() },
+		NewJobID:   newJobIDForTest,
 		OnRunDone: func() {
 			if al.testDone != nil {
 				al.testDone <- true

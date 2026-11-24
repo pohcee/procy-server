@@ -164,6 +164,6 @@ func (al *APIListener) handleGetClientMountpoints(w http.ResponseWriter, req *ht
 }
 
 // handleMonitoringDisabled returns Not Found (404) when monitoring is disabled
-func (al *APIListener) handleMonitoringDisabled(w http.ResponseWriter, req *http.Request) {
+func (al *APIListener) handleMonitoringDisabled(w http.ResponseWriter, _ *http.Request) {
 	al.jsonErrorResponseWithTitle(w, http.StatusNotFound, "monitoring disabled. re-enable to view monitoring statistics.")
 }

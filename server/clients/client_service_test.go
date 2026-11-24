@@ -855,7 +855,7 @@ func TestGetTunnelsToReestablish(t *testing.T) {
 		msg := fmt.Sprintf("test case: %q", tc.descr)
 
 		// given
-		var old, new []*models.Remote
+		var old, updated []*models.Remote
 		for i, v := range tc.oldStr {
 			r, err := models.NewRemote(v)
 			require.NoErrorf(t, err, msg)
@@ -876,11 +876,11 @@ func TestGetTunnelsToReestablish(t *testing.T) {
 			if tc.newACL != nil && tc.newACL[i] != "" {
 				r.ACL = &tc.newACL[i]
 			}
-			new = append(new, r)
+			updated = append(updated, r)
 		}
 
 		// when
-		gotRes := getTunnelsToReestablish(old, new)
+		gotRes := getTunnelsToReestablish(old, updated)
 
 		var gotResStr []string
 		for _, r := range gotRes {
@@ -901,7 +901,7 @@ type MockCaddyAPI struct {
 	DeletedRouteID  string
 }
 
-func (m *MockCaddyAPI) AddRoute(ctx context.Context, nrr *caddy.NewRouteRequest) (res *http.Response, err error) {
+func (m *MockCaddyAPI) AddRoute(_ context.Context, nrr *caddy.NewRouteRequest) (res *http.Response, err error) {
 	m.NewRouteRequest = nrr
 	res = &http.Response{
 		StatusCode: http.StatusOK,
@@ -909,7 +909,7 @@ func (m *MockCaddyAPI) AddRoute(ctx context.Context, nrr *caddy.NewRouteRequest)
 	return res, nil
 }
 
-func (m *MockCaddyAPI) DeleteRoute(ctx context.Context, routeID string) (res *http.Response, err error) {
+func (m *MockCaddyAPI) DeleteRoute(_ context.Context, routeID string) (res *http.Response, err error) {
 	m.DeletedRouteID = routeID
 	res = &http.Response{
 		StatusCode: http.StatusOK,

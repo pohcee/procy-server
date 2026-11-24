@@ -114,7 +114,7 @@ func (r *ClientRepository) Save(ctx context.Context, cl *clientdata.Client) erro
 	store := r.getStore()
 
 	if store != nil {
-		// the store write is not cancelled with ctx (e.g. when a disconnect is saved during shutdown)
+		// the store write is not canceled with ctx (e.g. when a disconnect is saved during shutdown)
 		err := store.Save(context.WithoutCancel(ctx), cl)
 		if err != nil {
 			return fmt.Errorf("failed to save client: %w", err)
@@ -539,7 +539,7 @@ func (r *ClientRepository) loadTenant(ctx context.Context, tid tenant.ID) error 
 	l := r.logger
 	r.mu.Unlock()
 
-	// the load is not cancelled with the request that happens to trigger it
+	// the load is not canceled with the request that happens to trigger it
 	all, err := LoadInitialClients(context.WithoutCancel(ctx), store, l)
 
 	r.mu.Lock()

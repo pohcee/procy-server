@@ -543,10 +543,9 @@ func TestHandleDeleteClientAuth(t *testing.T) {
 
 			// then
 			assert.Equal(tc.wantStatusCode, w.Code)
+			// success case: empty body
 			var wantRespStr string
-			if tc.wantErrTitle == "" {
-				// success case: empty body
-			} else {
+			if tc.wantErrTitle != "" {
 				// failure case
 				wantResp := api.NewErrAPIPayloadFromMessage(tc.wantErrCode, tc.wantErrTitle, tc.wantErrDetail)
 				wantRespBytes, err := json.Marshal(wantResp)

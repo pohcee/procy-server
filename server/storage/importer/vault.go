@@ -154,7 +154,7 @@ func (im *importer) writeVault(w *writer) error {
 			break
 		}
 		if _, err := w.insertOne("vault_status", []string{"id", "db_status", "enc_check", "dec_check"},
-			[]any{v.status.ID, v.status.DBStatus, nullString(v.status.EncCheck), v.status.DecCheck}, onConflictNothing); err != nil {
+			[]any{v.status.ID, v.status.DBStatus, nullString(v.status.EncCheck), v.status.DecCheck}); err != nil {
 			return err
 		}
 		sc.Added++
@@ -165,7 +165,7 @@ func (im *importer) writeVault(w *writer) error {
 	taken := 0
 	for _, vals := range v.values {
 		vc.Read++
-		added, err := w.insertOne("vault_values", names(vaultValueCols), vals, onConflictNothing)
+		added, err := w.insertOne("vault_values", names(vaultValueCols), vals)
 		if err != nil {
 			return err
 		}

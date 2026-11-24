@@ -144,7 +144,10 @@ func startNodeWith(t *testing.T, s nodeSettings) *nodeFixture {
 	t.Cleanup(func() {
 		cancel()
 		select {
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				t.Logf("server stopped: %v", err)
+			}
 		case <-time.After(10 * time.Second):
 			t.Error("server did not stop")
 		}

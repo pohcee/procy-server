@@ -55,6 +55,6 @@ func ValidateScriptDirOS(scriptDirSysInfo os.FileInfo, scriptDir string) error {
 	return nil
 }
 
-func GetScriptExtensionOS(interpreter Interpreter) string {
+func GetScriptExtensionOS(_ Interpreter) string {
 	return ""
 }

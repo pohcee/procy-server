@@ -54,7 +54,7 @@ type Repositories struct {
 	// APISessions stores the API sessions (api_sessions.db).
 	APISessions session.StorageProvider
 	// Vault gives the vault storage (vault.sqlite.db). The SQLite factory creates its file when the vault is
-	// initialised and opens it at startup if it exists; an injected factory does both itself.
+	// initialized and opens it at startup if it exists; an injected factory does both itself.
 	Vault vault.DbProviderFactory
 	// AuditLog stores the audit log (auditlog.db, rotated). It is used only when the audit log is enabled.
 	AuditLog auditlog.Provider

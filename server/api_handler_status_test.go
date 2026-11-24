@@ -22,11 +22,11 @@ import (
 )
 
 func newStatusTestListener(cfg *chconfig.Config, override func(capabilities.Capabilities) capabilities.Capabilities) *APIListener {
-	hour := time.Hour
+	keepDisconnected := time.Hour
 	return &APIListener{
 		apiServices: &apiServices{
 			config:               cfg,
-			clientService:        clients.NewClientService(nil, nil, clients.NewClientRepository(nil, &hour, testLog), testLog, nil),
+			clientService:        clients.NewClientService(nil, nil, clients.NewClientRepository(nil, &keepDisconnected, testLog), testLog, nil),
 			clientAuthProvider:   clientsauth.NewSingleProvider("client", "secret"),
 			auditLog:             &auditlog.AuditLog{},
 			capabilitiesOverride: override,
@@ -56,7 +56,7 @@ func TestStatusCapabilities(t *testing.T) {
 	}{
 		{
 			name:   "default config",
-			config: func(c *chconfig.Config) {},
+			config: func(_ *chconfig.Config) {},
 			want: `{
 				"vault_passphrase": true,
 				"port_tunnels": true,

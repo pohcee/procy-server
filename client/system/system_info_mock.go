@@ -35,11 +35,11 @@ func (s *MockSystemInfo) Hostname() (string, error) {
 	return s.ReturnHostname, s.ReturnHostnameError
 }
 
-func (s *MockSystemInfo) HostInfo(ctx context.Context) (*host.InfoStat, error) {
+func (s *MockSystemInfo) HostInfo(_ context.Context) (*host.InfoStat, error) {
 	return s.ReturnHostInfo, s.ReturnHostInfoError
 }
 
-func (s *MockSystemInfo) Uname(ctx context.Context) (string, error) {
+func (s *MockSystemInfo) Uname(_ context.Context) (string, error) {
 	return s.ReturnUname, s.ReturnUnameError
 }
 
@@ -51,19 +51,19 @@ func (s *MockSystemInfo) GoArch() string {
 	return s.ReturnGoArch
 }
 
-func (s *MockSystemInfo) CPUInfo(ctx context.Context) (CPUInfo, error) {
+func (s *MockSystemInfo) CPUInfo(_ context.Context) (CPUInfo, error) {
 	return s.ReturnCPUInfo, s.ReturnCPUInfoError
 }
 
-func (s *MockSystemInfo) CPUPercent(ctx context.Context) (float64, error) {
+func (s *MockSystemInfo) CPUPercent(_ context.Context) (float64, error) {
 	return s.ReturnCPUPercent, s.ReturnCPUPercentError
 }
 
-func (s *MockSystemInfo) CPUPercentIOWait(ctx context.Context) (float64, error) {
+func (s *MockSystemInfo) CPUPercentIOWait(_ context.Context) (float64, error) {
 	return s.ReturnCPUPercentIOWait, s.ReturnCPUPercentIOWaitError
 }
 
-func (s *MockSystemInfo) MemoryStats(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+func (s *MockSystemInfo) MemoryStats(_ context.Context) (*mem.VirtualMemoryStat, error) {
 	return s.ReturnMemoryStat, s.ReturnMemoryError
 }
 
@@ -71,6 +71,6 @@ func (s *MockSystemInfo) SystemTime() time.Time {
 	return s.ReturnSystemTime
 }
 
-func (s *MockSystemInfo) VirtualizationInfo(ctx context.Context) (virtSystem, virtRole string, err error) {
+func (s *MockSystemInfo) VirtualizationInfo(_ context.Context) (virtSystem, virtRole string, err error) {
 	return "dummy", "guest", s.ReturnVirtualizationInfoError
 }

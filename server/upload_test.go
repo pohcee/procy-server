@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +38,7 @@ func FsCallback(fs *test.FileAPIMock, t *testing.T) {
 	fs.On("CreateDirIfNotExists", "/data/"+files.DefaultUploadTempFolder, files.DefaultMode).Return(true, nil)
 
 	fileExpectation := func(f io.Reader) bool {
-		actualFileContent, err := ioutil.ReadAll(f)
+		actualFileContent, err := io.ReadAll(f)
 
 		require.NoError(t, err)
 

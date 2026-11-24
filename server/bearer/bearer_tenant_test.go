@@ -14,7 +14,7 @@ import (
 
 func tenantCtx(id tenant.ID) context.Context { return tenant.WithID(context.Background(), id) }
 
-func validateIn(t *testing.T, ctx context.Context, store *memSessions, token string) bool {
+func validateIn(ctx context.Context, t *testing.T, store *memSessions, token string) bool {
 	t.Helper()
 	tokCtx, err := ParseToken(token, testSecret)
 	require.NoError(t, err)
@@ -31,7 +31,7 @@ func TestCreateAuthTokenCarriesTenant(t *testing.T) {
 	tokCtx, err := ParseToken(token, testSecret)
 	require.NoError(t, err)
 	assert.Equal(t, tenant.ID("a"), tokCtx.AppClaims.TenantID)
-	assert.True(t, validateIn(t, tenantCtx("a"), store, token))
+	assert.True(t, validateIn(tenantCtx("a"), t, store, token))
 }
 
 func TestCreateAuthTokenRequiresTenant(t *testing.T) {
@@ -47,8 +47,8 @@ func TestBearerTokenOfOtherTenantRejected(t *testing.T) {
 	token, err := CreateAuthToken(tenantCtx("a"), store, testSecret, time.Hour, "alice", nil, "test", "127.0.0.1")
 	require.NoError(t, err)
 
-	assert.False(t, validateIn(t, tenantCtx("b"), store, token))
-	assert.False(t, validateIn(t, tenantCtx(tenant.Default), store, token))
+	assert.False(t, validateIn(tenantCtx("b"), t, store, token))
+	assert.False(t, validateIn(tenantCtx(tenant.Default), t, store, token))
 }
 
 func TestBearerTokenWithoutTenantOnlyDefault(t *testing.T) {
@@ -61,6 +61,6 @@ func TestBearerTokenWithoutTenantOnlyDefault(t *testing.T) {
 	token, err := old.SignedString([]byte(testSecret))
 	require.NoError(t, err)
 
-	assert.True(t, validateIn(t, defaultCtx(), store, token))
-	assert.False(t, validateIn(t, tenantCtx("a"), store, token))
+	assert.True(t, validateIn(defaultCtx(), t, store, token))
+	assert.False(t, validateIn(tenantCtx("a"), t, store, token))
 }
