@@ -170,7 +170,7 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 }
 
 // RegistryFunctions are the SECURITY DEFINER functions a device process records its node and its clients' sessions
-// with (migration 0450). Only roles granted EXECUTE may call them: the application role (GrantApp, for nodes with
+// with (migration 1200). Only roles granted EXECUTE may call them: the application role (GrantApp, for nodes with
 // storage role "all") and a device role.
 var RegistryFunctions = []string{
 	"rport_node_heartbeat(text, text, text)",

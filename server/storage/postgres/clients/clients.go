@@ -29,7 +29,7 @@ func New(db *sqlx.DB, keepDisconnectedClients *time.Duration) *Store {
 	return &Store{db: db, keepDisconnectedClients: keepDisconnectedClients}
 }
 
-// liveSession is true for a clients row whose client has a live session in the cluster registry (migration 0450):
+// liveSession is true for a clients row whose client has a live session in the cluster registry (migration 1200):
 // it is connected to some node, whatever disconnected_at says (the node that held an older session may have written
 // it after the newer one connected), so it is neither obsolete nor purged.
 const liveSession = `EXISTS (SELECT 1 FROM client_sessions cs

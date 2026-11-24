@@ -1,4 +1,4 @@
-// Package clientsessions is the cluster's session registry on Postgres (migration 0450): which device process holds
+// Package clientsessions is the cluster's session registry on Postgres (migration 1200): which device process holds
 // each client's connection, and where that process listens for peer calls. Device processes write it only through
 // the registry functions (migrate.RegistryFunctions); api processes read it to locate a client.
 package clientsessions
