@@ -346,6 +346,7 @@ type Config struct {
 	PlusConfig    rportplus.PlusConfig `mapstructure:",squash"`
 	Storage       StorageConfig        `mapstructure:"storage"`
 	Vault         VaultConfig          `mapstructure:"vault"`
+	Cluster       ClusterConfig        `mapstructure:"cluster"`
 }
 
 var (
@@ -387,6 +388,9 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 	}
 
 	if err := c.parseAndValidateStorage(); err != nil {
+		return err
+	}
+	if err := c.parseAndValidateCluster(); err != nil {
 		return err
 	}
 

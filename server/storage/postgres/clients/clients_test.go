@@ -95,3 +95,27 @@ func TestRequiresTenantBeforeDatabase(t *testing.T) {
 	_, err := s.GetAll(context.Background(), testLog)
 	assert.Error(t, err)
 }
+
+// A client with a live session in the cluster registry is connected to some node: an old disconnected_at (written
+// by the node that held an older session) neither hides it nor gets it purged.
+func TestLiveSessionKeepsClientFromPurge(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	keep := time.Hour
+	s := New(d.App, &keep)
+	ctx := repotest.Ctx(repotest.TenantA)
+	long := time.Now().Add(-2 * time.Hour)
+	require.NoError(t, s.Save(ctx, repotest.StoreClient("held", &long)))
+	require.NoError(t, s.Save(ctx, repotest.StoreClient("gone", &long)))
+	_, err := d.App.Exec("SELECT rport_register_session('a', 'held', 'n1', 'session-0001', 60)")
+	require.NoError(t, err)
+
+	all, err := s.GetAll(ctx, testLog)
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	assert.Equal(t, "held", all[0].GetID())
+
+	require.NoError(t, s.DeleteObsolete(ctx, testLog))
+	var ids []string
+	require.NoError(t, d.Owner.Select(&ids, "SELECT id FROM clients"))
+	assert.Equal(t, []string{"held"}, ids)
+}

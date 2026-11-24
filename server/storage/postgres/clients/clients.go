@@ -29,6 +29,12 @@ func New(db *sqlx.DB, keepDisconnectedClients *time.Duration) *Store {
 	return &Store{db: db, keepDisconnectedClients: keepDisconnectedClients}
 }
 
+// liveSession is true for a clients row whose client has a live session in the cluster registry (migration 0450):
+// it is connected to some node, whatever disconnected_at says (the node that held an older session may have written
+// it after the newer one connected), so it is neither obsolete nor purged.
+const liveSession = `EXISTS (SELECT 1 FROM client_sessions cs
+	WHERE cs.tenant_id = clients.tenant_id AND cs.client_id = clients.id AND cs.lease_until > now())`
+
 type row struct {
 	ID             string     `db:"id"`
 	ClientAuthID   string     `db:"client_auth_id"`
@@ -44,7 +50,7 @@ func (s *Store) GetAll(ctx context.Context, l *logger.Logger) ([]*clientdata.Cli
 	q := "SELECT id, client_auth_id, disconnected_at, details FROM clients WHERE tenant_id = $1"
 	args := []any{string(tid)}
 	if s.keepDisconnectedClients != nil {
-		q += " AND (disconnected_at IS NULL OR disconnected_at >= $2)"
+		q += " AND (disconnected_at IS NULL OR disconnected_at >= $2 OR " + liveSession + ")"
 		args = append(args, s.cutoff())
 	}
 	var rows []row
@@ -99,7 +105,7 @@ func (s *Store) DeleteObsolete(ctx context.Context, _ *logger.Logger) error {
 	cutoff := s.cutoff()
 	return postgres.InTenantID(ctx, s.db, tid, func(tx *sqlx.Tx) error {
 		_, err := tx.ExecContext(ctx,
-			"DELETE FROM clients WHERE tenant_id = $1 AND disconnected_at IS NOT NULL AND disconnected_at < $2",
+			"DELETE FROM clients WHERE tenant_id = $1 AND disconnected_at IS NOT NULL AND disconnected_at < $2 AND NOT "+liveSession,
 			string(tid), cutoff)
 		return err
 	})

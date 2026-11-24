@@ -6,7 +6,8 @@
 CREATE TABLE nodes (
     node_id      text PRIMARY KEY CHECK (node_id ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$'),
     region       text        NOT NULL DEFAULT '' CHECK (length(region) <= 63),
-    peer_address text        NOT NULL CHECK (peer_address <> '' AND length(peer_address) <= 255),
+    -- empty when the process answers no peer calls
+    peer_address text        NOT NULL DEFAULT '' CHECK (length(peer_address) <= 255),
     heartbeat_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -49,7 +50,7 @@ CREATE FUNCTION rport_node_heartbeat(p_node text, p_region text, p_peer_address 
 BEGIN
     PERFORM rport_check_registry_args(p_node, 1);
     INSERT INTO nodes (node_id, region, peer_address, heartbeat_at)
-    VALUES (p_node, coalesce(p_region, ''), p_peer_address, now())
+    VALUES (p_node, coalesce(p_region, ''), coalesce(p_peer_address, ''), now())
     ON CONFLICT (node_id) DO UPDATE
         SET region = EXCLUDED.region, peer_address = EXCLUDED.peer_address, heartbeat_at = EXCLUDED.heartbeat_at;
 END

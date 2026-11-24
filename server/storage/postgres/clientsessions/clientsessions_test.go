@@ -138,7 +138,6 @@ func TestRegistryRefusesBadInput(t *testing.T) {
 		"unknown tenant":  func() error { return s.Register(ctx, "n1", sess("zz", "c1", "session-0001"), time.Minute) },
 		"reserved tenant": func() error { return s.Register(ctx, "n1", sess("_unresolved", "c1", "session-0001"), time.Minute) },
 		"long lease":      func() error { return s.Register(ctx, "n1", sess("a", "c1", "session-0001"), 2*time.Hour) },
-		"empty address":   func() error { return s.Heartbeat(ctx, peer.NodeInfo{NodeID: "n3"}) },
 		"renew bad tenant": func() error {
 			_, err := s.Renew(ctx, "n1", []peer.Session{sess("zz", "c1", "session-0001")}, time.Minute)
 			return err
