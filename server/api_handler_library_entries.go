@@ -350,7 +350,7 @@ func (al *APIListener) handleRunLibraryEntry(w http.ResponseWriter, req *http.Re
 	}
 	reqBody.Username = curUser.Username
 
-	multiJob, err := al.StartLibraryMultiJob(ctx, id, &reqBody)
+	multiJob, err := al.jobRunner.StartLibraryMultiJob(ctx, id, &reqBody)
 	if err != nil {
 		al.jsonError(w, err)
 		return

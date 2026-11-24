@@ -52,7 +52,7 @@ func TestMultiJobRunSavedInRequestTenant(t *testing.T) {
 
 	abortOnErr := false
 	ctx, cancel := context.WithCancel(tenant.WithID(context.Background(), "a"))
-	_, err := al.StartMultiClientJob(ctx, &jobs.MultiJobRequest{
+	_, err := al.jobRunner.StartMultiClientJob(ctx, &jobs.MultiJobRequest{
 		ClientIDs:      []string{"c1", "c2", "c3"},
 		Command:        "uname -a",
 		TimeoutSec:     30,

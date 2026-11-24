@@ -67,7 +67,7 @@ func (al *APIListener) handleLibraryEntriesWS(w http.ResponseWriter, req *http.R
 	jobReq.Username = curUser.Username
 
 	// the active version is fixed here, once, for every device
-	multiJob, specFor, err := al.prepareLibraryMultiJob(ctx, inbound.EntryID, jobReq)
+	multiJob, specFor, err := al.jobRunner.PrepareLibraryMultiJob(ctx, inbound.EntryID, jobReq)
 	if err != nil {
 		uiConnTS.WriteError("Failed to persist a new multi-client job.", err)
 		return
@@ -84,5 +84,5 @@ func (al *APIListener) handleLibraryEntriesWS(w http.ResponseWriter, req *http.R
 
 	uiConnTS.SetWritesBeforeClose(len(orderedClients))
 
-	al.runMultiClientJob(ctx, uiConnTS, multiJob, orderedClients, specFor)
+	al.jobRunner.RunMultiClientJob(ctx, uiConnTS, multiJob, orderedClients, specFor)
 }

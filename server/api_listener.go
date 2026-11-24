@@ -28,7 +28,6 @@ import (
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/clients/storedtunnels"
-	libraryentries "github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/pairing"
 
 	rportplus "github.com/openrport/openrport/plus"
@@ -72,12 +71,11 @@ type APIListener struct {
 
 	testDone chan bool // is used only in tests to be able to wait until async task is done
 
-	userService    UserService
-	vaultManager   *vault.Manager
-	tokenManager   *authorization.Manager
-	libraryManager *libraryentries.Manager
-	storedTunnels  *storedtunnels.Manager
-	pairing        *pairing.Service
+	userService   UserService
+	vaultManager  *vault.Manager
+	tokenManager  *authorization.Manager
+	storedTunnels *storedtunnels.Manager
+	pairing       *pairing.Service
 
 	notificationsStorage   notifications.Repository
 	notificationsProcessor notifications.Processor
@@ -159,9 +157,6 @@ func NewAPIListener(
 		notificationsLogger.Debugf("the notifications repository does not delete old entries; the cleaner is not started")
 	}
 
-	libraryStore := repos.Library
-	libraryManager := libraryentries.NewManager(libraryStore, time.Now)
-
 	tokenManager := authorization.NewManager(repos.APITokens)
 
 	userService := users.NewAPIServiceFromConfig(ctx, repos.Users, config)
@@ -193,38 +188,11 @@ func NewAPIListener(
 		bannedUsers:            security.NewBanList(time.Duration(config.API.UserLoginWait) * time.Second),
 		userService:            userService,
 		vaultManager:           vault.NewManager(repos.Vault, &vault.Aes256PassManager{}, vaultLogger),
-		libraryManager:         libraryManager,
 		tokenManager:           tokenManager,
 		storedTunnels:          storedtunnels.New(repos.StoredTunnels),
 		notificationsStorage:   store,
 		notificationsProcessor: notificationProcessor,
 		notificationsCleaner:   notificationsCleaner,
-	}
-
-	if importer, ok := libraryStore.(libraryentries.LegacyImporter); ok {
-		imported, err := importer.ImportLegacy(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to import scripts and commands into the library: %w", err)
-		}
-		if imported > 0 {
-			allog.Infof("imported %d scripts and commands into the library", imported)
-		}
-	}
-
-	// Built-ins are a convenience: a failure here must not stop rportd.
-	if builtins, err := libraryentries.Builtins(); err != nil {
-		allog.Errorf("library: failed to load built-in entries: %v", err)
-	} else {
-		created, updated, skipped, err := libraryentries.SyncBuiltins(ctx, libraryStore, builtins, chshare.BuildVersion, time.Now())
-		if err != nil {
-			allog.Errorf("library: failed to sync built-in entries: %v", err)
-		}
-		if created > 0 || updated > 0 {
-			allog.Infof("library: added %d, updated %d built-in entries", created, updated)
-		}
-		for _, key := range skipped {
-			allog.Infof("library: built-in %s was deleted; not restoring it", key)
-		}
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
@@ -341,10 +309,6 @@ func (al *APIListener) Close() error {
 
 	if al.vaultManager != nil {
 		g.Go(al.vaultManager.Close)
-	}
-
-	if al.libraryManager != nil {
-		g.Go(al.libraryManager.Close)
 	}
 
 	if al.apiSessions != nil {

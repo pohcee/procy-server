@@ -4,10 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/gorilla/websocket"
-
 	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/auditlog"
+	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/validation"
 	"github.com/openrport/openrport/share/models"
@@ -105,12 +104,12 @@ func (al *APIListener) handleCommandsExecutionWS(
 
 		uiConnTS.SetWritesBeforeClose(len(inboundMsg.OrderedClients))
 
-		al.runMultiClientJob(ctx, uiConnTS, multiJob, inboundMsg.OrderedClients, sameSpecForAll(typedJobSpec(multiJob)))
+		al.jobRunner.RunMultiClientJob(ctx, uiConnTS, multiJob, inboundMsg.OrderedClients, jobrunner.SameSpecForAll(jobrunner.TypedJobSpec(multiJob)))
 		return
 	}
 
 	// single client, no multi-job
-	al.createAndRunJob( //nolint:errcheck // error is logged, nothing to act on here
+	al.jobRunner.RunJob( //nolint:errcheck // error is logged, nothing to act on here
 		ctx,
 		uiConnTS,
 		nil,
@@ -131,23 +130,5 @@ func (al *APIListener) handleCommandsExecutionWS(
 		al.testDone <- true
 	}
 
-	al.awaitUIClose(uiConnTS)
-}
-
-// awaitUIClose blocks until the UI sends a message or closes the websocket,
-// then closes it.
-func (al *APIListener) awaitUIClose(uiConnTS *ws.ConcurrentWebSocket) {
-	// check for Close message from client to close the connection
-	mt, message, err := uiConnTS.ReadMessage()
-	if err != nil {
-		if closeErr, ok := err.(*websocket.CloseError); ok {
-			al.Debugf("Received a closed err on WS read: %v", closeErr)
-			return
-		}
-		al.Debugf("Error read from websocket: %v", err)
-		return
-	}
-
-	al.Debugf("Message received: type %v, msg %s", mt, message)
-	uiConnTS.Close()
+	jobrunner.AwaitUIClose(uiConnTS, al.Logger)
 }

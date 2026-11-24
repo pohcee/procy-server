@@ -7,11 +7,13 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/openrport/openrport/server/api"
+	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
@@ -60,9 +62,11 @@ func (d *recordingDispatcher) CheckPort(context.Context, string, *comm.CheckPort
 func (d *recordingDispatcher) StartTunnels(context.Context, string, []*models.Remote) ([]*clienttunnel.Tunnel, error) {
 	return nil, nil
 }
-func (d *recordingDispatcher) CloseTunnel(context.Context, string, string, bool) error    { return nil }
-func (d *recordingDispatcher) SetTunnelACL(context.Context, string, string, *string) error { return nil }
-func (d *recordingDispatcher) RefreshUpdatesStatus(context.Context, string) error         { return nil }
+func (d *recordingDispatcher) CloseTunnel(context.Context, string, string, bool) error { return nil }
+func (d *recordingDispatcher) SetTunnelACL(context.Context, string, string, *string) error {
+	return nil
+}
+func (d *recordingDispatcher) RefreshUpdatesStatus(context.Context, string) error { return nil }
 func (d *recordingDispatcher) UpdateAttributes(context.Context, string, models.Attributes) error {
 	return nil
 }
@@ -106,6 +110,17 @@ func TestNewServerUsesInjectedDispatcher(t *testing.T) {
 
 	assert.Same(t, d, s.dispatcher)
 	assert.Same(t, d, s.apiListener.dispatcher, "the API dispatches through it")
+
+	// the job runner (used by the API and the schedules) dispatches through it too
+	_, err = s.jobRunner.StartMultiClientJob(tenant.WithID(context.Background(), tenant.Default), &jobs.MultiJobRequest{
+		ClientIDs:           []string{"x"},
+		Command:             "date",
+		ExecuteConcurrently: true,
+		OrderedClients:      []*clientdata.Client{{ID: "x"}},
+	})
+	require.NoError(t, err)
+	assert.Eventually(t, func() bool { return len(d.clientIDs()) == 1 }, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, []string{"x"}, d.clientIDs())
 
 	local, err := NewServer(context.Background(), storageTestConfig(t), &ServerOpts{FilesAPI: files.NewFileSystem()})
 	require.NoError(t, err)

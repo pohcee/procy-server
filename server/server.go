@@ -25,8 +25,10 @@ import (
 	"github.com/openrport/openrport/server/cgroups"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
+	"github.com/openrport/openrport/server/clients/targeting"
 	"github.com/openrport/openrport/server/clientsauth"
 	"github.com/openrport/openrport/server/dispatch"
+	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
@@ -74,7 +76,9 @@ type Server struct {
 	fileGrants       *dispatch.FileGrants
 	// dispatcher does all work on clients (ServerOpts.Dispatcher, or the local one)
 	dispatcher      dispatch.Dispatcher
-	jobsDoneChannel jobResultChanMap // used for sequential command execution to know when command is finished
+	jobsDoneChannel *jobrunner.DoneChannels // used for sequential command execution to know when command is finished
+	jobRunner       *jobrunner.Runner
+	libraryManager  *library.Manager
 	auditLog        *auditlog.AuditLog
 	capabilities    *models.Capabilities
 	scheduleManager *schedule.Manager
@@ -120,9 +124,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		uiJobWebSockets:  ws.NewWebSocketCache(),
 		uploadWebSockets: sync.Map{},
 		fileGrants:       dispatch.NewFileGrants(),
-		jobsDoneChannel: jobResultChanMap{
-			m: make(map[string]chan *models.Job),
-		},
+		jobsDoneChannel:  jobrunner.NewDoneChannels(),
 	}
 
 	s.acme = acme.New(s.Logger.Fork("acme"), config.Server.DataDir, config.Server.AcmeHTTPPort)
@@ -240,6 +242,24 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.filesAPI = filesAPI
 
+	s.libraryManager, err = openLibrary(ctx, repos.Library, logger.NewLogger("library", config.Logging.LogOutput, config.Logging.LogLevel))
+	if err != nil {
+		return nil, err
+	}
+
+	s.jobRunner, err = jobrunner.New(jobrunner.Options{
+		Jobs:       repos.Jobs,
+		Dispatcher: s.dispatcher,
+		Targets:    targeting.Resolver{Clients: s.clientService, Groups: repos.ClientGroups},
+		Library:    s.libraryManager,
+		Config:     config,
+		Done:       s.jobsDoneChannel,
+		Logger:     logger.NewLogger("jobs", config.Logging.LogOutput, config.Logging.LogLevel),
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	s.apiListener, err = NewAPIListener(ctx, s, fingerprint)
 	if err != nil {
 		return nil, err
@@ -247,12 +267,12 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.capabilities = capabilities.NewServerCapabilities(&config.Monitoring)
 
-	s.scheduleManager, err = schedule.New(ctx, s.Logger, repos.Schedules, s.apiListener, config.Server.RunRemoteCmdTimeoutSec)
+	s.scheduleManager, err = schedule.New(ctx, s.Logger, repos.Schedules, s.jobRunner, config.Server.RunRemoteCmdTimeoutSec)
 	if err != nil {
 		return nil, err
 	}
-	s.scheduleManager.SetLibrary(s.apiListener.libraryManager, s.jobProvider)
-	s.apiListener.libraryManager.SetReferenceChecker(s.scheduleManager)
+	s.scheduleManager.SetLibrary(s.libraryManager, s.jobProvider)
+	s.libraryManager.SetReferenceChecker(s.scheduleManager)
 
 	if s.config.CaddyEnabled() {
 		cfg := s.config
@@ -395,7 +415,7 @@ func (s *Server) Run(ctx context.Context) error {
 	s.Infof("Task to cleanup jobs will run with interval %v", cleanupJobsInterval)
 
 	if keep, days := s.config.Library.KeepVersions, s.config.Library.KeepVersionsDays; keep > 0 || days > 0 {
-		libraryPruneTask := library.NewPruneTask(s.apiListener.libraryManager, keep, days, s.Logger)
+		libraryPruneTask := library.NewPruneTask(s.libraryManager, keep, days, s.Logger)
 		go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", libraryPruneTask)), libraryPruneTask, pruneLibraryVersionsInterval)
 		s.Infof("Task to prune old library versions will run with interval %v", pruneLibraryVersionsInterval)
 	}
@@ -467,6 +487,9 @@ func (s *Server) Close() error {
 	}
 
 	wg.Go(s.jobProvider.Close)
+	if s.libraryManager != nil {
+		wg.Go(s.libraryManager.Close)
+	}
 
 	wg.Go(s.clientGroupProvider.Close)
 	wg.Go(s.uiJobWebSockets.CloseConnections)
@@ -501,39 +524,4 @@ func (s *Server) Close() error {
 	}
 
 	return err
-}
-
-// jobResultChanMap is thread safe map with [jobID, chan *models.Job] pairs.
-type jobResultChanMap struct {
-	m  map[string]chan *models.Job
-	mu sync.RWMutex
-}
-
-func (m *jobResultChanMap) Set(jobID string, done chan *models.Job) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.m[jobID] = done
-}
-
-func (m *jobResultChanMap) Del(jobID string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.m, jobID)
-}
-
-func (m *jobResultChanMap) Get(jobID string) chan *models.Job {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.m[jobID]
-}
-
-// TODO: only used for testing purposes. we should review the approach.
-func (m *jobResultChanMap) GetAllKeys() (jobIDs []string) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	jobIDs = make([]string, 0, len(m.m))
-	for k := range m.m {
-		jobIDs = append(jobIDs, k)
-	}
-	return jobIDs
 }

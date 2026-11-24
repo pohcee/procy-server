@@ -36,10 +36,10 @@ func newLibraryEntriesEnv(t *testing.T) *libraryEntriesEnv {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	m := library.NewManager(library.NewSQLiteStore(db), func() time.Time { now = now.Add(time.Minute); return now })
 	al := &APIListener{
-		Server:           &Server{},
-		libraryManager:   m,
+		Server:           &Server{libraryManager: m},
 		insecureForTests: true,
 	}
+	useLocalDispatcher(al)
 	r := mux.NewRouter()
 	al.addLibraryEntriesRoutes(r)
 	return &libraryEntriesEnv{router: r, al: al}

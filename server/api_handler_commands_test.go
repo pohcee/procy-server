@@ -32,6 +32,7 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/test/jb"
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/logger"
@@ -671,9 +672,7 @@ func TestHandlePostMultiClientCommand(t *testing.T) {
 							MaxRequestBytes: 1024 * 1024,
 						},
 					},
-					jobsDoneChannel: jobResultChanMap{
-						m: make(map[string]chan *models.Job),
-					},
+					jobsDoneChannel:     jobrunner.NewDoneChannels(),
 					clientGroupProvider: mockClientGroupProvider{},
 				},
 				userService: users.NewAPIService(users.NewStaticProvider([]*users.User{curUser}), false, 0, -1),
@@ -836,9 +835,7 @@ func TestHandlePostMultiClientCommandWithPausedClient(t *testing.T) {
 							MaxRequestBytes: 1024 * 1024,
 						},
 					},
-					jobsDoneChannel: jobResultChanMap{
-						m: make(map[string]chan *models.Job),
-					},
+					jobsDoneChannel:     jobrunner.NewDoneChannels(),
 					clientGroupProvider: mockClientGroupProvider{},
 				},
 				userService: users.NewAPIService(users.NewStaticProvider([]*users.User{curUser}), false, 0, -1),
@@ -2091,9 +2088,7 @@ func makeAPIListener(
 				},
 			},
 			uiJobWebSockets: ws.NewWebSocketCache(),
-			jobsDoneChannel: jobResultChanMap{
-				m: make(map[string]chan *models.Job),
-			},
+			jobsDoneChannel: jobrunner.NewDoneChannels(),
 		},
 		bannedUsers:  security.NewBanList(time.Duration(60) * time.Second),
 		tokenManager: tokenManager,
