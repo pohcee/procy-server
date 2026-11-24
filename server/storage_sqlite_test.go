@@ -141,6 +141,21 @@ func TestSkipMigrationsRefusesBehindAuditLog(t *testing.T) {
 	assert.Contains(t, err.Error(), `rportd migrate`)
 }
 
+func TestSkipMigrationsRefusesMissingAuditLog(t *testing.T) {
+	config := storageTestConfig(t)
+	config.API.AuditLog.Enable = true
+	require.NoError(t, MigrateSQLite(config, testLog))
+	auditLogPath := filepath.Join(config.Server.DataDir, "auditlog.db")
+	require.NoError(t, os.Remove(auditLogPath))
+
+	_, err := openTestRepositories(t, config, nil, true)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "auditlog.db: database does not exist")
+	assert.Contains(t, err.Error(), `rportd migrate`)
+	assert.NoFileExists(t, auditLogPath, "skip must not create the audit log")
+}
+
 func TestSkipMigrationsAfterMigrate(t *testing.T) {
 	config := storageTestConfig(t)
 	config.API.AuditLog.Enable = true

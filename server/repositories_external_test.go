@@ -6,8 +6,12 @@ package chserver_test
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	chserver "github.com/openrport/openrport/server"
 	"github.com/openrport/openrport/server/api/authorization"
@@ -17,6 +21,7 @@ import (
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/auditlog"
 	"github.com/openrport/openrport/server/cgroups"
+	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/clients/storedtunnels"
@@ -26,6 +31,7 @@ import (
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/vault"
 	"github.com/openrport/openrport/share/enums"
+	"github.com/openrport/openrport/share/files"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
@@ -278,4 +284,31 @@ func TestRepositoriesImplementableOutsideThePackage(t *testing.T) {
 	if opts.Repositories.Clients == nil || !opts.SkipMigrations {
 		t.Fatal("repositories not assigned")
 	}
+}
+
+// TestNewServerWithPlainRepositories starts and closes a server on a temp data directory with a notification log
+// that has no cleaner (no sqlite.Cleanable) and a library without the legacy import (no library.LegacyImporter).
+func TestNewServerWithPlainRepositories(t *testing.T) {
+	config := &chconfig.Config{
+		Server: chconfig.ServerConfig{
+			DataDir:      t.TempDir(),
+			Auth:         "client:secret",
+			AuthID:       "client",
+			AuthPassword: "secret",
+		},
+		API: chconfig.APIConfig{Auth: "admin:foobaz"},
+		Logging: chconfig.LogConfig{
+			LogOutput: logger.LogOutput{File: os.Stdout},
+			LogLevel:  logger.LogLevelInfo,
+		},
+	}
+	opts := &chserver.ServerOpts{
+		FilesAPI:     files.NewFileSystem(),
+		Repositories: &chserver.Repositories{Notifications: extNotifications{}, Library: extLibrary{}},
+	}
+
+	s, err := chserver.NewServer(context.Background(), config, opts)
+	require.NoError(t, err)
+
+	assert.NoError(t, s.Close())
 }

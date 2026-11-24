@@ -100,8 +100,7 @@ type ServerOpts struct {
 }
 
 // NewServer creates and returns a new rport server
-func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (*Server, error) {
-	var err error
+func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (_ *Server, err error) {
 	// Standalone: everything the server starts belongs to the single, invisible default tenant.
 	ctx = tenant.WithID(ctx, tenant.Default)
 
@@ -175,6 +174,14 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	if err != nil {
 		return nil, err
 	}
+	// a later startup step failing closes what the storage opened (never the repositories that were given)
+	defer func() {
+		if err != nil {
+			if closeErr := storage.closeAll(); closeErr != nil {
+				s.Errorf("failed to close storage after failed startup: %v", closeErr)
+			}
+		}
+	}()
 	s.repos = repos
 	s.storageClosers = storage.shutdown
 

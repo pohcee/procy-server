@@ -55,6 +55,11 @@ func NewRotationProvider(ctx context.Context, l *logger.Logger, period time.Dura
 	}
 	err = r.rotateIfNeeded(ctx)
 	if err != nil {
+		r.ticker.Stop()
+		// a failed rotation may have closed the file already or left none open
+		if r.sqlite != nil {
+			_ = r.sqlite.Close()
+		}
 		return nil, err
 	}
 

@@ -435,26 +435,26 @@ func (c vaultCloser) Close() error {
 	return c.f.GetDbProvider().Close()
 }
 
-// openSQLiteAuditLog opens the rotating audit log. With skipMigrations an existing auditlog.db must be at the
-// latest version; a file the rotation creates is always migrated.
+// openSQLiteAuditLog opens the rotating audit log. With skipMigrations auditlog.db must exist and be at the latest
+// version; otherwise it is created and migrated as needed. A file a later rotation creates is always migrated.
 func openSQLiteAuditLog(ctx context.Context, config *chconfig.Config, f sqliteFile, skipMigrations bool) (auditlog.Provider, error) {
 	if skipMigrations {
-		exists, err := fileExists(f.path)
+		// fails unless the file exists and is at the latest version
+		db, err := openSQLiteFile(f, true)
 		if err != nil {
 			return nil, err
 		}
-		if exists {
-			db, err := openSQLiteFile(f, true)
-			if err != nil {
-				return nil, err
-			}
-			if err := db.Close(); err != nil {
-				return nil, err
-			}
+		if err := db.Close(); err != nil {
+			return nil, err
 		}
 	}
 	auditLogLogger := logger.NewLogger("auditlog", config.Logging.LogOutput, config.Logging.LogLevel)
-	return auditlog.NewRotationProvider(ctx, auditLogLogger, config.API.AuditLog.RotationPeriod(), config.Server.DataDir, f.opts)
+	p, err := auditlog.NewRotationProvider(ctx, auditLogLogger, config.API.AuditLog.RotationPeriod(), config.Server.DataDir, f.opts)
+	if err != nil {
+		// not p: a nil *RotationProvider in the interface would not be nil
+		return nil, err
+	}
+	return p, nil
 }
 
 func getClientProvider(config *chconfig.Config, db *sqlx.DB) (clientsauth.Provider, error) {

@@ -23,8 +23,9 @@ import (
 // interface (a ctx without a tenant is refused).
 //
 // On shutdown the server calls Close on Jobs, ClientGroups, Notifications, Library, APISessions, the Vault's current
-// provider and AuditLog, whether given or opened. It does not call Close on Clients, Monitoring or APITokens: it
-// closes clients.db (and notifications.db) directly, and leaves monitoring.db and api_token.db to process exit.
+// provider and, only when the audit log is enabled, AuditLog, whether given or opened. It does not call Close on
+// Clients, Monitoring or APITokens: it closes clients.db (and notifications.db) directly, and leaves monitoring.db and
+// api_token.db to process exit.
 type Repositories struct {
 	// Clients stores the connected and disconnected clients (clients.db). It shares the file with StoredTunnels;
 	// the file is opened when either of the two is nil.
