@@ -14,6 +14,7 @@ import (
 	"github.com/openrport/openrport/server/api/middleware"
 	"github.com/openrport/openrport/server/api/uploads"
 	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/routes"
 	"github.com/openrport/openrport/share/security"
 	"github.com/openrport/openrport/share/tenant"
@@ -56,6 +57,11 @@ func (al *APIListener) initRouter() {
 	secureAPI := api.NewRoute().Subrouter()
 	if !al.insecureForTests {
 		secureAPI.Use(al.wrapWithAuthMiddleware(false))
+	}
+	// the platform operators' tenant gets its own account routes and the operator API only
+	secureAPI.Use(operator.SystemTenantGuard(al.responder()))
+	if al.operatorAPI != nil {
+		al.operatorAPI.Mount(secureAPI.PathPrefix(operator.RoutePrefix).Subrouter())
 	}
 	secureAPI.HandleFunc("/status", al.handleGetStatus).Methods(http.MethodGet)
 	secureAPI.HandleFunc("/me", al.handleGetMe).Methods(http.MethodGet)

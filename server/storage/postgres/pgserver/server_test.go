@@ -22,6 +22,7 @@ import (
 	chserver "github.com/openrport/openrport/server"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/server/operator"
 	pgclients "github.com/openrport/openrport/server/storage/postgres/clients"
 	"github.com/openrport/openrport/server/storage/postgres/pgtest"
 	chshare "github.com/openrport/openrport/share"
@@ -34,6 +35,7 @@ const testPassword = "correct horse battery staple"
 
 type nodeFixture struct {
 	base string
+	db   *pgtest.DB
 }
 
 func freeAddr(t *testing.T) string {
@@ -112,6 +114,9 @@ func startNodeWith(t *testing.T, s nodeSettings) *nodeFixture {
 		cl := &clientdata.Client{ID: "web01", ClientAuthID: "auth-" + string(tc.id), Name: tc.name, DisconnectedAt: &now}
 		require.NoError(t, pgclients.New(d.App, nil).Save(tenant.WithID(ctx, tc.id), cl))
 	}
+	// platform operators: op (an administrator of the system tenant) and viewer (not an administrator)
+	require.NoError(t, AddUser(ctx, d.App, operator.SystemTenant, "op", testPassword, nil))
+	require.NoError(t, AddUser(ctx, d.App, operator.SystemTenant, "viewer", testPassword, []string{"Viewers"}))
 
 	addr := freeAddr(t)
 	cfg := loadConfig(t, nodeConf(t, d.AppURL, addr, s))
@@ -148,7 +153,7 @@ func startNodeWith(t *testing.T, s nodeSettings) *nodeFixture {
 		c.Close()
 		return true
 	}, 10*time.Second, 50*time.Millisecond)
-	return &nodeFixture{base: base}
+	return &nodeFixture{base: base, db: d}
 }
 
 func (h *nodeFixture) do(t *testing.T, method, path, token string, body any) (int, map[string]any) {

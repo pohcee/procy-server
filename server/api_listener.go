@@ -35,6 +35,7 @@ import (
 	"github.com/openrport/openrport/server/notifications/channels/scriptRunner"
 	"github.com/openrport/openrport/server/notifications/channels/toLog"
 	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
+	"github.com/openrport/openrport/server/operator"
 
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/jobs/schedule"
@@ -97,6 +98,8 @@ type APIListenerOptions struct {
 	TenantResolver tenant.Resolver
 	// VaultKeys gives the key that encrypts the vault values; nil: the passphrase given through the API.
 	VaultKeys vault.KeyProvider
+	// Operator, when set, serves the operator API; nil: no operator routes.
+	Operator operator.Service
 }
 
 // apiServices holds the options under the names the handler code uses.
@@ -126,6 +129,8 @@ type APIListener struct {
 
 	// uploads serves the upload routes; made with the router
 	uploads *uploads.Handler
+	// operatorAPI serves the operator routes; nil without APIListenerOptions.Operator
+	operatorAPI *operator.Handler
 
 	fingerprint       string
 	apiSessions       *session.Cache
@@ -309,6 +314,9 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
+	if o.Operator != nil {
+		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, CurrentUser: a.getUserModelForAuth, Respond: a.responder()})
+	}
 
 	logGroupPermissionsNotice(userService, a.Logger)
 

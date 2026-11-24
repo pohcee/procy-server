@@ -31,6 +31,7 @@ import (
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
+	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/ports"
 	"github.com/openrport/openrport/server/scheduler"
 	"github.com/openrport/openrport/server/vault"
@@ -122,6 +123,9 @@ type ServerOpts struct {
 	// admin gives through the API (#34). The vault then needs no initialisation, init, unlock and lock answer 409,
 	// and GET /api/v1/status reports the vault_passphrase capability as false.
 	VaultKeys vault.KeyProvider
+	// Operator, when set, serves the platform operator API (/api/v1/operator) to the administrators of the system
+	// tenant (Postgres nodes). Nil: no operator API, as on standalone servers.
+	Operator operator.Service
 }
 
 // NewServer creates and returns a new rport server
@@ -324,6 +328,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		// nil means tenant.DefaultResolver
 		TenantResolver: opts.TenantResolver,
 		VaultKeys:      s.vaultKeys,
+		Operator:       opts.Operator,
 	})
 	if err != nil {
 		return nil, err
