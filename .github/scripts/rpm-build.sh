@@ -21,7 +21,8 @@ else
 fi
 
 if [ -n "${GITHUB_REF_NAME}" ]; then
-    VERSION=${GITHUB_REF_NAME}
+    # A pre-release tag (0.15.0-rc.1) becomes 0.15.0~rc.1: RPM forbids "-" in Version and "~" sorts before the release.
+    VERSION=${GITHUB_REF_NAME//-/\~}
 else
     echo "🛑 ERROR: \$GITHUB_REF_NAME missing"
     false

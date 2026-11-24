@@ -26,7 +26,9 @@ else
 fi
 
 if [ -n "${GITHUB_REF_NAME}" ]; then
+    # A pre-release tag (0.15.0-rc.1) becomes 0.15.0~rc.1: in Debian "-" starts the revision and "~" sorts before the release.
     VERSION=${GITHUB_REF_NAME#v}
+    VERSION=${VERSION//-/\~}
 else
     echo "🛑 ERROR: \$GITHUB_REF_NAME missing"
     false
