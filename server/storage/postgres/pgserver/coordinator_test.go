@@ -13,7 +13,9 @@ import (
 	"github.com/openrport/openrport/share/tenant"
 )
 
-func testLog() *logger.Logger { return logger.NewLogger("test", logger.LogOutput{}, logger.LogLevelError) }
+func testLog() *logger.Logger {
+	return logger.NewLogger("test", logger.LogOutput{}, logger.LogLevelError)
+}
 
 func newCoordinator(t *testing.T, d *pgtest.DB, node string) *Coordinator {
 	t.Helper()
