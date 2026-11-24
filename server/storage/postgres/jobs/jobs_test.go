@@ -161,3 +161,19 @@ func TestStoresWithoutTenantTouchNothing(t *testing.T) {
 	assert.Error(t, err)
 	assert.NoError(t, js.Close())
 }
+
+func TestGetByJIDOnlyFindsTheClientsOwnJob(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	js := jobs.New(d.App)
+	ctx := repotest.Ctx(repotest.TenantA)
+	require.NoError(t, js.SaveJob(ctx, jb.New(t).JID("j1").ClientID("c1").Build()))
+
+	got, err := js.GetByJID(ctx, "c1", "j1")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "c1", got.ClientID)
+
+	got, err = js.GetByJID(ctx, "c2", "j1")
+	require.NoError(t, err)
+	assert.Nil(t, got, "a job of another client is not found by its id")
+}

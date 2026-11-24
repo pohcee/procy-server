@@ -84,11 +84,12 @@ func (s *Store) build(tx *sqlx.Tx, o *query.ListOptions, q string, params []inte
 	return tx.Rebind(q), params
 }
 
-func (s *Store) GetByJID(ctx context.Context, _, jid string) (*models.Job, error) {
+// GetByJID returns the job jid of the client clientID, or nil when the client has no such job.
+func (s *Store) GetByJID(ctx context.Context, clientID, jid string) (*models.Job, error) {
 	var res *models.Job
 	err := in(ctx, s.db, func(tx *sqlx.Tx, tid tenant.ID) error {
 		row := &jobRow{}
-		err := tx.GetContext(ctx, row, tx.Rebind(jobsQuery+" AND j.jid = ?"), tid, tid, jid)
+		err := tx.GetContext(ctx, row, tx.Rebind(jobsQuery+" AND j.client_id = ? AND j.jid = ?"), tid, tid, clientID, jid)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
