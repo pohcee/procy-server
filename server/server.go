@@ -106,6 +106,15 @@ type ServerOpts struct {
 	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
 	// It receives the capabilities computed from the config and returns the ones to report.
 	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
+	// TenantResolver, when set, resolves the tenant of each API request before authentication
+	// (#34); nil means tenant.DefaultResolver (every request belongs to the default tenant). It must
+	// not trust unauthenticated input beyond choosing which tenant's users and sessions
+	// authentication runs against: authentication still has to succeed in that tenant.
+	TenantResolver tenant.Resolver
+	// DisableClientListener runs an API-only server: the client listener is not built or started
+	// and the client connection status check does not run. Everything else (the API, the client
+	// service, the job runner) is built as usual.
+	DisableClientListener bool
 }
 
 // NewServer creates and returns a new rport server
@@ -234,22 +243,24 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.capabilities = capabilities.NewServerCapabilities(&config.Monitoring)
 
-	s.clientListener, err = NewClientListener(ClientListenerOptions{
-		Config:        config,
-		PrivateKey:    privateKey,
-		ClientService: s.clientService,
-		ClientAuth:    s.clientAuthProvider,
-		AuditLog:      s.auditLog,
-		Jobs:          s.jobProvider,
-		JobsDone:      s.jobsDoneChannel,
-		UIJobStreams:  &s.uiJobWebSockets,
-		FileGrants:    s.fileGrants,
-		Measurements:  s.monitoringQueue,
-		PlusManager:   s.plusManager,
-		Capabilities:  s.capabilities,
-	})
-	if err != nil {
-		return nil, err
+	if !opts.DisableClientListener {
+		s.clientListener, err = NewClientListener(ClientListenerOptions{
+			Config:        config,
+			PrivateKey:    privateKey,
+			ClientService: s.clientService,
+			ClientAuth:    s.clientAuthProvider,
+			AuditLog:      s.auditLog,
+			Jobs:          s.jobProvider,
+			JobsDone:      s.jobsDoneChannel,
+			UIJobStreams:  &s.uiJobWebSockets,
+			FileGrants:    s.fileGrants,
+			Measurements:  s.monitoringQueue,
+			PlusManager:   s.plusManager,
+			Capabilities:  s.capabilities,
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	s.filesAPI = filesAPI
@@ -302,6 +313,8 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		Acme:          s.acme,
 		UIJobStreams:  &s.uiJobWebSockets,
 		Capabilities:  s.capabilitiesOverride,
+		// nil means tenant.DefaultResolver
+		TenantResolver: opts.TenantResolver,
 	})
 	if err != nil {
 		return nil, err
@@ -412,15 +425,17 @@ func (s *Server) Run(ctx context.Context) error {
 		s.Debugf("Task to purge disconnected clients disabled")
 	}
 
-	// Run a task to Check the client connections status by sending and receiving pings
-	clientsStatusCheckTask := NewClientsStatusCheckTask(
-		s.Logger,
-		s.clientService.GetRepo(),
-		s.config.Server.CheckClientsConnectionInterval,
-		s.config.Server.CheckClientsConnectionTimeout,
-	)
-	go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", clientsStatusCheckTask)), clientsStatusCheckTask, s.config.Server.CheckClientsConnectionInterval)
-	s.Infof("Task to check the clients connection status will run with interval %v", s.config.Server.CheckClientsConnectionInterval)
+	if s.clientListener != nil {
+		// Run a task to Check the client connections status by sending and receiving pings
+		clientsStatusCheckTask := NewClientsStatusCheckTask(
+			s.Logger,
+			s.clientService.GetRepo(),
+			s.config.Server.CheckClientsConnectionInterval,
+			s.config.Server.CheckClientsConnectionTimeout,
+		)
+		go scheduler.Run(ctx, s.Logger.Fork(fmt.Sprintf("task %T", clientsStatusCheckTask)), clientsStatusCheckTask, s.config.Server.CheckClientsConnectionInterval)
+		s.Infof("Task to check the clients connection status will run with interval %v", s.config.Server.CheckClientsConnectionInterval)
+	}
 
 	if s.config.Monitoring.Enabled {
 		var cleaningPeriod time.Duration
@@ -480,10 +495,15 @@ func (s *Server) Run(ctx context.Context) error {
 
 // Start is responsible for kicking off the http server
 func (s *Server) Start(ctx context.Context) error {
-	s.Logger.Infof("will start server on %s", s.config.Server.ListenAddress)
-	err := s.clientListener.Start(ctx, s.config.Server.ListenAddress)
-	if err != nil {
-		return err
+	var err error
+	if s.clientListener != nil {
+		s.Logger.Infof("will start server on %s", s.config.Server.ListenAddress)
+		err = s.clientListener.Start(ctx, s.config.Server.ListenAddress)
+		if err != nil {
+			return err
+		}
+	} else {
+		s.Logger.Infof("the client listener is disabled")
 	}
 
 	if s.config.API.Address != "" {
@@ -499,7 +519,9 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s *Server) Wait() error {
 	wg := &errgroup.Group{}
-	wg.Go(s.clientListener.Wait)
+	if s.clientListener != nil {
+		wg.Go(s.clientListener.Wait)
+	}
 	wg.Go(s.apiListener.Wait)
 	// if caddy configured then also set up a dependency on the caddy server running
 	if s.config.CaddyEnabled() {
@@ -513,7 +535,9 @@ func (s *Server) Close() error {
 	s.Logger.Debugf("closing server")
 	wg := &errgroup.Group{}
 
-	wg.Go(s.clientListener.Close)
+	if s.clientListener != nil {
+		wg.Go(s.clientListener.Close)
+	}
 	wg.Go(s.apiListener.Close)
 	if s.config.CaddyEnabled() {
 		wg.Go(s.caddyServer.Close)

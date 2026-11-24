@@ -92,6 +92,9 @@ type APIListenerOptions struct {
 	UIJobStreams *ws.WebSocketCache
 	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
 	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
+	// TenantResolver resolves the tenant of each API request before authentication (#34); nil
+	// means tenant.DefaultResolver (standalone).
+	TenantResolver tenant.Resolver
 }
 
 // apiServices holds the options under the names the handler code uses.
@@ -300,6 +303,7 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		notificationsStorage:   store,
 		notificationsProcessor: notificationProcessor,
 		notificationsCleaner:   notificationsCleaner,
+		tenantResolver:         o.TenantResolver,
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
