@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -51,6 +52,23 @@ func TestCheckVersion(t *testing.T) {
 	err = CheckVersion(db, dummy.FS)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `run "rportd migrate"`)
+	assert.Contains(t, err.Error(), "schema_migrations")
+}
+
+func TestCheckVersionRefusesNewerDB(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "test.db"), DataSourceOptions{})
+	require.NoError(t, err)
+	defer db.Close()
+	require.NoError(t, Migrate(db, dummy.FS))
+	latest, err := LatestVersion(dummy.FS)
+	require.NoError(t, err)
+
+	_, err = db.Exec("UPDATE schema_migrations SET version = ?", latest+1)
+	require.NoError(t, err)
+
+	err = CheckVersion(db, dummy.FS)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("database is at version %d, newer than this rportd (%d)", latest+1, latest))
 }
 
 func TestOpenDoesNotMigrate(t *testing.T) {
@@ -76,7 +94,7 @@ func TestNewMigrates(t *testing.T) {
 	assert.NoError(t, db.Get(&n, "SELECT COUNT(*) FROM dummy"))
 }
 
-func TestNewClosesDBWhenMigrateFails(t *testing.T) {
+func TestNewReturnsErrorWhenMigrateFails(t *testing.T) {
 	bad := fstest.MapFS{"001_bad.up.sql": {Data: []byte("NOT SQL;")}}
 	db, err := New(filepath.Join(t.TempDir(), "test.db"), bad, DataSourceOptions{})
 	assert.Error(t, err)

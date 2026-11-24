@@ -116,7 +116,8 @@ func newMigrate(db *sqlx.DB, migrations fs.FS) (*migrate.Migrate, error) {
 	return m, nil
 }
 
-// CheckVersion returns an error unless db is clean and at the latest version of migrations.
+// CheckVersion returns an error unless db is clean and at the latest version of migrations; a db newer than
+// migrations is refused too.
 // It does not change db.
 func CheckVersion(db *sqlx.DB, migrations fs.FS) error {
 	latest, err := LatestVersion(migrations)
@@ -137,7 +138,11 @@ func CheckVersion(db *sqlx.DB, migrations fs.FS) error {
 	}
 
 	if dirty {
-		return fmt.Errorf("database is dirty at version %d; run \"rportd migrate\" after fixing it", current)
+		return fmt.Errorf("database is dirty at version %d (a migration failed part way): fix the schema by hand, "+
+			"set version and dirty in schema_migrations to match it, then run \"rportd migrate\"", current)
+	}
+	if current > latest {
+		return fmt.Errorf("database is at version %d, newer than this rportd (%d)", current, latest)
 	}
 	if current < latest {
 		return fmt.Errorf("database is at version %d, expected %d; run \"rportd migrate\"", current, latest)
