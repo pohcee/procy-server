@@ -85,7 +85,7 @@ type Manager struct {
 }
 
 func New(ctx context.Context, logger *logger.Logger, db *sqlx.DB, jobRunner JobRunner, runRemoteCmdTimeoutSec int) (*Manager, error) {
-	m := NewManager(jobRunner, db, logger, runRemoteCmdTimeoutSec)
+	m := NewManager(ctx, jobRunner, db, logger, runRemoteCmdTimeoutSec)
 
 	existing, err := m.provider.List(ctx, nil)
 	if err != nil {
@@ -102,12 +102,12 @@ func New(ctx context.Context, logger *logger.Logger, db *sqlx.DB, jobRunner JobR
 	return m, nil
 }
 
-func NewManager(jobRunner JobRunner, db *sqlx.DB, logger *logger.Logger, runRemoteCmdTimeoutSec int) (m *Manager) {
+func NewManager(ctx context.Context, jobRunner JobRunner, db *sqlx.DB, logger *logger.Logger, runRemoteCmdTimeoutSec int) (m *Manager) {
 	m = &Manager{
 		Logger:    logger,
 		jobRunner: jobRunner,
 		provider:  newSQLiteProvider(db),
-		cron:      newCron(),
+		cron:      newCron(ctx),
 
 		runRemoteCmdTimeoutSec: runRemoteCmdTimeoutSec,
 	}

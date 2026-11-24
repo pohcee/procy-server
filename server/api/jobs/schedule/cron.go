@@ -8,14 +8,17 @@ import (
 )
 
 type CronImplementation struct {
+	// ctx is the base context of every callback, so scheduled runs inherit the server's tenant.
+	ctx        context.Context
 	mtx        sync.Mutex
 	cronParser cron.ScheduleParser
 	cron       *cron.Cron
 	mapping    map[string]cron.EntryID
 }
 
-func newCron() *CronImplementation {
+func newCron(ctx context.Context) *CronImplementation {
 	c := &CronImplementation{
+		ctx:        ctx,
 		cronParser: cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
 		cron:       cron.New(cron.WithChain(cron.Recover(cron.DefaultLogger))),
 		mapping:    make(map[string]cron.EntryID),
@@ -39,7 +42,7 @@ func (c *CronImplementation) Add(id string, schedule string, f func(context.Cont
 	}
 
 	entryID := c.cron.Schedule(sch, cron.FuncJob(func() {
-		f(context.Background(), id)
+		f(c.ctx, id)
 	}))
 
 	c.mapping[id] = entryID

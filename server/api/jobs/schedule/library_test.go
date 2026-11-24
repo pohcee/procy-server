@@ -93,7 +93,7 @@ func newLibManager(p *fakeProvider, r *fakeRunner, e *library.Entry, s *fakeSave
 		Logger:                 logger.NewLogger("t", logger.LogOutput{}, logger.LogLevelError),
 		jobRunner:              r,
 		provider:               p,
-		cron:                   newCron(),
+		cron:                   newCron(context.Background()),
 		runRemoteCmdTimeoutSec: 30,
 	}
 	m.SetLibrary(fakeEntries{e}, s)

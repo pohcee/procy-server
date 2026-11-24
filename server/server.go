@@ -46,6 +46,7 @@ import (
 	"github.com/openrport/openrport/share/files"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/ws"
 )
 
@@ -98,6 +99,8 @@ type ServerOpts struct {
 // NewServer creates and returns a new rport server
 func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (*Server, error) {
 	var err error
+	// Standalone: everything the server starts belongs to the single, invisible default tenant.
+	ctx = tenant.WithID(ctx, tenant.Default)
 
 	// X-Forwarded-For is only believed from these proxies; see share.RemoteIP.
 	chshare.SetTrustedProxies(config.API.ParsedTrustedProxies)
@@ -380,6 +383,7 @@ func initPrivateKey(seed string) (ssh.Signer, error) {
 
 // Run is responsible for starting the rport service
 func (s *Server) Run(ctx context.Context) error {
+	ctx = tenant.WithID(ctx, tenant.Default)
 	if err := s.Start(ctx); err != nil {
 		return err
 	}

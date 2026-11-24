@@ -15,6 +15,7 @@ import (
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/routes"
 	"github.com/openrport/openrport/share/security"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 // define which URL paths vue aka the frontend is using. Listed paths are rewritten to / aka returning index.html
@@ -32,6 +33,11 @@ var vueHistoryPaths = []string{
 
 func (al *APIListener) initRouter() {
 	r := mux.NewRouter()
+	resolver := al.tenantResolver
+	if resolver == nil {
+		resolver = tenant.DefaultResolver{}
+	}
+	r.Use(tenant.Middleware(resolver))
 	api := r.PathPrefix(routes.AllRoutesPrefix).Subrouter()
 
 	secureAPI := api.NewRoute().Subrouter()

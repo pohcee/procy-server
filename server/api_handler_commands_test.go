@@ -38,6 +38,7 @@ import (
 	"github.com/openrport/openrport/share/random"
 	"github.com/openrport/openrport/share/security"
 	"github.com/openrport/openrport/share/test"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/ws"
 )
 
@@ -2128,7 +2129,7 @@ func makeGroupsProvider(t *testing.T, dataSourceOptions sqlite.DataSourceOptions
 
 func makeScheduleManager(t *testing.T, jp *jobs.SqliteProvider, jobRunner schedule.JobRunner, testLog *logger.Logger) (scheduleManager *schedule.Manager) {
 	t.Helper()
-	scheduleManager = schedule.NewManager(jobRunner, jp.GetDB(), testLog, 30)
+	scheduleManager = schedule.NewManager(tenant.WithID(context.Background(), tenant.Default), jobRunner, jp.GetDB(), testLog, 30)
 
 	return scheduleManager
 }

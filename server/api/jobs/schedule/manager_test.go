@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,7 +9,7 @@ import (
 
 func TestValidate(t *testing.T) {
 	manager := &Manager{
-		cron: newCron(),
+		cron: newCron(context.Background()),
 	}
 
 	testCases := []struct {

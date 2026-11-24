@@ -50,6 +50,7 @@ import (
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/random"
 	"github.com/openrport/openrport/share/security"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 const (
@@ -69,9 +70,11 @@ type APIListener struct {
 	requestLogOptions *requestlog.Options
 	accessLogFile     io.WriteCloser
 	insecureForTests  bool
-	bannedUsers       *security.BanList
-	bannedIPs         *security.MaxBadAttemptsBanList
-	twoFASrv          TwoFAService
+	// tenantResolver resolves the tenant of each API request; nil means tenant.DefaultResolver (standalone).
+	tenantResolver tenant.Resolver
+	bannedUsers    *security.BanList
+	bannedIPs      *security.MaxBadAttemptsBanList
+	twoFASrv       TwoFAService
 
 	testDone chan bool // is used only in tests to be able to wait until async task is done
 
