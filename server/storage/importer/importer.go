@@ -81,7 +81,9 @@ type importer struct {
 	src    *source
 	auth   *authSource
 	counts []*EntityCount
-	rep    *Report
+	// targetUsers caches whether the target tenant has a user, for the tokens and sessions
+	targetUsers map[string]bool
+	rep         *Report
 
 	dbs   map[string]*sourceDB
 	audit []*sourceDB // audit log files, oldest first
@@ -127,7 +129,9 @@ func Run(ctx context.Context, db *sqlx.DB, o Options) (*Report, error) {
 		if o.DryRun {
 			return errDryRun
 		}
-		// after the inserts, inside the transaction: no new row can take an imported id in between
+		// after the inserts. Sequences are not transactional: a server inserting into the same database meanwhile
+		// (a login, a vault value) can draw an imported id and fail or make the imported row "taken"; import before
+		// servers use the database (documented)
 		return im.advanceSequences(w)
 	})
 	if err != nil && !errors.Is(err, errDryRun) {

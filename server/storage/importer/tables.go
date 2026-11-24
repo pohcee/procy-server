@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -232,12 +233,60 @@ func isNoRows(err error) bool { return errors.Is(err, sql.ErrNoRows) }
 
 // --- API tokens and sessions -------------------------------------------------
 
+// writeAPITokens copies the API tokens of the users the target tenant has once the users are imported (imported or
+// already there). A token of any other user is skipped: it would belong to nobody, or to a login of another tenant.
 func (im *importer) writeAPITokens(w *writer) error {
+	count := im.count(entAPITokens)
+	d := im.dbs[fileAPITokens]
+	if d == nil {
+		return nil
+	}
+	if ok, err := hasTable(d.db, "api_tokens"); err != nil || !ok {
+		return err
+	}
 	cols := []col{
 		c("username", kText), c("prefix", kText), c("created_at", kTime), c("expires_at", kNTime), c("scope", kNText),
 		c("token", kText), c("name", kText),
 	}
-	return im.copyTable(w, entAPITokens, fileAPITokens, "api_tokens", cols, names(cols), "username, prefix")
+	b := w.batch("api_tokens", names(cols), onConflictNothing, count)
+	orphans := 0
+	err := readRows(d, "api_tokens", cols, "username, prefix", func(vals []any) error {
+		count.Read++
+		ok, err := im.targetHasUser(w, vals[0])
+		if err != nil {
+			return err
+		}
+		if !ok {
+			count.Skipped++
+			orphans++
+			return nil
+		}
+		return b.add(vals)
+	})
+	if err != nil {
+		return err
+	}
+	if orphans > 0 {
+		im.rep.warnf("api tokens: %d tokens of users the tenant doesn't have, not imported", orphans)
+	}
+	return b.flush()
+}
+
+// targetHasUser reports whether the target tenant has the user named username (imported or already there).
+func (im *importer) targetHasUser(w *writer, username any) (bool, error) {
+	name := fmt.Sprint(username)
+	if ok, seen := im.targetUsers[name]; seen {
+		return ok, nil
+	}
+	ok, err := w.exists("SELECT 1 FROM users WHERE tenant_id = $1 AND username = $2", name)
+	if err != nil {
+		return false, err
+	}
+	if im.targetUsers == nil {
+		im.targetUsers = map[string]bool{}
+	}
+	im.targetUsers[name] = ok
+	return ok, nil
 }
 
 // writeAPISessions copies the sessions with their ids (a session token names its id). Session ids are unique across
@@ -252,9 +301,16 @@ func (im *importer) writeAPISessions(w *writer) error {
 		c("session_id", kInt), c("expires_at", kTime), c("username", kText), c("last_access_at", kTime),
 		c("user_agent", kNText), c("ip_address", kNText),
 	}
-	taken := 0
+	taken, orphans := 0, 0
 	err := readRows(d, "api_sessions", cols, "session_id", func(vals []any) error {
 		count.Read++
+		if ok, err := im.targetHasUser(w, vals[2]); err != nil || !ok {
+			if err == nil {
+				count.Skipped++
+				orphans++
+			}
+			return err
+		}
 		added, err := w.insertOne("api_sessions", names(cols), vals, onConflictNothing)
 		if err != nil {
 			return err
@@ -275,6 +331,9 @@ func (im *importer) writeAPISessions(w *writer) error {
 		}
 		return nil
 	})
+	if orphans > 0 {
+		im.rep.warnf("api sessions: %d sessions of users the tenant doesn't have, not imported", orphans)
+	}
 	if taken > 0 {
 		im.rep.warnf("api sessions: %d session ids are taken by other sessions, not imported (those users log in again)", taken)
 	}

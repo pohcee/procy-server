@@ -18,6 +18,7 @@ import (
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/jobs/schedule"
 	"github.com/openrport/openrport/server/api/session"
+	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/library"
 	pgapitokens "github.com/openrport/openrport/server/storage/postgres/apitokens"
 	pgjobs "github.com/openrport/openrport/server/storage/postgres/jobs"
@@ -25,6 +26,7 @@ import (
 	"github.com/openrport/openrport/server/storage/postgres/pgserver"
 	"github.com/openrport/openrport/server/storage/postgres/pgtest"
 	pgsessions "github.com/openrport/openrport/server/storage/postgres/sessions"
+	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
 	"github.com/openrport/openrport/share/query"
 	"github.com/openrport/openrport/share/tenant"
 )
@@ -42,6 +44,8 @@ func TestImportAPITokensAndSessions(t *testing.T) {
 		var err error
 		wantTokens, err = s.GetAll(ctxDefault, "admin")
 		require.NoError(t, err)
+		// a token of a user who is neither imported nor in the target is not copied
+		require.NoError(t, s.Save(ctxDefault, &authorization.APIToken{Username: "ghost", Prefix: "ghost123", Name: "ci", Scope: authorization.APITokenRead, Token: "$2y$hash3", CreatedAt: &created}))
 	})
 	var wantSessions []session.APISession
 	d.with("api_sessions.db", apisessionsmigration.FS, func(db *sqlx.DB) {
@@ -55,11 +59,15 @@ func TestImportAPITokensAndSessions(t *testing.T) {
 		require.NoError(t, err)
 		wantSessions, err = s.GetAll(ctxDefault)
 		require.NoError(t, err)
+		_, err = s.Save(ctxDefault, session.APISession{Username: "ghost", ExpiresAt: expires, LastAccessAt: created})
+		require.NoError(t, err)
 	})
+	// without --from-config no users are imported: tokens and sessions are kept for the users the target has
+	require.NoError(t, pgusers.New(pg.App).Add(ctxDefault, &users.User{Username: "admin", Password: "$2y$05$x"}))
 
 	rep := run(t, pg, Options{From: d.dir})
-	want(t, rep, entAPITokens, 2, 2, 0, 0)
-	want(t, rep, entAPISessions, 3, 3, 0, 0)
+	want(t, rep, entAPITokens, 3, 2, 0, 1)
+	want(t, rep, entAPISessions, 4, 3, 0, 1)
 
 	gotTokens, err := pgapitokens.New(pg.App).GetAll(ctxDefault, "admin")
 	require.NoError(t, err)

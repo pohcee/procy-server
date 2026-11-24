@@ -23,7 +23,8 @@ Every row belongs to a tenant (organization). A server for one organization keep
 
 * Users and client credentials are stored in Postgres. The `auth`, `auth_file` and `auth_table` settings in
   `[server]`, the `auth`, `auth_file`, `auth_user_table`, `auth_group_table` and `auth_group_details_table`
-  settings in `[api]`, and the `[database]` section are refused. Manage users with `rportd user` or the API, and
+  settings in `[api]`, and the `[database]` section are refused. Logins by proxy header (`auth_header`) and Plus
+  OAuth aren't supported on Postgres yet. Manage users with `rportd user` or the API, and
   client credentials with the API.
 * The server connects as an **application role** that doesn't own the tables and isn't a superuser. It refuses to
   start otherwise, because row-level security would not apply. The schema owner runs the migrations.
@@ -88,7 +89,9 @@ with the key.
 ## Moving a standalone server to Postgres
 
 `rportd import` copies the data of a **stopped** standalone server into a tenant. It only reads the source. It
-refuses a data directory that a running server still holds.
+refuses a data directory that a running server still holds, as far as it can tell: stop the old server before
+importing. Run the import before starting servers on the Postgres database (or while they are stopped): logins and
+vault writes during an import can collide with imported ids.
 
 ```shell
 rportd import -c /etc/rport/rportd.conf \

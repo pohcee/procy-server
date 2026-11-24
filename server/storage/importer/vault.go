@@ -2,6 +2,7 @@ package importer
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -76,9 +77,9 @@ func (im *importer) prepareVault(ctx context.Context) error {
 	if _, err := vault.DecryptValue(v.status.EncCheck.String, pass); err != nil {
 		return errors.New("the vault passphrase does not match the source vault")
 	}
-	key, err := im.o.VaultKeys.Key(tenant.WithID(ctx, im.tid))
+	key, err := im.targetVaultKey(ctx)
 	if err != nil {
-		return fmt.Errorf("target vault key: %w", err)
+		return err
 	}
 	for _, vals := range v.values {
 		plain, err := vault.DecryptValue(vals[vaultValueIndex].(string), pass)
@@ -92,6 +93,23 @@ func (im *importer) prepareVault(ctx context.Context) error {
 		vals[vaultValueIndex] = enc
 	}
 	return nil
+}
+
+// targetVaultKey returns the tenant's managed vault key. A dry run re-encrypts with a throwaway key instead: asking
+// the provider would create and store the tenant's key, and a dry run writes nothing.
+func (im *importer) targetVaultKey(ctx context.Context) ([]byte, error) {
+	if im.o.DryRun {
+		key := make([]byte, vault.KeySize)
+		if _, err := rand.Read(key); err != nil {
+			return nil, err
+		}
+		return key, nil
+	}
+	key, err := im.o.VaultKeys.Key(tenant.WithID(ctx, im.tid))
+	if err != nil {
+		return nil, fmt.Errorf("target vault key: %w", err)
+	}
+	return key, nil
 }
 
 // writeVault writes the vault. Passphrase target: the status and the values as they are, so the source passphrase

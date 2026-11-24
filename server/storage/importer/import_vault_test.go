@@ -2,6 +2,7 @@ package importer
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/jmoiron/sqlx"
@@ -137,4 +138,25 @@ func TestImportVaultNeedsPassphrase(t *testing.T) {
 	_, err = Run(context.Background(), pg.App, Options{From: d.dir, VaultKeys: testKeys, VaultPassphrase: vaultPass})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "set up with a passphrase")
+}
+
+// noKeys fails the test if the target vault key is asked for.
+type noKeys struct{ t *testing.T }
+
+func (k noKeys) Key(context.Context) ([]byte, error) {
+	k.t.Error("a dry run must not ask for (and so create) the target vault key")
+	return nil, errors.New("no key")
+}
+func (noKeys) Unlocked(context.Context) bool { return true }
+
+// A dry run into a managed vault checks the passphrase and every value but doesn't get the tenant's key: a key
+// service would create and store it.
+func TestImportVaultDryRunGetsNoKey(t *testing.T) {
+	pg := pgtest.New(t)
+	d := newDataDir(t)
+	writeVault(t, d)
+	rep := run(t, pg, Options{From: d.dir, VaultKeys: noKeys{t}, VaultPassphrase: vaultPass, DryRun: true})
+	want(t, rep, entVaultValues, 2, 2, 0, 0)
+	_, err := Run(context.Background(), pg.App, Options{From: d.dir, VaultKeys: noKeys{t}, VaultPassphrase: "wrong-pass", DryRun: true})
+	assert.ErrorContains(t, err, "does not match")
 }
