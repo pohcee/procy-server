@@ -436,7 +436,6 @@ func (m *Manager) run(ctx context.Context, id string) {
 		return
 	}
 
-
 	var entry *library.Entry
 	if schedule.Type == TypeLibrary {
 		if m.entries == nil {

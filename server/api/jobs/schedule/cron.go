@@ -26,7 +26,7 @@ type CronImplementation struct {
 	mapping    map[cronKey]cron.EntryID
 	// alignEvery makes "@every d" fire at fixed multiples of d instead of d after the entry was
 	// added (multiples counted from Go's zero time), so every node of a cluster fires a schedule at the same instants
-// (and claims the same fire time).
+	// (and claims the same fire time).
 	alignEvery bool
 }
 
