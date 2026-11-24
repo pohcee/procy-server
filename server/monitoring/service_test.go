@@ -1,7 +1,6 @@
 package monitoring
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var DataSourceOptions = sqlite.DataSourceOptions{WALEnabled: false}
@@ -27,7 +27,7 @@ func TestMonitoringService_SaveMeasurement(t *testing.T) {
 		ClientID:  "test1",
 		Timestamp: mClient,
 	}
-	err = service.SaveMeasurementUpdateTimestamp(context.Background(), m)
+	err = service.SaveMeasurementUpdateTimestamp(ctxFor(tenant.Default), m)
 	require.NoError(t, err)
 	gap := m.Timestamp.Sub(mClient)
 	require.True(t, gap >= minGap, "monitoring.service must set timestamp")
@@ -40,7 +40,7 @@ func TestMonitoringService_ListClientMetrics(t *testing.T) {
 
 	service := NewService(dbProvider, testLog)
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -104,7 +104,7 @@ func TestMonitoringService_ListClientGraphMetrics(t *testing.T) {
 
 	service := NewService(dbProvider, testLog)
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createDownsamplingData(ctx, dbProvider)
 	require.NoError(t, err)

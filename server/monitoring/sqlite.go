@@ -15,6 +15,7 @@ import (
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type DBProvider interface {
@@ -33,6 +34,8 @@ type DBProvider interface {
 // clean them in chunks and this is the chunk size
 const MaxDeletedEntries = 5000
 
+// SqliteProvider stores measurements. Every method is scoped to the tenant carried by its context
+// and fails with tenant.ErrMissing when there is none.
 type SqliteProvider struct {
 	db        *sqlx.DB
 	logger    *logger.Logger
@@ -54,51 +57,71 @@ func NewSqliteProvider(dbPath string, dataSourceOptions sqlite.DataSourceOptions
 	}, nil
 }
 
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("monitoring: %w", err)
+	}
+	return id, nil
+}
+
 func (p *SqliteProvider) ListMountpointsByClientID(ctx context.Context, clientID string, o *query.ListOptions) ([]*ClientMountpointsPayload, error) {
-	q := "SELECT * FROM `measurements` as `mountpoints` WHERE `client_id` = ? "
-	params := []interface{}{}
-	params = append(params, clientID)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := "SELECT * FROM `measurements` as `mountpoints` WHERE `tenant_id` = ? AND `client_id` = ? "
+	params := []interface{}{tid, clientID}
 	q, params = p.converter.AppendOptionsToQuery(o, q, params)
 
 	val := []*ClientMountpointsPayload{}
-	err := p.db.SelectContext(ctx, &val, q, params...)
+	err = p.db.SelectContext(ctx, &val, q, params...)
 	return val, err
 }
 
 func (p *SqliteProvider) ListProcessesByClientID(ctx context.Context, clientID string, o *query.ListOptions) ([]*ClientProcessesPayload, error) {
-	q := "SELECT * FROM `measurements` as `processes` WHERE `client_id` = ? "
-	params := []interface{}{}
-	params = append(params, clientID)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := "SELECT * FROM `measurements` as `processes` WHERE `tenant_id` = ? AND `client_id` = ? "
+	params := []interface{}{tid, clientID}
 	q, params = p.converter.AppendOptionsToQuery(o, q, params)
 
 	val := []*ClientProcessesPayload{}
-	err := p.db.SelectContext(ctx, &val, q, params...)
+	err = p.db.SelectContext(ctx, &val, q, params...)
 	return val, err
 }
 
 func (p *SqliteProvider) ListMetricsByClientID(ctx context.Context, clientID string, o *query.ListOptions) ([]*ClientMetricsPayload, error) {
-	q := "SELECT * FROM `measurements` as `metrics` WHERE `client_id` = ? "
-	params := []interface{}{}
-	params = append(params, clientID)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := "SELECT * FROM `measurements` as `metrics` WHERE `tenant_id` = ? AND `client_id` = ? "
+	params := []interface{}{tid, clientID}
 	q, params = p.converter.AppendOptionsToQuery(o, q, params)
 
 	val := []*ClientMetricsPayload{}
-	err := p.db.SelectContext(ctx, &val, q, params...)
+	err = p.db.SelectContext(ctx, &val, q, params...)
 	return val, err
 }
 
 func (p *SqliteProvider) CountByClientID(ctx context.Context, clientID string, options *query.ListOptions) (int, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
 	var result int
 
-	q := "SELECT COUNT(*) FROM `measurements` WHERE `client_id` = ? "
+	q := "SELECT COUNT(*) FROM `measurements` WHERE `tenant_id` = ? AND `client_id` = ? "
 	countOptions := *options
 	countOptions.Pagination = nil
 
-	params := []interface{}{}
-	params = append(params, clientID)
+	params := []interface{}{tid, clientID}
 	q, params = p.converter.AppendOptionsToQuery(&countOptions, q, params)
 
-	err := p.db.GetContext(ctx, &result, q, params...)
+	err = p.db.GetContext(ctx, &result, q, params...)
 	if err != nil {
 		return 0, err
 	}
@@ -107,8 +130,11 @@ func (p *SqliteProvider) CountByClientID(ctx context.Context, clientID string, o
 }
 
 func (p *SqliteProvider) ListGraphMetricsByClientID(ctx context.Context, clientID string, hours float64, lo *query.ListOptions) ([]*ClientGraphMetricsPayload, error) {
-	params := []interface{}{}
-	params = append(params, clientID)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	params := []interface{}{tid, clientID}
 
 	q := `SELECT
 		timestamp,
@@ -121,7 +147,7 @@ func (p *SqliteProvider) ListGraphMetricsByClientID(ctx context.Context, clientI
 		round(avg(io_usage_percent),2) as io_usage_percent_avg,
 		min(io_usage_percent) as io_usage_percent_min,
 		max(io_usage_percent) as io_usage_percent_max
-	FROM measurements WHERE client_id = ?`
+	FROM measurements WHERE tenant_id = ? AND client_id = ?`
 
 	q, params = p.converter.AddWhere(lo.Filters, q, params)
 
@@ -135,13 +161,16 @@ func (p *SqliteProvider) ListGraphMetricsByClientID(ctx context.Context, clientI
 	q = p.converter.AddOrderBy(lo.Sorts, q)
 
 	val := []*ClientGraphMetricsPayload{}
-	err := p.db.SelectContext(ctx, &val, q, params...)
+	err = p.db.SelectContext(ctx, &val, q, params...)
 	return val, err
 }
 
 func (p *SqliteProvider) ListGraphByClientID(ctx context.Context, clientID string, hours float64, lo *query.ListOptions, graph string) ([]*ClientGraphMetricsGraphPayload, error) {
-	params := []interface{}{}
-	params = append(params, clientID)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	params := []interface{}{tid, clientID}
 	field, okField := ClientGraphNameToField[graph]
 	alias, okAlias := ClientGraphNameToAlias[graph]
 	if !okField || !okAlias {
@@ -163,7 +192,7 @@ func (p *SqliteProvider) ListGraphByClientID(ctx context.Context, clientID strin
 		max(` + field + `) as ` + alias + `_max`
 	}
 	q = q + ` 
-	FROM measurements WHERE client_id = ?`
+	FROM measurements WHERE tenant_id = ? AND client_id = ?`
 
 	q, params = p.converter.AddWhere(lo.Filters, q, params)
 
@@ -174,13 +203,17 @@ func (p *SqliteProvider) ListGraphByClientID(ctx context.Context, clientID strin
 	query := p.converter.AddOrderBy(lo.Sorts, q)
 
 	val := []*ClientGraphMetricsGraphPayload{}
-	err := p.db.SelectContext(ctx, &val, query, params...)
+	err = p.db.SelectContext(ctx, &val, query, params...)
 	return val, err
 }
 
 func (p *SqliteProvider) CreateMeasurement(ctx context.Context, measurement *models.Measurement) error {
-	q := `INSERT INTO measurements (client_id, timestamp, cpu_usage_percent, memory_usage_percent, io_usage_percent, processes, mountpoints, net_lan_in, net_lan_out, net_wan_in, net_wan_out) 
-		VALUES (:client_id, :timestamp, :cpu_usage_percent, :memory_usage_percent, :io_usage_percent, :processes, :mountpoints, `
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	q := `INSERT INTO measurements (tenant_id, client_id, timestamp, cpu_usage_percent, memory_usage_percent, io_usage_percent, processes, mountpoints, net_lan_in, net_lan_out, net_wan_in, net_wan_out) 
+		VALUES (:tenant_id, :client_id, :timestamp, :cpu_usage_percent, :memory_usage_percent, :io_usage_percent, :processes, :mountpoints, `
 	if measurement.NetLan == nil {
 		q = q + `null, null, `
 	} else {
@@ -193,8 +226,12 @@ func (p *SqliteProvider) CreateMeasurement(ctx context.Context, measurement *mod
 	}
 	query := q + ")"
 
-	_, err := sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
-		result, err = p.db.NamedExecContext(ctx, query, measurement)
+	row := struct {
+		*models.Measurement
+		TenantID tenant.ID `db:"tenant_id"`
+	}{measurement, tid}
+	_, err = sqlite.WithRetryWhenBusy(func() (result sql.Result, err error) {
+		result, err = p.db.NamedExecContext(ctx, query, row)
 		return result, err
 	}, "createmeasurement", p.logger)
 
@@ -204,7 +241,15 @@ func (p *SqliteProvider) CreateMeasurement(ctx context.Context, measurement *mod
 // DeleteMeasurementsBefore deletes entries in chunks of MaxDeletedEntries
 // to clean all you can run in loop as long as there are more than 0 rows affected
 func (p *SqliteProvider) DeleteMeasurementsBefore(ctx context.Context, compare time.Time) (int64, error) {
-	result, err := p.db.ExecContext(ctx, "DELETE FROM measurements WHERE  timestamp IN (SELECT distinct timestamp FROM measurements WHERE timestamp < ? ORDER BY timestamp LIMIT ?)", compare, MaxDeletedEntries)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
+	result, err := p.db.ExecContext(
+		ctx,
+		"DELETE FROM measurements WHERE tenant_id = ? AND timestamp IN (SELECT distinct timestamp FROM measurements WHERE tenant_id = ? AND timestamp < ? ORDER BY timestamp LIMIT ?)",
+		tid, tid, compare, MaxDeletedEntries,
+	)
 	if err != nil {
 		return 0, err
 	}
