@@ -8,10 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/openrport/openrport/server/dispatch"
@@ -70,8 +72,17 @@ func NewServer(o ServerOptions) (*Server, error) {
 		Handler:           s.authorized(mux),
 		TLSConfig:         o.Auth.serverTLS(),
 		ReadHeaderTimeout: 10 * time.Second,
+		// refused handshakes and the like
+		ErrorLog: log.New(debugWriter{o.Log}, "", 0),
 	}
 	return s, nil
+}
+
+type debugWriter struct{ l *logger.Logger }
+
+func (w debugWriter) Write(p []byte) (int, error) {
+	w.l.Debugf("%s", strings.TrimSpace(string(p)))
+	return len(p), nil
 }
 
 // Handler is the peer API with authorization, for tests that serve it themselves.

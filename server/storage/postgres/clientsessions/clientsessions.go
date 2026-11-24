@@ -105,20 +105,3 @@ func (s *Store) Locate(ctx context.Context, clientID string) (*peer.Location, er
 	}
 	return &loc, nil
 }
-
-// Connected returns the ids of the clients of the tenant of ctx that have a live session on some node.
-func (s *Store) Connected(ctx context.Context) (map[string]bool, error) {
-	var ids []string
-	err := postgres.InTenant(ctx, s.db, func(tx *sqlx.Tx) error {
-		return tx.SelectContext(ctx, &ids, `SELECT client_id FROM client_sessions
-			WHERE tenant_id = current_setting('rport.tenant_id', true) AND lease_until > now()`)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("registry: connected clients: %w", err)
-	}
-	out := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		out[id] = true
-	}
-	return out, nil
-}
