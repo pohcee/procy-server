@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,6 +35,8 @@ const testPassword = "correct horse battery staple"
 
 type nodeFixture struct {
 	base string
+	// stop stops the node (also done at the end of the test); it is safe to call twice
+	stop func()
 }
 
 func freeAddr(t *testing.T) string {
@@ -116,19 +119,31 @@ func startNode(t *testing.T) *nodeFixture { return startNodeWith(t, nodeSettings
 
 func startNodeWith(t *testing.T, s nodeSettings) *nodeFixture {
 	t.Helper()
-	ctx := context.Background()
 	d := pgtest.New(t)
+	seedTenants(t, d)
+	return startNodeOn(t, d, s)
+}
+
+// seedTenants adds tenants a (user alice, client web01 named "a-web") and b (user bob, client web01 named "b-web").
+func seedTenants(t *testing.T, d *pgtest.DB) {
+	t.Helper()
+	ctx := context.Background()
 	for _, tc := range []struct {
 		id         tenant.ID
 		user, name string
 	}{{"a", "alice", "a-web"}, {"b", "bob", "b-web"}} {
 		require.NoError(t, AddTenant(ctx, d.Owner, tc.id, ""))
-		require.NoError(t, AddUser(ctx, d.App, tc.id, tc.user, testPassword, nil))
+		require.NoError(t, AddUser(ctx, d.App, tc.id, tc.user, testPassword, []string{"Administrators"}))
 		now := time.Now()
 		cl := &clientdata.Client{ID: "web01", ClientAuthID: "auth-" + string(tc.id), Name: tc.name, DisconnectedAt: &now}
 		require.NoError(t, pgclients.New(d.App, nil).Save(tenant.WithID(ctx, tc.id), cl))
 	}
+}
 
+// startNodeOn runs a node on the database d.
+func startNodeOn(t *testing.T, d *pgtest.DB, s nodeSettings) *nodeFixture {
+	t.Helper()
+	ctx := context.Background()
 	addr := freeAddr(t)
 	cfg := loadConfig(t, nodeConf(t, d.AppURL, addr, s))
 
@@ -141,19 +156,23 @@ func startNodeWith(t *testing.T, s nodeSettings) *nodeFixture {
 	require.NoError(t, err)
 	done := make(chan error, 1)
 	go func() { done <- srv.Run(runCtx) }()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Logf("server stopped: %v", err)
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Logf("server stopped: %v", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Error("server did not stop")
 			}
-		case <-time.After(10 * time.Second):
-			t.Error("server did not stop")
-		}
-		closeOpts()
-		db.Close()
-	})
+			closeOpts()
+			db.Close()
+		})
+	}
+	t.Cleanup(stop)
 	base := "http://" + addr + "/api/v1"
 	// wait for the port with a plain dial: an unauthenticated request would delay the next one (user_login_wait)
 	require.Eventually(t, func() bool {
@@ -164,7 +183,7 @@ func startNodeWith(t *testing.T, s nodeSettings) *nodeFixture {
 		c.Close()
 		return true
 	}, 10*time.Second, 50*time.Millisecond)
-	return &nodeFixture{base: base}
+	return &nodeFixture{base: base, stop: stop}
 }
 
 func (h *nodeFixture) do(t *testing.T, method, path, token string, body any) (int, map[string]any) {
