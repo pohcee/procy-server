@@ -83,14 +83,14 @@ func sequentialJobIDs(t *testing.T) {
 func rawJobDetails(t *testing.T, jp *jobs.SqliteProvider, jid string) string {
 	t.Helper()
 	var details string
-	require.NoError(t, jp.GetDB().Get(&details, "SELECT details FROM jobs WHERE jid=?", jid))
+	require.NoError(t, jobsDBOf(t, jp).Get(&details, "SELECT details FROM jobs WHERE jid=?", jid))
 	return details
 }
 
 func rawMultiJobDetails(t *testing.T, jp *jobs.SqliteProvider, jid string) string {
 	t.Helper()
 	var details string
-	require.NoError(t, jp.GetDB().Get(&details, "SELECT details FROM multi_jobs WHERE jid=?", jid))
+	require.NoError(t, jobsDBOf(t, jp).Get(&details, "SELECT details FROM multi_jobs WHERE jid=?", jid))
 	return details
 }
 

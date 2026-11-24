@@ -11,10 +11,12 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -2106,7 +2108,19 @@ func makeJobsProvider(t *testing.T, dataSourceOptions sqlite.DataSourceOptions, 
 	)
 	require.NoError(t, err)
 	jp = jobs.NewSqliteProvider(jobsDB, testLog)
+	testJobsDBs.Store(jp, jobsDB)
 	return jp
+}
+
+// testJobsDBs maps every provider made by makeJobsProvider to its database, for tests that read
+// raw rows or store schedules in the same file.
+var testJobsDBs sync.Map
+
+func jobsDBOf(t *testing.T, jp *jobs.SqliteProvider) *sqlx.DB {
+	t.Helper()
+	db, ok := testJobsDBs.Load(jp)
+	require.True(t, ok, "jobs provider not made by makeJobsProvider")
+	return db.(*sqlx.DB)
 }
 
 func makeGroupsProvider(t *testing.T, dataSourceOptions sqlite.DataSourceOptions) (gp *cgroups.SqliteProvider) {
@@ -2125,7 +2139,7 @@ func makeGroupsProvider(t *testing.T, dataSourceOptions sqlite.DataSourceOptions
 
 func makeScheduleManager(t *testing.T, jp *jobs.SqliteProvider, jobRunner schedule.JobRunner, testLog *logger.Logger) (scheduleManager *schedule.Manager) {
 	t.Helper()
-	scheduleManager = schedule.NewManager(tenant.WithID(context.Background(), tenant.Default), jobRunner, jp.GetDB(), testLog, 30)
+	scheduleManager = schedule.NewManager(tenant.WithID(context.Background(), tenant.Default), jobRunner, schedule.NewSQLiteProvider(jobsDBOf(t, jp)), testLog, 30)
 
 	return scheduleManager
 }

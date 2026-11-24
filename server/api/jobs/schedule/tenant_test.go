@@ -26,7 +26,7 @@ func newTenantTestDB(t *testing.T) (*SQLiteProvider, *jobs.SqliteProvider) {
 	db, err := sqlite.New(":memory:", jobsmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
-	return newSQLiteProvider(db), jobs.NewSqliteProvider(db, logger.NewLogger("t", logger.LogOutput{}, logger.LogLevelError))
+	return NewSQLiteProvider(db), jobs.NewSqliteProvider(db, logger.NewLogger("t", logger.LogOutput{}, logger.LogLevelError))
 }
 
 func namedSchedule(id, name string) *Schedule {

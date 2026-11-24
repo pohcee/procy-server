@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/jobs"
@@ -85,13 +83,14 @@ type Manager struct {
 	runRemoteCmdTimeoutSec int
 }
 
-func New(ctx context.Context, logger *logger.Logger, db *sqlx.DB, jobRunner JobRunner, runRemoteCmdTimeoutSec int) (*Manager, error) {
+// New returns a manager storing schedules in p, with every stored schedule of ctx's tenant added to cron.
+func New(ctx context.Context, logger *logger.Logger, p Provider, jobRunner JobRunner, runRemoteCmdTimeoutSec int) (*Manager, error) {
 	// Scheduled runs inherit ctx's tenant; without one every run would fail silently later.
 	if _, err := tenant.FromContext(ctx); err != nil {
 		return nil, fmt.Errorf("schedule manager: %w", err)
 	}
 
-	m := NewManager(ctx, jobRunner, db, logger, runRemoteCmdTimeoutSec)
+	m := NewManager(ctx, jobRunner, p, logger, runRemoteCmdTimeoutSec)
 
 	existing, err := m.provider.List(ctx, nil)
 	if err != nil {
@@ -108,11 +107,12 @@ func New(ctx context.Context, logger *logger.Logger, db *sqlx.DB, jobRunner JobR
 	return m, nil
 }
 
-func NewManager(ctx context.Context, jobRunner JobRunner, db *sqlx.DB, logger *logger.Logger, runRemoteCmdTimeoutSec int) (m *Manager) {
+// NewManager returns a manager storing schedules in p, without loading the stored ones into cron.
+func NewManager(ctx context.Context, jobRunner JobRunner, p Provider, logger *logger.Logger, runRemoteCmdTimeoutSec int) (m *Manager) {
 	m = &Manager{
 		Logger:    logger,
 		jobRunner: jobRunner,
-		provider:  newSQLiteProvider(db),
+		provider:  p,
 		cron:      newCron(ctx),
 
 		runRemoteCmdTimeoutSec: runRemoteCmdTimeoutSec,

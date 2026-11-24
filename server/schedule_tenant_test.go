@@ -41,7 +41,7 @@ func TestScheduledRunResolvesGroupsWithDefaultTenant(t *testing.T) {
 		ClientID: &cgroups.ParamValues{"client-1"},
 	})))
 
-	m := schedule.NewManager(root, al, jp.GetDB(), testLog, 30)
+	m := schedule.NewManager(root, al, schedule.NewSQLiteProvider(jobsDBOf(t, jp)), testLog, 30)
 	abort := false
 	s, err := m.Create(root, &schedule.Schedule{
 		Base: schedule.Base{Name: "every second", Schedule: "@every 1s", Type: schedule.TypeCommand},
@@ -76,7 +76,7 @@ func TestScheduledLibraryRunUsesDefaultTenant(t *testing.T) {
 		ClientID: &cgroups.ParamValues{"c-linux"},
 	})))
 
-	m := schedule.NewManager(root, e.al, e.jp.GetDB(), testLog, 30)
+	m := schedule.NewManager(root, e.al, schedule.NewSQLiteProvider(jobsDBOf(t, e.jp)), testLog, 30)
 	m.SetLibrary(e.al.libraryManager, e.jp)
 	abort := false
 	s, err := m.Create(root, &schedule.Schedule{
