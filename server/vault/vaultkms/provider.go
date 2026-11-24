@@ -184,6 +184,16 @@ func (p *Provider) Forget(tid tenant.ID) {
 	}
 }
 
+// ForgetAll drops every tenant's DEK from this instance's memory.
+func (p *Provider) ForgetAll() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for tid, c := range p.cache {
+		zero(c.dek)
+		delete(p.cache, tid)
+	}
+}
+
 // Shred replaces the tenant's wrapped DEK with a tombstone, so its vault values can no longer be decrypted
 // (crypto-shredding) and no instance creates a new DEK for it: Key then fails with ErrShredded (410). This instance
 // forgets the DEK at once, including loads in flight. Other instances keep their copy until their TTL expires and
