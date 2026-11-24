@@ -2,8 +2,8 @@
 //
 // Files are named NNNN_name.up.sql (NNNN is the version, unique, applied in ascending order). Each domain owns a
 // version range so independent changes don't collide: 0001–0099 core, 0100 users, tokens, sessions and client
-// auth, 0200 clients, stored tunnels and client groups (0250 organizations run by operators), 0300 jobs and schedules, 0400 library, notifications, audit
-// log and monitoring. Only up migrations exist; a released file never changes.
+// auth, 0200 clients, stored tunnels and client groups, 0300 jobs and schedules, 0400 library, notifications, audit
+// log and monitoring, 1000 organizations (1050 the operator API). Only up migrations exist; a released file never changes.
 package migrate
 
 import (
@@ -156,7 +156,7 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins FROM " + q,
 	}
-	// the operator functions (migration 0250) change tenants for the operator API
+	// the operator functions (migration 1050) change tenants for the operator API
 	for _, fn := range OperatorFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
 	}

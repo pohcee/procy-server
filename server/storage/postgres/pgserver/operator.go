@@ -35,7 +35,7 @@ const (
 )
 
 // Operator is the Postgres operator.Service. It works on the application connection: tenants change only through
-// the operator functions of migration 0250, inside a transaction of the system tenant, and every change is written
+// the operator functions of migration 1050, inside a transaction of the system tenant, and every change is written
 // to the system tenant's audit log in the same transaction (the user of AddAdmin is created first, by the user
 // service).
 type Operator struct {
