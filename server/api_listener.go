@@ -42,6 +42,7 @@ import (
 	"github.com/openrport/openrport/server/api/uploads"
 	"github.com/openrport/openrport/server/clients/storedtunnels"
 	"github.com/openrport/openrport/server/pairing"
+	"github.com/openrport/openrport/server/routes"
 
 	rportplus "github.com/openrport/openrport/plus"
 	"github.com/openrport/openrport/server/api"
@@ -534,7 +535,7 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 			case authorization.APITokenReadWrite:
 				return true, username, nil
 			case authorization.APITokenClientsAuth:
-				if strings.Contains(urlpath, "clients-auth") {
+				if isClientsAuthRoute(urlpath) {
 					return true, username, nil
 				}
 			}
@@ -543,6 +544,13 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 	}
 
 	return false, username, nil
+}
+
+// isClientsAuthRoute reports whether urlpath is one of the client credential routes a clients-auth token may use:
+// the path, not any path containing the text (a client ID or a user name may contain "clients-auth").
+func isClientsAuthRoute(urlpath string) bool {
+	rest := strings.TrimPrefix(urlpath, routes.AllRoutesPrefix)
+	return rest == "/clients-auth" || strings.HasPrefix(rest, "/clients-auth/")
 }
 
 func (al *APIListener) checkBearerToken(ctx context.Context, bearerToken, uri, method string) (bool, *bearer.TokenContext, error) {
