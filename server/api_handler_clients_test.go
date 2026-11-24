@@ -381,12 +381,12 @@ type SimpleMockClientService struct {
 	*clients.ClientServiceProvider
 }
 
-func (mcs *SimpleMockClientService) GetActiveByID(id string) (*clientdata.Client, error) {
+func (mcs *SimpleMockClientService) GetActiveByID(_ context.Context, id string) (*clientdata.Client, error) {
 	// for this test, just return the first client
 	return mcs.ActiveClients[0], nil
 }
 
-func (mcs *SimpleMockClientService) StartClientTunnels(client *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
+func (mcs *SimpleMockClientService) StartClientTunnels(_ context.Context, client *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
 	tunnels := make([]*clienttunnel.Tunnel, 0, 32)
 	for i, remote := range remotes {
 		tunnels = append(tunnels, makeTunnelResponse(mcs.ExpectedIDs[i], remote))

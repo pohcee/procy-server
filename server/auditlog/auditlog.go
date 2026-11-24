@@ -45,8 +45,9 @@ var (
 	}
 )
 
+// ClientGetter looks up a client in the tenant carried by ctx.
 type ClientGetter interface {
-	GetByID(id string) (*clientdata.Client, error)
+	GetByID(ctx context.Context, id string) (*clientdata.Client, error)
 }
 
 type Provider interface {

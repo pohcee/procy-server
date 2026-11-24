@@ -9,9 +9,9 @@ import (
 )
 
 func (al *APIListener) handleGetStatus(w http.ResponseWriter, req *http.Request) {
-	countActive := al.clientService.CountActive()
+	countActive := al.clientService.CountActive(req.Context())
 
-	countDisconnected, err := al.clientService.CountDisconnected()
+	countDisconnected, err := al.clientService.CountDisconnected(req.Context())
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return

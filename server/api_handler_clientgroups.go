@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -142,9 +143,9 @@ func (al *APIListener) handleGetClientGroup(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	al.clientService.PopulateGroupsWithUserClients([]*cgroups.ClientGroup{group}, curUser)
+	al.clientService.PopulateGroupsWithUserClients(req.Context(), []*cgroups.ClientGroup{group}, curUser)
 
-	payload, err := al.convertToClientGroupPayload(group, requestedFields)
+	payload, err := al.convertToClientGroupPayload(req.Context(), group, requestedFields)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -184,7 +185,7 @@ func (al *APIListener) handleGetClientGroups(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	al.clientService.PopulateGroupsWithUserClients(groups, curUser)
+	al.clientService.PopulateGroupsWithUserClients(ctx, groups, curUser)
 
 	// for non-admins filter out groups with no clients
 	if !curUser.IsAdmin() {
@@ -195,7 +196,7 @@ func (al *APIListener) handleGetClientGroups(w http.ResponseWriter, req *http.Re
 	start, end := pagination.GetStartEnd(totalCount)
 	limited := groups[start:end]
 
-	payload, err := al.convertToClientGroupsPayload(limited, requestedFields)
+	payload, err := al.convertToClientGroupsPayload(ctx, limited, requestedFields)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -249,10 +250,10 @@ type ClientGroupPayload struct {
 	NumClientsConnected *int                  `json:"num_clients_connected,omitempty" db:"-"`
 }
 
-func (al *APIListener) convertToClientGroupsPayload(clientGroups []*cgroups.ClientGroup, requestedFields map[string]bool) ([]ClientGroupPayload, error) {
+func (al *APIListener) convertToClientGroupsPayload(ctx context.Context, clientGroups []*cgroups.ClientGroup, requestedFields map[string]bool) ([]ClientGroupPayload, error) {
 	r := make([]ClientGroupPayload, 0, len(clientGroups))
 	for _, cur := range clientGroups {
-		payload, err := al.convertToClientGroupPayload(cur, requestedFields)
+		payload, err := al.convertToClientGroupPayload(ctx, cur, requestedFields)
 		if err != nil {
 			return nil, err
 		}
@@ -261,7 +262,7 @@ func (al *APIListener) convertToClientGroupsPayload(clientGroups []*cgroups.Clie
 	return r, nil
 }
 
-func (al *APIListener) convertToClientGroupPayload(clientGroup *cgroups.ClientGroup, requestedFields map[string]bool) (ClientGroupPayload, error) {
+func (al *APIListener) convertToClientGroupPayload(ctx context.Context, clientGroup *cgroups.ClientGroup, requestedFields map[string]bool) (ClientGroupPayload, error) {
 	p := ClientGroupPayload{}
 	for field := range cgroups.OptionsSupportedFields[cgroups.OptionsResource] {
 		if len(requestedFields) > 0 && !requestedFields[field] {
@@ -281,7 +282,7 @@ func (al *APIListener) convertToClientGroupPayload(clientGroup *cgroups.ClientGr
 		case "num_clients":
 			p.NumClients = ptr.Int(len(clientGroup.ClientIDs))
 		case "num_clients_connected":
-			count, err := al.countActiveClients(clientGroup.ClientIDs)
+			count, err := al.countActiveClients(ctx, clientGroup.ClientIDs)
 			if err != nil {
 				return p, err
 			}
@@ -291,10 +292,10 @@ func (al *APIListener) convertToClientGroupPayload(clientGroup *cgroups.ClientGr
 	return p, nil
 }
 
-func (al *APIListener) countActiveClients(clientIDs []string) (int, error) {
+func (al *APIListener) countActiveClients(ctx context.Context, clientIDs []string) (int, error) {
 	count := 0
 	for _, clientID := range clientIDs {
-		client, err := al.clientService.GetActiveByID(clientID)
+		client, err := al.clientService.GetActiveByID(ctx, clientID)
 		if err != nil {
 			return 0, err
 		}

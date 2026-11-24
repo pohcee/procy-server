@@ -13,11 +13,14 @@ import (
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
+// ClientRepository is an in-memory cache of clients backed by a ClientStore. Its state is kept per tenant:
+// every method works on the tenant carried by its context and never sees clients of another tenant.
 type ClientRepository struct {
-	// in-memory state
-	clientState map[string]*clientdata.Client
+	// in-memory state, by tenant and client id
+	clientState map[tenant.ID]map[string]*clientdata.Client
 	// db based store
 	clientStore ClientStore
 
@@ -37,13 +40,18 @@ type User interface {
 
 // NewClientRepository returns a new thread-safe in-memory cache to store client connections populated with given clients if any.
 // keepDisconnectedClients is a duration to keep disconnected clients. If a client was disconnected longer than a given
-// duration it will be treated as obsolete.
+// duration it will be treated as obsolete. The given clients belong to the default tenant.
 func NewClientRepository(initClients []*clientdata.Client, keepDisconnectedClients *time.Duration, logger *logger.Logger) *ClientRepository {
 	return NewClientRepositoryWithDB(initClients, keepDisconnectedClients, nil, logger)
 }
 
 // NewClientRepositoryWithDB @todo: used for test setup in two separate packages. need to review use as part of the test code refactoring.
+// The given clients belong to the default tenant.
 func NewClientRepositoryWithDB(initialClients []*clientdata.Client, keepDisconnectedClients *time.Duration, store ClientStore, logger *logger.Logger) *ClientRepository {
+	return newClientRepository(tenant.Default, initialClients, keepDisconnectedClients, store, logger)
+}
+
+func newClientRepository(tid tenant.ID, initialClients []*clientdata.Client, keepDisconnectedClients *time.Duration, store ClientStore, logger *logger.Logger) *ClientRepository {
 	clients := make(map[string]*clientdata.Client)
 	for i := range initialClients {
 		newClientID := initialClients[i].GetID()
@@ -51,26 +59,31 @@ func NewClientRepositoryWithDB(initialClients []*clientdata.Client, keepDisconne
 	}
 
 	return &ClientRepository{
-		clientState:             clients,
+		clientState:             map[tenant.ID]map[string]*clientdata.Client{tid: clients},
 		clientStore:             store,
 		logger:                  logger,
 		keepDisconnectedClients: keepDisconnectedClients,
 	}
 }
 
+// InitClientRepository returns a repository populated with the stored clients of the tenant carried by ctx.
 func InitClientRepository(
 	ctx context.Context,
 	db *sqlx.DB,
 	keepDisconnectedClients *time.Duration,
 	logger *logger.Logger,
 ) (*ClientRepository, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	provider := newSqliteProvider(db, keepDisconnectedClients)
 	initialClients, err := LoadInitialClients(ctx, provider, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewClientRepositoryWithDB(initialClients, keepDisconnectedClients, provider, logger), nil
+	return newClientRepository(tid, initialClients, keepDisconnectedClients, provider, logger), nil
 }
 
 func (r *ClientRepository) SetPostSaveHandlerFn(handlerFn func(cl *clientdata.Client)) {
@@ -84,19 +97,25 @@ func (r *ClientRepository) GetPostSaveHandlerFn() (handlerFn func(cl *clientdata
 	return handlerFn
 }
 
-func (r *ClientRepository) Save(cl *clientdata.Client) error {
+func (r *ClientRepository) Save(ctx context.Context, cl *clientdata.Client) error {
 	ts := time.Now()
+
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 
 	store := r.getStore()
 
 	if store != nil {
-		err := store.Save(context.Background(), cl)
+		// the store write is not cancelled with ctx (e.g. when a disconnect is saved during shutdown)
+		err := store.Save(context.WithoutCancel(ctx), cl)
 		if err != nil {
 			return fmt.Errorf("failed to save client: %w", err)
 		}
 	}
 
-	r.updateClient(cl)
+	r.updateClient(tid, cl)
 
 	handlerFn := r.GetPostSaveHandlerFn()
 	if handlerFn != nil {
@@ -113,30 +132,38 @@ func (r *ClientRepository) Save(cl *clientdata.Client) error {
 	return nil
 }
 
-func (r *ClientRepository) Delete(client *clientdata.Client) error {
+func (r *ClientRepository) Delete(ctx context.Context, client *clientdata.Client) error {
 	clientID := client.GetID()
+
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 
 	r.log().Debugf("deleting client: %s status=%s", clientID, FormatConnectionState(client))
 
 	store := r.getStore()
 
 	if store != nil {
-		err := store.Delete(context.Background(), clientID, client.Log())
+		err := store.Delete(context.WithoutCancel(ctx), clientID, client.Log())
 		if err != nil {
 			return fmt.Errorf("failed to delete a client: %w", err)
 		}
 	}
 
-	r.removeClient(clientID)
+	r.removeClient(tid, clientID)
 	return nil
 }
 
-func (r *ClientRepository) GetClientsByTag(tags []string, operator string, allowDisconnected bool) (matchingClients []*clientdata.Client, err error) {
+func (r *ClientRepository) GetClientsByTag(ctx context.Context, tags []string, operator string, allowDisconnected bool) (matchingClients []*clientdata.Client, err error) {
+	if _, err := tenantOf(ctx); err != nil {
+		return nil, err
+	}
 	var availableClients []*clientdata.Client
 	if allowDisconnected {
-		availableClients = r.GetAllClients()
+		availableClients = r.GetAllClients(ctx)
 	} else {
-		availableClients = r.GetAllActiveClients()
+		availableClients = r.GetAllActiveClients(ctx)
 	}
 	if strings.EqualFold(operator, "AND") {
 		matchingClients = findMatchingANDClients(availableClients, tags)
@@ -198,45 +225,52 @@ func findMatchingORClients(availableClients []*clientdata.Client, tags []string)
 }
 
 // DeleteObsolete deletes obsolete disconnected clients and returns them.
-func (r *ClientRepository) DeleteObsolete() ([]*clientdata.Client, error) {
+func (r *ClientRepository) DeleteObsolete(ctx context.Context) ([]*clientdata.Client, error) {
 	r.log().Debugf("deleting obsolete clients")
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	store := r.getStore()
 
 	if store != nil {
-		err := store.DeleteObsolete(context.Background(), r.log())
+		err := store.DeleteObsolete(context.WithoutCancel(ctx), r.log())
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete obsolete clients: %w", err)
 		}
 	}
 
-	clientsToDelete := r.queryClients(func(c *clientdata.Client) (match bool) {
+	clientsToDelete := r.queryClients(tid, func(c *clientdata.Client) (match bool) {
 		return c.Obsolete(r.GetKeepDisconnectedClients())
 	})
 
 	for _, client := range clientsToDelete {
 		clientID := client.GetID()
 		r.log().Debugf("deleting obsolete client: %s status=%s", clientID, FormatConnectionState(client))
-		r.removeClient(clientID)
+		r.removeClient(tid, clientID)
 	}
 
 	return clientsToDelete, nil
 }
 
 // Count returns a number of non-obsolete active and disconnected clients.
-func (r *ClientRepository) Count() int {
-	availableClients := r.getNonObsoleteClients()
+func (r *ClientRepository) Count(ctx context.Context) int {
+	availableClients := r.getNonObsoleteClients(ctx)
 	return len(availableClients)
 }
 
 // CountActive returns a number of active clients.
-func (r *ClientRepository) CountActive() (count int) {
-	activeClients := r.GetAllActiveClients()
+func (r *ClientRepository) CountActive(ctx context.Context) (count int) {
+	activeClients := r.GetAllActiveClients(ctx)
 	return len(activeClients)
 }
 
 // CountDisconnected returns a number of disconnected clients.
-func (r *ClientRepository) CountDisconnected() (int, error) {
-	availableClients := r.getNonObsoleteClients()
+func (r *ClientRepository) CountDisconnected(ctx context.Context) (int, error) {
+	if _, err := tenantOf(ctx); err != nil {
+		return 0, err
+	}
+	availableClients := r.getNonObsoleteClients(ctx)
 
 	var n int
 	// uses copy of clients array returned by getNonObsoleteClients
@@ -249,8 +283,12 @@ func (r *ClientRepository) CountDisconnected() (int, error) {
 }
 
 // GetByID returns non-obsolete active or disconnected client by a given id.
-func (r *ClientRepository) GetByID(id string) (*clientdata.Client, error) {
-	client := r.getClient(id)
+func (r *ClientRepository) GetByID(ctx context.Context, id string) (*clientdata.Client, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	client := r.getClient(tid, id)
 
 	if client != nil && client.Obsolete(r.GetKeepDisconnectedClients()) {
 		return nil, nil
@@ -259,8 +297,12 @@ func (r *ClientRepository) GetByID(id string) (*clientdata.Client, error) {
 }
 
 // GetActiveByID returns an active client by a given id.
-func (r *ClientRepository) GetActiveByID(id string) (*clientdata.Client, error) {
-	client := r.getClient(id)
+func (r *ClientRepository) GetActiveByID(ctx context.Context, id string) (*clientdata.Client, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	client := r.getClient(tid, id)
 
 	if client != nil && !client.IsConnected() {
 		return nil, nil
@@ -269,10 +311,10 @@ func (r *ClientRepository) GetActiveByID(id string) (*clientdata.Client, error) 
 }
 
 // GetAllByClientAuthID @todo: make it consistent with others whether to return an error. In general it's just a cache, so should not return an err.
-func (r *ClientRepository) GetAllByClientAuthID(clientAuthID string) (matchingClients []*clientdata.Client) {
+func (r *ClientRepository) GetAllByClientAuthID(ctx context.Context, clientAuthID string) (matchingClients []*clientdata.Client) {
 	matchingClients = make([]*clientdata.Client, 0, DefaultInitialClientsArraySize)
 
-	availableClients := r.GetAllClients()
+	availableClients := r.GetAllClients(ctx)
 	// uses copy of clients array returned by GetAllClients
 	for _, c := range availableClients {
 		if c.GetClientAuthID() == clientAuthID {
@@ -283,21 +325,24 @@ func (r *ClientRepository) GetAllByClientAuthID(clientAuthID string) (matchingCl
 }
 
 // GetAll returns all non-obsolete active and disconnected client clients.
-func (r *ClientRepository) GetAllClients() []*clientdata.Client {
-	availableClients := r.getNonObsoleteClients()
+func (r *ClientRepository) GetAllClients(ctx context.Context) []*clientdata.Client {
+	availableClients := r.getNonObsoleteClients(ctx)
 	return availableClients
 }
 
 // GetUserClients returns all non-obsolete active and disconnected clients that current user has access to
-func (r *ClientRepository) GetUserClients(user User, groups []*cgroups.ClientGroup) []*clientdata.Client {
-	return r.getNonObsoleteClientsByUser(user, groups)
+func (r *ClientRepository) GetUserClients(ctx context.Context, user User, groups []*cgroups.ClientGroup) []*clientdata.Client {
+	return r.getNonObsoleteClientsByUser(ctx, user, groups)
 }
 
 // GetFilteredUserClients returns all non-obsolete active and disconnected clients that current user has access to, filtered by parameters
-func (r *ClientRepository) GetFilteredUserClients(user User, filterOptions []query.FilterOption, groups []*cgroups.ClientGroup) (matchingClients []*clientdata.CalculatedClient, err error) {
+func (r *ClientRepository) GetFilteredUserClients(ctx context.Context, user User, filterOptions []query.FilterOption, groups []*cgroups.ClientGroup) (matchingClients []*clientdata.CalculatedClient, err error) {
+	if _, err := tenantOf(ctx); err != nil {
+		return nil, err
+	}
 	matchingClients = make([]*clientdata.CalculatedClient, 0, DefaultInitialClientsArraySize)
 
-	clients := r.getNonObsoleteClientsByUser(user, groups)
+	clients := r.getNonObsoleteClientsByUser(ctx, user, groups)
 
 	// uses copy of clients array returned by getNonObsoleteClientsByUser
 	for _, client := range clients {
@@ -337,16 +382,16 @@ func (r *ClientRepository) GetKeepDisconnectedClients() (keep *time.Duration) {
 const DefaultInitialClientsArraySize = 64
 
 // GetAllActiveClients returns a new client array that can be used without locks (assuming not shared)
-func (r *ClientRepository) GetAllActiveClients() (matchingClients []*clientdata.Client) {
-	matchingClients = r.queryClients(func(c *clientdata.Client) (match bool) {
+func (r *ClientRepository) GetAllActiveClients(ctx context.Context) (matchingClients []*clientdata.Client) {
+	matchingClients = r.queryTenantClients(ctx, func(c *clientdata.Client) (match bool) {
 		return c.IsConnected()
 	})
 	return matchingClients
 }
 
 // getNonObsoleteClients returns a new client array that can be used without locks (assuming not shared)
-func (r *ClientRepository) getNonObsoleteClients() (matchingClients []*clientdata.Client) {
-	matchingClients = r.queryClients(func(c *clientdata.Client) (match bool) {
+func (r *ClientRepository) getNonObsoleteClients(ctx context.Context) (matchingClients []*clientdata.Client) {
+	matchingClients = r.queryTenantClients(ctx, func(c *clientdata.Client) (match bool) {
 		return !c.Obsolete(r.GetKeepDisconnectedClients())
 	})
 	return matchingClients
@@ -354,10 +399,10 @@ func (r *ClientRepository) getNonObsoleteClients() (matchingClients []*clientdat
 
 // getNonObsoleteByUser return connected clients the user has access to either by user group or by client group.
 // returns a new client array that can be used without locks (assuming not shared)
-func (r *ClientRepository) getNonObsoleteClientsByUser(user User, clientGroups []*cgroups.ClientGroup) (matchingClients []*clientdata.Client) {
+func (r *ClientRepository) getNonObsoleteClientsByUser(ctx context.Context, user User, clientGroups []*cgroups.ClientGroup) (matchingClients []*clientdata.Client) {
 	userGroups := user.GetGroups()
 
-	matchingClients = r.queryClients(func(c *clientdata.Client) (match bool) {
+	matchingClients = r.queryTenantClients(ctx, func(c *clientdata.Client) (match bool) {
 		if !c.Obsolete(r.GetKeepDisconnectedClients()) {
 			if user.IsAdmin() || c.HasAccessViaUserGroups(userGroups) || c.UserGroupHasAccessViaClientGroup(userGroups, clientGroups) {
 				return true
@@ -377,51 +422,55 @@ func (r *ClientRepository) log() (l *logger.Logger) {
 
 type ClientQueryFn func(client *clientdata.Client) (match bool)
 
-// some notes on thread safe looping over a map in the post below
-// https://stackoverflow.com/questions/40442846/concurrent-access-to-maps-with-range-in-go
+// queryTenantClients returns the clients of the tenant carried by ctx that match queryFn. Without a tenant
+// it logs the error and returns no clients: callers of the methods using it get no error result.
+func (r *ClientRepository) queryTenantClients(ctx context.Context, queryFn ClientQueryFn) []*clientdata.Client {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		r.log().Errorf("%v", err)
+		return make([]*clientdata.Client, 0)
+	}
+	return r.queryClients(tid, queryFn)
+}
 
-func (r *ClientRepository) queryClients(queryFn ClientQueryFn) (matchingClients []*clientdata.Client) {
-	matchingClients = make([]*clientdata.Client, 0, DefaultInitialClientsArraySize)
-
-	clients := r.getClients()
-
+// queryClients returns a new slice of the tenant's clients that match queryFn. queryFn runs without the lock held.
+func (r *ClientRepository) queryClients(tid tenant.ID, queryFn ClientQueryFn) (matchingClients []*clientdata.Client) {
 	r.mu.RLock()
-	for _, c := range clients {
-		r.mu.RUnlock()
-		match := queryFn(c)
-		if match {
-			matchingClients = append(matchingClients, c)
-		}
-		r.mu.RLock()
+	clients := make([]*clientdata.Client, 0, len(r.clientState[tid]))
+	for _, c := range r.clientState[tid] {
+		clients = append(clients, c)
 	}
 	r.mu.RUnlock()
 
+	matchingClients = make([]*clientdata.Client, 0, DefaultInitialClientsArraySize)
+	for _, c := range clients {
+		if queryFn(c) {
+			matchingClients = append(matchingClients, c)
+		}
+	}
 	return matchingClients
 }
 
-func (r *ClientRepository) getClient(clientID string) (client *clientdata.Client) {
+func (r *ClientRepository) getClient(tid tenant.ID, clientID string) (client *clientdata.Client) {
 	r.mu.RLock()
-	client = r.clientState[clientID]
+	client = r.clientState[tid][clientID]
 	r.mu.RUnlock()
 	return client
 }
 
-func (r *ClientRepository) getClients() (clients map[string]*clientdata.Client) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.clientState
-}
-
-func (r *ClientRepository) updateClient(client *clientdata.Client) {
+func (r *ClientRepository) updateClient(tid tenant.ID, client *clientdata.Client) {
 	clientID := client.GetID()
 
 	r.mu.Lock()
-	r.clientState[clientID] = client
+	if r.clientState[tid] == nil {
+		r.clientState[tid] = make(map[string]*clientdata.Client)
+	}
+	r.clientState[tid][clientID] = client
 	r.mu.Unlock()
 }
 
-func (r *ClientRepository) removeClient(clientID string) {
+func (r *ClientRepository) removeClient(tid tenant.ID, clientID string) {
 	r.mu.Lock()
-	delete(r.clientState, clientID)
+	delete(r.clientState[tid], clientID)
 	r.mu.Unlock()
 }

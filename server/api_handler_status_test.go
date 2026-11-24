@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clientsauth"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func newStatusTestListener(cfg *chconfig.Config, override func(capabilities.Capabilities) capabilities.Capabilities) *APIListener {
@@ -36,7 +38,7 @@ func newStatusTestListener(cfg *chconfig.Config, override func(capabilities.Capa
 func getStatusData(t *testing.T, al *APIListener) map[string]json.RawMessage {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	al.handleGetStatus(rec, httptest.NewRequest(http.MethodGet, "/api/v1/status", nil))
+	al.handleGetStatus(rec, httptest.NewRequest(http.MethodGet, "/api/v1/status", nil).WithContext(tenant.WithID(context.Background(), tenant.Default)))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	var body struct {

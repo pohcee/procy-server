@@ -10,6 +10,7 @@ import (
 	"github.com/openrport/openrport/db/migration/clients"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var DataSourceOptions = sqlite.DataSourceOptions{WALEnabled: false}
@@ -20,7 +21,7 @@ func NewFakeClientProvider(t *testing.T, exp *time.Duration, cs ...*clientdata.C
 	p := newSqliteProvider(db, exp)
 	for _, cur := range cs {
 		if cur != nil {
-			err = p.Save(context.Background(), cur)
+			err = p.Save(tenant.WithID(context.Background(), tenant.Default), cur)
 			require.NoError(t, err)
 		}
 	}

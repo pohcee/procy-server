@@ -355,7 +355,7 @@ func (al *APIListener) handleExecuteCommand(ctx context.Context, w http.Response
 		executeInput.TimeoutSec = al.config.Server.RunRemoteCmdTimeoutSec
 	}
 
-	client, err := al.clientService.GetActiveByID(executeInput.ClientID)
+	client, err := al.clientService.GetActiveByID(ctx, executeInput.ClientID)
 	if err != nil {
 		al.jsonErrorResponseWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to find an active client with id=%q.", executeInput.ClientID), err)
 		return nil

@@ -22,7 +22,7 @@ func (al *APIListener) handleRefreshUpdatesStatus(w http.ResponseWriter, req *ht
 		return
 	}
 
-	client, err := al.clientService.GetActiveByID(clientID)
+	client, err := al.clientService.GetActiveByID(req.Context(), clientID)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
@@ -65,7 +65,7 @@ func (al *APIListener) handleGetClientGraphMetrics(w http.ResponseWriter, req *h
 	vars := mux.Vars(req)
 	clientID := vars[routes.ParamClientID]
 
-	client, err := al.clientService.GetActiveByID(clientID)
+	client, err := al.clientService.GetActiveByID(req.Context(), clientID)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
@@ -102,7 +102,7 @@ func (al *APIListener) handleGetClientGraphMetricsGraph(w http.ResponseWriter, r
 
 	queryOptions := query.NewOptions(req, monitoring.ClientGraphMetricsSortDefault, monitoring.ClientGraphMetricsFilterDefault, monitoring.ClientGraphMetricsFieldsDefault)
 
-	client, err := al.clientService.GetActiveByID(clientID)
+	client, err := al.clientService.GetActiveByID(req.Context(), clientID)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return

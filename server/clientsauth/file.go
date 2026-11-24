@@ -1,6 +1,7 @@
 package clientsauth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/openrport/openrport/share/enums"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 // FileProvider is file based client provider.
@@ -49,7 +51,10 @@ func (c *FileProvider) getAll() ([]*ClientAuth, error) {
 	return res, nil
 }
 
-func (c *FileProvider) GetFiltered(filter *query.ListOptions) ([]*ClientAuth, int, error) {
+func (c *FileProvider) GetFiltered(ctx context.Context, filter *query.ListOptions) ([]*ClientAuth, int, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, 0, err
+	}
 	var ca []*ClientAuth
 	ca, err := c.getAll()
 	if err != nil {
@@ -74,8 +79,11 @@ func (c *FileProvider) GetFiltered(filter *query.ListOptions) ([]*ClientAuth, in
 	return ca[start:end], l, nil
 }
 
-func (c *FileProvider) Get(id string) (*ClientAuth, error) {
-	if val, _ := c.cache.Get(c.CacheKey(id)); val != nil {
+func (c *FileProvider) Get(ctx context.Context, id string) (*ClientAuth, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, err
+	}
+	if val, _ := c.cache.Get(c.CacheKey(tenant.Default, id)); val != nil {
 		return val.(*ClientAuth), nil
 	}
 	idPswdPairs, err := c.load()
@@ -84,7 +92,7 @@ func (c *FileProvider) Get(id string) (*ClientAuth, error) {
 	}
 	if _, ok := idPswdPairs[id]; ok {
 		ca := &ClientAuth{ID: id, Password: idPswdPairs[id]}
-		if err := c.cache.Add(c.CacheKey(id), ca, 60*time.Minute); err != nil {
+		if err := c.cache.Add(c.CacheKey(tenant.Default, id), ca, 60*time.Minute); err != nil {
 			return nil, err
 		}
 		return ca, nil
@@ -92,7 +100,10 @@ func (c *FileProvider) Get(id string) (*ClientAuth, error) {
 	return nil, nil
 }
 
-func (c *FileProvider) Add(clientAuth *ClientAuth) (bool, error) {
+func (c *FileProvider) Add(ctx context.Context, clientAuth *ClientAuth) (bool, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return false, err
+	}
 	idPswdPairs, err := c.load()
 	if err != nil {
 		return false, fmt.Errorf("failed to decode rport clients auth file: %v", err)
@@ -113,14 +124,17 @@ func (c *FileProvider) Add(clientAuth *ClientAuth) (bool, error) {
 	return true, nil
 }
 
-func (c *FileProvider) Delete(id string) error {
+func (c *FileProvider) Delete(ctx context.Context, id string) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	idPswdPairs, err := c.load()
 	if err != nil {
 		return fmt.Errorf("failed to decode rport clients auth file: %v", err)
 	}
 
 	delete(idPswdPairs, id)
-	c.cache.Delete(c.CacheKey(id))
+	c.cache.Delete(c.CacheKey(tenant.Default, id))
 
 	if err := c.save(idPswdPairs); err != nil {
 		return fmt.Errorf("failed to encode rport clients auth file: %v", err)
@@ -177,6 +191,7 @@ func (c *FileProvider) SortByID(a []*ClientAuth, desc bool) {
 	})
 }
 
-func (c *FileProvider) CacheKey(id string) string {
-	return "client-auth-" + id
+// CacheKey is the cache key of a client auth of a tenant.
+func (c *FileProvider) CacheKey(tid tenant.ID, id string) string {
+	return "client-auth-" + string(tid) + "-" + id
 }

@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"context"
 	"net"
 	"testing"
 
@@ -25,7 +24,7 @@ func TestStartClientRecordsConnectedHost(t *testing.T) {
 	start := func(host string) *clientdata.Client {
 		conn := test.NewConnMock()
 		conn.ReturnRemoteAddr = &net.TCPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 2345}
-		c, err := cs.StartClient(context.Background(), "auth", "c1", conn, host, false,
+		c, err := cs.StartClient(defaultCtx, "auth", "c1", conn, host, false,
 			&chshare.ConnectionRequest{Name: "c1", Version: "0.9.31"}, testLog)
 		require.NoError(t, err)
 		return c
@@ -38,7 +37,7 @@ func TestStartClientRecordsConnectedHost(t *testing.T) {
 }
 
 func TestConnectedHostIsStored(t *testing.T) {
-	ctx := context.Background()
+	ctx := defaultCtx
 	p := NewFakeClientProvider(t, nil)
 	defer p.Close()
 	c := New(t).Logger(testLog).Build()
@@ -62,7 +61,7 @@ func TestFilterByConnectedHost(t *testing.T) {
 	old := &clientdata.Client{ID: "old", ConnectedHost: "rport.example.com", Logger: testLog}
 	moved := &clientdata.Client{ID: "moved", ConnectedHost: "connect.example.com", Logger: testLog}
 	repo := NewClientRepository([]*clientdata.Client{old, moved}, nil, testLog)
-	got, err := repo.GetFilteredUserClients(admin, []query.FilterOption{{Column: []string{"connected_host"}, Values: []string{"rport.example.com"}}}, nil)
+	got, err := repo.GetFilteredUserClients(defaultCtx, admin, []query.FilterOption{{Column: []string{"connected_host"}, Values: []string{"rport.example.com"}}}, nil)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "old", got[0].ID)

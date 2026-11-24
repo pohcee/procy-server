@@ -83,7 +83,7 @@ func (al *APIListener) handleUpdateClientAttributes(w http.ResponseWriter, req *
 
 	client.SetAttributes(attributes)
 
-	err = al.clientService.GetRepo().Save(client)
+	err = al.clientService.GetRepo().Save(ctx, client)
 	if err != nil {
 		al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload("client attributes updated, error saving changes to local db, changes will be visible after next client connection"))
 	}
@@ -101,7 +101,7 @@ func (al *APIListener) withActiveClient(next http.Handler) http.Handler {
 			return
 		}
 
-		client, err := al.clientService.GetActiveByID(cid)
+		client, err := al.clientService.GetActiveByID(request.Context(), cid)
 		if err != nil {
 			al.jsonErrorResponseWithError(writer, http.StatusInternalServerError, fmt.Sprintf("Failed to find an active client with id=%q.", cid), err)
 			return

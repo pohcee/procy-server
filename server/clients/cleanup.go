@@ -22,9 +22,9 @@ func NewCleanupTask(log *logger.Logger, cr *ClientRepository) *CleanupTask {
 }
 
 func (t *CleanupTask) Run(ctx context.Context) error {
-	deleted, err := t.cr.DeleteObsolete()
+	deleted, err := t.cr.DeleteObsolete(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to delete obsolete clients: %v", err)
+		return fmt.Errorf("failed to delete obsolete clients: %w", err)
 	}
 
 	if len(deleted) > 0 {

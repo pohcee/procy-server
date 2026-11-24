@@ -119,7 +119,7 @@ func (e *Entry) WithClientID(cid string) *Entry {
 
 	e.ClientID = cid
 
-	client, err := e.al.clientGetter.GetByID(cid)
+	client, err := e.al.clientGetter.GetByID(e.context(), cid)
 	if err != nil {
 		e.al.logger.Errorf("Could not get client for auditlog: %v", err)
 		return e

@@ -37,46 +37,46 @@ type ClientService interface {
 	SetPlusLicenseInfoCap(licensecap licensecap.CapabilityEx)
 	SetPlusAlertingServiceCap(as alertingcap.Service)
 
-	Count() int
-	CountActive() int
-	CountDisconnected() (int, error)
-	GetByID(id string) (*clientdata.Client, error)
-	GetActiveByID(id string) (*clientdata.Client, error)
-	GetByGroups(groups []*cgroups.ClientGroup) ([]*clientdata.Client, error)
-	GetClientsByTag(tags []string, operator string, allowDisconnected bool) (clients []*clientdata.Client, err error)
-	GetAllByClientID(clientID string) []*clientdata.Client
-	GetAll() []*clientdata.Client
-	GetUserClients(groups []*cgroups.ClientGroup, user User) []*clientdata.Client
-	GetFilteredUserClients(user User, filterOptions []query.FilterOption, groups []*cgroups.ClientGroup) ([]*clientdata.CalculatedClient, error)
+	Count(ctx context.Context) int
+	CountActive(ctx context.Context) int
+	CountDisconnected(ctx context.Context) (int, error)
+	GetByID(ctx context.Context, id string) (*clientdata.Client, error)
+	GetActiveByID(ctx context.Context, id string) (*clientdata.Client, error)
+	GetByGroups(ctx context.Context, groups []*cgroups.ClientGroup) ([]*clientdata.Client, error)
+	GetClientsByTag(ctx context.Context, tags []string, operator string, allowDisconnected bool) (clients []*clientdata.Client, err error)
+	GetAllByClientID(ctx context.Context, clientID string) []*clientdata.Client
+	GetAll(ctx context.Context) []*clientdata.Client
+	GetUserClients(ctx context.Context, groups []*cgroups.ClientGroup, user User) []*clientdata.Client
+	GetFilteredUserClients(ctx context.Context, user User, filterOptions []query.FilterOption, groups []*cgroups.ClientGroup) ([]*clientdata.CalculatedClient, error)
 
-	PopulateGroupsWithUserClients(groups []*cgroups.ClientGroup, user User)
-	UpdateClientStatus()
+	PopulateGroupsWithUserClients(ctx context.Context, groups []*cgroups.ClientGroup, user User)
+	UpdateClientStatus(ctx context.Context)
 
 	StartClient(
 		ctx context.Context, clientAuthID, clientID string, sshConn ssh.Conn, connectedHost string, authMultiuseCreds bool,
 		req *chshare.ConnectionRequest, clog *logger.Logger,
 	) (*clientdata.Client, error)
-	Terminate(client *clientdata.Client) error
-	ForceDelete(client *clientdata.Client) error
-	DeleteOffline(clientID string) error
+	Terminate(ctx context.Context, client *clientdata.Client) error
+	ForceDelete(ctx context.Context, client *clientdata.Client) error
+	DeleteOffline(ctx context.Context, clientID string) error
 
-	SetACL(clientID string, allowedUserGroups []string) error
-	CheckClientAccess(clientID string, user User, groups []*cgroups.ClientGroup) error
+	SetACL(ctx context.Context, clientID string, allowedUserGroups []string) error
+	CheckClientAccess(ctx context.Context, clientID string, user User, groups []*cgroups.ClientGroup) error
 	CheckClientsAccess(clients []*clientdata.Client, user User, groups []*cgroups.ClientGroup) error
 
-	SetUpdatesStatus(clientID string, updatesStatus *models.UpdatesStatus) error
-	SetLastHeartbeat(clientID string, heartbeat time.Time) error
-	SetIPAddresses(clientID string, IPAddresses *models.IPAddresses) error
+	SetUpdatesStatus(ctx context.Context, clientID string, updatesStatus *models.UpdatesStatus) error
+	SetLastHeartbeat(ctx context.Context, clientID string, heartbeat time.Time) error
+	SetIPAddresses(ctx context.Context, clientID string, IPAddresses *models.IPAddresses) error
 
 	GetRepo() *ClientRepository
 
 	SetCaddyAPI(capi caddy.API)
-	StartClientTunnels(client *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error)
+	StartClientTunnels(ctx context.Context, client *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error)
 	StartTunnel(c *clientdata.Client, r *models.Remote, acl *clienttunnel.TunnelACL) (*clienttunnel.Tunnel, error)
 	FindTunnel(c *clientdata.Client, id string) *clienttunnel.Tunnel
 	FindTunnelByRemote(c *clientdata.Client, r *models.Remote) *clienttunnel.Tunnel
-	TerminateTunnel(c *clientdata.Client, t *clienttunnel.Tunnel, force bool) error
-	SetTunnelACL(c *clientdata.Client, t *clienttunnel.Tunnel, aclStr *string) error
+	TerminateTunnel(ctx context.Context, c *clientdata.Client, t *clienttunnel.Tunnel, force bool) error
+	SetTunnelACL(ctx context.Context, c *clientdata.Client, t *clienttunnel.Tunnel, aclStr *string) error
 }
 
 type ClientServiceProvider struct {
@@ -249,7 +249,7 @@ func (s *ClientServiceProvider) GetMaxClients() (maxClients int) {
 	return maxClients
 }
 
-func (s *ClientServiceProvider) UpdateClientStatus() {
+func (s *ClientServiceProvider) UpdateClientStatus(ctx context.Context) {
 	// only proceed if the plus manager is available and license info has been received
 	if s.licensecap == nil || (s.licensecap != nil && !s.licensecap.LicenseInfoAvailable()) {
 		return
@@ -257,7 +257,7 @@ func (s *ClientServiceProvider) UpdateClientStatus() {
 
 	s.log().Debugf("updating client status")
 
-	clientList := s.repo.GetAllActiveClients()
+	clientList := s.repo.GetAllActiveClients(ctx)
 
 	for i, client := range clientList {
 		if i < s.GetMaxClients() {
@@ -268,32 +268,35 @@ func (s *ClientServiceProvider) UpdateClientStatus() {
 	}
 }
 
-func (s *ClientServiceProvider) Count() int {
-	return s.repo.Count()
+func (s *ClientServiceProvider) Count(ctx context.Context) int {
+	return s.repo.Count(ctx)
 }
 
-func (s *ClientServiceProvider) CountActive() int {
-	return s.repo.CountActive()
+func (s *ClientServiceProvider) CountActive(ctx context.Context) int {
+	return s.repo.CountActive(ctx)
 }
 
-func (s *ClientServiceProvider) CountDisconnected() (int, error) {
-	return s.repo.CountDisconnected()
+func (s *ClientServiceProvider) CountDisconnected(ctx context.Context) (int, error) {
+	return s.repo.CountDisconnected(ctx)
 }
 
-func (s *ClientServiceProvider) GetByID(id string) (*clientdata.Client, error) {
-	return s.repo.GetByID(id)
+func (s *ClientServiceProvider) GetByID(ctx context.Context, id string) (*clientdata.Client, error) {
+	return s.repo.GetByID(ctx, id)
 }
 
-func (s *ClientServiceProvider) GetActiveByID(id string) (*clientdata.Client, error) {
-	return s.repo.GetActiveByID(id)
+func (s *ClientServiceProvider) GetActiveByID(ctx context.Context, id string) (*clientdata.Client, error) {
+	return s.repo.GetActiveByID(ctx, id)
 }
 
-func (s *ClientServiceProvider) GetByGroups(groups []*cgroups.ClientGroup) ([]*clientdata.Client, error) {
+func (s *ClientServiceProvider) GetByGroups(ctx context.Context, groups []*cgroups.ClientGroup) ([]*clientdata.Client, error) {
 	if len(groups) == 0 {
 		return nil, nil
 	}
+	if _, err := tenantOf(ctx); err != nil {
+		return nil, err
+	}
 
-	allClients := s.repo.GetAllClients()
+	allClients := s.repo.GetAllClients(ctx)
 
 	var res []*clientdata.Client
 	for _, cur := range allClients {
@@ -304,12 +307,12 @@ func (s *ClientServiceProvider) GetByGroups(groups []*cgroups.ClientGroup) ([]*c
 	return res, nil
 }
 
-func (s *ClientServiceProvider) GetClientsByTag(tags []string, operator string, allowDisconnected bool) (clients []*clientdata.Client, err error) {
-	return s.repo.GetClientsByTag(tags, operator, allowDisconnected)
+func (s *ClientServiceProvider) GetClientsByTag(ctx context.Context, tags []string, operator string, allowDisconnected bool) (clients []*clientdata.Client, err error) {
+	return s.repo.GetClientsByTag(ctx, tags, operator, allowDisconnected)
 }
 
-func (s *ClientServiceProvider) PopulateGroupsWithUserClients(groups []*cgroups.ClientGroup, user User) {
-	availableClients := s.repo.GetUserClients(user, groups)
+func (s *ClientServiceProvider) PopulateGroupsWithUserClients(ctx context.Context, groups []*cgroups.ClientGroup, user User) {
+	availableClients := s.repo.GetUserClients(ctx, user, groups)
 	for _, client := range availableClients {
 		clientID := client.GetID()
 		for _, curGroup := range groups {
@@ -323,20 +326,20 @@ func (s *ClientServiceProvider) PopulateGroupsWithUserClients(groups []*cgroups.
 	}
 }
 
-func (s *ClientServiceProvider) GetAllByClientID(clientID string) []*clientdata.Client {
-	return s.repo.GetAllByClientAuthID(clientID)
+func (s *ClientServiceProvider) GetAllByClientID(ctx context.Context, clientID string) []*clientdata.Client {
+	return s.repo.GetAllByClientAuthID(ctx, clientID)
 }
 
-func (s *ClientServiceProvider) GetAll() []*clientdata.Client {
-	return s.repo.GetAllClients()
+func (s *ClientServiceProvider) GetAll(ctx context.Context) []*clientdata.Client {
+	return s.repo.GetAllClients(ctx)
 }
 
-func (s *ClientServiceProvider) GetUserClients(groups []*cgroups.ClientGroup, user User) []*clientdata.Client {
-	return s.repo.GetUserClients(user, groups)
+func (s *ClientServiceProvider) GetUserClients(ctx context.Context, groups []*cgroups.ClientGroup, user User) []*clientdata.Client {
+	return s.repo.GetUserClients(ctx, user, groups)
 }
 
-func (s *ClientServiceProvider) GetFilteredUserClients(user User, filterOptions []query.FilterOption, groups []*cgroups.ClientGroup) ([]*clientdata.CalculatedClient, error) {
-	return s.repo.GetFilteredUserClients(user, filterOptions, groups)
+func (s *ClientServiceProvider) GetFilteredUserClients(ctx context.Context, user User, filterOptions []query.FilterOption, groups []*cgroups.ClientGroup) ([]*clientdata.CalculatedClient, error) {
+	return s.repo.GetFilteredUserClients(ctx, user, filterOptions, groups)
 }
 
 func (s *ClientServiceProvider) StartClient(
@@ -353,9 +356,9 @@ func (s *ClientServiceProvider) StartClient(
 	}
 
 	// if client id is in use, deny connection
-	client, err := repo.GetByID(clientID)
+	client, err := repo.GetByID(ctx, clientID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get client by id %q", clientID)
+		return nil, fmt.Errorf("failed to get client by id %q: %w", clientID, err)
 	}
 
 	// if found existing client
@@ -397,7 +400,7 @@ func (s *ClientServiceProvider) StartClient(
 	}
 
 	// check if client auth ID is already used by another client
-	if !authMultiuseCreds && s.isClientAuthIDInUse(clientAuthID, clientID) {
+	if !authMultiuseCreds && s.isClientAuthIDInUse(ctx, clientAuthID, clientID) {
 		clog.Debugf("client auth ID is already in use: %s: %q: ", clientID, clientAuthID)
 		return nil, fmt.Errorf("client auth ID is already in use: %q", clientAuthID)
 	}
@@ -406,7 +409,7 @@ func (s *ClientServiceProvider) StartClient(
 
 	client.SetConnected()
 
-	s.UpdateClientStatus()
+	s.UpdateClientStatus(ctx)
 
 	if !client.IsPaused() {
 		_, err = s.startClientTunnels(client, req.Remotes, clog)
@@ -416,13 +419,13 @@ func (s *ClientServiceProvider) StartClient(
 		}
 	}
 
-	err = repo.Save(client)
+	err = repo.Save(ctx, client)
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: (rs): should we keep this?
-	totalClients := repo.GetAllActiveClients()
+	totalClients := repo.GetAllActiveClients(ctx)
 	s.log().Debugf("total clients = %d (last: %s)", len(totalClients), client.GetName())
 
 	return client, nil
@@ -493,7 +496,7 @@ loop2:
 }
 
 // StartClientTunnels returns a new tunnel for each requested remote or nil if error occurred
-func (s *ClientServiceProvider) StartClientTunnels(client *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
+func (s *ClientServiceProvider) StartClientTunnels(ctx context.Context, client *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
 	s.logger.Debugf("starting client tunnels: %s", client.GetID())
 
 	newTunnels, err := s.startClientTunnels(client, remotes, s.log())
@@ -501,7 +504,7 @@ func (s *ClientServiceProvider) StartClientTunnels(client *clientdata.Client, re
 		return nil, err
 	}
 
-	err = s.repo.Save(client)
+	err = s.repo.Save(ctx, client)
 	if err != nil {
 		return nil, err
 	}
@@ -577,17 +580,17 @@ func (s *ClientServiceProvider) checkLocalPort(protocol, port string) error {
 	return nil
 }
 
-func (s *ClientServiceProvider) Terminate(client *clientdata.Client) error {
+func (s *ClientServiceProvider) Terminate(ctx context.Context, client *clientdata.Client) error {
 	s.log().Infof("terminating client: %s: %s", client.GetID(), client.GetName())
 	keepDisconnectedClientsDuration := s.repo.GetKeepDisconnectedClients()
 	if keepDisconnectedClientsDuration != nil && *keepDisconnectedClientsDuration == 0 {
-		return s.repo.Delete(client)
+		return s.repo.Delete(ctx, client)
 	}
 
 	client.SetDisconnectedNow()
 
 	// Do not save if client doesn't exist in repo - it was force deleted
-	existing, err := s.repo.GetByID(client.GetID())
+	existing, err := s.repo.GetByID(ctx, client.GetID())
 	if err != nil {
 		return err
 	}
@@ -595,14 +598,14 @@ func (s *ClientServiceProvider) Terminate(client *clientdata.Client) error {
 		return nil
 	}
 
-	s.UpdateClientStatus()
+	s.UpdateClientStatus(ctx)
 
-	return s.repo.Save(client)
+	return s.repo.Save(ctx, client)
 }
 
 // ForceDelete deletes client from repo regardless off KeepDisconnectedClients setting,
 // if client is active it will be closed
-func (s *ClientServiceProvider) ForceDelete(client *clientdata.Client) error {
+func (s *ClientServiceProvider) ForceDelete(ctx context.Context, client *clientdata.Client) error {
 	s.logger.Debugf("force deleting client: %s", client.GetID())
 
 	if client.IsConnected() {
@@ -610,13 +613,13 @@ func (s *ClientServiceProvider) ForceDelete(client *clientdata.Client) error {
 			return err
 		}
 	}
-	return s.repo.Delete(client)
+	return s.repo.Delete(ctx, client)
 }
 
-func (s *ClientServiceProvider) DeleteOffline(clientID string) error {
+func (s *ClientServiceProvider) DeleteOffline(ctx context.Context, clientID string) error {
 	s.logger.Debugf("deleting offline client: %s", clientID)
 
-	existing, err := s.getExistingClientByID(clientID)
+	existing, err := s.getExistingClientByID(ctx, clientID)
 	if err != nil {
 		return err
 	}
@@ -628,12 +631,12 @@ func (s *ClientServiceProvider) DeleteOffline(clientID string) error {
 		}
 	}
 
-	return s.repo.Delete(existing)
+	return s.repo.Delete(ctx, existing)
 }
 
 // isClientAuthIDInUse returns true when the client with different id exists for the client auth
-func (s *ClientServiceProvider) isClientAuthIDInUse(clientAuthID, clientID string) bool {
-	for _, client := range s.repo.GetAllByClientAuthID(clientAuthID) {
+func (s *ClientServiceProvider) isClientAuthIDInUse(ctx context.Context, clientAuthID, clientID string) bool {
+	for _, client := range s.repo.GetAllByClientAuthID(ctx, clientAuthID) {
 		if client.GetID() != clientID {
 			return true
 		}
@@ -641,41 +644,41 @@ func (s *ClientServiceProvider) isClientAuthIDInUse(clientAuthID, clientID strin
 	return false
 }
 
-func (s *ClientServiceProvider) SetACL(clientID string, allowedUserGroups []string) error {
-	client, err := s.getExistingClientByID(clientID)
+func (s *ClientServiceProvider) SetACL(ctx context.Context, clientID string, allowedUserGroups []string) error {
+	client, err := s.getExistingClientByID(ctx, clientID)
 	if err != nil {
 		return err
 	}
 
 	client.SetAllowedUserGroups(allowedUserGroups)
 
-	return s.repo.Save(client)
+	return s.repo.Save(ctx, client)
 }
 
-func (s *ClientServiceProvider) SetUpdatesStatus(clientID string, updatesStatus *models.UpdatesStatus) error {
-	client, err := s.getExistingClientByID(clientID)
+func (s *ClientServiceProvider) SetUpdatesStatus(ctx context.Context, clientID string, updatesStatus *models.UpdatesStatus) error {
+	client, err := s.getExistingClientByID(ctx, clientID)
 	if err != nil {
 		return err
 	}
 
 	client.SetUpdatesStatus(updatesStatus)
 
-	return s.repo.Save(client)
+	return s.repo.Save(ctx, client)
 }
 
-func (s *ClientServiceProvider) SetIPAddresses(clientID string, IPAddresses *models.IPAddresses) error {
-	client, err := s.getExistingClientByID(clientID)
+func (s *ClientServiceProvider) SetIPAddresses(ctx context.Context, clientID string, IPAddresses *models.IPAddresses) error {
+	client, err := s.getExistingClientByID(ctx, clientID)
 	if err != nil {
 		return err
 	}
 
 	client.SetIPAddresses(IPAddresses)
 
-	return s.repo.Save(client)
+	return s.repo.Save(ctx, client)
 }
 
-func (s *ClientServiceProvider) SetLastHeartbeat(clientID string, heartbeat time.Time) error {
-	existing, err := s.getExistingClientByID(clientID)
+func (s *ClientServiceProvider) SetLastHeartbeat(ctx context.Context, clientID string, heartbeat time.Time) error {
+	existing, err := s.getExistingClientByID(ctx, clientID)
 	if err != nil {
 		return err
 	}
@@ -685,8 +688,8 @@ func (s *ClientServiceProvider) SetLastHeartbeat(clientID string, heartbeat time
 
 // CheckClientAccess returns nil if a given user has an access to a given client.
 // Otherwise, APIError with 403 is returned.
-func (s *ClientServiceProvider) CheckClientAccess(clientID string, user User, groups []*cgroups.ClientGroup) error {
-	existing, err := s.getExistingClientByID(clientID)
+func (s *ClientServiceProvider) CheckClientAccess(ctx context.Context, clientID string, user User, groups []*cgroups.ClientGroup) error {
+	existing, err := s.getExistingClientByID(ctx, clientID)
 	if err != nil {
 		return err
 	}
@@ -722,7 +725,7 @@ func (s *ClientServiceProvider) CheckClientsAccess(clients []*clientdata.Client,
 }
 
 // getExistingClientByID returns non-nil client by id. If not found or failed to get a client - an error is returned.
-func (s *ClientServiceProvider) getExistingClientByID(clientID string) (*clientdata.Client, error) {
+func (s *ClientServiceProvider) getExistingClientByID(ctx context.Context, clientID string) (*clientdata.Client, error) {
 	if clientID == "" {
 		return nil, apiErrors.APIError{
 			Message:    "Client id is empty",
@@ -730,7 +733,7 @@ func (s *ClientServiceProvider) getExistingClientByID(clientID string) (*clientd
 		}
 	}
 
-	existing, err := s.repo.GetByID(clientID)
+	existing, err := s.repo.GetByID(ctx, clientID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find a client with id=%q: %w", clientID, err)
 	}
@@ -1017,7 +1020,8 @@ func (s *ClientServiceProvider) cleanupAfterAutoClose(c *clientdata.Client, t *c
 
 	c.RemoveTunnelByID(t.ID)
 
-	err := s.repo.Save(c)
+	// runs in a tunnel goroutine: the client's context carries its tenant
+	err := s.repo.Save(c.GetContext(), c)
 	if err != nil {
 		clientLogger.Errorf("unable to save client after auto close cleanup: %v", err)
 	}
@@ -1025,7 +1029,7 @@ func (s *ClientServiceProvider) cleanupAfterAutoClose(c *clientdata.Client, t *c
 	clientLogger.Debugf("auto closed tunnel with id=%s removed", t.ID)
 }
 
-func (s *ClientServiceProvider) TerminateTunnel(c *clientdata.Client, t *clienttunnel.Tunnel, force bool) error {
+func (s *ClientServiceProvider) TerminateTunnel(ctx context.Context, c *clientdata.Client, t *clienttunnel.Tunnel, force bool) error {
 	clientLogger := c.Log()
 
 	clientLogger.Infof("Terminating tunnel %s (force: %v) ...", t.ID, force)
@@ -1049,7 +1053,7 @@ func (s *ClientServiceProvider) TerminateTunnel(c *clientdata.Client, t *clientt
 
 	c.RemoveTunnelByID(t.ID)
 
-	err = s.repo.Save(c)
+	err = s.repo.Save(ctx, c)
 	if err != nil {
 		clientLogger.Errorf("unable to save client after auto close cleanup: %v", err)
 	}
@@ -1058,7 +1062,7 @@ func (s *ClientServiceProvider) TerminateTunnel(c *clientdata.Client, t *clientt
 	return nil
 }
 
-func (s *ClientServiceProvider) SetTunnelACL(c *clientdata.Client, t *clienttunnel.Tunnel, aclStr *string) error {
+func (s *ClientServiceProvider) SetTunnelACL(ctx context.Context, c *clientdata.Client, t *clienttunnel.Tunnel, aclStr *string) error {
 	var err error
 	var acl *clienttunnel.TunnelACL
 
@@ -1075,7 +1079,7 @@ func (s *ClientServiceProvider) SetTunnelACL(c *clientdata.Client, t *clienttunn
 		t.InternalTunnelProxy.SetACL(acl)
 	}
 
-	err = s.repo.Save(c)
+	err = s.repo.Save(ctx, c)
 	if err != nil {
 		c.Log().Errorf("unable to save client after tunnel ACL update: %v", err)
 	}

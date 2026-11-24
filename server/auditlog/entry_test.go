@@ -3,6 +3,7 @@ package auditlog
 import (
 	"context"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -12,7 +13,9 @@ import (
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/auditlog/config"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func TestEntry(t *testing.T) {
@@ -100,15 +103,45 @@ func TestWithClientID(t *testing.T) {
 	auditLog := enabledAuditLog()
 	auditLog.clientGetter = &mockClientGetter{}
 
+	ctx := tenant.WithID(context.Background(), tenant.Default)
+
 	t.Run("client exists", func(t *testing.T) {
-		e := auditLog.Entry("", "").WithClientID("11236310-6cad-408e-b372-a0f04d68d2df")
+		e := auditLog.Entry("", "").WithContext(ctx).WithClientID("11236310-6cad-408e-b372-a0f04d68d2df")
 		assert.Equal(t, "11236310-6cad-408e-b372-a0f04d68d2df", e.ClientID)
 		assert.Equal(t, "hostname", e.ClientHostName)
 	})
 
 	t.Run("client does not exist", func(t *testing.T) {
-		e := auditLog.Entry("", "").WithClientID("2e7bf232-b4aa-4cdb-a7bb-d28f63712c2d")
+		e := auditLog.Entry("", "").WithContext(ctx).WithClientID("2e7bf232-b4aa-4cdb-a7bb-d28f63712c2d")
 		assert.Equal(t, "2e7bf232-b4aa-4cdb-a7bb-d28f63712c2d", e.ClientID)
+		assert.Equal(t, "", e.ClientHostName)
+	})
+}
+
+func TestWithClientIDLooksUpClientInEntryTenant(t *testing.T) {
+	auditLog := enabledAuditLog()
+	auditLog.logger = logger.NewLogger("auditlog-test", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug)
+	getter := &mockClientGetter{}
+	auditLog.clientGetter = getter
+	const cid = "11236310-6cad-408e-b372-a0f04d68d2df"
+
+	t.Run("tenant from the http request", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+		req = req.WithContext(tenant.WithID(api.WithUser(req.Context(), "admin"), "a"))
+		e := auditLog.Entry("", "").WithHTTPRequest(req).WithClientID(cid)
+		assert.Equal(t, tenant.ID("a"), getter.gotTenant)
+		assert.Equal(t, "hostname", e.ClientHostName)
+	})
+
+	t.Run("tenant from WithContext", func(t *testing.T) {
+		e := auditLog.Entry("", "").WithContext(tenant.WithID(context.Background(), "b")).WithClientID(cid)
+		assert.Equal(t, tenant.ID("b"), getter.gotTenant)
+		assert.Equal(t, "hostname", e.ClientHostName)
+	})
+
+	t.Run("no tenant", func(t *testing.T) {
+		e := auditLog.Entry("", "").WithClientID(cid)
+		assert.Equal(t, cid, e.ClientID)
 		assert.Equal(t, "", e.ClientHostName)
 	})
 }
@@ -170,9 +203,16 @@ func emptyEntry() *Entry {
 }
 
 type mockClientGetter struct {
+	gotTenant tenant.ID
 }
 
-func (mockClientGetter) GetByID(id string) (*clientdata.Client, error) {
+func (m *mockClientGetter) GetByID(ctx context.Context, id string) (*clientdata.Client, error) {
+	tid, err := tenant.FromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m.gotTenant = tid
+
 	c1 := clientdata.Client{}
 	c1.SetID("11236310-6cad-408e-b372-a0f04d68d2df")
 	c1.SetAddress("127.0.0.1")

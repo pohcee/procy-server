@@ -20,6 +20,7 @@ import (
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/clientsauth"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var (
@@ -126,6 +127,7 @@ func TestHandleGetClientsAuth(t *testing.T) {
 
 			// when
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/clients-auth", nil)
+			req = req.WithContext(tenant.WithID(req.Context(), tenant.Default))
 			q := req.URL.Query()
 			q.Add("page[limit]", "3")
 			q.Add("filter[id]", tc.idFilter)
@@ -342,6 +344,7 @@ func TestHandlePostClientsAuth(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/clients-auth", tc.requestBody)
+			req = req.WithContext(tenant.WithID(req.Context(), tenant.Default))
 
 			// when
 			handler := http.HandlerFunc(al.handlePostClientsAuth)
@@ -364,7 +367,7 @@ func TestHandlePostClientsAuth(t *testing.T) {
 			filter := &query.ListOptions{
 				Pagination: query.NewPagination(5, 0),
 			}
-			clients, _, err := al.clientAuthProvider.GetFiltered(filter)
+			clients, _, err := al.clientAuthProvider.GetFiltered(clientsTestCtx, filter)
 			require.NoError(err)
 			assert.ElementsMatch(tc.wantClientsAuth, clients)
 		})
@@ -551,11 +554,11 @@ func TestHandleDeleteClientAuth(t *testing.T) {
 			filter := &query.ListOptions{
 				Pagination: query.NewPagination(5, 0),
 			}
-			clients, _, err := al.clientAuthProvider.GetFiltered(filter)
+			clients, _, err := al.clientAuthProvider.GetFiltered(clientsTestCtx, filter)
 			require.NoError(err)
 			assert.ElementsMatch(tc.wantClientsAuth, clients, "clients auth not as expected")
 			assert.Equal(tc.wantClosedConn, mockConn.closed)
-			allClients := al.clientService.GetAll()
+			allClients := al.clientService.GetAll(clientsTestCtx)
 			assert.ElementsMatch(tc.wantClients, allClients)
 		})
 	}

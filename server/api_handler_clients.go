@@ -62,7 +62,7 @@ func (al *APIListener) handleGetClient(w http.ResponseWriter, req *http.Request)
 	vars := mux.Vars(req)
 	clientID := vars[routes.ParamClientID]
 
-	client, err := al.clientService.GetByID(clientID)
+	client, err := al.clientService.GetByID(req.Context(), clientID)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -85,7 +85,7 @@ func (al *APIListener) handleGetClient(w http.ResponseWriter, req *http.Request)
 func (al *APIListener) handleDeleteClient(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	clientID := vars[routes.ParamClientID]
-	err := al.clientService.DeleteOffline(clientID)
+	err := al.clientService.DeleteOffline(req.Context(), clientID)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -125,7 +125,7 @@ func (al *APIListener) handlePostClientACL(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	err = al.clientService.SetACL(cid, reqBody.AllowedUserGroups)
+	err = al.clientService.SetACL(req.Context(), cid, reqBody.AllowedUserGroups)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -169,7 +169,7 @@ func (al *APIListener) handleGetClients(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	filteredClients, err := al.clientService.GetFilteredUserClients(curUser, options.Filters, groups)
+	filteredClients, err := al.clientService.GetFilteredUserClients(req.Context(), curUser, options.Filters, groups)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -212,7 +212,7 @@ func (al *APIListener) handlePutClientTunnel(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	client, err := al.clientService.GetActiveByID(clientID)
+	client, err := al.clientService.GetActiveByID(req.Context(), clientID)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
@@ -337,7 +337,7 @@ func (al *APIListener) handlePutClientTunnel(w http.ResponseWriter, req *http.Re
 	remote.Owner = currUser.Username
 
 	// start the new tunnel only
-	tunnels, err := al.clientService.StartClientTunnels(client, []*models.Remote{remote})
+	tunnels, err := al.clientService.StartClientTunnels(req.Context(), client, []*models.Remote{remote})
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -513,7 +513,7 @@ func (al *APIListener) handleDeleteClientTunnel(w http.ResponseWriter, req *http
 		}
 	}
 
-	client, err := al.clientService.GetActiveByID(clientID)
+	client, err := al.clientService.GetActiveByID(req.Context(), clientID)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
@@ -547,7 +547,7 @@ func (al *APIListener) handleDeleteClientTunnel(w http.ResponseWriter, req *http
 		return
 	}
 
-	err = al.clientService.TerminateTunnel(client, tunnel, force)
+	err = al.clientService.TerminateTunnel(req.Context(), client, tunnel, force)
 	if err != nil {
 		al.jsonErrorResponseWithTitle(w, http.StatusConflict, err.Error())
 		return
@@ -573,7 +573,7 @@ func (al *APIListener) handlePutClientTunnelACL(w http.ResponseWriter, req *http
 		return
 	}
 
-	client, err := al.clientService.GetActiveByID(clientID)
+	client, err := al.clientService.GetActiveByID(req.Context(), clientID)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
@@ -604,7 +604,7 @@ func (al *APIListener) handlePutClientTunnelACL(w http.ResponseWriter, req *http
 		return
 	}
 
-	err = al.clientService.SetTunnelACL(client, tunnel, reqBody.ACL)
+	err = al.clientService.SetTunnelACL(req.Context(), client, tunnel, reqBody.ACL)
 	if err != nil {
 		al.jsonErrorResponseWithTitle(w, http.StatusBadRequest, err.Error())
 		return

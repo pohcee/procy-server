@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -12,7 +11,7 @@ import (
 )
 
 func TestClientsSqliteProvider(t *testing.T) {
-	ctx := context.Background()
+	ctx := defaultCtx
 	keepLost := hour
 	p := NewFakeClientProvider(t, &keepLost)
 	defer p.Close()

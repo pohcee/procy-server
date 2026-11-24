@@ -125,7 +125,7 @@ func (al *APIListener) StartMultiClientJob(ctx context.Context, multiJobRequest 
 				return nil, err
 			}
 		} else {
-			multiJobRequest.OrderedClients, err = al.getOrderedClientsByTag(multiJobRequest.ClientTags)
+			multiJobRequest.OrderedClients, err = al.getOrderedClientsByTag(ctx, multiJobRequest.ClientTags)
 			if err != nil {
 				return nil, err
 			}
@@ -239,7 +239,7 @@ func (al *APIListener) prepareLibraryMultiJob(ctx context.Context, entryID strin
 		if !hasClientTags(req) {
 			req.OrderedClients, _, err = al.getOrderedClients(ctx, req.ClientIDs, req.GroupIDs)
 		} else {
-			req.OrderedClients, err = al.getOrderedClientsByTag(req.ClientTags)
+			req.OrderedClients, err = al.getOrderedClientsByTag(ctx, req.ClientTags)
 		}
 		if err != nil {
 			return nil, nil, err

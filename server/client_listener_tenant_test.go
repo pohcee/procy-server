@@ -63,7 +63,7 @@ func TestMeasurementFromClientIsQueuedWithTheClientsTenant(t *testing.T) {
 
 type noClients struct{}
 
-func (noClients) GetByID(string) (*clientdata.Client, error) { return nil, nil }
+func (noClients) GetByID(context.Context, string) (*clientdata.Client, error) { return nil, nil }
 
 func TestCmdResultAuditEntryIsSavedForTheClientsTenant(t *testing.T) {
 	jp := makeJobsProvider(t, DataSourceOptions, testLog)

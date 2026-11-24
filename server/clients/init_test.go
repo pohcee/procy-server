@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -11,7 +10,7 @@ import (
 )
 
 func TestGetInitState(t *testing.T) {
-	ctx := context.Background()
+	ctx := defaultCtx
 	c1 := New(t).ID("client-1").Logger(testLog).Build()
 	wantC1 := shallowCopy(c1)
 

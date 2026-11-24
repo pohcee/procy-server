@@ -104,7 +104,7 @@ func TestStartClient(t *testing.T) {
 				logger:          testLog,
 			}
 			_, err := cs.StartClient(
-				context.Background(), tc.ClientAuthID, tc.ClientID, connMock, "", tc.AuthMultiuseCreds,
+				defaultCtx, tc.ClientAuthID, tc.ClientID, connMock, "", tc.AuthMultiuseCreds,
 				&chshare.ConnectionRequest{}, testLog)
 			assert.Equal(t, tc.ExpectedError, err)
 		})
@@ -157,7 +157,7 @@ func TestStartClientConcurrency(t *testing.T) {
 		mockConns = append(mockConns, mockConn)
 	}
 
-	repo, err := InitClientRepository(context.Background(), clientDB, nil, testLog)
+	repo, err := InitClientRepository(defaultCtx, clientDB, nil, testLog)
 	require.NoError(t, err)
 
 	cs := &ClientServiceProvider{
@@ -175,7 +175,7 @@ func TestStartClientConcurrency(t *testing.T) {
 			client := clients[i]
 
 			_, err := cs.StartClient(
-				context.Background(),
+				defaultCtx,
 				client.GetClientAuthID(),
 				client.GetID(),
 				mockConns[i],
@@ -217,7 +217,7 @@ func TestStartClientDisconnected(t *testing.T) {
 	}
 
 	client, err := cs.StartClient(
-		context.Background(), "test-client-auth", "disconnected-client", connMock, "", false,
+		defaultCtx, "test-client-auth", "disconnected-client", connMock, "", false,
 		&chshare.ConnectionRequest{Name: "new-connection", Version: "0.7.0"}, testLog)
 	assert.NoError(t, err)
 
@@ -276,11 +276,11 @@ func TestDeleteOfflineClient(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// given
 			clientService := NewClientService(nil, nil, NewClientRepository([]*clientdata.Client{c1Active, c2Active, c3Offline, c4Offline}, &hour, testLog), testLog, nil)
-			before := clientService.Count()
+			before := clientService.Count(defaultCtx)
 			require.Equal(t, 4, before)
 
 			// when
-			gotErr := clientService.DeleteOffline(tc.clientID)
+			gotErr := clientService.DeleteOffline(defaultCtx, tc.clientID)
 
 			// then
 			require.Equal(t, tc.wantError, gotErr)
@@ -290,7 +290,7 @@ func TestDeleteOfflineClient(t *testing.T) {
 			} else {
 				wantAfter = before - 1
 			}
-			gotAfter := clientService.Count()
+			gotAfter := clientService.Count(defaultCtx)
 			assert.Equal(t, wantAfter, gotAfter)
 		})
 	}
@@ -945,7 +945,7 @@ func TestShouldStartTunnelsWithSubdomains(t *testing.T) {
 			c1 := New(t).ID("client-1").ClientAuthID(cl1.ID).Logger(testLog).Build()
 			c1.Connection = connMock
 			c1.Logger = testLog
-			c1.Context = context.Background()
+			c1.Context = defaultCtx
 
 			internalTunnelProxyConfig := &clienttunnel.InternalTunnelProxyConfig{
 				Enabled:  true,
@@ -971,7 +971,7 @@ func TestShouldStartTunnelsWithSubdomains(t *testing.T) {
 			requestedRemote.HTTPProxy = true
 			requestedRemote.TunnelURL = "https://12345678.tunnels.rport.test"
 
-			newTunnels, err := clientService.StartClientTunnels(
+			newTunnels, err := clientService.StartClientTunnels(defaultCtx,
 				c1,
 				[]*models.Remote{requestedRemote},
 			)
@@ -987,7 +987,7 @@ func TestShouldStartTunnelsWithSubdomains(t *testing.T) {
 			assert.Equal(t, requestedRemote.RemotePort, newTunnel.RemotePort)
 			assert.Equal(t, requestedRemote.TunnelURL, newTunnel.Remote.TunnelURL)
 
-			err = clientService.TerminateTunnel(c1, newTunnel, true)
+			err = clientService.TerminateTunnel(defaultCtx, c1, newTunnel, true)
 			require.NoError(t, err)
 
 			assert.Equal(t, "12345678", mockCaddyAPI.DeletedRouteID)
