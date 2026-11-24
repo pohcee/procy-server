@@ -132,6 +132,38 @@ Windows versions before Windows 11 and Server 2022 cannot use TLS 1.3. Keep `tls
 `"1.2"`, if you have such clients; with `"1.3"` they cannot download the installer, the update script or the client.
 {{< /hint >}}
 
+## Moving clients to a new server address
+
+Clients connect to the address in `server` in their `rport.conf`, and try `fallback_servers` when it can't be
+reached. To move them to a new address, for example after a domain change, keep the old address working until every
+client has moved:
+
+1. Point the new names at the server, and list them in `[server] url` in `rportd.conf`, the one clients should use
+   first. The others become the clients' fallback servers:
+
+   ```toml
+   [server]
+     url = ["http://connect.example.com", "http://eu.connect.example.com"]
+   ```
+
+   Restart `rportd`. New "Install client" one-liners now use the first URL. Unspecified and loopback addresses
+   (`0.0.0.0`, `127.0.0.1`, `localhost`) are never sent to clients.
+2. Run the built-in library entry **Switch server** on a few test clients, then on the rest. It runs the update
+   script with `-S` (Linux) or `-s` (Windows), which changes only `server` and `fallback_servers` in the `[client]`
+   section and restarts the client under the same supervisor as an update: if the client does not reconnect within
+   two minutes, the previous `rport.conf` is restored. The result is in the same `status.json` as an update.
+3. Watch progress. Each client shows the hostname it connected with ("Connected via" on the device page,
+   `connected_host` in the API). Clients still on the old name:
+
+   ```text
+   GET /api/v1/clients?filter[connected_host]=old.example.com&fields[clients]=id,name,connected_host
+   ```
+
+   `meta.count` is the number left. Clients that are offline keep the name of their last connection, so they stay
+   in this list until they come back and are switched.
+4. Keep the old name resolving to the server until that count is 0, plus a grace period for clients that are
+   rarely online.
+
 ## Security notes
 
 * A pairing code gives access to the client credentials embedded in the installer. Codes are 20 random characters,

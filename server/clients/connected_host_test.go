@@ -57,3 +57,13 @@ func TestConnectedHostInPayload(t *testing.T) {
 	assert.Equal(t, "connect.procy.sh", *p.ConnectedHost)
 	assert.True(t, OptionsSupportedFilters["connected_host"])
 }
+
+func TestFilterByConnectedHost(t *testing.T) {
+	old := &clientdata.Client{ID: "old", ConnectedHost: "rport.example.com", Logger: testLog}
+	moved := &clientdata.Client{ID: "moved", ConnectedHost: "connect.example.com", Logger: testLog}
+	repo := NewClientRepository([]*clientdata.Client{old, moved}, nil, testLog)
+	got, err := repo.GetFilteredUserClients(admin, []query.FilterOption{{Column: []string{"connected_host"}, Values: []string{"rport.example.com"}}}, nil)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "old", got[0].ID)
+}
