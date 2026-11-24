@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -172,4 +173,16 @@ func TestUserTenantNeedsPostgres(t *testing.T) {
 func memLog() *logger.MemLogger {
 	l := logger.NewMemLogger()
 	return &l
+}
+
+func TestImportAndTenantAddRefuseRoot(t *testing.T) {
+	asRoot(t)
+	writePostgresConfig(t, "postgres://rport_app@127.0.0.1:1/none")
+	setFlag(t, importFrom, t.TempDir())
+	err := runImport(context.Background(), strings.NewReader(""), io.Discard, io.Discard)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "root")
+	err = runTenantAdd(logger.NewLogger("tenant", logger.LogOutput{File: os.Stdout}, logger.LogLevelInfo), []string{"acme"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "root")
 }

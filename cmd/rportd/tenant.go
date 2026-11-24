@@ -51,6 +51,9 @@ func runTenantAdd(out *logger.Logger, args []string) error {
 	if !cfg.Storage.IsPostgres() {
 		return errors.New(`tenants exist only with [storage] backend = "postgres"`)
 	}
+	if rootRefused(cfg) {
+		return errors.New(rootRefusedMsg)
+	}
 	id := tenant.ID(args[0])
 	if id == "" {
 		return errors.New("the tenant id must not be empty")

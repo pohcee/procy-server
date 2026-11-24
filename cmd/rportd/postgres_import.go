@@ -58,6 +58,9 @@ func runImport(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer) e
 	if !cfg.Storage.IsPostgres() {
 		return errors.New(`rportd import needs [storage] backend = "postgres" in the config (-c) of the server to import into`)
 	}
+	if rootRefused(cfg) {
+		return errors.New(rootRefusedMsg)
+	}
 	tid := tenant.ID(*importTenant)
 	if tid == "" {
 		tid = tenant.Default
