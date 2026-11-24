@@ -78,10 +78,11 @@ func TestMeasurementsIsolateTenants(t *testing.T) {
 	defer p.Close()
 	a, b := ctxFor("a"), ctxFor("b")
 
-	// the same client ID and timestamp can exist in both tenants
+	// the same client ID can exist in both tenants (the key stays (client_id, timestamp), see
+	// TestUpgradeAddsTenantColumnInPlace, so the timestamps differ)
 	require.NoError(t, p.CreateMeasurement(a, tenantMeasurement("c1", measurement1, 10)))
 	require.NoError(t, p.CreateMeasurement(a, tenantMeasurement("c1", measurement2, 11)))
-	require.NoError(t, p.CreateMeasurement(b, tenantMeasurement("c1", measurement1, 20)))
+	require.NoError(t, p.CreateMeasurement(b, tenantMeasurement("c1", measurement1.Add(time.Second), 20)))
 
 	count, err := p.CountByClientID(a, "c1", createMetricsDefaultOptions())
 	require.NoError(t, err)
@@ -144,7 +145,7 @@ func TestDowngradeKeepsOnlyDefaultMeasurements(t *testing.T) {
 	p, err := NewSqliteProvider(path, DataSourceOptions, testLog)
 	require.NoError(t, err)
 	require.NoError(t, p.CreateMeasurement(ctxFor(tenant.Default), tenantMeasurement("c1", measurement1, 1)))
-	require.NoError(t, p.CreateMeasurement(ctxFor("other"), tenantMeasurement("c1", measurement1, 2)))
+	require.NoError(t, p.CreateMeasurement(ctxFor("other"), tenantMeasurement("c1", measurement1.Add(time.Second), 2)))
 	require.NoError(t, p.Close())
 
 	db := migrateTo(t, path, 3)
@@ -152,4 +153,26 @@ func TestDowngradeKeepsOnlyDefaultMeasurements(t *testing.T) {
 	var cpus []float64
 	require.NoError(t, db.Select(&cpus, "SELECT cpu_usage_percent FROM measurements"))
 	assert.Equal(t, []float64{1}, cpus)
+}
+
+// Measurements can be several GB: the upgrade adds the tenant column in place instead of copying the
+// table (which needs as much free space again and takes long). The key stays (client_id, timestamp).
+func TestUpgradeAddsTenantColumnInPlace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "monitoring.db")
+	old := migrateTo(t, path, 3)
+	_, err := old.Exec(`INSERT INTO measurements (client_id, timestamp, cpu_usage_percent, memory_usage_percent, io_usage_percent, processes, mountpoints)
+		VALUES ('legacy', ?, 42, 0, 0, '[]', '{}')`, measurement1)
+	require.NoError(t, err)
+	var rootBefore int
+	require.NoError(t, old.Get(&rootBefore, "SELECT rootpage FROM sqlite_master WHERE type='table' AND name='measurements'"))
+	require.NoError(t, old.Close())
+
+	db := migrateTo(t, path, 4)
+	defer db.Close()
+	var rootAfter int
+	require.NoError(t, db.Get(&rootAfter, "SELECT rootpage FROM sqlite_master WHERE type='table' AND name='measurements'"))
+	assert.Equal(t, rootBefore, rootAfter, "the table is not rebuilt")
+	var tid string
+	require.NoError(t, db.Get(&tid, "SELECT tenant_id FROM measurements WHERE client_id='legacy'"))
+	assert.Equal(t, "default", tid)
 }
