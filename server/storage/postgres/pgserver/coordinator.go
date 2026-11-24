@@ -72,6 +72,9 @@ func NewCoordinator(ctx context.Context, db *sqlx.DB, nodeID string, log *logger
 	if _, err := rand.Read(suffix); err != nil {
 		return nil, err
 	}
+	if err := changefeed.CheckNotAhead(ctx, db); err != nil {
+		return nil, err
+	}
 	head, err := changefeed.Head(ctx, db)
 	if err != nil {
 		return nil, err

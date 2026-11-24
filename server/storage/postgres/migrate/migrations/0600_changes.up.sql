@@ -36,6 +36,8 @@ INSERT INTO changes_horizon DEFAULT VALUES;
 -- the rows are written by the SECURITY DEFINER functions below, owned by the schema owner. RLS is not forced, so the
 -- owner's writes (also those of a tenant deletion cascading to tracked tables) are not refused for want of
 -- rport.tenant_id.
+-- The read-all policy shows the application role the keys (usernames, client ids) of every tenant's changes; the
+-- role sees every tenant anyway, as it sets rport.tenant_id itself.
 ALTER TABLE changes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY changes_read ON changes FOR SELECT USING (true);
 ALTER TABLE changes_horizon ENABLE ROW LEVEL SECURITY;
@@ -107,7 +109,10 @@ DECLARE
     top_seq bigint;
 BEGIN
     -- rows of one transaction share at (its start time), so they are removed together
-    WITH d AS (DELETE FROM changes WHERE at < now() - keep RETURNING tx_id, seq),
+    -- only rows of transactions older than every running one: the horizon must never pass a transaction whose rows
+    -- readers haven't seen yet (a transaction running for longer than keep)
+    WITH d AS (DELETE FROM changes WHERE at < now() - keep AND tx_id < pg_snapshot_xmin(pg_current_snapshot())
+               RETURNING tx_id, seq),
          n AS (SELECT count(*) AS n FROM d),
          top AS (SELECT tx_id, seq FROM d ORDER BY tx_id DESC, seq DESC LIMIT 1)
     SELECT n.n, top.tx_id, top.seq INTO removed, top_tx, top_seq FROM n LEFT JOIN top ON true;
@@ -118,3 +123,9 @@ BEGIN
     RETURN removed;
 END
 $$;
+
+-- Only the trigger and the nodes (through migrate.GrantApp) may use these: any other role could otherwise prune the
+-- feed (forcing every node to reload) or attach the trigger function to a table of its own to forge feed rows.
+REVOKE EXECUTE ON FUNCTION rport_record_change() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION rport_prune_changes(interval) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION rport_track_changes(regclass, text, text, text) FROM PUBLIC;

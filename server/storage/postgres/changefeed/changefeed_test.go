@@ -13,6 +13,7 @@ import (
 
 	"github.com/openrport/openrport/server/storage/postgres"
 	"github.com/openrport/openrport/server/storage/postgres/changefeed"
+	"github.com/openrport/openrport/server/storage/postgres/migrate"
 	"github.com/openrport/openrport/server/storage/postgres/pgtest"
 	"github.com/openrport/openrport/share/tenant"
 )
@@ -37,6 +38,22 @@ func exec(t *testing.T, db *sqlx.DB, tid tenant.ID, q string, args ...any) {
 	}))
 }
 
+// readUntil reads until at least n changes after after were consumed (or 10s passed): on a Postgres server shared
+// with other tests, a transaction elsewhere can hold rows back for a moment.
+func readUntil(t *testing.T, db *sqlx.DB, after changefeed.Cursor, n int) ([]changefeed.Change, changefeed.Cursor) {
+	t.Helper()
+	var all []changefeed.Change
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		cs, next := readAll(t, db, after)
+		all, after = append(all, cs...), next
+		if len(all) >= n || time.Now().After(deadline) {
+			return all, after
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func readAll(t *testing.T, db *sqlx.DB, after changefeed.Cursor) ([]changefeed.Change, changefeed.Cursor) {
 	t.Helper()
 	cs, next, err := changefeed.Read(context.Background(), db, after, 1000)
@@ -58,7 +75,7 @@ func TestFeedRecordsChangesOfTrackedTables(t *testing.T) {
 	// not tracked: no feed row
 	exec(t, d.App, "a", "INSERT INTO library_meta (tenant_id, key, value) VALUES ('a', 'k', 'v')")
 
-	cs, next := readAll(t, d.App, head)
+	cs, next := readUntil(t, d.App, head, 6)
 	assert.Equal(t, []got{
 		{"a", "users", "alice", "insert"},
 		{"b", "clients_auth", "c1", "insert"},
@@ -101,7 +118,7 @@ func TestFeedTenantDeletionIsRecorded(t *testing.T) {
 	require.NoError(t, err)
 	_, err = d.Owner.Exec("DELETE FROM tenants WHERE id = 'a'")
 	require.NoError(t, err, "the owner's cascading delete writes feed rows")
-	cs, _ := readAll(t, d.App, head)
+	cs, _ := readUntil(t, d.App, head, 1)
 	assert.Contains(t, simplify(cs), got{"a", "users", "alice", "delete"})
 }
 
@@ -137,7 +154,7 @@ func TestFeedLateCommitIsNotSkipped(t *testing.T) {
 	assert.Empty(t, cs, "both transactions running: nothing to consume")
 
 	require.NoError(t, early.Commit())
-	cs, cur = readAll(t, d.App, cur)
+	cs, cur = readUntil(t, d.App, cur, 1)
 	assert.Equal(t, []got{{"a", "users", "early", "insert"}}, simplify(cs), "early is older than every running transaction")
 
 	// late's row has a lower seq than the row just consumed: a seq cursor would skip it
@@ -149,7 +166,7 @@ func TestFeedLateCommitIsNotSkipped(t *testing.T) {
 	require.NoError(t, d.Owner.Get(&lateSeq, "SELECT seq FROM changes WHERE key = 'late'"))
 	require.Less(t, lateSeq, earlySeq, "the case under test: the late commit has the lower seq")
 
-	cs, _ = readAll(t, d.App, cur)
+	cs, _ = readUntil(t, d.App, cur, 1)
 	assert.Equal(t, []got{{"a", "users", "late", "insert"}}, simplify(cs), "the late commit is consumed after all")
 }
 
@@ -167,7 +184,7 @@ func TestFeedRunningTransactionHoldsBackLaterCommits(t *testing.T) {
 	cs, cur := readAll(t, d.App, head)
 	assert.Empty(t, cs, "second committed, but an older transaction is still running")
 	require.NoError(t, first.Commit())
-	cs, _ = readAll(t, d.App, cur)
+	cs, _ = readUntil(t, d.App, cur, 2)
 	assert.Equal(t, []got{{"a", "users", "first", "insert"}, {"a", "users", "second", "insert"}}, simplify(cs))
 }
 
@@ -180,7 +197,7 @@ func TestFeedRolledBackWritesLeaveNoRows(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tx.Rollback())
 	exec(t, d.App, "a", "INSERT INTO users (tenant_id, username) VALUES ('a', 'kept')")
-	cs, _ := readAll(t, d.App, head)
+	cs, _ := readUntil(t, d.App, head, 1)
 	assert.Equal(t, []got{{"a", "users", "kept", "insert"}}, simplify(cs))
 }
 
@@ -195,14 +212,18 @@ func TestFeedRetention(t *testing.T) {
 	n, err := changefeed.Prune(ctx, d.App, time.Hour)
 	require.NoError(t, err)
 	assert.Zero(t, n, "nothing is an hour old")
-	cs, _ := readAll(t, d.App, head)
+	cs, caughtUp := readUntil(t, d.App, head, 2)
 	assert.Len(t, cs, 2)
 
-	caughtUp, err := changefeed.Head(ctx, d.App)
-	require.NoError(t, err)
-	n, err = changefeed.Prune(ctx, d.App, 0)
-	require.NoError(t, err)
-	assert.EqualValues(t, 2, n)
+	// prune removes only rows of transactions older than every running one: retry while one elsewhere holds them
+	var removed int64
+	require.Eventually(t, func() bool {
+		n, err := changefeed.Prune(ctx, d.App, 0)
+		require.NoError(t, err)
+		removed += n
+		return removed >= 2
+	}, 10*time.Second, 20*time.Millisecond)
+	assert.EqualValues(t, 2, removed)
 
 	_, _, err = changefeed.Read(ctx, d.App, head, 10)
 	assert.ErrorIs(t, err, changefeed.ErrTooFarBehind, "a reader before the pruned rows missed them")
@@ -214,7 +235,7 @@ func TestFeedRetention(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, fresh.Less(caughtUp), "the head of an empty feed is the horizon")
 	exec(t, d.App, "a", "INSERT INTO users (tenant_id, username) VALUES ('a', 'u3')")
-	cs, _ = readAll(t, d.App, fresh)
+	cs, _ = readUntil(t, d.App, fresh, 1)
 	assert.Equal(t, []got{{"a", "users", "u3", "insert"}}, simplify(cs))
 }
 
@@ -298,4 +319,47 @@ func TestFollowerResetsWhenBehindRetention(t *testing.T) {
 	require.Eventually(t, func() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.resets == 1 }, 10*time.Second, 20*time.Millisecond)
 	exec(t, d.App, "a", "INSERT INTO users (tenant_id, username) VALUES ('a', 'after')")
 	require.Eventually(t, func() bool { return assert.ObjectsAreEqual([]string{"after"}, r.keys()) }, 10*time.Second, 20*time.Millisecond)
+}
+
+func TestFeedAheadOfDatabaseIsRefusedAndResetByMigrate(t *testing.T) {
+	d := pgtest.New(t, "a")
+	ctx := context.Background()
+	require.NoError(t, changefeed.CheckNotAhead(ctx, d.App))
+	// as after a restore into a server whose transaction ids are lower than the dumped ones
+	_, err := d.Owner.Exec("UPDATE changes_horizon SET tx_id = '900000000000', seq = 7")
+	require.NoError(t, err)
+	assert.ErrorIs(t, changefeed.CheckNotAhead(ctx, d.App), changefeed.ErrAhead)
+
+	_, err = migrate.Up(ctx, d.Owner)
+	require.NoError(t, err)
+	require.NoError(t, changefeed.CheckNotAhead(ctx, d.App), "rportd migrate resets the feed")
+	head, err := changefeed.Head(ctx, d.App)
+	require.NoError(t, err)
+	exec(t, d.App, "a", "INSERT INTO users (tenant_id, username) VALUES ('a', 'after-reset')")
+	cs, _ := readUntil(t, d.App, head, 1)
+	assert.Equal(t, []got{{"a", "users", "after-reset", "insert"}}, simplify(cs))
+}
+
+func TestFollowerReportsStall(t *testing.T) {
+	d := pgtest.New(t, "a")
+	errs := make(chan error, 10)
+	f := &changefeed.Follower{DB: d.App, PollInterval: 30 * time.Millisecond, StallWarning: 200 * time.Millisecond,
+		OnError: func(err error) {
+			select {
+			case errs <- err:
+			default:
+			}
+		}}
+	follow(t, f)
+	idle := begin(t, d.App)
+	_, err := idle.Exec("INSERT INTO users (tenant_id, username) VALUES ('a', 'idle')")
+	require.NoError(t, err)
+	exec(t, d.App, "a", "INSERT INTO users (tenant_id, username) VALUES ('a', 'waiting')")
+	select {
+	case err := <-errs:
+		assert.ErrorIs(t, err, changefeed.ErrStalled)
+	case <-time.After(10 * time.Second):
+		t.Fatal("no stall reported")
+	}
+	require.NoError(t, idle.Rollback())
 }

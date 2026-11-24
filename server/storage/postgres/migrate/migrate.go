@@ -116,7 +116,35 @@ func Up(ctx context.Context, db *sqlx.DB) ([]int64, error) {
 			applied = append(applied, m.Version)
 		}
 	}
+	if err := resetFeedIfAhead(ctx, db); err != nil {
+		return applied, err
+	}
 	return applied, nil
+}
+
+// resetFeedIfAhead empties the change feed when it holds transaction ids this database hasn't reached: it was
+// copied from another Postgres cluster (pg_dump and restore), and would otherwise deliver nothing. Nodes must not be
+// running; they take a fresh head when they start.
+func resetFeedIfAhead(ctx context.Context, db *sqlx.DB) error {
+	return inLock(ctx, db, func(tx *sqlx.Tx) error {
+		var exists bool
+		if err := tx.GetContext(ctx, &exists, "SELECT to_regclass('changes_horizon') IS NOT NULL"); err != nil || !exists {
+			return err
+		}
+		var ahead bool
+		if err := tx.GetContext(ctx, &ahead, `SELECT greatest((SELECT coalesce(max(tx_id), '0'::xid8) FROM changes), (SELECT tx_id FROM changes_horizon))
+			>= pg_snapshot_xmax(pg_current_snapshot())`); err != nil {
+			return fmt.Errorf("migrate: check the change feed: %w", err)
+		}
+		if !ahead {
+			return nil
+		}
+		if _, err := tx.ExecContext(ctx, "TRUNCATE changes"); err != nil {
+			return fmt.Errorf("migrate: reset the change feed: %w", err)
+		}
+		_, err := tx.ExecContext(ctx, "UPDATE changes_horizon SET tx_id = '0', seq = 0")
+		return err
+	})
 }
 
 // Check returns an error unless every embedded migration has been applied.
@@ -156,6 +184,7 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, changes, changes_horizon FROM " + q,
+		"GRANT EXECUTE ON FUNCTION rport_prune_changes(interval) TO " + q,
 	}
 	for _, s := range stmts {
 		if _, err := db.ExecContext(ctx, s); err != nil {

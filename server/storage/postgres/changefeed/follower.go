@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,7 +19,13 @@ const Channel = "rport_changes"
 const (
 	DefaultPollInterval = 3 * time.Second
 	DefaultBatch        = 500
+	// DefaultStallWarning is how long committed changes may be held back by a running transaction before the
+	// follower reports it.
+	DefaultStallWarning = 30 * time.Second
 )
+
+// ErrStalled is reported (OnError) while committed changes wait for an older transaction that is still running.
+var ErrStalled = errors.New("changefeed: committed changes are held back by a transaction still running on the database server; changes reach this node late (an idle transaction? see idle_in_transaction_session_timeout)")
 
 // Follower follows the feed from its head: it reads new changes whenever a notification arrives on Channel, and
 // at least every PollInterval (a lost notification only adds delay), and hands them to OnChanges in order. When it
@@ -35,6 +42,11 @@ type Follower struct {
 	Batch        int
 	// From, when set, is where the follower starts instead of the head (a reader resuming where it stopped).
 	From *Cursor
+	// StallWarning: report ErrStalled when changes have been held back this long (default DefaultStallWarning),
+	// at most once per StallWarning.
+	StallWarning time.Duration
+
+	heldSince, warned time.Time
 
 	mu     sync.Mutex
 	cursor Cursor
@@ -131,6 +143,7 @@ func (f *Follower) drain(ctx context.Context, batch int) {
 		}
 		f.setCursor(next)
 		if len(changes) < batch {
+			f.checkStall(ctx)
 			return
 		}
 	}
@@ -192,4 +205,34 @@ func (f *Follower) listenOnce(ctx context.Context, wake chan<- struct{}) error {
 			}
 		}
 	})
+}
+
+// checkStall, after a drain consumed everything it could, reports ErrStalled when committed rows have been waiting
+// (for an older transaction to end) for longer than StallWarning.
+func (f *Follower) checkStall(ctx context.Context) {
+	warnAfter := f.StallWarning
+	if warnAfter <= 0 {
+		warnAfter = DefaultStallWarning
+	}
+	cur := f.Cursor()
+	var held bool
+	err := f.DB.GetContext(ctx, &held, "SELECT EXISTS (SELECT 1 FROM changes WHERE (tx_id, seq) > ($1::text::xid8, $2))",
+		strconv.FormatUint(cur.TxID, 10), cur.Seq)
+	if err != nil {
+		f.report(err)
+		return
+	}
+	now := time.Now()
+	if !held {
+		f.heldSince = time.Time{}
+		return
+	}
+	if f.heldSince.IsZero() {
+		f.heldSince = now
+		return
+	}
+	if now.Sub(f.heldSince) >= warnAfter && now.Sub(f.warned) >= warnAfter {
+		f.warned = now
+		f.report(fmt.Errorf("%w (for %s)", ErrStalled, now.Sub(f.heldSince).Round(time.Second)))
+	}
 }

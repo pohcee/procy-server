@@ -186,3 +186,24 @@ func Prune(ctx context.Context, db *sqlx.DB, keep time.Duration) (int64, error) 
 	}
 	return n, nil
 }
+
+// aheadQuery is true when the feed holds transaction ids this database hasn't reached: it was copied from another
+// Postgres cluster (pg_dump and restore, logical replication) whose ids were higher. Every new row would sort below
+// every reader's cursor, and the feed would deliver nothing.
+const aheadQuery = `SELECT greatest((SELECT coalesce(max(tx_id), '0'::xid8) FROM changes), (SELECT tx_id FROM changes_horizon))
+	>= pg_snapshot_xmax(pg_current_snapshot())`
+
+// ErrAhead is returned by CheckNotAhead.
+var ErrAhead = errors.New(`changefeed: the change feed holds transaction ids this database hasn't reached (was it restored from a dump of another server?); run "rportd migrate" to reset the feed`)
+
+// CheckNotAhead returns ErrAhead when the feed can't work on this database (see ResetIfAhead).
+func CheckNotAhead(ctx context.Context, db *sqlx.DB) error {
+	var ahead bool
+	if err := db.GetContext(ctx, &ahead, aheadQuery); err != nil {
+		return fmt.Errorf("changefeed: check: %w", err)
+	}
+	if ahead {
+		return ErrAhead
+	}
+	return nil
+}
