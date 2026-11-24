@@ -223,7 +223,8 @@ rportd org activate acme -c /etc/rport/rportd.conf
   The password must be changed at the first login. Logins are unique across organizations.
 * `suspend` takes effect on the next request: the organization's users can't log in, and their sessions and API
   tokens stop working. `activate` undoes it. Organizations are not deleted.
-* The device limit is the most devices an organization may have (unlimited when not set).
+* The device limit is the most devices an organization may have (unlimited when not set). In this preview it is
+  stored and shown, and enforced only once devices of every organization connect (device login per organization).
 
 The same actions are in the **operator API** under `/api/v1/operator` (see the API reference, tag *Operator*), for
 administrators of `_system` only: other organizations get 404, other `_system` users 403, and servers on SQLite

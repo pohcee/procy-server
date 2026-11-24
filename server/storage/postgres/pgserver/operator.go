@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"regexp"
 	"strings"
@@ -42,6 +43,8 @@ type Operator struct {
 	db    *sqlx.DB
 	users *users.APIService
 	now   func() time.Time
+	// passwordLength is the length of generated passwords: at least [api] password_min_length
+	passwordLength int
 }
 
 var _ operator.Service = (*Operator)(nil)
@@ -53,11 +56,18 @@ func NewOperator(db *sqlx.DB, cfg *chconfig.Config) *Operator {
 		db:    db,
 		users: users.NewAPIService(pgusers.New(db), cfg.API.IsTwoFAOn(), cfg.API.PasswordMinLength, cfg.API.PasswordZxcvbnMinscore),
 		now:   time.Now,
+
+		passwordLength: max(generatedPasswordLength, cfg.API.PasswordMinLength),
 	}
 }
 
 func (o *Operator) inSystem(ctx context.Context, fn func(tx *sqlx.Tx) error) error {
-	return postgres.InTenantID(ctx, o.db, operator.SystemTenant, fn)
+	err := postgres.InTenantID(ctx, o.db, operator.SystemTenant, fn)
+	if isCode(err, "42501") {
+		// an application role granted before migration 1050
+		return fmt.Errorf("%w (give the application role the operator privileges: run \"rportd migrate --grant-to ROLE\" as the schema owner)", err)
+	}
+	return err
 }
 
 const organizationColumns = "id, name, status, created_at, max_clients"
@@ -127,8 +137,8 @@ func counts(ctx context.Context, tx *sqlx.Tx, org *operator.Organization) error 
 }
 
 func validLimit(limit *int) error {
-	if limit != nil && *limit < 0 {
-		return fmt.Errorf("%w: device_limit must not be negative", operator.ErrInvalid)
+	if limit != nil && (*limit < 0 || *limit > math.MaxInt32) {
+		return fmt.Errorf("%w: device_limit must be between 0 and %d", operator.ErrInvalid, math.MaxInt32)
 	}
 	return nil
 }
@@ -241,7 +251,7 @@ func (o *Operator) AddAdmin(ctx context.Context, by operator.Actor, id string, i
 	case status != operator.StatusActive:
 		return nil, fmt.Errorf("organization %q: %w", id, operator.ErrNotActive)
 	}
-	password, err := generatePassword()
+	password, err := generatePassword(o.passwordLength)
 	if err != nil {
 		return nil, err
 	}
@@ -300,8 +310,8 @@ func isCode(err error, code string) bool {
 }
 
 // generatePassword returns a random password for a new administrator, shown once.
-func generatePassword() (string, error) {
-	b := make([]byte, generatedPasswordLength)
+func generatePassword(n int) (string, error) {
+	b := make([]byte, n)
 	maxIdx := big.NewInt(int64(len(generatedPasswordChars)))
 	for i := range b {
 		n, err := rand.Int(rand.Reader, maxIdx)

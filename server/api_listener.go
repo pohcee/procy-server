@@ -36,6 +36,7 @@ import (
 	"github.com/openrport/openrport/server/notifications/channels/toLog"
 	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
 	"github.com/openrport/openrport/server/operator"
+	"github.com/openrport/openrport/server/routes"
 
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/jobs/schedule"
@@ -544,7 +545,7 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 			case authorization.APITokenReadWrite:
 				return true, username, nil
 			case authorization.APITokenClientsAuth:
-				if strings.Contains(urlpath, "clients-auth") {
+				if isClientsAuthRoute(urlpath) {
 					return true, username, nil
 				}
 			}
@@ -553,6 +554,13 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 	}
 
 	return false, username, nil
+}
+
+// isClientsAuthRoute reports whether urlpath is one of the client credential routes a clients-auth token may use:
+// the path, not any path containing the text (an organization id may contain "clients-auth").
+func isClientsAuthRoute(urlpath string) bool {
+	rest := strings.TrimPrefix(urlpath, routes.AllRoutesPrefix)
+	return rest == "/clients-auth" || strings.HasPrefix(rest, "/clients-auth/")
 }
 
 func (al *APIListener) checkBearerToken(ctx context.Context, bearerToken, uri, method string) (bool, *bearer.TokenContext, error) {

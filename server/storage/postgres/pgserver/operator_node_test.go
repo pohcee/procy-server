@@ -122,6 +122,9 @@ func TestNodeOperatorAPIRefusesOthers(t *testing.T) {
 		code, out = h.do(t, http.MethodGet, path, op, nil)
 		assert.Equal(t, http.StatusForbidden, code, "%s: %s", path, out["_raw"])
 	}
+	// websockets too (they authenticate themselves, outside the guarded routes)
+	code, out = h.do(t, http.MethodGet, "/ws/library-entries?access_token="+op, "", nil)
+	assert.Equal(t, http.StatusForbidden, code, out["_raw"])
 	code, out = h.do(t, http.MethodGet, "/users", op, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Len(t, out["data"], 2, "only the operators themselves: %s", out["_raw"])

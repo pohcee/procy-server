@@ -1,6 +1,7 @@
 -- Organizations run by platform operators: the system tenant, device limits and the operator functions.
 
--- max_clients: the most devices (clients) an organization may have; NULL is unlimited. Enforced at device login.
+-- max_clients: the most devices (clients) an organization may have; NULL is unlimited. Enforced at device login by
+-- the device-login work of the organization core (migrations 1000–1049), not by this migration.
 -- IF NOT EXISTS: the device-login work may add the same column.
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS max_clients integer CHECK (max_clients IS NULL OR max_clients >= 0);
 

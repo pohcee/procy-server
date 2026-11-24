@@ -301,3 +301,27 @@ func TestOperatorAuditLog(t *testing.T) {
 	}))
 	assert.Zero(t, n, "operator actions are logged in the system tenant, not the organization")
 }
+
+func TestOperatorLimitsAndPasswordLength(t *testing.T) {
+	d := pgtest.New(t)
+	ctx := context.Background()
+	o := NewOperator(d.App, &chconfig.Config{API: chconfig.APIConfig{PasswordMinLength: 40}})
+	_, err := o.Create(ctx, ops, operator.NewOrganization{ID: "big", DeviceLimit: intp(1 << 40)})
+	assert.ErrorIs(t, err, operator.ErrInvalid, "beyond a Postgres integer: 400, not 500")
+	_, err = o.Create(ctx, ops, operator.NewOrganization{ID: "acme"})
+	require.NoError(t, err)
+	_, err = o.SetDeviceLimit(ctx, ops, "acme", intp(1<<31))
+	assert.ErrorIs(t, err, operator.ErrInvalid)
+
+	a, err := o.AddAdmin(ctx, ops, "acme", operator.NewAdmin{Username: "alice"})
+	require.NoError(t, err, "the generated password meets a long password_min_length")
+	assert.Len(t, a.Password, 40)
+}
+
+func TestOperatorWithoutGrantSaysHowToFix(t *testing.T) {
+	o, d := newOperator(t)
+	_, err := d.Owner.Exec("REVOKE EXECUTE ON FUNCTION rport_operator_add_tenant(text, text, integer) FROM " + pgtest.AppRole)
+	require.NoError(t, err)
+	_, err = o.Create(context.Background(), ops, operator.NewOrganization{ID: "acme"})
+	assert.ErrorContains(t, err, "rportd migrate --grant-to")
+}
