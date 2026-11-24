@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -138,9 +139,18 @@ db_name = %q
 	gotGroups, err := pgusers.New(pg.App).ListGroups(ctxDefault)
 	require.NoError(t, err)
 	sameJSON(t, wantGroups, gotGroups)
-	cred, err := pgclientauth.New(pg.App).Get(ctxDefault, "dev-1")
+	assertCredential(ctxDefault, t, pg, "dev-1", "plain-1")
+}
+
+// assertCredential checks that the imported credentials id verify with password, stored as an argon2id hash.
+func assertCredential(ctx context.Context, t *testing.T, pg *pgtest.DB, id, password string) {
+	t.Helper()
+	ok, err := pgclientauth.New(pg.App).Verify(ctx, id, []byte(password))
 	require.NoError(t, err)
-	assert.Equal(t, &clientsauth.ClientAuth{ID: "dev-1", Password: "plain-1"}, cred)
+	assert.True(t, ok, "%s verifies", id)
+	var stored string
+	require.NoError(t, pg.Owner.Get(&stored, "SELECT password FROM clients_auth WHERE id = $1", id))
+	assert.True(t, clientsauth.IsHash(stored), "stored hashed: %s", stored)
 }
 
 func TestImportClientAuthFile(t *testing.T) {
@@ -165,7 +175,10 @@ auth = "admin:static-pass"
 	assert.True(t, hasWarning(rep, "client auth: ids used by another tenant, not imported: dev-taken"), rep.Warnings)
 	got, _, err := pgclientauth.New(pg.App).GetFiltered(ctxDefault, &query.ListOptions{Pagination: query.NewPagination(100, 0)})
 	require.NoError(t, err)
-	assert.Equal(t, wantCreds[:2], got)
+	assert.Equal(t, []string{"dev-1", "dev-2"}, []string{got[0].ID, got[1].ID})
+	for _, c := range wantCreds[:2] {
+		assertCredential(ctxDefault, t, pg, c.ID, c.Password)
+	}
 
 	// the static [api] auth user is stored with a bcrypt hash of its password
 	want(t, rep, entUsers, 1, 1, 0, 0)
@@ -185,9 +198,7 @@ func TestImportStaticClientAuth(t *testing.T) {
 	rep := run(t, pg, Options{From: d.dir, FromConfig: conf})
 	want(t, rep, entClientAuth, 1, 1, 0, 0)
 	assert.True(t, hasWarning(rep, "no API user store"), rep.Warnings)
-	cred, err := pgclientauth.New(pg.App).Get(tenant.WithID(ctxDefault, tenant.Default), "dev-1")
-	require.NoError(t, err)
-	assert.Equal(t, &clientsauth.ClientAuth{ID: "dev-1", Password: "secret"}, cred)
+	assertCredential(tenant.WithID(ctxDefault, tenant.Default), t, pg, "dev-1", "secret")
 }
 
 func TestImportWithoutConfig(t *testing.T) {

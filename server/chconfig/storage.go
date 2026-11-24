@@ -23,7 +23,9 @@ const (
 	StorageRoleAll = "all"
 	// StorageRoleAPI serves the API only: no client listener, work on clients is refused as "not connected".
 	StorageRoleAPI = "api"
-	// StorageRoleDevice is reserved for a node that serves only the client listener.
+	// StorageRoleDevice serves only the client listener ([api] address must be empty), connected as the device
+	// database role: device-path lookups and ingest functions only, what devices report written through a local
+	// outbox.
 	StorageRoleDevice = "device"
 )
 
@@ -47,7 +49,7 @@ type StorageConfig struct {
 	DSN string `mapstructure:"dsn"`
 	// DSNFile is a file holding the DSN (surrounding whitespace is ignored).
 	DSNFile string `mapstructure:"dsn_file"`
-	// Role is what a Postgres node serves: "all" (default) or "api".
+	// Role is what a Postgres node serves: "all" (default), "api" or "device".
 	Role string `mapstructure:"role"`
 }
 
@@ -121,6 +123,9 @@ func (c *Config) parseAndValidateStorage() error {
 		if err := s.parseAndValidatePostgres(); err != nil {
 			return err
 		}
+		if s.Role == StorageRoleDevice && c.API.Address != "" {
+			return fmt.Errorf(`[storage] role = "device" serves no API: [api] address must be empty (it is %q); run the API in a process with role "api"`, c.API.Address)
+		}
 		if err := c.refuseLocalAuthSources(); err != nil {
 			return err
 		}
@@ -158,11 +163,9 @@ func (s *StorageConfig) parseAndValidatePostgres() error {
 	switch s.Role {
 	case "":
 		s.Role = StorageRoleAll
-	case StorageRoleAll, StorageRoleAPI:
-	case StorageRoleDevice:
-		return fmt.Errorf("storage role %q is not yet supported", s.Role)
+	case StorageRoleAll, StorageRoleAPI, StorageRoleDevice:
 	default:
-		return fmt.Errorf(`invalid [storage] role %q: expected "all" or "api"`, s.Role)
+		return fmt.Errorf(`invalid [storage] role %q: expected "all", "api" or "device"`, s.Role)
 	}
 	return nil
 }
@@ -232,6 +235,14 @@ func (c *Config) warnPostgresSettings(mLog *logger.MemLogger) {
 
 func (c *Config) parseAndValidateVault() error {
 	v := &c.Vault
+	// vault data never reaches a device process
+	if c.Storage.IsPostgres() && c.Storage.Role == StorageRoleDevice {
+		if v.KeyProvider != "" || v.KMSKey != "" || v.LocalKeyFile != "" {
+			return errors.New(`[vault] is not used with [storage] role = "device": a device process has no access to the vault; remove the [vault] settings`)
+		}
+		v.KeyProvider = KeyProviderPassphrase
+		return nil
+	}
 	// the passphrase unlocks the vault in one process: the other nodes sharing the database could not open it
 	if c.Storage.IsPostgres() && (v.KeyProvider == "" || v.KeyProvider == KeyProviderPassphrase) {
 		return errors.New(`[vault] key_provider = "passphrase" is not supported with [storage] backend = "postgres": several nodes can share the database and the passphrase unlocks only one; set key_provider = "kms" or "local"`)

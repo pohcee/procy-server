@@ -25,7 +25,7 @@ func TestMain(m *testing.M) { pgtest.Main(m) }
 func TestContract(t *testing.T) {
 	repotest.ClientAuth(t, func(t *testing.T) clientsauth.Provider {
 		return New(pgtest.New(t, repotest.TenantA, repotest.TenantB).App)
-	}, repotest.ClientAuthOptions{})
+	}, repotest.ClientAuthOptions{Hashed: true})
 }
 
 func TestProviderKind(t *testing.T) {
@@ -48,9 +48,9 @@ func TestIDsUniqueAcrossTenants(t *testing.T) {
 	got, err := s.Get(b, "c1")
 	require.NoError(t, err)
 	assert.Nil(t, got)
-	got, err = s.Get(a, "c1")
+	ok, err := s.Verify(a, "c1", []byte("pa"))
 	require.NoError(t, err)
-	assert.Equal(t, "pa", got.Password)
+	assert.True(t, ok, "the first tenant's password is kept")
 }
 
 func TestGetFilteredRefusesUnknownFilter(t *testing.T) {
@@ -113,6 +113,68 @@ func TestDeletingTenantCascades(t *testing.T) {
 	added, err := s.Add(repotest.Ctx(repotest.TenantB), &clientsauth.ClientAuth{ID: "ca", Password: "p"})
 	require.NoError(t, err)
 	assert.True(t, added)
+}
+
+func TestPasswordsStoredHashed(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	s := New(d.App)
+	ctx := repotest.Ctx(repotest.TenantA)
+	in := &clientsauth.ClientAuth{ID: "c1", Password: "secret"}
+	added, err := s.Add(ctx, in)
+	require.NoError(t, err)
+	require.True(t, added)
+	assert.Equal(t, "secret", in.Password, "the caller's value is not changed")
+
+	var stored string
+	require.NoError(t, d.Owner.Get(&stored, "SELECT password FROM clients_auth WHERE id = 'c1'"))
+	assert.True(t, clientsauth.IsHash(stored), stored)
+	assert.True(t, CheckStored(stored, []byte("secret")))
+	assert.False(t, CheckStored(stored, []byte("Secret")))
+
+	// a value that looks like a hash is hashed too (a crafted hash would make every login with the id expensive)
+	added, err = s.Add(ctx, &clientsauth.ClientAuth{ID: "c2", Password: stored})
+	require.NoError(t, err)
+	require.True(t, added)
+	ok, err := s.Verify(ctx, "c2", []byte("secret"))
+	require.NoError(t, err)
+	assert.False(t, ok)
+	ok, err = s.Verify(ctx, "c2", []byte(stored))
+	require.NoError(t, err)
+	assert.True(t, ok, "the value is the password")
+
+	// a stored value with the hash prefix that isn't a valid hash is never compared as plaintext
+	assert.False(t, CheckStored("$argon2id$garbage", []byte("$argon2id$garbage")))
+
+	ok, err = s.Verify(ctx, "missing", []byte("secret"))
+	require.NoError(t, err)
+	assert.False(t, ok)
+	ok, err = s.Verify(repotest.Ctx(repotest.TenantB), "c1", []byte("secret"))
+	require.NoError(t, err)
+	assert.False(t, ok, "another tenant's credentials don't verify")
+}
+
+func TestHashStored(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA, repotest.TenantB)
+	_, err := d.Owner.Exec(`INSERT INTO clients_auth (tenant_id, id, password) VALUES ('a', 'old-a', 'pa'), ('b', 'old-b', 'pb')`)
+	require.NoError(t, err)
+	s := New(d.App)
+	ok, err := s.Verify(repotest.Ctx(repotest.TenantA), "old-a", []byte("pa"))
+	require.NoError(t, err)
+	assert.True(t, ok, "a password stored before hashing still verifies")
+
+	n, err := HashStored(context.Background(), d.Owner)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+	n, err = HashStored(context.Background(), d.Owner)
+	require.NoError(t, err)
+	assert.Zero(t, n, "nothing left to hash")
+
+	ok, err = s.Verify(repotest.Ctx(repotest.TenantB), "old-b", []byte("pb"))
+	require.NoError(t, err)
+	assert.True(t, ok)
+	var plain int
+	require.NoError(t, d.Owner.Get(&plain, "SELECT count(*) FROM clients_auth WHERE password NOT LIKE '$argon2id$%'"))
+	assert.Zero(t, plain)
 }
 
 func TestTenantOfAuthID(t *testing.T) {

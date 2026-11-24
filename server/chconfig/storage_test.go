@@ -102,19 +102,42 @@ func TestStorageDSNFile(t *testing.T) {
 	assert.ErrorContains(t, validate(c), "is empty")
 }
 
-func TestStorageRoleDeviceNotSupported(t *testing.T) {
+func TestStorageRoles(t *testing.T) {
 	c := postgresConfig()
-	c.Storage.Role = "device"
-	assert.ErrorContains(t, validate(c), `storage role "device" is not yet supported`)
-
-	c = postgresConfig()
 	c.Storage.Role = "worker"
-	assert.ErrorContains(t, validate(c), `invalid [storage] role "worker": expected "all" or "api"`)
+	assert.ErrorContains(t, validate(c), `invalid [storage] role "worker": expected "all", "api" or "device"`)
 
 	c = postgresConfig()
 	c.Storage.Role = "api"
 	require.NoError(t, validate(c))
 	assert.Equal(t, StorageRoleAPI, c.Storage.Role)
+}
+
+func TestStorageRoleDeviceRefusesAPIAddress(t *testing.T) {
+	c := postgresConfig()
+	c.Storage.Role = "device"
+	c.API.Address = "0.0.0.0:3000"
+	assert.ErrorContains(t, validate(c), `[api] address must be empty`)
+
+	c = deviceConfig()
+	require.NoError(t, validate(c))
+	assert.Equal(t, StorageRoleDevice, c.Storage.Role)
+}
+
+// deviceConfig is a valid config of a device process: no API, no vault.
+func deviceConfig() *Config {
+	c := postgresConfig()
+	c.Storage.Role = "device"
+	c.API.Address = ""
+	c.Vault = VaultConfig{}
+	return c
+}
+
+func TestStorageRoleDeviceRefusesVault(t *testing.T) {
+	c := deviceConfig()
+	c.Vault.KeyProvider = KeyProviderLocal
+	c.Vault.LocalKeyFile = "/k"
+	assert.ErrorContains(t, validate(c), `[vault] is not used with [storage] role = "device"`)
 }
 
 func TestStoragePostgresRefusesAuthFileAndDatabase(t *testing.T) {

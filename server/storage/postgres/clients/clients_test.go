@@ -96,6 +96,38 @@ func TestRequiresTenantBeforeDatabase(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// A client reported by a device process (client_state, no clients row) is listed with the reported fields and no
+// allowed user groups; deleting it deletes the reported state, so it doesn't come back.
+func TestDeviceReportedClients(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	ctx := repotest.Ctx(repotest.TenantA)
+	_, err := d.Owner.Exec("INSERT INTO clients_auth (tenant_id, id, password) VALUES ('a', 'auth', 'x')")
+	require.NoError(t, err)
+	_, err = d.Owner.Exec(`INSERT INTO client_state (tenant_id, client_id, client_auth_id, details, reported_at, disconnected_at)
+		VALUES ('a', 'dev', 'auth', '{"name":"reported","allowed_user_groups":["x"]}', now(), now() - interval '10 days')`)
+	require.NoError(t, err)
+
+	s := New(d.App, nil)
+	all, err := s.GetAll(ctx, testLog)
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	assert.Equal(t, "reported", all[0].GetName())
+	assert.Empty(t, all[0].GetAllowedUserGroups())
+
+	keep := 24 * time.Hour
+	require.NoError(t, New(d.App, &keep).DeleteObsolete(ctx, testLog))
+	all, err = s.GetAll(ctx, testLog)
+	require.NoError(t, err)
+	assert.Empty(t, all, "obsolete reported state is deleted")
+
+	_, err = d.Owner.Exec(`INSERT INTO client_state (tenant_id, client_id, client_auth_id, details, reported_at) VALUES ('a', 'dev', 'auth', '{}', now())`)
+	require.NoError(t, err)
+	require.NoError(t, s.Delete(ctx, "dev", testLog))
+	all, err = s.GetAll(ctx, testLog)
+	require.NoError(t, err)
+	assert.Empty(t, all)
+}
+
 // A client with a live session in the cluster registry is connected to some node: an old disconnected_at (written
 // by the node that held an older session) neither hides it nor gets it purged.
 func TestLiveSessionKeepsClientFromPurge(t *testing.T) {
@@ -219,6 +251,53 @@ func TestSaveKeepingACLKeepsTheStoredACL(t *testing.T) {
 	assert.Equal(t, []string{"new"}, c.GetAllowedUserGroups(), "and the caller's copy takes it")
 
 	require.NoError(t, s.SaveKeepingACL(a, repotest.StoreClient("c2", nil)), "a new client is inserted")
+}
+
+// An admin setting the ACL of a client only a device process reported creates its clients row; the reported state
+// still wins for everything else.
+func TestSaveAdminFieldsOfReportedClient(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	ctx := repotest.Ctx(repotest.TenantA)
+	_, err := d.Owner.Exec(`INSERT INTO client_state (tenant_id, client_id, client_auth_id, details, reported_at)
+		VALUES ('a', 'dev', 'auth', '{"name":"reported"}', now())`)
+	require.NoError(t, err)
+	s := New(d.App, nil)
+	c, err := s.Get(ctx, "dev", testLog)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	c.SetAllowedUserGroups([]string{"ops"})
+	require.NoError(t, s.SaveAdminFields(ctx, c))
+
+	got, err := s.Get(ctx, "dev", testLog)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ops"}, got.GetAllowedUserGroups())
+	assert.Equal(t, "reported", got.GetName())
+}
+
+// Obsolescence follows client_records: a client connected per its reported state keeps its ACL even when its
+// clients row says it disconnected long ago; a save by a node holding the connection replaces the reported state.
+func TestDeleteObsoleteFollowsReportedState(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	ctx := repotest.Ctx(repotest.TenantA)
+	_, err := d.Owner.Exec(`INSERT INTO clients (tenant_id, id, client_auth_id, disconnected_at, details)
+		VALUES ('a', 'dev', 'auth', now() - interval '30 days', '{"name":"old","allowed_user_groups":["admins"]}')`)
+	require.NoError(t, err)
+	_, err = d.Owner.Exec(`INSERT INTO client_state (tenant_id, client_id, client_auth_id, details, reported_at)
+		VALUES ('a', 'dev', 'auth', '{"name":"now"}', now())`)
+	require.NoError(t, err)
+	keep := 24 * time.Hour
+	s := New(d.App, &keep)
+	require.NoError(t, s.DeleteObsolete(ctx, testLog))
+	c, err := s.Get(ctx, "dev", testLog)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	assert.Equal(t, []string{"admins"}, c.GetAllowedUserGroups())
+
+	c.Name = "saved by the holder"
+	require.NoError(t, s.Save(ctx, c))
+	var n int
+	require.NoError(t, d.Owner.Get(&n, "SELECT count(*) FROM client_state"))
+	assert.Zero(t, n)
 }
 
 // The node that held an older session saving the client as disconnected leaves the newer session's record alone;

@@ -2,7 +2,6 @@ package chserver
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -255,10 +254,11 @@ func (cl *ClientListener) authUser(c ssh.ConnMetadata, password []byte) (*ssh.Pe
 	}
 
 	// the listener context is the server context, so the credentials are looked up in its tenant, unless the
-	// listener serves several tenants: then the client auth id names the tenant
+	// listener serves several tenants: then the client auth id names the tenant. Stored passwords are compared in
+	// constant time, hashed ones (clusters) against their hash.
 	ctx := cl.getCtx()
 	var perms *ssh.Permissions
-	var clientAuth *clientsauth.ClientAuth
+	ok := false
 	tid, found, err := cl.tenantOfClientAuth(ctx, clientAuthID)
 	if err != nil {
 		cl.log().Errorf("Looking up the tenant of client auth id %q failed: %v", clientAuthID, err)
@@ -269,7 +269,7 @@ func (cl *ClientListener) authUser(c ssh.ConnMetadata, password []byte) (*ssh.Pe
 			ctx = tenant.WithID(ctx, tid)
 			perms = &ssh.Permissions{Extensions: map[string]string{permTenant: string(tid)}}
 		}
-		clientAuth, err = cl.server.clientAuthProvider.Get(ctx, clientAuthID)
+		ok, err = clientsauth.Verify(ctx, cl.server.clientAuthProvider, clientAuthID, password)
 		if err != nil {
 			cl.log().Errorf("Reading the credentials of client auth id %q failed: %v", clientAuthID, err)
 			return nil, err
@@ -277,8 +277,7 @@ func (cl *ClientListener) authUser(c ssh.ConnMetadata, password []byte) (*ssh.Pe
 	}
 
 	ip := cl.getIP(c.RemoteAddr())
-	// constant time compare is used for security reasons
-	if clientAuth == nil || subtle.ConstantTimeCompare([]byte(clientAuth.Password), password) != 1 {
+	if !ok {
 		cl.log().Debugf("Login failed for client auth id: %s", clientAuthID)
 		cl.bannedClientAuths.Add(clientAuthID)
 		if cl.bannedIPs != nil {

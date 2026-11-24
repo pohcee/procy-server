@@ -95,7 +95,7 @@ func TestFeedTracksEveryCachedTable(t *testing.T) {
 	var tables []string
 	require.NoError(t, d.Owner.Select(&tables, `SELECT c.relname FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
 		WHERE t.tgname = 'record_change' ORDER BY 1`))
-	assert.Equal(t, []string{"api_sessions", "api_tokens", "client_groups", "clients", "clients_auth", "groups",
+	assert.Equal(t, []string{"api_sessions", "api_tokens", "client_groups", "client_state", "clients", "clients_auth", "groups",
 		"library_entries", "schedules", "stored_tunnels", "user_groups", "users", "vault_wrapped_keys"}, tables)
 }
 

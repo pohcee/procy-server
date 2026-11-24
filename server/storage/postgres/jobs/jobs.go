@@ -493,3 +493,36 @@ func toMultiJobRow(tid tenant.ID, job *models.MultiJob) *multiJobInsert {
 		RunError: strings.ReplaceAll(job.Error, "\x00", ""),
 	}
 }
+
+// Columns are a job as the jobs table stores it, with the JSON names the ingest function ingest_job_results takes.
+type Columns struct {
+	JID        string     `json:"jid"`
+	Status     string     `json:"status"`
+	StartedAt  time.Time  `json:"started_at"`
+	FinishedAt *time.Time `json:"finished_at"`
+	CreatedBy  string     `json:"created_by"`
+	ClientID   string     `json:"client_id"`
+	MultiJobID *string    `json:"multi_job_id"`
+	// Details is the job document as SaveJob writes it.
+	Details string `json:"details"`
+}
+
+// EncodeJob returns job as SaveJob would store it (for a device process, which ships job results through
+// ingest_job_results instead of writing the table).
+func EncodeJob(job *models.Job) (Columns, error) {
+	r := toJobRow("", job)
+	v, err := r.Details.Value()
+	if err != nil {
+		return Columns{}, err
+	}
+	details, ok := v.(string)
+	if !ok {
+		if b, isBytes := v.([]byte); isBytes {
+			details = string(b)
+		} else {
+			return Columns{}, fmt.Errorf("jobs: unexpected details type %T", v)
+		}
+	}
+	return Columns{JID: job.JID, Status: job.Status, StartedAt: job.StartedAt, FinishedAt: job.FinishedAt,
+		CreatedBy: job.CreatedBy, ClientID: job.ClientID, MultiJobID: job.MultiJobID, Details: details}, nil
+}

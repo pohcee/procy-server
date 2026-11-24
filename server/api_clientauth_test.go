@@ -2,6 +2,7 @@ package chserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -562,6 +563,71 @@ func TestHandleDeleteClientAuth(t *testing.T) {
 			assert.Equal(tc.wantClosedConn, mockConn.closed)
 			allClients := al.clientService.GetAll(clientsTestCtx)
 			assert.ElementsMatch(tc.wantClients, allClients)
+		})
+	}
+}
+
+// hashingAuthProvider stores only hashes, like the Postgres provider of a cluster.
+type hashingAuthProvider struct {
+	*clientsauth.DatabaseProvider
+	hashes map[string]string
+}
+
+func (p *hashingAuthProvider) Add(_ context.Context, c *clientsauth.ClientAuth) (bool, error) {
+	h, err := clientsauth.HashPassword(c.Password)
+	if err != nil {
+		return false, err
+	}
+	if _, ok := p.hashes[c.ID]; ok {
+		return false, nil
+	}
+	p.hashes[c.ID] = h
+	return true, nil
+}
+
+func (p *hashingAuthProvider) Verify(_ context.Context, id string, pw []byte) (bool, error) {
+	return clientsauth.VerifyHash(p.hashes[id], pw), nil
+}
+
+// A provider that stores only hashes returns the password in the create response, once, and generates one when the
+// request has none.
+func TestHandlePostClientsAuthHashed(t *testing.T) {
+	for _, tc := range []struct{ name, body, wantPassword string }{
+		{"given password", `{"id":"dev-1","password":"pswd1"}`, "pswd1"},
+		{"generated password", `{"id":"dev-1"}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &hashingAuthProvider{hashes: map[string]string{}}
+			al := APIListener{
+				apiServices: &apiServices{
+					config: &chconfig.Config{
+						Server: chconfig.ServerConfig{AuthWrite: true},
+						API:    chconfig.APIConfig{MaxRequestBytes: 1024 * 1024},
+					},
+					clientAuthProvider: p,
+				},
+				Logger: testLog,
+			}
+			useLocalDispatcher(&al)
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/clients-auth", strings.NewReader(tc.body))
+			req = req.WithContext(tenant.WithID(req.Context(), tenant.Default))
+			w := httptest.NewRecorder()
+			http.HandlerFunc(al.handlePostClientsAuth).ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+			var resp struct {
+				Data clientsauth.ClientAuth `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			assert.Equal(t, "dev-1", resp.Data.ID)
+			if tc.wantPassword != "" {
+				assert.Equal(t, tc.wantPassword, resp.Data.Password)
+			} else {
+				assert.GreaterOrEqual(t, len(resp.Data.Password), 20, "generated")
+			}
+			ok, err := clientsauth.Verify(req.Context(), p, "dev-1", []byte(resp.Data.Password))
+			require.NoError(t, err)
+			assert.True(t, ok)
 		})
 	}
 }

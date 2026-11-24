@@ -12,6 +12,7 @@ import (
 
 	chserver "github.com/openrport/openrport/server"
 	"github.com/openrport/openrport/server/chconfig"
+	"github.com/openrport/openrport/server/cluster"
 	"github.com/openrport/openrport/server/peer"
 	pgclients "github.com/openrport/openrport/server/storage/postgres/clients"
 	"github.com/openrport/openrport/server/storage/postgres/clientsessions"
@@ -29,7 +30,7 @@ const sweepInterval = 30 * time.Second
 type clusterProcess struct {
 	cfg        *chconfig.Config
 	log        *logger.Logger
-	coord      *Coordinator
+	coord      cluster.Coordinator
 	clients    *pgclients.Store
 	tracker    *peer.Tracker
 	dispatcher *peer.Dispatcher
@@ -78,7 +79,7 @@ func peerAuth(cfg *chconfig.Config) (*peer.Auth, error) {
 // newClusterProcess sets up opts for the cluster: the session registry for a process with a client listener and,
 // with peer calls on, the cluster dispatcher (several client listener nodes can then share the database, and api
 // processes claim scheduled runs, since they reach every client).
-func newClusterProcess(cfg *chconfig.Config, db *sqlx.DB, coord *Coordinator, opts *chserver.ServerOpts) (*clusterProcess, error) {
+func newClusterProcess(cfg *chconfig.Config, db *sqlx.DB, coord cluster.Coordinator, opts *chserver.ServerOpts) (*clusterProcess, error) {
 	registry := clientsessions.New(db)
 	p := &clusterProcess{
 		cfg:     cfg,
