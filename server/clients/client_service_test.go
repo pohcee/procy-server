@@ -127,8 +127,7 @@ func TestStartClientConcurrency(t *testing.T) {
 
 	clientDB, err := sqlite.New(
 		path.Join("./", "clients.db"),
-		clientsmigration.AssetNames(),
-		clientsmigration.Asset,
+		clientsmigration.FS,
 		sourceOptions,
 	)
 	require.NoError(t, err)

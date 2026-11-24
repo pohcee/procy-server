@@ -145,8 +145,7 @@ func NewAPIListener(
 
 	db, err := sqlite.New(
 		path.Join(config.Server.DataDir, "notifications.db"),
-		notificationsSQLite.AssetNames(),
-		notificationsSQLite.Asset,
+		notificationsSQLite.Migrations,
 		config.Server.GetSQLiteDataSourceOptions(),
 	)
 	if err != nil {
@@ -191,8 +190,7 @@ func NewAPIListener(
 
 	libraryDb, err := sqlite.New(
 		path.Join(config.Server.DataDir, "library.db"),
-		library.AssetNames(),
-		library.Asset,
+		library.FS,
 		config.Server.GetSQLiteDataSourceOptions(),
 	)
 	if err != nil {
@@ -201,8 +199,7 @@ func NewAPIListener(
 
 	apiTokenDb, err := sqlite.New(
 		path.Join(config.Server.DataDir, "api_token.db"),
-		api_token.AssetNames(),
-		api_token.Asset,
+		api_token.FS,
 		config.Server.GetSQLiteDataSourceOptions(),
 	)
 	if err != nil {

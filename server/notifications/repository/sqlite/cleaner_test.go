@@ -22,7 +22,7 @@ type CleanerTestSuite struct {
 
 func (suite *CleanerTestSuite) SetupTest() {
 	var err error
-	suite.db, err = sqlite.New(":memory:", db.AssetNames(), db.Asset, sqlite.DataSourceOptions{})
+	suite.db, err = sqlite.New(":memory:", db.Migrations, sqlite.DataSourceOptions{})
 	suite.NoError(err)
 	suite.repository = db.NewRepository(suite.db, testLog)
 	suite.logger = logger.NewLogger("notifications", logger.NewLogOutput(""), logger.LogLevelInfo)

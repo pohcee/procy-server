@@ -25,7 +25,7 @@ type RepositoryTestSuite struct {
 }
 
 func (suite *RepositoryTestSuite) SetupTest() {
-	db, err := sqlite.New(":memory:", repo.AssetNames(), repo.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(":memory:", repo.Migrations, sqlite.DataSourceOptions{})
 	suite.NoError(err)
 
 	suite.repository = repo.NewRepository(db, testLog)

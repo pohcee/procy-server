@@ -176,8 +176,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	jobsDB, err := sqlite.New(
 		path.Join(config.Server.DataDir, "jobs.db"),
-		jobsmigration.AssetNames(),
-		jobsmigration.Asset,
+		jobsmigration.FS,
 		config.Server.GetSQLiteDataSourceOptions(),
 	)
 	if err != nil {
@@ -188,8 +187,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	groupsDB, err := sqlite.New(
 		path.Join(config.Server.DataDir, "client_groups.db"),
-		client_groups.AssetNames(),
-		client_groups.Asset,
+		client_groups.FS,
 		config.Server.GetSQLiteDataSourceOptions(),
 	)
 	if err != nil {
@@ -224,8 +222,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.clientDB, err = sqlite.New(
 		path.Join(config.Server.DataDir, "clients.db"),
-		clientsmigration.AssetNames(),
-		clientsmigration.Asset,
+		clientsmigration.FS,
 		sourceOptions,
 	)
 	if err != nil {

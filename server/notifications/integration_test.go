@@ -33,7 +33,7 @@ type NotificationsIntegrationTestSuite struct {
 }
 
 func (suite *NotificationsIntegrationTestSuite) SetupTest() {
-	db, err := sqlite.New(":memory:", notificationsrepo.AssetNames(), notificationsrepo.Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(":memory:", notificationsrepo.Migrations, sqlite.DataSourceOptions{})
 	suite.NoError(err)
 	suite.store = notificationsrepo.NewRepository(db, testLog)
 	suite.dispatcher = notifications.NewDispatcher(suite.store)

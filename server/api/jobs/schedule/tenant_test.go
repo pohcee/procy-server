@@ -23,7 +23,7 @@ func ctxFor(id tenant.ID) context.Context { return tenant.WithID(context.Backgro
 
 func newTenantTestDB(t *testing.T) (*SQLiteProvider, *jobs.SqliteProvider) {
 	t.Helper()
-	db, err := sqlite.New(":memory:", jobsmigration.AssetNames(), jobsmigration.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", jobsmigration.FS, DataSourceOptions)
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	return newSQLiteProvider(db), jobs.NewSqliteProvider(db, logger.NewLogger("t", logger.LogOutput{}, logger.LogLevelError))

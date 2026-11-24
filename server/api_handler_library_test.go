@@ -24,7 +24,7 @@ func defaultTenantRequest(method, target string) *http.Request {
 
 func newLibraryViewListener(t *testing.T) *APIListener {
 	t.Helper()
-	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), librarymigration.AssetNames(), librarymigration.Asset, sqlite.DataSourceOptions{WALEnabled: false})
+	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), librarymigration.FS, sqlite.DataSourceOptions{WALEnabled: false})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	store := library.NewStore(db)

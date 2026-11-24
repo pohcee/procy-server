@@ -25,7 +25,7 @@ func TestStoredTunnels(t *testing.T) {
 	require.NoError(t, err)
 	client2, err := random.UUID4()
 	require.NoError(t, err)
-	db, err := sqlite.New(":memory:", clients.AssetNames(), clients.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", clients.FS, DataSourceOptions)
 	require.NoError(t, err)
 	tunnel := &StoredTunnel{}
 	options := &query.ListOptions{}
@@ -61,7 +61,7 @@ func TestStoredTunnels(t *testing.T) {
 
 func newTestManager(t *testing.T) *Manager {
 	t.Helper()
-	db, err := sqlite.New(":memory:", clients.AssetNames(), clients.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", clients.FS, DataSourceOptions)
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	return New(db)

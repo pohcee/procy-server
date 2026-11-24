@@ -40,7 +40,7 @@ func TestAPITokenOps(t *testing.T) {
 	}
 
 	// database
-	apiTokenDb, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	apiTokenDb, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(err)
 	defer apiTokenDb.Close()
 	tokenProvider := authorization.NewSqliteProvider(apiTokenDb)
@@ -257,7 +257,7 @@ func TestAPITokenOps(t *testing.T) {
 }
 
 func CommonAPITokenTestDb(t *testing.T, username, prefix, name string, scope authorization.APITokenScope, token string) *authorization.SqliteProvider {
-	db, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	db, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	dbProv := authorization.NewSqliteProvider(db)
 
@@ -313,7 +313,7 @@ func TestPostToken(t *testing.T) {
 	}
 
 	// database for tokenManager, creates a token read+write
-	apiTokenDb, err := sqlite.New(":memory:", api_token.AssetNames(), api_token.Asset, DataSourceOptions)
+	apiTokenDb, err := sqlite.New(":memory:", api_token.FS, DataSourceOptions)
 	require.NoError(t, err)
 	defer apiTokenDb.Close()
 	tokenProvider := authorization.NewSqliteProvider(apiTokenDb)

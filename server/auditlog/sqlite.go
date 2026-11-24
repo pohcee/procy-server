@@ -24,8 +24,7 @@ type SQLiteProvider struct {
 func newSQLiteProvider(dataDir string, dataSourceOptions sqlite.DataSourceOptions) (*SQLiteProvider, error) {
 	db, err := sqlite.New(
 		path.Join(dataDir, sqliteFilename),
-		auditlog.AssetNames(),
-		auditlog.Asset,
+		auditlog.FS,
 		dataSourceOptions,
 	)
 	if err != nil {

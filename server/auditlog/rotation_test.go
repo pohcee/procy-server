@@ -71,7 +71,7 @@ func TestRotation(t *testing.T) {
 }
 
 func assertRotatedSqlite(t *testing.T, dir, expectedUsername string) {
-	db, err := sqlite.New(path.Join(dir, time.Now().Format(rotatedFilename)), auditlog.AssetNames(), auditlog.Asset, dso)
+	db, err := sqlite.New(path.Join(dir, time.Now().Format(rotatedFilename)), auditlog.FS, dso)
 	require.NoError(t, err)
 	sqlite := &SQLiteProvider{
 		db: db,

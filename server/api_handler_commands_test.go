@@ -684,8 +684,7 @@ func TestHandlePostMultiClientCommand(t *testing.T) {
 
 			jobsDB, err := sqlite.New(
 				":memory:",
-				jobsmigration.AssetNames(),
-				jobsmigration.Asset,
+				jobsmigration.FS,
 				DataSourceOptions,
 			)
 			require.NoError(t, err)
@@ -847,8 +846,7 @@ func TestHandlePostMultiClientCommandWithPausedClient(t *testing.T) {
 
 			jobsDB, err := sqlite.New(
 				":memory:",
-				jobsmigration.AssetNames(),
-				jobsmigration.Asset,
+				jobsmigration.FS,
 				DataSourceOptions,
 			)
 			require.NoError(t, err)
@@ -2103,8 +2101,7 @@ func makeJobsProvider(t *testing.T, dataSourceOptions sqlite.DataSourceOptions, 
 	t.Helper()
 	jobsDB, err := sqlite.New(
 		":memory:",
-		jobsmigration.AssetNames(),
-		jobsmigration.Asset,
+		jobsmigration.FS,
 		dataSourceOptions,
 	)
 	require.NoError(t, err)
@@ -2116,8 +2113,7 @@ func makeGroupsProvider(t *testing.T, dataSourceOptions sqlite.DataSourceOptions
 	t.Helper()
 	groupsDB, err := sqlite.New(
 		":memory:",
-		client_groups.AssetNames(),
-		client_groups.Asset,
+		client_groups.FS,
 		dataSourceOptions,
 	)
 	require.NoError(t, err)

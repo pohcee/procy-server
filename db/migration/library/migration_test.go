@@ -14,7 +14,7 @@ import (
 // must not fail on the tables migration 005 already created.
 func TestMigration005RerunOnExistingTables(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "library.db")
-	db, err := sqlite.New(path, AssetNames(), Asset, sqlite.DataSourceOptions{})
+	db, err := sqlite.New(path, FS, sqlite.DataSourceOptions{})
 	require.NoError(t, err)
 
 	_, err = db.Exec("INSERT INTO `library_meta` (`key`, `value`) VALUES ('k', 'v')")
@@ -26,7 +26,7 @@ func TestMigration005RerunOnExistingTables(t *testing.T) {
 	require.EqualValues(t, 1, n)
 	require.NoError(t, db.Close())
 
-	db, err = sqlite.New(path, AssetNames(), Asset, sqlite.DataSourceOptions{})
+	db, err = sqlite.New(path, FS, sqlite.DataSourceOptions{})
 	require.NoError(t, err)
 	defer db.Close()
 

@@ -31,59 +31,10 @@ type DataSourceOptions struct {
 	MaxOpenConnections int
 }
 
-// New returns a new sqlite DB instance with migrated DB scheme to the latest version.
-// assetNames and asset are used to migrate DB scheme.
-func New(dataSourceName string, assetNames []string, asset func(name string) ([]byte, error), dataSourceOptions DataSourceOptions) (*sqlx.DB, error) {
-	dbPath := dataSourceName
-	if dataSourceOptions.WALEnabled {
-		dataSourceName += "?" + WALEnabled
-	}
-	db, err := sqlx.Connect("sqlite3", dataSourceName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to DB: %v", err)
-	}
-	if dbPath != ":memory:" {
-		if err = os.Chmod(dbPath, 0600); err != nil {
-			return nil, fmt.Errorf("failed to chmod %s: %s", dbPath, err)
-		}
-	}
-
-	maxConns := dataSourceOptions.MaxOpenConnections
-	if maxConns == 0 {
-		maxConns = DefaultMaxOpenConnections
-	}
-
-	db.SetMaxOpenConns(maxConns)
-
-	s := bindata.Resource(assetNames,
-		func(name string) ([]byte, error) {
-			return asset(name)
-		})
-	sourceDriver, err := bindata.WithInstance(s)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init DB source driver: %v", err)
-	}
-
-	dbDriver, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to init DB migration driver: %v", err)
-	}
-
-	m, err := migrate.NewWithInstance("go-bindata", sourceDriver, "sqlite3", dbDriver)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init DB migration instance: %v", err)
-	}
-
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return nil, fmt.Errorf("failed to migrate DB to the latest version: %v", err)
-	}
-
-	return db, nil
-}
-
-// NewFS opens the SQLite file at path and migrates it to the latest version
-// of the given migrations. The db is closed if migrating fails.
-func NewFS(path string, migrations fs.FS, opts DataSourceOptions) (*sqlx.DB, error) {
+// New opens the SQLite file at path and migrates it to the latest version
+// of the given migrations (files at the root of the fs.FS). The db is closed if
+// migrating fails.
+func New(path string, migrations fs.FS, opts DataSourceOptions) (*sqlx.DB, error) {
 	db, err := Open(path, opts)
 	if err != nil {
 		return nil, err
@@ -123,25 +74,46 @@ func Open(path string, opts DataSourceOptions) (*sqlx.DB, error) {
 
 // Migrate runs every migration in migrations (files at its root) that db has not applied yet.
 func Migrate(db *sqlx.DB, migrations fs.FS) error {
-	sourceDriver, err := newSourceDriver(migrations)
+	m, err := newMigrate(db, migrations)
 	if err != nil {
 		return err
 	}
-
-	dbDriver, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
-	if err != nil {
-		return fmt.Errorf("failed to init DB migration driver: %v", err)
-	}
-
-	m, err := migrate.NewWithInstance("go-bindata", sourceDriver, "sqlite3", dbDriver)
-	if err != nil {
-		return fmt.Errorf("failed to init DB migration instance: %v", err)
-	}
-
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("failed to migrate DB to the latest version: %v", err)
 	}
 	return nil
+}
+
+// MigrateTo migrates db up or down to the given version of migrations.
+func MigrateTo(db *sqlx.DB, migrations fs.FS, version uint) error {
+	m, err := newMigrate(db, migrations)
+	if err != nil {
+		return err
+	}
+	if err := m.Migrate(version); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to migrate DB to version %d: %v", version, err)
+	}
+	return nil
+}
+
+// newMigrate returns a migrate instance for db. It is not closed: closing it
+// would close db.
+func newMigrate(db *sqlx.DB, migrations fs.FS) (*migrate.Migrate, error) {
+	sourceDriver, err := newSourceDriver(migrations)
+	if err != nil {
+		return nil, err
+	}
+
+	dbDriver, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to init DB migration driver: %v", err)
+	}
+
+	m, err := migrate.NewWithInstance("go-bindata", sourceDriver, "sqlite3", dbDriver)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init DB migration instance: %v", err)
+	}
+	return m, nil
 }
 
 // CheckVersion returns an error unless db is clean and at the latest version of migrations.

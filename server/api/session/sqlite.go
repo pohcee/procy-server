@@ -20,7 +20,7 @@ type SqliteProvider struct {
 }
 
 func NewSqliteProvider(dbPath string, dataSourceOptions sqlite.DataSourceOptions) (*SqliteProvider, error) {
-	db, err := sqlite.New(dbPath, api_sessions.AssetNames(), api_sessions.Asset, dataSourceOptions)
+	db, err := sqlite.New(dbPath, api_sessions.FS, dataSourceOptions)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create api session DB instance: %w", err)
 	}

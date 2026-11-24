@@ -30,7 +30,7 @@ type libraryEntriesEnv struct {
 
 func newLibraryEntriesEnv(t *testing.T) *libraryEntriesEnv {
 	t.Helper()
-	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), librarymigration.AssetNames(), librarymigration.Asset, sqlite.DataSourceOptions{WALEnabled: false})
+	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), librarymigration.FS, sqlite.DataSourceOptions{WALEnabled: false})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

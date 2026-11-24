@@ -6,9 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	bindata "github.com/golang-migrate/migrate/v4/source/go_bindata"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,16 +24,7 @@ func migrateClientsDBTo(t *testing.T, path string, version uint) *sqlx.DB {
 	t.Helper()
 	db, err := sqlx.Connect("sqlite3", path)
 	require.NoError(t, err)
-	src, err := bindata.WithInstance(bindata.Resource(clients.AssetNames(), clients.Asset))
-	require.NoError(t, err)
-	drv, err := sqlite3.WithInstance(db.DB, &sqlite3.Config{})
-	require.NoError(t, err)
-	m, err := migrate.NewWithInstance("go-bindata", src, "sqlite3", drv)
-	require.NoError(t, err)
-	err = m.Migrate(version)
-	if err != migrate.ErrNoChange {
-		require.NoError(t, err)
-	}
+	require.NoError(t, sqlite.MigrateTo(db, clients.FS, version))
 	return db
 }
 
@@ -108,7 +96,7 @@ func TestClientStoreUpgradeKeepsDataInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	db, err := sqlite.New(path, clients.AssetNames(), clients.Asset, DataSourceOptions)
+	db, err := sqlite.New(path, clients.FS, DataSourceOptions)
 	require.NoError(t, err)
 	defer db.Close()
 	p := newSqliteProvider(db, nil)
@@ -126,7 +114,7 @@ func TestClientStoreUpgradeKeepsDataInDefaultTenant(t *testing.T) {
 
 func TestClientStoreDowngradeKeepsOnlyDefaultTenant(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "clients.db")
-	db, err := sqlite.New(path, clients.AssetNames(), clients.Asset, DataSourceOptions)
+	db, err := sqlite.New(path, clients.FS, DataSourceOptions)
 	require.NoError(t, err)
 	p := newSqliteProvider(db, nil)
 	require.NoError(t, p.Save(defaultCtx, New(t).ID("c1").ClientAuthID("default").Logger(testLog).Build()))

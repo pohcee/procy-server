@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
+	"testing/fstest"
 
 	sql "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +16,7 @@ import (
 
 func TestSqliteWALEnabled(t *testing.T) {
 	dataSourceName := t.TempDir() + "/test-db.sqlite3"
-	_, err := New(dataSourceName, dummy.AssetNames(), dummy.Asset, DataSourceOptions{WALEnabled: true})
+	_, err := New(dataSourceName, dummy.FS, DataSourceOptions{WALEnabled: true})
 	require.NoError(t, err)
 	_, err = os.Stat(dataSourceName + "-shm")
 	require.NoError(t, err)
@@ -24,12 +26,61 @@ func TestSqliteWALEnabled(t *testing.T) {
 
 func TestSqliteWALDisabled(t *testing.T) {
 	dataSourceName := t.TempDir() + "/test-db.sqlite3"
-	_, err := New(dataSourceName, dummy.AssetNames(), dummy.Asset, DataSourceOptions{WALEnabled: false})
+	_, err := New(dataSourceName, dummy.FS, DataSourceOptions{WALEnabled: false})
 	require.NoError(t, err)
 	_, err = os.Stat(dataSourceName + "-shm")
 	assert.ErrorIs(t, err, os.ErrNotExist)
 	_, err = os.Stat(dataSourceName + "-wal")
 	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestCheckVersion(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "test.db"), DataSourceOptions{})
+	require.NoError(t, err)
+	defer db.Close()
+
+	err = CheckVersion(db, dummy.FS)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `run "rportd migrate"`)
+
+	require.NoError(t, Migrate(db, dummy.FS))
+	assert.NoError(t, CheckVersion(db, dummy.FS))
+
+	_, err = db.Exec("UPDATE schema_migrations SET dirty = 1")
+	require.NoError(t, err)
+	err = CheckVersion(db, dummy.FS)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `run "rportd migrate"`)
+}
+
+func TestOpenDoesNotMigrate(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "test.db"), DataSourceOptions{})
+	require.NoError(t, err)
+	defer db.Close()
+
+	var tables int
+	require.NoError(t, db.Get(&tables, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'"))
+	assert.Equal(t, 0, tables)
+
+	require.Error(t, CheckVersion(db, dummy.FS))
+	require.NoError(t, db.Get(&tables, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'"))
+	assert.Equal(t, 0, tables, "CheckVersion must not change the db")
+}
+
+func TestNewMigrates(t *testing.T) {
+	db, err := New(filepath.Join(t.TempDir(), "test.db"), dummy.FS, DataSourceOptions{})
+	require.NoError(t, err)
+	defer db.Close()
+	assert.NoError(t, CheckVersion(db, dummy.FS))
+	var n int
+	assert.NoError(t, db.Get(&n, "SELECT COUNT(*) FROM dummy"))
+}
+
+func TestNewClosesDBWhenMigrateFails(t *testing.T) {
+	bad := fstest.MapFS{"001_bad.up.sql": {Data: []byte("NOT SQL;")}}
+	db, err := New(filepath.Join(t.TempDir(), "test.db"), bad, DataSourceOptions{})
+	assert.Error(t, err)
+	assert.Nil(t, db)
 }
 
 func TestShouldSucceedWhenNoError(t *testing.T) {

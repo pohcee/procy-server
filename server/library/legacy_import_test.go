@@ -15,7 +15,7 @@ import (
 
 func newLegacyDB(t *testing.T) (*sqlx.DB, *Store) {
 	t.Helper()
-	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), library.AssetNames(), library.Asset, sqlite.DataSourceOptions{WALEnabled: false})
+	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), library.FS, sqlite.DataSourceOptions{WALEnabled: false})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	return db, NewStore(db)

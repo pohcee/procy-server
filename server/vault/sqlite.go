@@ -49,7 +49,7 @@ const valueColumns = "`id`, `client_id`, `required_group`, `created_at`, `create
 func NewSqliteProvider(c Config, logger *logger.Logger) (*SqliteProvider, error) {
 	dbPath := c.GetVaultDBPath()
 
-	db, err := sqlite.New(dbPath, vaults.AssetNames(), vaults.Asset, DataSourceOptions)
+	db, err := sqlite.New(dbPath, vaults.FS, DataSourceOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed init vault DB instance: %w", err)
 	}

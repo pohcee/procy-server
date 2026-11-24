@@ -43,7 +43,7 @@ type SqliteProvider struct {
 }
 
 func NewSqliteProvider(dbPath string, dataSourceOptions sqlite.DataSourceOptions, logger *logger.Logger) (DBProvider, error) {
-	db, err := sqlite.New(dbPath, monitoring.AssetNames(), monitoring.Asset, dataSourceOptions)
+	db, err := sqlite.New(dbPath, monitoring.FS, dataSourceOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create monitoring DB instance: %v", err)
 	}
