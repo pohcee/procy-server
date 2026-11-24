@@ -11,6 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/openrport/openrport/share/random"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 const legacyImportKey = "legacy_import"
@@ -50,7 +51,18 @@ func str(s *string) string {
 // validated, so nothing that worked before is dropped. Everything, including
 // the legacy_import marker, is written in one transaction. It returns the
 // number of entries created.
+//
+// The old tables have no tenant: they hold the data of a server from before
+// tenants, which belongs to the default tenant. Any other tenant has nothing
+// to import.
 func ImportLegacy(ctx context.Context, db *sqlx.DB, s *Store) (int, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if tid != tenant.Default {
+		return 0, nil
+	}
 	if _, done, err := s.Meta(ctx, legacyImportKey); err != nil || done {
 		return 0, err
 	}
@@ -109,7 +121,7 @@ func ImportLegacy(ctx context.Context, db *sqlx.DB, s *Store) (int, error) {
 			EntryID: id, Version: 1, CreatedAt: r.CreatedAt.UTC(), CreatedBy: r.CreatedBy,
 			Message: message, Changed: Changed(Content{}, c), Content: &c,
 		}
-		if err := insertEntry(ctx, tx, e, v); err != nil {
+		if err := insertEntry(ctx, tx, tid, e, v); err != nil {
 			return fmt.Errorf("import %q: %w", r.Name, err)
 		}
 		ids[id] = struct{}{}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/openrport/openrport/db/migration/library"
 	"github.com/openrport/openrport/db/sqlite"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func newTestStore(t *testing.T) *Store {
@@ -21,6 +22,9 @@ func newTestStore(t *testing.T) *Store {
 	t.Cleanup(func() { _ = db.Close() })
 	return NewStore(db)
 }
+
+// testCtx carries the default tenant, as the server context does on a standalone server.
+var testCtx = tenant.WithID(context.Background(), tenant.Default)
 
 var t0 = time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
 
@@ -49,15 +53,26 @@ func testEntry(id, name string) (Entry, Version) {
 
 func addVersion(t *testing.T, s *Store, id string, n int, at time.Time) {
 	t.Helper()
+	addVersionIn(t, s, testCtx, id, n, at)
+}
+
+func addVersionIn(t *testing.T, s *Store, ctx context.Context, id string, n int, at time.Time) {
+	t.Helper()
 	c := testContent("A")
 	c.Description = fmt.Sprintf("d%d", n)
 	e := Entry{ID: id, Name: "A", Description: c.Description, Tags: c.Tags, ActiveVersion: n, OS: []string{OSLinux, OSWindows}, UpdatedAt: at, UpdatedBy: "u2"}
 	v := Version{EntryID: id, Version: n, CreatedAt: at, CreatedBy: "u2", Message: "m", Changed: []string{"description"}, Content: c}
-	require.NoError(t, s.AddVersion(context.Background(), e, v, n-1))
+	require.NoError(t, s.AddVersion(ctx, e, v, n-1))
 }
 
 func versionNumbers(t *testing.T, s *Store, id string) []int {
-	vs, err := s.Versions(context.Background(), id)
+	t.Helper()
+	return versionNumbersIn(t, s, testCtx, id)
+}
+
+func versionNumbersIn(t *testing.T, s *Store, ctx context.Context, id string) []int {
+	t.Helper()
+	vs, err := s.Versions(ctx, id)
 	require.NoError(t, err)
 	nums := []int{}
 	for _, v := range vs {
@@ -68,7 +83,7 @@ func versionNumbers(t *testing.T, s *Store, id string) []int {
 
 func TestStoreInsertAndGet(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, v := testEntry("id1", "A")
 	require.NoError(t, s.Insert(ctx, e, v))
 
@@ -106,7 +121,7 @@ func TestStoreInsertAndGet(t *testing.T) {
 
 func TestStoreAddVersionConflict(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, v := testEntry("id1", "A")
 	require.NoError(t, s.Insert(ctx, e, v))
 
@@ -127,7 +142,7 @@ func TestStoreAddVersionConflict(t *testing.T) {
 
 func TestStoreUniqueLiveName(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e1, v1 := testEntry("id1", "A")
 	require.NoError(t, s.Insert(ctx, e1, v1))
 	e2, v2 := testEntry("id2", "A")
@@ -165,7 +180,7 @@ func TestStoreUniqueLiveName(t *testing.T) {
 
 func TestStorePruneKeepsActiveAndFirst(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, v := testEntry("id1", "A")
 	require.NoError(t, s.Insert(ctx, e, v))
 	for n := 2; n <= 6; n++ {
@@ -185,7 +200,7 @@ func TestStorePruneKeepsActiveAndFirst(t *testing.T) {
 
 func TestStorePruneByAge(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, v := testEntry("id1", "A")
 	require.NoError(t, s.Insert(ctx, e, v))
 	for n := 2; n <= 5; n++ {
@@ -207,7 +222,7 @@ func TestStorePruneByAge(t *testing.T) {
 
 func TestStoreMeta(t *testing.T) {
 	s := newTestStore(t)
-	ctx := context.Background()
+	ctx := testCtx
 	_, ok, err := s.Meta(ctx, "k")
 	require.NoError(t, err)
 	assert.False(t, ok)

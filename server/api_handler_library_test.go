@@ -14,7 +14,13 @@ import (
 	librarymigration "github.com/openrport/openrport/db/migration/library"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/share/tenant"
 )
+
+func defaultTenantRequest(method, target string) *http.Request {
+	req := httptest.NewRequest(method, target, nil)
+	return req.WithContext(tenant.WithID(req.Context(), tenant.Default))
+}
 
 func newLibraryViewListener(t *testing.T) *APIListener {
 	t.Helper()
@@ -24,7 +30,7 @@ func newLibraryViewListener(t *testing.T) *APIListener {
 	store := library.NewStore(db)
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	m := library.NewManager(store, func() time.Time { now = now.Add(time.Minute); return now })
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 	for _, c := range []library.Content{
 		{Name: "b-script", Tags: []string{"x"}, Implementations: map[string]library.Implementation{library.OSLinux: {Kind: library.KindScript, Code: "echo b", Interpreter: "bash"}}},
 		{Name: "a-script", Implementations: map[string]library.Implementation{library.OSLinux: {Kind: library.KindScript, Code: "echo a"}}},
@@ -39,7 +45,7 @@ func newLibraryViewListener(t *testing.T) *APIListener {
 func TestListLibraryViewFilterSortFieldsPaginate(t *testing.T) {
 	al := newLibraryViewListener(t)
 	list := func(rawQuery string) ([]string, int) {
-		req := httptest.NewRequest(http.MethodGet, "/library/scripts?"+rawQuery, nil)
+		req := defaultTenantRequest(http.MethodGet, "/library/scripts?"+rawQuery)
 		items, total, err := listLibraryView(al, req, library.KindScript, "scripts", scriptSortAndFilters, scriptFields,
 			library.ToScript, library.PruneScript)
 		require.NoError(t, err)
@@ -64,7 +70,7 @@ func TestListLibraryViewFilterSortFieldsPaginate(t *testing.T) {
 	assert.Equal(t, []string{"b-script"}, names)
 	assert.Equal(t, 2, total)
 
-	req := httptest.NewRequest(http.MethodGet, "/library/scripts?fields[scripts]=id", nil)
+	req := defaultTenantRequest(http.MethodGet, "/library/scripts?fields[scripts]=id")
 	items, _, err := listLibraryView(al, req, library.KindScript, "scripts", scriptSortAndFilters, scriptFields,
 		library.ToScript, library.PruneScript)
 	require.NoError(t, err)
@@ -73,7 +79,7 @@ func TestListLibraryViewFilterSortFieldsPaginate(t *testing.T) {
 	assert.Empty(t, items[0].Name)
 	assert.Nil(t, items[0].Tags)
 
-	_, _, err = listLibraryView(al, httptest.NewRequest(http.MethodGet, "/library/scripts?sort=bogus", nil),
+	_, _, err = listLibraryView(al, defaultTenantRequest(http.MethodGet, "/library/scripts?sort=bogus"),
 		library.KindScript, "scripts", scriptSortAndFilters, scriptFields, library.ToScript, library.PruneScript)
 	assert.Error(t, err)
 }

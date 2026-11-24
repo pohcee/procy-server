@@ -5,10 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
+
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var (
@@ -16,13 +19,22 @@ var (
 	ErrNameTaken = errors.New("a library entry with this name already exists")
 )
 
-// Store persists entries and their versions in library.db.
+// Store persists entries and their versions in library.db. Every method is scoped to the tenant carried by its
+// context and fails with tenant.ErrMissing when there is none.
 type Store struct {
 	db *sqlx.DB
 }
 
 func NewStore(db *sqlx.DB) *Store {
 	return &Store{db: db}
+}
+
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("library: %w", err)
+	}
+	return id, nil
 }
 
 func isUniqueViolation(err error) bool {
@@ -49,7 +61,7 @@ func utcPtr(t *time.Time) *time.Time {
 	return &u
 }
 
-func insertVersion(ctx context.Context, tx *sqlx.Tx, v Version) error {
+func insertVersion(ctx context.Context, tx *sqlx.Tx, tid tenant.ID, v Version) error {
 	changed, err := toJSON(nonNilStrings(v.Changed))
 	if err != nil {
 		return err
@@ -59,27 +71,31 @@ func insertVersion(ctx context.Context, tx *sqlx.Tx, v Version) error {
 		return err
 	}
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO `entry_versions` (`entry_id`, `version`, `created_at`, `created_by`, `message`, `changed`, `content`) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		v.EntryID, v.Version, v.CreatedAt.UTC(), v.CreatedBy, v.Message, changed, content)
+		"INSERT INTO `entry_versions` (`tenant_id`, `entry_id`, `version`, `created_at`, `created_by`, `message`, `changed`, `content`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		tid, v.EntryID, v.Version, v.CreatedAt.UTC(), v.CreatedBy, v.Message, changed, content)
 	return err
 }
 
 // Insert stores a new entry together with its first version.
 func (s *Store) Insert(ctx context.Context, e Entry, v Version) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	if err = insertEntry(ctx, tx, e, v); err != nil {
+	if err = insertEntry(ctx, tx, tid, e, v); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 // insertEntry stores a new entry and its first version inside the caller's transaction.
-func insertEntry(ctx context.Context, tx *sqlx.Tx, e Entry, v Version) error {
+func insertEntry(ctx context.Context, tx *sqlx.Tx, tid tenant.ID, e Entry, v Version) error {
 	tags, err := toJSON(nonNilStrings(e.Tags))
 	if err != nil {
 		return err
@@ -89,21 +105,25 @@ func insertEntry(ctx context.Context, tx *sqlx.Tx, e Entry, v Version) error {
 		return err
 	}
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO `entries` (`id`, `name`, `description`, `tags`, `os`, `active_version`, `builtin_key`, `created_at`, `created_by`, `updated_at`, `updated_by`)"+
-			" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		e.ID, e.Name, e.Description, tags, osKeys, e.ActiveVersion, e.BuiltinKey, e.CreatedAt.UTC(), e.CreatedBy, e.UpdatedAt.UTC(), e.UpdatedBy)
+		"INSERT INTO `entries` (`tenant_id`, `id`, `name`, `description`, `tags`, `os`, `active_version`, `builtin_key`, `created_at`, `created_by`, `updated_at`, `updated_by`)"+
+			" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		tid, e.ID, e.Name, e.Description, tags, osKeys, e.ActiveVersion, e.BuiltinKey, e.CreatedAt.UTC(), e.CreatedBy, e.UpdatedAt.UTC(), e.UpdatedBy)
 	if isUniqueViolation(err) {
 		return ErrNameTaken
 	}
 	if err != nil {
 		return err
 	}
-	return insertVersion(ctx, tx, v)
+	return insertVersion(ctx, tx, tid, v)
 }
 
 // AddVersion makes v the active version of e, provided the entry is live and its
 // active version is still baseVersion.
 func (s *Store) AddVersion(ctx context.Context, e Entry, v Version, baseVersion int) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 	tags, err := toJSON(nonNilStrings(e.Tags))
 	if err != nil {
 		return err
@@ -120,8 +140,8 @@ func (s *Store) AddVersion(ctx context.Context, e Entry, v Version, baseVersion 
 
 	res, err := tx.ExecContext(ctx,
 		"UPDATE `entries` SET `name` = ?, `description` = ?, `tags` = ?, `os` = ?, `updated_at` = ?, `updated_by` = ?, `active_version` = ?"+
-			" WHERE `id` = ? AND `active_version` = ? AND `deleted_at` IS NULL",
-		e.Name, e.Description, tags, osKeys, e.UpdatedAt.UTC(), e.UpdatedBy, v.Version, e.ID, baseVersion)
+			" WHERE `tenant_id` = ? AND `id` = ? AND `active_version` = ? AND `deleted_at` IS NULL",
+		e.Name, e.Description, tags, osKeys, e.UpdatedAt.UTC(), e.UpdatedBy, v.Version, tid, e.ID, baseVersion)
 	if isUniqueViolation(err) {
 		return ErrNameTaken
 	}
@@ -135,7 +155,7 @@ func (s *Store) AddVersion(ctx context.Context, e Entry, v Version, baseVersion 
 	if n == 0 {
 		return ErrConflict
 	}
-	if err = insertVersion(ctx, tx, v); err != nil {
+	if err = insertVersion(ctx, tx, tid, v); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -176,8 +196,12 @@ func (r entryRow) entry() (Entry, error) {
 
 // Get returns the entry with its active version's implementations, or nil if absent.
 func (s *Store) Get(ctx context.Context, id string) (*Entry, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var row entryRow
-	err := s.db.GetContext(ctx, &row, "SELECT "+entryColumns+" FROM `entries` WHERE `id` = ?", id)
+	err = s.db.GetContext(ctx, &row, "SELECT "+entryColumns+" FROM `entries` WHERE `tenant_id` = ? AND `id` = ?", tid, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -200,13 +224,17 @@ func (s *Store) Get(ctx context.Context, id string) (*Entry, error) {
 
 // List returns entries without implementations, ordered by name.
 func (s *Store) List(ctx context.Context, includeDeleted bool) ([]Entry, error) {
-	q := "SELECT " + entryColumns + " FROM `entries`"
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := "SELECT " + entryColumns + " FROM `entries` WHERE `tenant_id` = ?"
 	if !includeDeleted {
-		q += " WHERE `deleted_at` IS NULL"
+		q += " AND `deleted_at` IS NULL"
 	}
 	q += " ORDER BY `name` COLLATE NOCASE, `id`"
 	var rows []entryRow
-	if err := s.db.SelectContext(ctx, &rows, q); err != nil {
+	if err := s.db.SelectContext(ctx, &rows, q, tid); err != nil {
 		return nil, err
 	}
 	entries := make([]Entry, 0, len(rows))
@@ -222,6 +250,10 @@ func (s *Store) List(ctx context.Context, includeDeleted bool) ([]Entry, error) 
 
 // ListLive returns the live entries with their active version's implementations, ordered by name.
 func (s *Store) ListLive(ctx context.Context) ([]Entry, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	cols := strings.Split(entryColumns, ", ")
 	for i, c := range cols {
 		cols[i] = "e." + c
@@ -231,9 +263,9 @@ func (s *Store) ListLive(ctx context.Context) ([]Entry, error) {
 		Content string `db:"content"`
 	}
 	q := "SELECT " + strings.Join(cols, ", ") + ", v.`content` AS `content` FROM `entries` e" +
-		" JOIN `entry_versions` v ON v.`entry_id` = e.`id` AND v.`version` = e.`active_version`" +
-		" WHERE e.`deleted_at` IS NULL ORDER BY e.`name` COLLATE NOCASE, e.`id`"
-	if err := s.db.SelectContext(ctx, &rows, q); err != nil {
+		" JOIN `entry_versions` v ON v.`tenant_id` = e.`tenant_id` AND v.`entry_id` = e.`id` AND v.`version` = e.`active_version`" +
+		" WHERE e.`tenant_id` = ? AND e.`deleted_at` IS NULL ORDER BY e.`name` COLLATE NOCASE, e.`id`"
+	if err := s.db.SelectContext(ctx, &rows, q, tid); err != nil {
 		return nil, err
 	}
 	entries := make([]Entry, 0, len(rows))
@@ -278,9 +310,13 @@ func (r versionRow) version(withContent bool) (Version, error) {
 
 // Versions lists an entry's versions, newest first, without content.
 func (s *Store) Versions(ctx context.Context, id string) ([]Version, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var rows []versionRow
-	err := s.db.SelectContext(ctx, &rows,
-		"SELECT `entry_id`, `version`, `created_at`, `created_by`, `message`, `changed`, '' AS `content` FROM `entry_versions` WHERE `entry_id` = ? ORDER BY `version` DESC", id)
+	err = s.db.SelectContext(ctx, &rows,
+		"SELECT `entry_id`, `version`, `created_at`, `created_by`, `message`, `changed`, '' AS `content` FROM `entry_versions` WHERE `tenant_id` = ? AND `entry_id` = ? ORDER BY `version` DESC", tid, id)
 	if err != nil {
 		return nil, err
 	}
@@ -297,9 +333,13 @@ func (s *Store) Versions(ctx context.Context, id string) ([]Version, error) {
 
 // Version returns one version with its content, or nil if absent.
 func (s *Store) Version(ctx context.Context, id string, n int) (*Version, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var row versionRow
-	err := s.db.GetContext(ctx, &row,
-		"SELECT `entry_id`, `version`, `created_at`, `created_by`, `message`, `changed`, `content` FROM `entry_versions` WHERE `entry_id` = ? AND `version` = ?", id, n)
+	err = s.db.GetContext(ctx, &row,
+		"SELECT `entry_id`, `version`, `created_at`, `created_by`, `message`, `changed`, `content` FROM `entry_versions` WHERE `tenant_id` = ? AND `entry_id` = ? AND `version` = ?", tid, id, n)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -315,10 +355,14 @@ func (s *Store) Version(ctx context.Context, id string, n int) (*Version, error)
 
 // SetDeleted marks an entry deleted at the given time, or undeletes it when at is nil.
 func (s *Store) SetDeleted(ctx context.Context, id string, at *time.Time, by string) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 	if at == nil {
 		by = ""
 	}
-	_, err := s.db.ExecContext(ctx, "UPDATE `entries` SET `deleted_at` = ?, `deleted_by` = ? WHERE `id` = ?", utcPtr(at), by, id)
+	_, err = s.db.ExecContext(ctx, "UPDATE `entries` SET `deleted_at` = ?, `deleted_by` = ? WHERE `tenant_id` = ? AND `id` = ?", utcPtr(at), by, tid, id)
 	if isUniqueViolation(err) {
 		return ErrNameTaken
 	}
@@ -329,13 +373,17 @@ func (s *Store) SetDeleted(ctx context.Context, id string, at *time.Time, by str
 // when it is not among the newest `keep` (if keep > 0) or is older than
 // olderThan (if non-zero). The active version and version 1 are never removed.
 func (s *Store) Prune(ctx context.Context, keep int, olderThan time.Time) (int64, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return 0, err
+	}
 	if keep <= 0 && olderThan.IsZero() {
 		return 0, nil
 	}
 	var conds []string
-	var args []interface{}
+	args := []interface{}{tid}
 	if keep > 0 {
-		conds = append(conds, "(SELECT COUNT(*) FROM `entry_versions` n WHERE n.`entry_id` = `entry_versions`.`entry_id` AND n.`version` > `entry_versions`.`version`) >= ?")
+		conds = append(conds, "(SELECT COUNT(*) FROM `entry_versions` n WHERE n.`tenant_id` = `entry_versions`.`tenant_id` AND n.`entry_id` = `entry_versions`.`entry_id` AND n.`version` > `entry_versions`.`version`) >= ?")
 		args = append(args, keep)
 	}
 	if !olderThan.IsZero() {
@@ -343,8 +391,8 @@ func (s *Store) Prune(ctx context.Context, keep int, olderThan time.Time) (int64
 		args = append(args, olderThan.UTC())
 	}
 	res, err := s.db.ExecContext(ctx,
-		"DELETE FROM `entry_versions` WHERE `version` > 1"+
-			" AND `version` <> (SELECT `active_version` FROM `entries` WHERE `entries`.`id` = `entry_versions`.`entry_id`)"+
+		"DELETE FROM `entry_versions` WHERE `tenant_id` = ? AND `version` > 1"+
+			" AND `version` <> (SELECT `active_version` FROM `entries` WHERE `entries`.`tenant_id` = `entry_versions`.`tenant_id` AND `entries`.`id` = `entry_versions`.`entry_id`)"+
 			" AND ("+strings.Join(conds, " OR ")+")", args...)
 	if err != nil {
 		return 0, err
@@ -354,8 +402,12 @@ func (s *Store) Prune(ctx context.Context, keep int, olderThan time.Time) (int64
 
 // Meta reads a library_meta value.
 func (s *Store) Meta(ctx context.Context, key string) (string, bool, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return "", false, err
+	}
 	var value string
-	err := s.db.GetContext(ctx, &value, "SELECT `value` FROM `library_meta` WHERE `key` = ?", key)
+	err = s.db.GetContext(ctx, &value, "SELECT `value` FROM `library_meta` WHERE `tenant_id` = ? AND `key` = ?", tid, key)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
@@ -367,7 +419,11 @@ func (s *Store) Meta(ctx context.Context, key string) (string, bool, error) {
 
 // SetMeta writes a library_meta value inside the caller's transaction.
 func (s *Store) SetMeta(ctx context.Context, tx *sqlx.Tx, key, value string) error {
-	_, err := tx.ExecContext(ctx, "INSERT INTO `library_meta` (`key`, `value`) VALUES (?, ?) ON CONFLICT(`key`) DO UPDATE SET `value` = excluded.`value`", key, value)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "INSERT INTO `library_meta` (`tenant_id`, `key`, `value`) VALUES (?, ?, ?) ON CONFLICT(`tenant_id`, `key`) DO UPDATE SET `value` = excluded.`value`", tid, key, value)
 	return err
 }
 

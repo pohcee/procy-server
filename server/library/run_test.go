@@ -1,7 +1,6 @@
 package library
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -61,7 +60,7 @@ func TestMaxTimeout(t *testing.T) {
 
 func TestActiveForRunRejectsDeleted(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df"), "", "alice")
 	require.NoError(t, err)
 

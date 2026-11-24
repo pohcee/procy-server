@@ -1,7 +1,6 @@
 package library
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,7 +9,7 @@ import (
 
 func TestPruneTaskKeepsActiveAndFirst(t *testing.T) {
 	m, _ := newTestManager(t)
-	ctx := context.Background()
+	ctx := testCtx
 	e, err := m.Create(ctx, linuxOnly("Disk", "df 1"), "", "alice")
 	require.NoError(t, err)
 	for _, code := range []string{"df 2", "df 3", "df 4", "df 5"} {

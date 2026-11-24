@@ -1,7 +1,6 @@
 package library
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -49,12 +48,12 @@ func TestImportLegacyMapsOSByInterpreter(t *testing.T) {
 	seedScript(t, db, "s4", "nointerp", "", false, "[]")
 	seedCommand(t, db, "c1", "ls", "ls -la")
 
-	n, err := ImportLegacy(context.Background(), db, s)
+	n, err := ImportLegacy(testCtx, db, s)
 	require.NoError(t, err)
 	assert.Equal(t, 5, n)
 
 	get := func(id string) *Entry {
-		e, err := s.Get(context.Background(), id)
+		e, err := s.Get(testCtx, id)
 		require.NoError(t, err)
 		require.NotNil(t, e)
 		return e
@@ -78,10 +77,10 @@ func TestImportLegacyKeepsAuthorship(t *testing.T) {
 	db, s := newLegacyDB(t)
 	seedScript(t, db, "s1", "one", "", false, "[]")
 	seedCommand(t, db, "c1", "two", "uptime")
-	_, err := ImportLegacy(context.Background(), db, s)
+	_, err := ImportLegacy(testCtx, db, s)
 	require.NoError(t, err)
 
-	e, err := s.Get(context.Background(), "s1")
+	e, err := s.Get(testCtx, "s1")
 	require.NoError(t, err)
 	assert.True(t, created.Equal(e.CreatedAt))
 	assert.Equal(t, "alice", e.CreatedBy)
@@ -89,13 +88,13 @@ func TestImportLegacyKeepsAuthorship(t *testing.T) {
 	assert.Equal(t, "bob", e.UpdatedBy)
 	assert.Equal(t, 1, e.ActiveVersion)
 
-	v, err := s.Version(context.Background(), "s1", 1)
+	v, err := s.Version(testCtx, "s1", 1)
 	require.NoError(t, err)
 	assert.True(t, created.Equal(v.CreatedAt))
 	assert.Equal(t, "alice", v.CreatedBy)
 	assert.Equal(t, "Imported from the script library", v.Message)
 
-	v, err = s.Version(context.Background(), "c1", 1)
+	v, err = s.Version(testCtx, "c1", 1)
 	require.NoError(t, err)
 	assert.Equal(t, "carol", v.CreatedBy)
 	assert.Equal(t, "Imported from the command library", v.Message)
@@ -104,9 +103,9 @@ func TestImportLegacyKeepsAuthorship(t *testing.T) {
 func TestImportLegacyKeepsNonAbsoluteCommand(t *testing.T) {
 	db, s := newLegacyDB(t)
 	seedCommand(t, db, "c1", "weird", "echo a | grep a")
-	_, err := ImportLegacy(context.Background(), db, s)
+	_, err := ImportLegacy(testCtx, db, s)
 	require.NoError(t, err)
-	e, err := s.Get(context.Background(), "c1")
+	e, err := s.Get(testCtx, "c1")
 	require.NoError(t, err)
 	assert.Equal(t, KindCommand, e.Implementations[OSLinux].Kind)
 }
@@ -116,11 +115,11 @@ func TestImportLegacyNameClash(t *testing.T) {
 	seedScript(t, db, "same", "restart rport", "", false, "[]")
 	seedCommand(t, db, "same", "restart rport", "systemctl restart rport")
 
-	n, err := ImportLegacy(context.Background(), db, s)
+	n, err := ImportLegacy(testCtx, db, s)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
 
-	entries, err := s.List(context.Background(), false)
+	entries, err := s.List(testCtx, false)
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
 	assert.Equal(t, "restart rport", entries[0].Name)
@@ -132,26 +131,26 @@ func TestImportLegacyNameClash(t *testing.T) {
 func TestImportLegacyRunsOnce(t *testing.T) {
 	db, s := newLegacyDB(t)
 	seedScript(t, db, "s1", "one", "", false, "[]")
-	n, err := ImportLegacy(context.Background(), db, s)
+	n, err := ImportLegacy(testCtx, db, s)
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 
 	seedCommand(t, db, "c1", "late", "ls")
-	n, err = ImportLegacy(context.Background(), db, s)
+	n, err = ImportLegacy(testCtx, db, s)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 
-	entries, err := s.List(context.Background(), true)
+	entries, err := s.List(testCtx, true)
 	require.NoError(t, err)
 	assert.Len(t, entries, 1)
 }
 
 func TestImportLegacyEmptyStillMarksDone(t *testing.T) {
 	db, s := newLegacyDB(t)
-	n, err := ImportLegacy(context.Background(), db, s)
+	n, err := ImportLegacy(testCtx, db, s)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
-	v, ok, err := s.Meta(context.Background(), "legacy_import")
+	v, ok, err := s.Meta(testCtx, "legacy_import")
 	require.NoError(t, err)
 	assert.True(t, ok)
 	assert.Equal(t, "0", v)
@@ -166,13 +165,13 @@ func TestImportLegacyNameClashWhitespaceAndScripts(t *testing.T) {
 	seedCommand(t, db, "c2", "a ", "ls")
 	seedCommand(t, db, "c3", "a (command)", "ls")
 
-	n, err := ImportLegacy(context.Background(), db, s)
+	n, err := ImportLegacy(testCtx, db, s)
 	require.NoError(t, err)
 	assert.Equal(t, 6, n)
 
 	names := map[string]string{}
 	for _, id := range []string{"s1", "s2", "s3", "c1", "c2", "c3"} {
-		e, err := s.Get(context.Background(), id)
+		e, err := s.Get(testCtx, id)
 		require.NoError(t, err)
 		require.NotNil(t, e)
 		names[id] = e.Name
@@ -194,14 +193,14 @@ func TestImportLegacyMixedCaseInterpreterAndNulls(t *testing.T) {
 	_, err := db.Exec("INSERT INTO `scripts` (`id`, `name`, `created_at`, `created_by`, `updated_at`, `updated_by`, `interpreter`, `is_sudo`, `cwd`, `script`, `tags`, `timeout_sec`) VALUES ('s2', 'nulls', ?, 'a', ?, 'b', NULL, 0, NULL, 'echo', '[]', 0)", created, updated)
 	require.NoError(t, err)
 
-	n, err := ImportLegacy(context.Background(), db, s)
+	n, err := ImportLegacy(testCtx, db, s)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n)
 
-	e, err := s.Get(context.Background(), "s1")
+	e, err := s.Get(testCtx, "s1")
 	require.NoError(t, err)
 	assert.Equal(t, []string{OSWindows}, e.OS)
-	e, err = s.Get(context.Background(), "s2")
+	e, err = s.Get(testCtx, "s2")
 	require.NoError(t, err)
 	assert.Equal(t, []string{OSLinux}, e.OS)
 	impl := e.Implementations[OSLinux]
