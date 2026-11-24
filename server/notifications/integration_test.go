@@ -17,6 +17,7 @@ import (
 	notificationsrepo "github.com/openrport/openrport/server/notifications/repository/sqlite"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/simpleops"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var testLog = logger.NewLogger("client", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug)
@@ -79,7 +80,7 @@ func (suite *NotificationsIntegrationTestSuite) TestDispatcherCreatesNotificatio
 		Content:     "test-content-mail",
 		ContentType: notifications.ContentTypeTextHTML,
 	}
-	_, err := suite.dispatcher.Dispatch(context.Background(), problemIdentifiable, notification)
+	_, err := suite.dispatcher.Dispatch(tenant.WithID(context.Background(), tenant.Default), problemIdentifiable, notification)
 	suite.NoError(err)
 
 	notification = notifications.NotificationData{
@@ -89,10 +90,10 @@ func (suite *NotificationsIntegrationTestSuite) TestDispatcherCreatesNotificatio
 		Content:     "test-content",
 		ContentType: notifications.ContentTypeTextPlain,
 	}
-	d, err := suite.dispatcher.Dispatch(context.Background(), problemIdentifiable, notification)
+	d, err := suite.dispatcher.Dispatch(tenant.WithID(context.Background(), tenant.Default), problemIdentifiable, notification)
 	suite.NoError(err)
 	time.Sleep(time.Millisecond * 100)
-	suite.T().Log(suite.store.Details(context.Background(), d.ID()))
+	suite.T().Log(suite.store.Details(tenant.WithID(context.Background(), tenant.Default), d.ID()))
 
 	suite.ExpectedMessages(1)
 	// suite.ExpectMessage(notification.Recipients, notification.Subject, string(notification.ContentType), notification.Content)

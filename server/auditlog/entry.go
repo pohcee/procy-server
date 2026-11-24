@@ -1,6 +1,7 @@
 package auditlog
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/clients/clientdata"
 	chshare "github.com/openrport/openrport/share"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type Entry struct {
@@ -22,8 +24,31 @@ type Entry struct {
 	ClientHostName string    `db:"client_hostname" json:"client_hostname"`
 	Request        string    `db:"request" json:"request"`
 	Response       string    `db:"response" json:"response"`
+	// TenantID is set by the provider from the entry's context; never exposed in the API.
+	TenantID tenant.ID `db:"tenant_id" json:"-"`
 
-	al *AuditLog
+	al  *AuditLog
+	ctx context.Context
+}
+
+// WithContext sets the context the entry is saved with; it carries the tenant the entry belongs to. Use it for
+// entries that don't come from an HTTP request, e.g. with a client's context for work the device originates.
+func (e *Entry) WithContext(ctx context.Context) *Entry {
+	if e == nil {
+		return e
+	}
+
+	e.ctx = ctx
+	return e
+}
+
+// context returns the context set by WithHTTPRequest or WithContext. Without one it returns a context with no
+// tenant, so the entry is refused rather than saved for a guessed tenant.
+func (e *Entry) context() context.Context {
+	if e.ctx == nil {
+		return context.Background()
+	}
+	return e.ctx
 }
 
 func (e *Entry) WithID(id interface{}) *Entry {
@@ -40,6 +65,7 @@ func (e *Entry) WithHTTPRequest(req *http.Request) *Entry {
 		return e
 	}
 
+	e.ctx = req.Context()
 	e.Username = api.GetUser(req.Context(), e.al.logger)
 	e.RemoteIP = chshare.RemoteIP(req)
 

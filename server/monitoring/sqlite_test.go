@@ -12,6 +12,7 @@ import (
 	chshare "github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/types"
 )
 
@@ -72,7 +73,7 @@ func TestSqliteProvider_CreateMeasurement(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -101,7 +102,7 @@ func TestSqliteProvider_DeleteMeasurementsBefore(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -116,7 +117,7 @@ func TestSqliteProvider_CountByClientID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -133,7 +134,7 @@ func TestSqliteProvider_ListMetricsLatestByClientID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -152,7 +153,7 @@ func TestSqliteProvider_ListMetricsNextByClientID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -172,7 +173,7 @@ func TestSqliteProvider_ListGraphMetricsByClientID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createDownsamplingData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -198,7 +199,7 @@ func TestSqliteProvider_ListGraphMetricsGraphByClientID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createDownsamplingData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -246,7 +247,7 @@ func TestSqliteProvider_ListProcessesLatestByClientID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -266,7 +267,7 @@ func TestSqliteProvider_ListProcessesNextByClientID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -288,7 +289,7 @@ func TestSqliteProvider_ListMountpointsLatestByClientID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)
@@ -308,7 +309,7 @@ func TestSqliteProvider_ListMountpointsPageByClientID(t *testing.T) {
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = createTestData(ctx, dbProvider)
 	require.NoError(t, err)

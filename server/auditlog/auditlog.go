@@ -51,7 +51,8 @@ type ClientGetter interface {
 
 type Provider interface {
 	io.Closer
-	Save(e *Entry) error
+	// Save stores the entry for the tenant carried by ctx.
+	Save(ctx context.Context, e *Entry) error
 	List(context.Context, *query.ListOptions) ([]*Entry, error)
 	Count(context.Context, *query.ListOptions) (int, error)
 }
@@ -71,7 +72,8 @@ func (e *NotAllowedError) Error() string {
 	return e.Msg
 }
 
-func New(l *logger.Logger, cg ClientGetter, dataDir string, cfg config.Config, dataSourceOptions sqlite.DataSourceOptions) (*AuditLog, error) {
+// New creates the audit log. ctx bounds the background rotation.
+func New(ctx context.Context, l *logger.Logger, cg ClientGetter, dataDir string, cfg config.Config, dataSourceOptions sqlite.DataSourceOptions) (*AuditLog, error) {
 	a := &AuditLog{
 		logger:       l,
 		clientGetter: cg,
@@ -80,6 +82,7 @@ func New(l *logger.Logger, cg ClientGetter, dataDir string, cfg config.Config, d
 
 	if cfg.Enable {
 		rotation, err := newRotationProvider(
+			ctx,
 			l,
 			cfg.RotationPeriod(),
 			dataDir,
@@ -132,7 +135,8 @@ func (a *AuditLog) savePreparedEntry(e *Entry) error {
 		}
 	}
 
-	return a.provider.Save(e)
+	// the request may be over by the time the entry is saved: keep its tenant, drop its cancellation
+	return a.provider.Save(context.WithoutCancel(e.context()), e)
 }
 
 func (a *AuditLog) List(r *http.Request, user *users.User) (*api.SuccessPayload, error) {

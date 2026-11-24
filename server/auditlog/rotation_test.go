@@ -1,7 +1,6 @@
 package auditlog
 
 import (
-	"context"
 	"path"
 	"testing"
 	"time"
@@ -12,25 +11,26 @@ import (
 	"github.com/openrport/openrport/db/migration/auditlog"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var dso = sqlite.DataSourceOptions{WALEnabled: true}
 
 func TestRotation(t *testing.T) {
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 	dir := t.TempDir()
 	period := 300 * time.Millisecond
 
 	// Prepare sqlite with 1 entry
 	sqlite, err := newSQLiteProvider(dir, dso)
 	require.NoError(t, err)
-	err = sqlite.Save(&Entry{Timestamp: time.Now(), Username: "test1"})
+	err = sqlite.Save(ctx, &Entry{Timestamp: time.Now(), Username: "test1"})
 	require.NoError(t, err)
 	err = sqlite.Close()
 	require.NoError(t, err)
 
 	// No rotation on init if entry is not older than period
-	rotation, err := newRotationProvider(nil, period, dir, dso)
+	rotation, err := newRotationProvider(ctx, nil, period, dir, dso)
 	require.NoError(t, err)
 	entries, err := rotation.List(ctx, &query.ListOptions{})
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestRotation(t *testing.T) {
 	time.Sleep(period)
 
 	// Should rotate on init
-	rotation, err = newRotationProvider(nil, period, dir, dso)
+	rotation, err = newRotationProvider(ctx, nil, period, dir, dso)
 	require.NoError(t, err)
 	entries, err = rotation.List(ctx, &query.ListOptions{})
 	require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestRotation(t *testing.T) {
 	assertRotatedSqlite(t, dir, "test1")
 
 	// Add entry
-	err = rotation.Save(&Entry{Timestamp: time.Now(), Username: "test2"})
+	err = rotation.Save(ctx, &Entry{Timestamp: time.Now(), Username: "test2"})
 	require.NoError(t, err)
 
 	// Read back entry
@@ -78,7 +78,7 @@ func assertRotatedSqlite(t *testing.T, dir, expectedUsername string) {
 	}
 	defer sqlite.Close()
 
-	entries, err := sqlite.List(context.Background(), &query.ListOptions{})
+	entries, err := sqlite.List(ctxFor(tenant.Default), &query.ListOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(entries))
 	assert.Equal(t, expectedUsername, entries[0].Username)

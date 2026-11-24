@@ -470,8 +470,9 @@ func (cl *ClientListener) replyConnectionError(r *ssh.Request, err error) {
 	}
 }
 
-// handleSSHRequests handles the requests of a connected client; ctx is the client's context.
-func (cl *ClientListener) handleSSHRequests(ctx context.Context, clientLog *logger.DynamicLogger, clientID string, reqs <-chan *ssh.Request) {
+// handleSSHRequests serves the requests of a connected client. clientCtx is the client's context: work the device
+// originates (measurements, audit entries) belongs to its tenant.
+func (cl *ClientListener) handleSSHRequests(clientCtx context.Context, clientLog *logger.DynamicLogger, clientID string, reqs <-chan *ssh.Request) {
 	clientService := cl.getClientService()
 
 	for r := range reqs {
@@ -536,7 +537,7 @@ func (cl *ClientListener) handleSSHRequests(ctx context.Context, clientLog *logg
 				ts = time.Now().UTC()
 			}
 
-			job, err := cl.saveCmdResult(ctx, r.Payload)
+			job, err := cl.saveCmdResult(clientCtx, r.Payload)
 			if err != nil {
 				clientLog.Errorf("Failed to save cmd result: %s", err)
 				continue
@@ -555,6 +556,7 @@ func (cl *ClientListener) handleSSHRequests(ctx context.Context, clientLog *logg
 				auditLogEntry.WithID(job.JID)
 			}
 			auditLogEntry.
+				WithContext(clientCtx).
 				WithResponse(job).
 				WithClientID(clientID).
 				Save()
@@ -610,7 +612,7 @@ func (cl *ClientListener) handleSSHRequests(ctx context.Context, clientLog *logg
 			measurement.ClientID = clientID
 			measurement.Timestamp = time.Now().UTC()
 
-			cl.server.monitoringQueue.Notify(measurement)
+			cl.server.monitoringQueue.Notify(clientCtx, measurement)
 
 			if rportplus.IsPlusEnabled(cl.server.config.PlusConfig) {
 				alertingCap := cl.server.plusManager.GetAlertingCapabilityEx()

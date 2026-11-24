@@ -174,7 +174,7 @@ func NewAPIListener(
 
 	notificationLogger := logger.NewLogger("cleaner", config.Logging.LogOutput, logger.LogLevelInfo)
 	notificationProcessor := notifications.NewProcessor(notificationsLogger, store, notificationConsumers...)
-	notificationsCleaner := notificationsSQLite.StartCleaner(notificationLogger, store, config.Notifications.LogStorageDuration, config.Notifications.CleanupInterval)
+	notificationsCleaner := notificationsSQLite.StartCleaner(ctx, notificationLogger, store, config.Notifications.LogStorageDuration, config.Notifications.CleanupInterval)
 
 	// init vault DB if it already exists
 	fs := files.NewFileSystem()

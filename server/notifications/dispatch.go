@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/openrport/openrport/share/refs"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type ProcessingState string
@@ -66,4 +67,7 @@ type NotificationDetails struct {
 	Out    string
 	Target Target
 	Err    string
+	// Tenant is set by the store's Create from its context, so the notification is saved for that tenant when
+	// it is processed on another goroutine. Never exposed in the API.
+	Tenant tenant.ID `json:"-"`
 }
