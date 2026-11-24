@@ -55,6 +55,10 @@ var jobFields = map[string]bool{
 	"error":        true,
 	"is_sudo":      true,
 	"is_script":    true,
+	// a library run: the entry, its version and the OS whose implementation ran
+	"library_entry_id": true,
+	"library_version":  true,
+	"os":               true,
 }
 var JobSupportedFields = map[string]map[string]bool{
 	"jobs":     jobFields,
