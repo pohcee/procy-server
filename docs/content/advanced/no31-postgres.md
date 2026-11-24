@@ -6,9 +6,9 @@ slug: postgres
 {{< toc >}}
 
 {{< hint type=caution title="Preview" >}}
-**Preview.** Postgres storage is new. It is the first step towards clusters of servers sharing one database.
-For now, run **one** server per database. Without a `[storage]` section the server uses its SQLite files, as it
-always has.
+**Preview.** Postgres storage is new. Several servers can share one database (see
+[Running several servers](#running-several-servers)), with one of them accepting the client connections. Without a
+`[storage]` section the server uses its SQLite files, as it always has.
 {{< /hint >}}
 
 ## What changes
@@ -16,7 +16,7 @@ always has.
 With `[storage] backend = "postgres"` the server keeps all its data in a Postgres database instead of the SQLite
 files in `data_dir`. That includes users, API tokens, sessions, client credentials, clients, jobs, schedules, the
 library, the vault, the audit log, monitoring data and the notification log. The data directory still holds the
-server key, the generated JWT secret (when `jwt_secret` isn't set), uploads and other runtime files.
+server key, uploads and other runtime files.
 
 Every row belongs to a tenant (organization). A server for one organization keeps everything in the tenant
 `default`. Row-level security in Postgres keeps the tenants apart, in addition to the server's own checks.
@@ -29,6 +29,11 @@ Every row belongs to a tenant (organization). A server for one organization keep
 * The server connects as an **application role** that doesn't own the tables and isn't a superuser. It refuses to
   start otherwise, because row-level security would not apply. The schema owner runs the migrations.
 * The server never migrates the database at start-up. Run `rportd migrate` after each upgrade.
+* With the API enabled, `[api] jwt_secret` is required: the server doesn't generate one into `data_dir`, because
+  every server on the database must sign and check API tokens with the same secret.
+* The passphrase vault is refused: set `[vault] key_provider` to `kms` or `local` (see [The vault](#the-vault)).
+* `[server] key_seed` should be set when the server runs the client listener. Without it the server's fingerprint
+  changes on each start, and a warning is logged.
 
 ## Set up the database
 
@@ -49,7 +54,23 @@ Then configure the server:
   dsn = "postgres://rport_app:…@db.example.com:5432/rport?sslmode=require"
   ## "all" (default): the API and the client listener; "api": the API only
   role = "all"
+
+[api]
+  ## required on Postgres, the same on every server of the database (e.g. openssl rand -hex 32)
+  jwt_secret = "…"
+
+[vault]
+  key_provider = "local"
+  local_key_file = "/etc/rport/vault.key"
+
+[cluster]
+  ## the name of this server among those sharing the database; default: the hostname
+  #node_id = "node-1"
 ```
+
+`[cluster] node_id` names the server among the servers sharing the database: up to 63 letters, digits, `.`, `_` or
+`-`, starting with a letter or digit. It defaults to the hostname, and the server refuses to start if the hostname
+can't be read or isn't a valid node id. It is used only with `backend = "postgres"`.
 
 Create the schema as the owner, and grant the application role what it needs:
 
@@ -70,14 +91,14 @@ rportd -c /etc/rport/rportd.conf
 
 ```toml
 [vault]
-  ## "passphrase" (default), "kms" or "local"
+  ## "kms" or "local" (required on Postgres)
   key_provider = "local"
   local_key_file = "/etc/rport/vault.key"
   ## for "kms": kms_key = "projects/<project>/locations/<location>/keyRings/<ring>/cryptoKeys/<key>"
 ```
 
-* `passphrase`: the vault is set up and unlocked with a passphrase, as on SQLite. It is locked again after each
-  restart.
+* `passphrase` (the default on SQLite) is refused on Postgres: several servers can share the database, and the
+  passphrase unlocks the vault of one server process only. An empty `key_provider` is refused too.
 * `kms` and `local` (Postgres only): each tenant gets its own random vault key. That key is stored in Postgres,
   wrapped by a Google Cloud KMS key (`kms_key`) or by a 32-byte key read from a local file (`local_key_file`, hex or
   base64; create one with `openssl rand -hex 32` and keep a backup). The vault needs no passphrase and can't be
@@ -112,16 +133,67 @@ The import runs in one transaction and prints, for each kind of data, how many r
 present and skipped, with the reasons. Running it again adds nothing new. Client IDs, credentials, passwords,
 API tokens and job IDs are kept, so clients and users carry on without changes.
 
-With `key_provider = "kms"` or `"local"`, the vault values are decrypted with the old vault passphrase and encrypted
-again with the tenant's new key. Pass the passphrase in `RPORT_VAULT_PASSPHRASE`, or with
-`--vault-passphrase-stdin` on the first line of stdin. With the passphrase vault, the values are copied as they
-are, and the old passphrase unlocks the vault.
+The vault values are decrypted with the old vault passphrase and encrypted again with the tenant's new key
+(`key_provider = "kms"` or `"local"`). Pass the passphrase in `RPORT_VAULT_PASSPHRASE`, or with
+`--vault-passphrase-stdin` on the first line of stdin.
 
 ## Tenants
 
 `rportd tenant add ID [NAME] --dsn <owner URL>` adds another tenant. Its users log in to the same server, and each
-login lands in its tenant. In this preview, devices connect only to the `default` tenant, and schedules and
-clean-ups run only there.
+login lands in its tenant. Schedules and clean-ups run for every active tenant. In this preview, devices connect
+only to the `default` tenant.
+
+## Running several servers
+
+Several servers (*nodes*) can use one database: put a load balancer in front of their API addresses and they serve
+the same users, clients and data. Each node keeps working on its own; nodes don't talk to each other, only to the
+database.
+
+Give every node:
+
+* the same `[api] jwt_secret`, so a token issued by one node is accepted by the others;
+* the same `[server] key_seed`, so the server fingerprint is the same whichever node a device reaches;
+* the same vault key: the same `[vault] kms_key`, or the same key file for `key_provider = "local"`;
+* its own `[cluster] node_id` (the hostname by default; it must differ between nodes);
+* the same time zone (`TZ`): schedules fire at the cron time of the node's zone.
+
+In this preview **one** node accepts the client connections: run it with `[storage] role = "all"` and every other
+node with `role = "api"`. The node with role `all` holds a lease in the database while it runs; a second node with
+role `all` refuses to start ("node … accepts the client connections of this database") until the first has been
+stopped for a minute. API nodes answer "client is not connected" for work on clients (commands, scripts,
+tunnels); send that work to the `all` node.
+
+What the nodes share and how:
+
+* **Caches.** Each node caches clients and API sessions. A change made on one node reaches the others within about
+  a second through a change feed in the database (a `changes` table, `NOTIFY rport_changes`, and polling every few
+  seconds). A session revoked on one node (logout, password change, user deleted) is refused by the others.
+* **Background work.** Clean-ups (jobs, API sessions, monitoring data, notifications, obsolete clients) and the
+  pruning of old library versions run for each tenant on one node at a time: a node takes a lease (table
+  `work_leases`) and renews it on each run; when it stops, another node takes over after about one and a half
+  intervals. Built-in library entries are synced once per tenant and version when nodes start.
+* **Schedules.** Every node keeps every schedule, whichever node created it. Before a run starts, the node records
+  it in `schedule_runs` with the schedule and its due time, so each run starts once however many nodes are due to
+  start it. `@every` schedules fire at multiples of their period, so all nodes agree on the due time. In this
+  preview only the node with role `all` starts runs (the others can't reach the clients).
+* The change feed keeps three days of changes. A node further behind (stopped longer, or cut off from the
+  database) reloads what it caches.
+* A transaction left open on the database server (an idle `psql` session that changed something, a long import)
+  holds back the change feed of every node until it ends: changes made meanwhile reach the other nodes late, and
+  the nodes log a warning. Set `idle_in_transaction_session_timeout` on the database, and prefer a database server
+  that doesn't also run long transactions for other applications.
+* After restoring the database from a dump into another Postgres server, run `rportd migrate` before starting the
+  nodes: it resets the change feed, whose transaction ids come from the old server (nodes refuse to start until
+  then).
+* `node_id` must be unique: two nodes with role `all` and the same `node_id` would both accept client connections.
+
+Some state stays on the node that created it, so the load balancer must send a user's requests to the same API
+node (session affinity) for:
+
+* two-factor login: the code sent at login is known only to the node that sent it;
+* login attempts and bans: each node counts failed logins on its own;
+* device pairing codes;
+* live job output in the UI (websockets) and uploads in progress.
 
 ## Developing
 

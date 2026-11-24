@@ -118,7 +118,52 @@ func Up(ctx context.Context, db *sqlx.DB) ([]int64, error) {
 			applied = append(applied, m.Version)
 		}
 	}
+	if err := runDeferred(ctx, db); err != nil {
+		return applied, err
+	}
+	if err := resetFeedIfAhead(ctx, db); err != nil {
+		return applied, err
+	}
 	return applied, nil
+}
+
+// runDeferred runs the deferred DDL (migrate_deferred, migration 0120) whose tables exist now.
+func runDeferred(ctx context.Context, db *sqlx.DB) error {
+	return inLock(ctx, db, func(tx *sqlx.Tx) error {
+		var exists bool
+		if err := tx.GetContext(ctx, &exists, "SELECT to_regclass('migrate_deferred') IS NOT NULL"); err != nil || !exists {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "SELECT rport_run_deferred()"); err != nil {
+			return fmt.Errorf("migrate: deferred statements: %w", err)
+		}
+		return nil
+	})
+}
+
+// resetFeedIfAhead empties the change feed when it holds transaction ids this database hasn't reached: it was
+// copied from another Postgres cluster (pg_dump and restore), and would otherwise deliver nothing. Nodes must not be
+// running; they take a fresh head when they start.
+func resetFeedIfAhead(ctx context.Context, db *sqlx.DB) error {
+	return inLock(ctx, db, func(tx *sqlx.Tx) error {
+		var exists bool
+		if err := tx.GetContext(ctx, &exists, "SELECT to_regclass('changes_horizon') IS NOT NULL"); err != nil || !exists {
+			return err
+		}
+		var ahead bool
+		if err := tx.GetContext(ctx, &ahead, `SELECT greatest((SELECT coalesce(max(tx_id), '0'::xid8) FROM changes), (SELECT tx_id FROM changes_horizon))
+			>= pg_snapshot_xmax(pg_current_snapshot())`); err != nil {
+			return fmt.Errorf("migrate: check the change feed: %w", err)
+		}
+		if !ahead {
+			return nil
+		}
+		if _, err := tx.ExecContext(ctx, "TRUNCATE changes"); err != nil {
+			return fmt.Errorf("migrate: reset the change feed: %w", err)
+		}
+		_, err := tx.ExecContext(ctx, "UPDATE changes_horizon SET tx_id = '0', seq = 0")
+		return err
+	})
 }
 
 // Check returns an error unless every embedded migration has been applied.
@@ -140,12 +185,20 @@ func Check(ctx context.Context, db *sqlx.DB) error {
 			return fmt.Errorf("migrate: %s is not applied; run \"rportd migrate\"", m.Name)
 		}
 	}
+	var pending []string
+	if err := db.SelectContext(ctx, &pending, "SELECT name FROM migrate_deferred WHERE done_at IS NULL ORDER BY name"); err != nil {
+		return fmt.Errorf("migrate: check deferred statements: %w", err)
+	}
+	if len(pending) > 0 {
+		return fmt.Errorf("migrate: %s is not applied; run \"rportd migrate\"", pending[0])
+	}
 	return nil
 }
 
 // GrantApp gives role what the application needs, now and for tables later migrations add (default privileges
 // of the role running it, which must be the schema owner): SELECT, INSERT, UPDATE and DELETE on the tenant-scoped
-// tables, USAGE on sequences, and SELECT only on tenants, user_logins (written by a trigger) and schema_migrations.
+// tables, USAGE on sequences, and SELECT only on tenants, user_logins, the change feed (changes, changes_horizon;
+// written by triggers and rport_prune_changes) and schema_migrations.
 // Creating tenants therefore needs the owner. role must not own the tables and must not be a superuser or have
 // BYPASSRLS, or row-level security does not hold for it (postgres.CheckAppRole).
 func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
@@ -156,7 +209,8 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
-		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins FROM " + q,
+		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, changes, changes_horizon, migrate_deferred FROM " + q,
+		"GRANT EXECUTE ON FUNCTION rport_prune_changes(interval) TO " + q,
 	}
 	for _, s := range stmts {
 		if _, err := db.ExecContext(ctx, s); err != nil {

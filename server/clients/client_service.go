@@ -651,7 +651,7 @@ func (s *ClientServiceProvider) SetACL(ctx context.Context, clientID string, all
 
 	client.SetAllowedUserGroups(allowedUserGroups)
 
-	return s.repo.Save(ctx, client)
+	return s.repo.SaveAdmin(ctx, client)
 }
 
 func (s *ClientServiceProvider) SetUpdatesStatus(ctx context.Context, clientID string, updatesStatus *models.UpdatesStatus) error {

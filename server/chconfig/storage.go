@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	rportplus "github.com/openrport/openrport/plus"
+	"github.com/openrport/openrport/share/logger"
 )
 
 // Storage backends ([storage] backend).
@@ -66,6 +68,17 @@ type VaultConfig struct {
 	LocalKeyFile string `mapstructure:"local_key_file"`
 }
 
+// ClusterConfig is the [cluster] section: how a node sharing a Postgres database with other nodes identifies itself.
+type ClusterConfig struct {
+	// NodeID names the node among those sharing the database; defaults to the hostname. Postgres only.
+	NodeID string `mapstructure:"node_id"`
+}
+
+var nodeIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$`)
+
+// osHostname is os.Hostname, replaced in tests.
+var osHostname = os.Hostname
+
 const postgresStoresCredentials = `is not used with [storage] backend = "postgres": users and client credentials are stored in Postgres`
 
 func (c *Config) parseAndValidateStorage() error {
@@ -77,6 +90,9 @@ func (c *Config) parseAndValidateStorage() error {
 				return fmt.Errorf(`[storage] %s is set but [storage] backend is not "postgres"`, kv[0])
 			}
 		}
+		if c.Cluster.NodeID != "" {
+			return errors.New(`[cluster] node_id is set but [storage] backend is not "postgres"`)
+		}
 	case StorageBackendPostgres:
 		if err := s.parseAndValidatePostgres(); err != nil {
 			return err
@@ -86,6 +102,14 @@ func (c *Config) parseAndValidateStorage() error {
 		}
 		if err := c.refuseLocalAuthSources(); err != nil {
 			return err
+		}
+		if err := c.Cluster.parseAndValidate(); err != nil {
+			return err
+		}
+		// every node must accept the tokens any other node issued: a secret generated into one node's data_dir
+		// would not be shared
+		if c.API.Address != "" && c.API.JWTSecret == "" {
+			return errors.New(`[api] jwt_secret is required with [storage] backend = "postgres": every node must sign and check API tokens with the same secret`)
 		}
 	default:
 		return fmt.Errorf(`invalid [storage] backend %q: expected "sqlite" or "postgres"`, s.Backend)
@@ -152,8 +176,43 @@ func (c *Config) refuseLocalAuthSources() error {
 	return nil
 }
 
+func (cl *ClusterConfig) parseAndValidate() error {
+	if cl.NodeID == "" {
+		host, err := osHostname()
+		if err != nil {
+			return fmt.Errorf("[cluster] node_id is empty and the hostname can't be read: %w", err)
+		}
+		if host == "" {
+			return errors.New("[cluster] node_id is empty and the hostname is empty: set node_id")
+		}
+		if !nodeIDPattern.MatchString(host) {
+			return fmt.Errorf("invalid [cluster] node_id %q (the hostname): expected up to 63 letters, digits, '.', '_' or '-', starting with a letter or digit; set node_id", host)
+		}
+		cl.NodeID = host
+		return nil
+	}
+	if !nodeIDPattern.MatchString(cl.NodeID) {
+		return fmt.Errorf("invalid [cluster] node_id %q: expected up to 63 letters, digits, '.', '_' or '-', starting with a letter or digit", cl.NodeID)
+	}
+	return nil
+}
+
+// warnPostgresSettings logs settings that work on Postgres but not as several nodes sharing the database expect.
+func (c *Config) warnPostgresSettings(mLog *logger.MemLogger) {
+	if !c.Storage.IsPostgres() {
+		return
+	}
+	if c.Storage.Role != StorageRoleAPI && c.Server.KeySeed == "" {
+		mLog.Infof("warning: [server] key_seed is empty: the node's fingerprint changes on each start; nodes sharing a database should use the same key_seed")
+	}
+}
+
 func (c *Config) parseAndValidateVault() error {
 	v := &c.Vault
+	// the passphrase unlocks the vault in one process: the other nodes sharing the database could not open it
+	if c.Storage.IsPostgres() && (v.KeyProvider == "" || v.KeyProvider == KeyProviderPassphrase) {
+		return errors.New(`[vault] key_provider = "passphrase" is not supported with [storage] backend = "postgres": several nodes can share the database and the passphrase unlocks only one; set key_provider = "kms" or "local"`)
+	}
 	switch v.KeyProvider {
 	case "":
 		v.KeyProvider = KeyProviderPassphrase

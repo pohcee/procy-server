@@ -100,6 +100,10 @@ func (r *ClientRepository) GetPostSaveHandlerFn() (handlerFn func(cl *clientdata
 }
 
 func (r *ClientRepository) Save(ctx context.Context, cl *clientdata.Client) error {
+	return r.save(ctx, cl, false)
+}
+
+func (r *ClientRepository) save(ctx context.Context, cl *clientdata.Client, admin bool) error {
 	ts := time.Now()
 
 	tid, err := tenantOf(ctx)
@@ -115,7 +119,7 @@ func (r *ClientRepository) Save(ctx context.Context, cl *clientdata.Client) erro
 
 	if store != nil {
 		// the store write is not canceled with ctx (e.g. when a disconnect is saved during shutdown)
-		err := store.Save(context.WithoutCancel(ctx), cl)
+		err := storeSave(context.WithoutCancel(ctx), store, cl, admin)
 		if err != nil {
 			return fmt.Errorf("failed to save client: %w", err)
 		}
@@ -500,7 +504,8 @@ func (r *ClientRepository) removeClient(tid tenant.ID, clientID string) {
 }
 
 // loadTenant makes sure the cache holds the state of the tenant, loading its stored clients on first use
-// (LoadInitialClients, which marks the ones stored as connected disconnected). Without a store the tenant starts
+// (LoadInitialClients, which marks the ones stored as connected disconnected unless the store is wrapped by
+// KeepConnectionStateOnLoad). Without a store the tenant starts
 // empty. The load runs without the main lock held and once per tenant at a time: concurrent first uses wait for
 // it. A failed load is not cached; the next use tries again.
 func (r *ClientRepository) loadTenant(ctx context.Context, tid tenant.ID) error {

@@ -565,8 +565,13 @@ func (c *Client) Banner() string {
 }
 
 func (c *Client) Close() error {
+	conn := c.GetConnection()
+	if conn == nil {
+		// a client recorded as connected to another server
+		return nil
+	}
 	// The tunnels are closed automatically when ssh connection is closed.
-	return c.GetConnection().Close()
+	return conn.Close()
 }
 
 func (c *Client) BelongsToOneOf(groups []*cgroups.ClientGroup) bool {

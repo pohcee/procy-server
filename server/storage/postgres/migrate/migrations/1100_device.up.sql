@@ -19,6 +19,8 @@ CREATE TABLE client_state (
     PRIMARY KEY (tenant_id, client_id)
 );
 SELECT rport_enable_rls('client_state');
+-- api processes refresh a client when its reported state changes, as when its record does (change feed, 0120)
+SELECT rport_track_changes('client_state', 'clients', 'client_id');
 
 -- Connections and disconnections of clients as device processes saw them.
 CREATE TABLE client_connection_events (
