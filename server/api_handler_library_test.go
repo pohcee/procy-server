@@ -27,7 +27,7 @@ func newLibraryViewListener(t *testing.T) *APIListener {
 	db, err := sqlite.New(filepath.Join(t.TempDir(), "library.db"), librarymigration.FS, sqlite.DataSourceOptions{WALEnabled: false})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	store := library.NewStore(db)
+	store := library.NewSQLiteStore(db)
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	m := library.NewManager(store, func() time.Time { now = now.Add(time.Minute); return now })
 	ctx := tenant.WithID(context.Background(), tenant.Default)

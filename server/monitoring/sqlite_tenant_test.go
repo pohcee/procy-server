@@ -39,7 +39,7 @@ func tenantMeasurement(clientID string, ts time.Time, cpu float64) *models.Measu
 }
 
 func TestMeasurementsRequireTenant(t *testing.T) {
-	p, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	p, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer p.Close()
 	ctx := context.Background()
@@ -62,7 +62,7 @@ func TestMeasurementsRequireTenant(t *testing.T) {
 }
 
 func TestMeasurementsIsolateTenants(t *testing.T) {
-	p, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	p, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer p.Close()
 	a, b := ctxFor("a"), ctxFor("b")
@@ -119,7 +119,7 @@ func TestUpgradeKeepsMeasurementsInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	p, err := NewSqliteProvider(path, DataSourceOptions, testLog)
+	p, err := openTestSqliteProvider(path, DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer p.Close()
 
@@ -131,7 +131,7 @@ func TestUpgradeKeepsMeasurementsInDefaultTenant(t *testing.T) {
 
 func TestDowngradeKeepsOnlyDefaultMeasurements(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "monitoring.db")
-	p, err := NewSqliteProvider(path, DataSourceOptions, testLog)
+	p, err := openTestSqliteProvider(path, DataSourceOptions, testLog)
 	require.NoError(t, err)
 	require.NoError(t, p.CreateMeasurement(ctxFor(tenant.Default), tenantMeasurement("c1", measurement1, 1)))
 	require.NoError(t, p.CreateMeasurement(ctxFor("other"), tenantMeasurement("c1", measurement1.Add(time.Second), 2)))

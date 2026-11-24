@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
 	"github.com/openrport/openrport/share/random"
 	"github.com/openrport/openrport/share/tenant"
 )
@@ -46,7 +44,7 @@ func str(s *string) string {
 	return *s
 }
 
-// ImportLegacy copies the rows of the old scripts and commands tables into
+// ImportLegacy implements LegacyImporter. It copies the rows of the old scripts and commands tables into
 // entries, once. The old tables are left untouched. Rows are normalized but not
 // validated, so nothing that worked before is dropped. Everything, including
 // the legacy_import marker, is written in one transaction. It returns the
@@ -55,7 +53,8 @@ func str(s *string) string {
 // The old tables have no tenant: they hold the data of a server from before
 // tenants, which belongs to the default tenant. Any other tenant has nothing
 // to import.
-func ImportLegacy(ctx context.Context, db *sqlx.DB, s *Store) (int, error) {
+func (s *SQLiteStore) ImportLegacy(ctx context.Context) (int, error) {
+	db := s.db
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return 0, err
@@ -152,7 +151,7 @@ func ImportLegacy(ctx context.Context, db *sqlx.DB, s *Store) (int, error) {
 		}
 	}
 
-	if err := s.SetMeta(ctx, tx, legacyImportKey, strconv.Itoa(count)); err != nil {
+	if err := s.setMeta(ctx, tx, legacyImportKey, strconv.Itoa(count)); err != nil {
 		return 0, err
 	}
 	if err := tx.Commit(); err != nil {

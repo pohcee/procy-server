@@ -23,7 +23,7 @@ func TestNotEnabled(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 
 	mockProvider := &mockProvider{}
-	auditLog, err := New(context.Background(), nil, nil, "", config.Config{Enable: false}, DataSourceOptions)
+	auditLog, err := New(context.Background(), nil, nil, config.Config{Enable: false}, nil)
 	require.NoError(t, err)
 	auditLog.provider = mockProvider
 
@@ -168,4 +168,20 @@ func TestList(t *testing.T) {
 		})
 	}
 
+}
+
+func TestNewWithProvider(t *testing.T) {
+	p := &mockProvider{}
+	auditLog, err := New(context.Background(), nil, nil, config.Config{Enable: true}, p)
+	require.NoError(t, err)
+
+	auditLog.Entry(ApplicationLibraryScript, ActionCreate).WithContext(ctxFor(tenant.Default)).Save()
+
+	require.Len(t, p.entries, 1)
+	assert.Equal(t, ApplicationLibraryScript, p.entries[0].Application)
+}
+
+func TestNewEnabledWithoutProvider(t *testing.T) {
+	_, err := New(context.Background(), nil, nil, config.Config{Enable: true}, nil)
+	assert.Error(t, err)
 }

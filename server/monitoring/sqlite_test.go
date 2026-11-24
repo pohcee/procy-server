@@ -69,7 +69,7 @@ var testData = []models.Measurement{
 }
 
 func TestSqliteProvider_CreateMeasurement(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -98,7 +98,7 @@ func TestSqliteProvider_CreateMeasurement(t *testing.T) {
 }
 
 func TestSqliteProvider_DeleteMeasurementsBefore(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -113,7 +113,7 @@ func TestSqliteProvider_DeleteMeasurementsBefore(t *testing.T) {
 }
 
 func TestSqliteProvider_CountByClientID(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -130,7 +130,7 @@ func TestSqliteProvider_CountByClientID(t *testing.T) {
 }
 
 func TestSqliteProvider_ListMetricsLatestByClientID(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -149,7 +149,7 @@ func TestSqliteProvider_ListMetricsLatestByClientID(t *testing.T) {
 }
 
 func TestSqliteProvider_ListMetricsNextByClientID(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -169,7 +169,7 @@ func TestSqliteProvider_ListMetricsNextByClientID(t *testing.T) {
 }
 
 func TestSqliteProvider_ListGraphMetricsByClientID(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -195,7 +195,7 @@ func TestSqliteProvider_ListGraphMetricsByClientID(t *testing.T) {
 }
 
 func TestSqliteProvider_ListGraphMetricsGraphByClientID(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -243,7 +243,7 @@ func TestSqliteProvider_ListGraphMetricsGraphByClientID(t *testing.T) {
 }
 
 func TestSqliteProvider_ListProcessesLatestByClientID(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -263,7 +263,7 @@ func TestSqliteProvider_ListProcessesLatestByClientID(t *testing.T) {
 }
 
 func TestSqliteProvider_ListProcessesNextByClientID(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -285,7 +285,7 @@ func TestSqliteProvider_ListProcessesNextByClientID(t *testing.T) {
 }
 
 func TestSqliteProvider_ListMountpointsLatestByClientID(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 
@@ -305,7 +305,7 @@ func TestSqliteProvider_ListMountpointsLatestByClientID(t *testing.T) {
 }
 
 func TestSqliteProvider_ListMountpointsPageByClientID(t *testing.T) {
-	dbProvider, err := NewSqliteProvider(":memory:", DataSourceOptions, testLog)
+	dbProvider, err := openTestSqliteProvider(":memory:", DataSourceOptions, testLog)
 	require.NoError(t, err)
 	defer dbProvider.Close()
 

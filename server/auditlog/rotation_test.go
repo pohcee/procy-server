@@ -22,7 +22,7 @@ func TestRotation(t *testing.T) {
 	period := 300 * time.Millisecond
 
 	// Prepare sqlite with 1 entry
-	sqlite, err := newSQLiteProvider(dir, dso)
+	sqlite, err := openSQLiteProvider(dir, dso)
 	require.NoError(t, err)
 	err = sqlite.Save(ctx, &Entry{Timestamp: time.Now(), Username: "test1"})
 	require.NoError(t, err)
@@ -30,7 +30,7 @@ func TestRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	// No rotation on init if entry is not older than period
-	rotation, err := newRotationProvider(ctx, nil, period, dir, dso)
+	rotation, err := NewRotationProvider(ctx, nil, period, dir, dso)
 	require.NoError(t, err)
 	entries, err := rotation.List(ctx, &query.ListOptions{})
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestRotation(t *testing.T) {
 	time.Sleep(period)
 
 	// Should rotate on init
-	rotation, err = newRotationProvider(ctx, nil, period, dir, dso)
+	rotation, err = NewRotationProvider(ctx, nil, period, dir, dso)
 	require.NoError(t, err)
 	entries, err = rotation.List(ctx, &query.ListOptions{})
 	require.NoError(t, err)
@@ -82,4 +82,22 @@ func assertRotatedSqlite(t *testing.T, dir, expectedUsername string) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(entries))
 	assert.Equal(t, expectedUsername, entries[0].Username)
+}
+
+// TestRotationCreatesMigratedFile checks that the file rotation creates gets the schema, whatever opened the first one.
+func TestRotationCreatesMigratedFile(t *testing.T) {
+	ctx := ctxFor(tenant.Default)
+	dir := t.TempDir()
+
+	rotation, err := NewRotationProvider(ctx, nil, time.Hour, dir, dso)
+	require.NoError(t, err)
+	defer rotation.Close()
+
+	require.NoError(t, rotation.rotate())
+
+	require.NoError(t, rotation.Save(ctx, &Entry{Timestamp: time.Now(), Username: "after-rotation"}))
+	entries, err := rotation.List(ctx, &query.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "after-rotation", entries[0].Username)
 }

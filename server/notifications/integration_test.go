@@ -25,7 +25,7 @@ var testLog = logger.NewLogger("client", logger.LogOutput{File: os.Stdout}, logg
 type NotificationsIntegrationTestSuite struct {
 	suite.Suite
 	dispatcher     notifications.Dispatcher
-	store          notificationsrepo.Repository
+	store          notifications.Repository
 	server         *smtpmock.Server
 	runner         notifications.Processor
 	mailConsumer   notifications.Consumer

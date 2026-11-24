@@ -2,6 +2,7 @@ package auditlog
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -10,8 +11,6 @@ import (
 
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/auditlog/config"
-
-	"github.com/openrport/openrport/db/sqlite"
 
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/clients/clientdata"
@@ -50,6 +49,8 @@ type ClientGetter interface {
 	GetByID(ctx context.Context, id string) (*clientdata.Client, error)
 }
 
+// Provider stores audit log entries. Save, List and Count are scoped to the tenant carried by their context and fail
+// with tenant.ErrMissing when there is none.
 type Provider interface {
 	io.Closer
 	// Save stores the entry for the tenant carried by ctx.
@@ -73,8 +74,9 @@ func (e *NotAllowedError) Error() string {
 	return e.Msg
 }
 
-// New creates the audit log. ctx bounds the background rotation.
-func New(ctx context.Context, l *logger.Logger, cg ClientGetter, dataDir string, cfg config.Config, dataSourceOptions sqlite.DataSourceOptions) (*AuditLog, error) {
+// New creates the audit log. p stores the entries; it is used only when the audit log is enabled and may be nil
+// otherwise.
+func New(_ context.Context, l *logger.Logger, cg ClientGetter, cfg config.Config, p Provider) (*AuditLog, error) {
 	a := &AuditLog{
 		logger:       l,
 		clientGetter: cg,
@@ -82,18 +84,10 @@ func New(ctx context.Context, l *logger.Logger, cg ClientGetter, dataDir string,
 	}
 
 	if cfg.Enable {
-		rotation, err := newRotationProvider(
-			ctx,
-			l,
-			cfg.RotationPeriod(),
-			dataDir,
-			dataSourceOptions,
-		)
-		if err != nil {
-			return nil, err
+		if p == nil {
+			return nil, errors.New("auditlog: enabled without a provider")
 		}
-
-		a.provider = rotation
+		a.provider = p
 	}
 
 	return a, nil

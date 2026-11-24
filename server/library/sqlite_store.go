@@ -14,19 +14,18 @@ import (
 	"github.com/openrport/openrport/share/tenant"
 )
 
-var (
-	ErrConflict  = errors.New("library entry was changed by someone else")
-	ErrNameTaken = errors.New("a library entry with this name already exists")
-)
-
-// Store persists entries and their versions in library.db. Every method is scoped to the tenant carried by its
-// context and fails with tenant.ErrMissing when there is none.
-type Store struct {
+// SQLiteStore is the SQLite Repository, kept in library.db.
+type SQLiteStore struct {
 	db *sqlx.DB
 }
 
-func NewStore(db *sqlx.DB) *Store {
-	return &Store{db: db}
+var (
+	_ Repository     = (*SQLiteStore)(nil)
+	_ LegacyImporter = (*SQLiteStore)(nil)
+)
+
+func NewSQLiteStore(db *sqlx.DB) *SQLiteStore {
+	return &SQLiteStore{db: db}
 }
 
 func tenantOf(ctx context.Context) (tenant.ID, error) {
@@ -77,7 +76,7 @@ func insertVersion(ctx context.Context, tx *sqlx.Tx, tid tenant.ID, v Version) e
 }
 
 // Insert stores a new entry together with its first version.
-func (s *Store) Insert(ctx context.Context, e Entry, v Version) error {
+func (s *SQLiteStore) Insert(ctx context.Context, e Entry, v Version) error {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return err
@@ -119,7 +118,7 @@ func insertEntry(ctx context.Context, tx *sqlx.Tx, tid tenant.ID, e Entry, v Ver
 
 // AddVersion makes v the active version of e, provided the entry is live and its
 // active version is still baseVersion.
-func (s *Store) AddVersion(ctx context.Context, e Entry, v Version, baseVersion int) error {
+func (s *SQLiteStore) AddVersion(ctx context.Context, e Entry, v Version, baseVersion int) error {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return err
@@ -195,7 +194,7 @@ func (r entryRow) entry() (Entry, error) {
 }
 
 // Get returns the entry with its active version's implementations, or nil if absent.
-func (s *Store) Get(ctx context.Context, id string) (*Entry, error) {
+func (s *SQLiteStore) Get(ctx context.Context, id string) (*Entry, error) {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return nil, err
@@ -223,7 +222,7 @@ func (s *Store) Get(ctx context.Context, id string) (*Entry, error) {
 }
 
 // List returns entries without implementations, ordered by name.
-func (s *Store) List(ctx context.Context, includeDeleted bool) ([]Entry, error) {
+func (s *SQLiteStore) List(ctx context.Context, includeDeleted bool) ([]Entry, error) {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return nil, err
@@ -249,7 +248,7 @@ func (s *Store) List(ctx context.Context, includeDeleted bool) ([]Entry, error) 
 }
 
 // ListLive returns the live entries with their active version's implementations, ordered by name.
-func (s *Store) ListLive(ctx context.Context) ([]Entry, error) {
+func (s *SQLiteStore) ListLive(ctx context.Context) ([]Entry, error) {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return nil, err
@@ -309,7 +308,7 @@ func (r versionRow) version(withContent bool) (Version, error) {
 }
 
 // Versions lists an entry's versions, newest first, without content.
-func (s *Store) Versions(ctx context.Context, id string) ([]Version, error) {
+func (s *SQLiteStore) Versions(ctx context.Context, id string) ([]Version, error) {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return nil, err
@@ -332,7 +331,7 @@ func (s *Store) Versions(ctx context.Context, id string) ([]Version, error) {
 }
 
 // Version returns one version with its content, or nil if absent.
-func (s *Store) Version(ctx context.Context, id string, n int) (*Version, error) {
+func (s *SQLiteStore) Version(ctx context.Context, id string, n int) (*Version, error) {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return nil, err
@@ -354,7 +353,7 @@ func (s *Store) Version(ctx context.Context, id string, n int) (*Version, error)
 }
 
 // SetDeleted marks an entry deleted at the given time, or undeletes it when at is nil.
-func (s *Store) SetDeleted(ctx context.Context, id string, at *time.Time, by string) error {
+func (s *SQLiteStore) SetDeleted(ctx context.Context, id string, at *time.Time, by string) error {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return err
@@ -372,7 +371,7 @@ func (s *Store) SetDeleted(ctx context.Context, id string, at *time.Time, by str
 // Prune deletes old versions and returns how many were removed. A version goes
 // when it is not among the newest `keep` (if keep > 0) or is older than
 // olderThan (if non-zero). The active version and version 1 are never removed.
-func (s *Store) Prune(ctx context.Context, keep int, olderThan time.Time) (int64, error) {
+func (s *SQLiteStore) Prune(ctx context.Context, keep int, olderThan time.Time) (int64, error) {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return 0, err
@@ -401,7 +400,7 @@ func (s *Store) Prune(ctx context.Context, keep int, olderThan time.Time) (int64
 }
 
 // Meta reads a library_meta value.
-func (s *Store) Meta(ctx context.Context, key string) (string, bool, error) {
+func (s *SQLiteStore) Meta(ctx context.Context, key string) (string, bool, error) {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return "", false, err
@@ -417,8 +416,8 @@ func (s *Store) Meta(ctx context.Context, key string) (string, bool, error) {
 	return value, true, nil
 }
 
-// SetMeta writes a library_meta value inside the caller's transaction.
-func (s *Store) SetMeta(ctx context.Context, tx *sqlx.Tx, key, value string) error {
+// setMeta writes a library_meta value inside the caller's transaction.
+func (s *SQLiteStore) setMeta(ctx context.Context, tx *sqlx.Tx, key, value string) error {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return err
@@ -427,7 +426,24 @@ func (s *Store) SetMeta(ctx context.Context, tx *sqlx.Tx, key, value string) err
 	return err
 }
 
+// ByBuiltinKey returns the entry (deleted or not) created for a built-in key, or nil.
+func (s *SQLiteStore) ByBuiltinKey(ctx context.Context, key string) (*Entry, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var id string
+	err = s.db.GetContext(ctx, &id, "SELECT `id` FROM `entries` WHERE `tenant_id` = ? AND `builtin_key` = ?", tid, key)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, id)
+}
+
 // Close closes the underlying database.
-func (s *Store) Close() error {
+func (s *SQLiteStore) Close() error {
 	return s.db.Close()
 }

@@ -19,7 +19,7 @@ func SetupTestAPISessionCache(t *testing.T) (ctx context.Context, cache *Cache) 
 	defaultExpiration := time.Duration(100)
 	cleanupInterval := time.Duration(200)
 
-	storage, err := NewSqliteProvider(":memory:", DataSourceOptions)
+	storage, err := openTestSqliteProvider(":memory:", DataSourceOptions)
 	require.NoError(t, err)
 
 	cache, err = NewCache(ctx, defaultExpiration, cleanupInterval, storage, nil)

@@ -32,9 +32,12 @@ type RotationProvider struct {
 	sqlite *SQLiteProvider
 }
 
-// newRotationProvider opens the current audit log file and rotates it every period, until ctx is done or Close.
-func newRotationProvider(ctx context.Context, l *logger.Logger, period time.Duration, dataDir string, dataSourceOptions sqlite.DataSourceOptions) (*RotationProvider, error) {
-	sqlite, err := newSQLiteProvider(dataDir, dataSourceOptions)
+var _ Provider = (*RotationProvider)(nil)
+
+// NewRotationProvider opens (and migrates) auditlog.db in dataDir and rotates it every period, until ctx is done or
+// Close. Every file it opens or creates is migrated to the latest version.
+func NewRotationProvider(ctx context.Context, l *logger.Logger, period time.Duration, dataDir string, dataSourceOptions sqlite.DataSourceOptions) (*RotationProvider, error) {
+	sqlite, err := openSQLiteProvider(dataDir, dataSourceOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +94,7 @@ func (r *RotationProvider) rotate() error {
 		return err
 	}
 
-	r.sqlite, err = newSQLiteProvider(r.dataDir, r.dataSourceOptions)
+	r.sqlite, err = openSQLiteProvider(r.dataDir, r.dataSourceOptions)
 	if err != nil {
 		return err
 	}

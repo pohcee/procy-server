@@ -34,7 +34,7 @@ func newLibraryEntriesEnv(t *testing.T) *libraryEntriesEnv {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	m := library.NewManager(library.NewStore(db), func() time.Time { now = now.Add(time.Minute); return now })
+	m := library.NewManager(library.NewSQLiteStore(db), func() time.Time { now = now.Add(time.Minute); return now })
 	al := &APIListener{
 		Server:           &Server{},
 		libraryManager:   m,

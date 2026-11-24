@@ -23,6 +23,7 @@ import (
 	"github.com/openrport/openrport/db/migration/client_groups"
 	clientsmigration "github.com/openrport/openrport/db/migration/clients"
 	jobsmigration "github.com/openrport/openrport/db/migration/jobs"
+	monitoringmigration "github.com/openrport/openrport/db/migration/monitoring"
 	"github.com/openrport/openrport/db/sqlite"
 	rportplus "github.com/openrport/openrport/plus"
 	alertingcap "github.com/openrport/openrport/plus/capabilities/alerting"
@@ -199,14 +200,13 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		return nil, err
 	}
 
-	monitoringProvider, err := monitoring.NewSqliteProvider(
-		path.Join(config.Server.DataDir, "monitoring.db"),
-		config.Server.GetSQLiteDataSourceOptions(),
-		s.Logger,
-	)
+	monitoringDBPath := path.Join(config.Server.DataDir, "monitoring.db")
+	monitoringDB, err := sqlite.New(monitoringDBPath, monitoringmigration.FS, config.Server.GetSQLiteDataSourceOptions())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create monitoring DB instance: %v", err)
 	}
+	s.Logger.Infof("initialized database at %s", monitoringDBPath)
+	monitoringProvider := monitoring.NewSqliteProvider(monitoringDB, s.Logger)
 
 	// even if monitoring disabled, always create the monitoring service to support queries of past data etc
 	s.monitoringService = monitoring.NewService(monitoringProvider, s.Logger.Fork("monitoring"))
@@ -254,14 +254,21 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		s.clientService.SetPlusAlertingServiceCap(s.alertingService)
 	}
 
-	s.auditLog, err = auditlog.New(
-		ctx,
-		logger.NewLogger("auditlog", config.Logging.LogOutput, config.Logging.LogLevel),
-		s.clientService,
-		s.config.Server.DataDir,
-		s.config.API.AuditLog,
-		s.config.Server.GetSQLiteDataSourceOptions(),
-	)
+	auditLogLogger := logger.NewLogger("auditlog", config.Logging.LogOutput, config.Logging.LogLevel)
+	var auditLogProvider auditlog.Provider
+	if s.config.API.AuditLog.Enable {
+		auditLogProvider, err = auditlog.NewRotationProvider(
+			ctx,
+			auditLogLogger,
+			s.config.API.AuditLog.RotationPeriod(),
+			s.config.Server.DataDir,
+			s.config.Server.GetSQLiteDataSourceOptions(),
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	s.auditLog, err = auditlog.New(ctx, auditLogLogger, s.clientService, s.config.API.AuditLog, auditLogProvider)
 	if err != nil {
 		return nil, err
 	}

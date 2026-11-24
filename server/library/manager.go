@@ -36,9 +36,9 @@ type ListOptions struct {
 	Limit   int
 }
 
-// Manager implements the library rules on top of the Store.
+// Manager implements the library rules on top of a Repository.
 type Manager struct {
-	store *Store
+	store Repository
 	now   func() time.Time
 	refs  ReferenceChecker
 }
@@ -76,7 +76,7 @@ func (m *Manager) UsedBy(ctx context.Context, id string) ([]Reference, error) {
 	return refs, nil
 }
 
-func NewManager(store *Store, now func() time.Time) *Manager {
+func NewManager(store Repository, now func() time.Time) *Manager {
 	return &Manager{store: store, now: now}
 }
 

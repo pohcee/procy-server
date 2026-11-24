@@ -17,25 +17,13 @@ import (
 	"github.com/openrport/openrport/share/tenant"
 )
 
-type Repository interface {
-	List(ctx context.Context, options *query.ListOptions) ([]notifications.NotificationSummary, error)
-	Count(ctx context.Context, options *query.ListOptions) (int, error)
-	Details(ctx context.Context, nid string) (notifications.NotificationDetails, bool, error)
-	Create(ctx context.Context, details notifications.NotificationDetails) error
-	SetDone(ctx context.Context, details notifications.NotificationDetails, out string) error
-	SetError(ctx context.Context, details notifications.NotificationDetails, out, err string) error
-	NotificationStream(target notifications.Target) chan notifications.NotificationDetails
-	Close() error
-}
-
 const MaxNotificationsQueue = 1000
 const MaxOutAndErrorSize = 2000 // limit outs to 2k characters
 
 const RecipientsSeparator = "@|@"
 
-// repository stores the notification log. Every method is scoped to the tenant carried by its context and fails
-// with tenant.ErrMissing when there is none.
-type repository struct {
+// Repository is the SQLite notifications.Repository, kept in notifications.db.
+type Repository struct {
 	db        *sqlx.DB
 	converter *query.SQLConverter
 	sinks     map[notifications.Target]chan notifications.NotificationDetails
@@ -51,7 +39,7 @@ func tenantOf(ctx context.Context) (tenant.ID, error) {
 	return id, nil
 }
 
-func (r repository) Count(ctx context.Context, options *query.ListOptions) (int, error) {
+func (r *Repository) Count(ctx context.Context, options *query.ListOptions) (int, error) {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return 0, err
@@ -73,14 +61,14 @@ func (r repository) Count(ctx context.Context, options *query.ListOptions) (int,
 	return res, err
 }
 
-func (r repository) SetError(ctx context.Context, details notifications.NotificationDetails, out, err string) error {
+func (r *Repository) SetError(ctx context.Context, details notifications.NotificationDetails, out, err string) error {
 	details.Out = out
 	details.Err = err
 	details.State = notifications.ProcessingStateError
 	return r.save(ctx, details)
 }
 
-func (r repository) SetDone(ctx context.Context, details notifications.NotificationDetails, out string) error {
+func (r *Repository) SetDone(ctx context.Context, details notifications.NotificationDetails, out string) error {
 	details.State = notifications.ProcessingStateDone
 	details.Out = out
 	return r.save(ctx, details)
@@ -101,7 +89,7 @@ type SQLNotification struct {
 	Err            string     `db:"err"`
 }
 
-func (r repository) Create(ctx context.Context, details notifications.NotificationDetails) error {
+func (r *Repository) Create(ctx context.Context, details notifications.NotificationDetails) error {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return err
@@ -123,7 +111,7 @@ func (r repository) Create(ctx context.Context, details notifications.Notificati
 	return nil
 }
 
-func (r repository) save(ctx context.Context, details notifications.NotificationDetails) error {
+func (r *Repository) save(ctx context.Context, details notifications.NotificationDetails) error {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return err
@@ -166,7 +154,7 @@ func (r repository) save(ctx context.Context, details notifications.Notification
 	return err
 }
 
-func (r repository) Details(ctx context.Context, nid string) (notifications.NotificationDetails, bool, error) {
+func (r *Repository) Details(ctx context.Context, nid string) (notifications.NotificationDetails, bool, error) {
 	empty := notifications.NotificationDetails{}
 	tid, err := tenantOf(ctx)
 	if err != nil {
@@ -220,7 +208,7 @@ func (r repository) Details(ctx context.Context, nid string) (notifications.Noti
 	return tmp, true, nil
 }
 
-func (r repository) List(ctx context.Context, options *query.ListOptions) ([]notifications.NotificationSummary, error) {
+func (r *Repository) List(ctx context.Context, options *query.ListOptions) ([]notifications.NotificationSummary, error) {
 	tid, err := tenantOf(ctx)
 	if err != nil {
 		return nil, err
@@ -249,13 +237,17 @@ FROM notifications_log WHERE tenant_id = ?`
 	return res, err
 }
 
-//nolint:revive
-func NewRepository(connection *sqlx.DB, l *logger.Logger) repository {
+var (
+	_ notifications.Repository = (*Repository)(nil)
+	_ Cleanable                = (*Repository)(nil)
+)
+
+func NewRepository(connection *sqlx.DB, l *logger.Logger) *Repository {
 	sinks := map[notifications.Target]chan notifications.NotificationDetails{}
 	for _, target := range notifications.AllTargets {
 		sinks[target] = make(chan notifications.NotificationDetails, MaxNotificationsQueue)
 	}
-	return repository{
+	return &Repository{
 		db:        connection,
 		sinks:     sinks,
 		converter: query.NewSQLConverter(connection.DriverName()),
@@ -263,13 +255,27 @@ func NewRepository(connection *sqlx.DB, l *logger.Logger) repository {
 	}
 }
 
-func (r repository) NotificationStream(target notifications.Target) chan notifications.NotificationDetails {
+func (r *Repository) NotificationStream(target notifications.Target) chan notifications.NotificationDetails {
 	return r.sinks[target]
 }
 
-func (r repository) Close() error {
+func (r *Repository) Close() error {
 	for _, ch := range r.sinks {
 		close(ch)
 	}
 	return nil
+}
+
+// DeleteBefore deletes the notifications of ctx's tenant logged at or before the given time.
+func (r *Repository) DeleteBefore(ctx context.Context, before time.Time) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx,
+		"DELETE FROM `notifications_log` WHERE tenant_id = ? AND timestamp <= ?",
+		tid,
+		before.UTC().Format("2006-01-02 15:04:05"),
+	)
+	return err
 }

@@ -38,7 +38,7 @@ func migrateSessionsTo(t *testing.T, path string, version uint) *sqlx.DB {
 }
 
 func TestSessionStorageRequiresTenant(t *testing.T) {
-	p, err := NewSqliteProvider(":memory:", DataSourceOptions)
+	p, err := openTestSqliteProvider(":memory:", DataSourceOptions)
 	require.NoError(t, err)
 	defer p.Close()
 	ctx := context.Background()
@@ -58,7 +58,7 @@ func TestSessionStorageRequiresTenant(t *testing.T) {
 }
 
 func TestSessionStorageIsolatesTenants(t *testing.T) {
-	p, err := NewSqliteProvider(":memory:", DataSourceOptions)
+	p, err := openTestSqliteProvider(":memory:", DataSourceOptions)
 	require.NoError(t, err)
 	defer p.Close()
 	a, b := ctxFor("a"), ctxFor("b")
@@ -113,7 +113,7 @@ func TestSessionStorageIsolatesTenants(t *testing.T) {
 }
 
 func TestSessionCacheRequiresTenant(t *testing.T) {
-	storage, err := NewSqliteProvider(":memory:", DataSourceOptions)
+	storage, err := openTestSqliteProvider(":memory:", DataSourceOptions)
 	require.NoError(t, err)
 	defer storage.Close()
 
@@ -136,7 +136,7 @@ func TestSessionCacheRequiresTenant(t *testing.T) {
 }
 
 func TestSessionCacheIsolatesTenants(t *testing.T) {
-	storage, err := NewSqliteProvider(":memory:", DataSourceOptions)
+	storage, err := openTestSqliteProvider(":memory:", DataSourceOptions)
 	require.NoError(t, err)
 	defer storage.Close()
 	a, b := ctxFor("a"), ctxFor("b")
@@ -193,7 +193,7 @@ func TestSessionCacheIsolatesTenants(t *testing.T) {
 }
 
 func TestSessionCleanupTaskScopesByTenant(t *testing.T) {
-	storage, err := NewSqliteProvider(":memory:", DataSourceOptions)
+	storage, err := openTestSqliteProvider(":memory:", DataSourceOptions)
 	require.NoError(t, err)
 	defer storage.Close()
 	aExpired, err := storage.Save(ctxFor("a"), expiredSession("u"))
@@ -230,7 +230,7 @@ func TestSessionUpgradeKeepsSessionsInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	p, err := NewSqliteProvider(path, DataSourceOptions)
+	p, err := openTestSqliteProvider(path, DataSourceOptions)
 	require.NoError(t, err)
 	defer p.Close()
 	found, got, err := p.Get(ctxFor(tenant.Default), 7)
@@ -247,7 +247,7 @@ func TestSessionUpgradeKeepsSessionsInDefaultTenant(t *testing.T) {
 
 func TestSessionDowngradeKeepsOnlyDefaultTenant(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "api_sessions.db")
-	p, err := NewSqliteProvider(path, DataSourceOptions)
+	p, err := openTestSqliteProvider(path, DataSourceOptions)
 	require.NoError(t, err)
 	_, err = p.Save(ctxFor(tenant.Default), liveSession("default-user"))
 	require.NoError(t, err)

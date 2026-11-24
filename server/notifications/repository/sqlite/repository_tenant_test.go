@@ -30,7 +30,7 @@ func migrateTo(t *testing.T, path string, version uint) *sqlx.DB {
 	return db
 }
 
-func newTenantRepo(t *testing.T) repo.Repository {
+func newTenantRepo(t *testing.T) *repo.Repository {
 	t.Helper()
 	db, err := sqlite.New(":memory:", repo.Migrations, sqlite.DataSourceOptions{})
 	require.NoError(t, err)

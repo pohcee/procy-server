@@ -205,7 +205,7 @@ type MockAPISessionStorageProvider struct {
 
 func newEmptyMockAPISessionStorageProvider() (m *MockAPISessionStorageProvider, err error) {
 	m = &MockAPISessionStorageProvider{}
-	m.SqliteProvider, err = session.NewSqliteProvider(":memory:", DataSourceOptions)
+	m.SqliteProvider, err = openTestSessionProvider()
 	return m, err
 }
 

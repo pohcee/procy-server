@@ -36,7 +36,7 @@ func migrateTo(t *testing.T, path string, version uint) *sqlx.DB {
 
 func newMemProvider(t *testing.T) *SqliteProvider {
 	t.Helper()
-	p, err := NewSqliteProvider(configMock{}, testLog)
+	p, err := openTestSqliteProvider(configMock{}, testLog)
 	require.NoError(t, err)
 	t.Cleanup(func() { p.Close() })
 	return p
@@ -145,7 +145,7 @@ func TestVaultJSONHasNoTenant(t *testing.T) {
 func TestManagerLocksPerTenant(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "vault.sqlite.db")
 	factory := NewStatefulDbProviderFactory(
-		func() (DbProvider, error) { return NewSqliteProvider(fileConfig(path), testLog) },
+		func() (DbProvider, error) { return openTestSqliteProvider(fileConfig(path), testLog) },
 		&NotInitDbProvider{},
 	)
 	m := NewManager(factory, &Aes256PassManager{}, testLog)
@@ -206,7 +206,7 @@ func TestUpgradeKeepsVaultInDefaultTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, old.Close())
 
-	p, err := NewSqliteProvider(fileConfig(path), testLog)
+	p, err := openTestSqliteProvider(fileConfig(path), testLog)
 	require.NoError(t, err)
 	defer p.Close()
 	ctx := ctxFor(tenant.Default)
@@ -236,7 +236,7 @@ func TestUpgradeKeepsVaultInDefaultTenant(t *testing.T) {
 
 func TestDowngradeKeepsOnlyDefaultVault(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "vault.sqlite.db")
-	p, err := NewSqliteProvider(fileConfig(path), testLog)
+	p, err := openTestSqliteProvider(fileConfig(path), testLog)
 	require.NoError(t, err)
 	for _, tid := range []tenant.ID{tenant.Default, "a"} {
 		ctx := ctxFor(tid)
