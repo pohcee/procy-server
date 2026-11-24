@@ -91,6 +91,20 @@ func (suite *RepositoryTestSuite) TestRepositoryOutTrimming() {
 	suite.Less(len(retrieved.Err), length)
 }
 
+// An out or error longer than the queue size but within the stored limit is kept whole.
+func (suite *RepositoryTestSuite) TestRepositoryOutWithinLimitIsKept() {
+	notificationQueued := suite.CreateNotification()
+
+	out := strings.Repeat("t", repo.MaxOutAndErrorSize-500)
+	suite.NoError(suite.repository.SetError(ctxFor(tenant.Default), notificationQueued, out, out))
+
+	retrieved, found, err := suite.repository.Details(ctxFor(tenant.Default), notificationQueued.ID.ID())
+	suite.NoError(err)
+	suite.True(found)
+	suite.Equal(out, retrieved.Out)
+	suite.Equal(out, retrieved.Err)
+}
+
 func (suite *RepositoryTestSuite) TestRepositoryNotificationList() {
 
 	notification1 := suite.CreateNotification()
