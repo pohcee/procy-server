@@ -18,8 +18,8 @@ import (
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/storage/postgres/changefeed"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
 	pgclients "github.com/openrport/openrport/server/storage/postgres/clients"
+	"github.com/openrport/openrport/server/storage/postgres/pgtest"
 	"github.com/openrport/openrport/share/files"
 	"github.com/openrport/openrport/share/tenant"
 )
