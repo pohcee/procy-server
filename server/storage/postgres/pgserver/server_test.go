@@ -368,6 +368,7 @@ func TestServerOptsRoleAPI(t *testing.T) {
 	assert.NotNil(t, opts.Repositories.Users)
 	assert.NotNil(t, opts.VaultKeys, "the vault keys are managed: no passphrase vault on Postgres")
 	assert.Same(t, fs, opts.FilesAPI, "copied from base")
+	assert.Nil(t, opts.DeviceTenants, "no client listener")
 	assert.False(t, base.SkipMigrations, "base is not modified")
 
 	cfg = loadConfig(t, nodeConf(t, d.AppURL, freeAddr(t), nodeSettings{role: chconfig.StorageRoleAll}))
@@ -376,4 +377,5 @@ func TestServerOptsRoleAPI(t *testing.T) {
 	defer closeOpts()
 	assert.False(t, opts.DisableClientListener)
 	assert.Nil(t, opts.Dispatcher, "role all does the work on its own connected clients")
+	assert.NotNil(t, opts.DeviceTenants, "devices of every tenant connect")
 }

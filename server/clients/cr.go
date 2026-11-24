@@ -431,6 +431,18 @@ func (r *ClientRepository) getNonObsoleteClientsByUser(ctx context.Context, user
 	return matchingClients
 }
 
+// Tenants returns the tenants the cache holds clients for: those whose clients were loaded, because a client of
+// theirs connected or their clients were asked for.
+func (r *ClientRepository) Tenants() []tenant.ID {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]tenant.ID, 0, len(r.clientState))
+	for tid := range r.clientState {
+		out = append(out, tid)
+	}
+	return out
+}
+
 func (r *ClientRepository) log() (l *logger.Logger) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -501,6 +513,16 @@ func (r *ClientRepository) removeClient(tid tenant.ID, clientID string) {
 	r.mu.Lock()
 	delete(r.clientState[tid], clientID)
 	r.mu.Unlock()
+}
+
+// LoadTenant makes sure the cache holds the clients of the tenant carried by ctx (see loadTenant) and reports a
+// failed load, which the other methods only log.
+func (r *ClientRepository) LoadTenant(ctx context.Context) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	return r.loadTenant(ctx, tid)
 }
 
 // loadTenant makes sure the cache holds the state of the tenant, loading its stored clients on first use

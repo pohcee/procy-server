@@ -133,6 +133,10 @@ type ServerOpts struct {
 	// active tenant on one node at a time, scheduled runs are claimed, and what the server caches follows the
 	// changes other nodes make. nil means cluster.Standalone (the default tenant, everything runs here).
 	Cluster cluster.Coordinator
+	// DeviceTenants, when set, lets devices of every tenant connect: the client listener finds each device's tenant
+	// from its client auth id and refuses devices of tenants that are not active or have reached their client limit
+	// (#34). nil: devices belong to the default tenant.
+	DeviceTenants DeviceTenants
 }
 
 // NewServer creates and returns a new rport server
@@ -280,6 +284,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 			Measurements:  s.monitoringQueue,
 			PlusManager:   s.plusManager,
 			Capabilities:  s.capabilities,
+			DeviceTenants: opts.DeviceTenants,
 		})
 		if err != nil {
 			return nil, err

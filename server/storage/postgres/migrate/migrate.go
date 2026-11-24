@@ -3,7 +3,8 @@
 // Files are named NNNN_name.up.sql (NNNN is the version, unique, applied in ascending order). Each domain owns a
 // version range so independent changes don't collide: 0001–0099 core, 0100 users, tokens, sessions and client
 // auth, 0200 clients, stored tunnels and client groups, 0300 jobs and schedules, 0400 library, notifications, audit
-// log and monitoring, 1000 organizations (1050 the operator API). Only up migrations exist; a released file never changes.
+// log and monitoring, 1000 organizations (1000 the tenant of a client credential and device limits, 1050 the operator
+// API). Only up migrations exist; a released file never changes.
 package migrate
 
 import (
@@ -195,9 +196,10 @@ func Check(ctx context.Context, db *sqlx.DB) error {
 
 // GrantApp gives role what the application needs, now and for tables later migrations add (default privileges
 // of the role running it, which must be the schema owner): SELECT, INSERT, UPDATE and DELETE on the tenant-scoped
-// tables, USAGE on sequences, SELECT only on tenants, user_logins, the change feed (changes, changes_horizon;
-// written by triggers and rport_prune_changes) and schema_migrations, and EXECUTE on the operator functions, which
-// are the application's only way to change tenants. role must not own the tables and must not be a superuser or have
+// tables, USAGE on sequences, SELECT only on tenants, user_logins, client_auth_ids (written by triggers), the change
+// feed (changes, changes_horizon; written by triggers and rport_prune_changes) and schema_migrations, and EXECUTE on
+// the operator functions, which are the application's only way to change tenants. role must not own the tables and
+// must not be a superuser or have
 // BYPASSRLS, or row-level security does not hold for it (postgres.CheckAppRole).
 func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	q := quoteIdent(role)
@@ -207,7 +209,7 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
-		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, changes, changes_horizon, migrate_deferred FROM " + q,
+		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, client_auth_ids, changes, changes_horizon, migrate_deferred FROM " + q,
 		"GRANT EXECUTE ON FUNCTION rport_prune_changes(interval) TO " + q,
 	}
 	// the operator functions (migration 1050) change tenants for the operator API
