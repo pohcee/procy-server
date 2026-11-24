@@ -15,6 +15,8 @@ import (
 )
 
 // Store is a clients.ClientStore on the clients table. Every method is scoped to the tenant carried by its context.
+// It reads the clients through the client_records view, which overlays the state device processes report
+// (client_state) on the stored records; deleting a client deletes its reported state too.
 type Store struct {
 	db                      *sqlx.DB
 	keepDisconnectedClients *time.Duration
@@ -41,7 +43,7 @@ func (s *Store) GetAll(ctx context.Context, l *logger.Logger) ([]*clientdata.Cli
 	if err != nil {
 		return nil, err
 	}
-	q := "SELECT id, client_auth_id, disconnected_at, details FROM clients WHERE tenant_id = $1"
+	q := "SELECT id, client_auth_id, disconnected_at, details FROM client_records WHERE tenant_id = $1"
 	args := []any{string(tid)}
 	if s.keepDisconnectedClients != nil {
 		q += " AND (disconnected_at IS NULL OR disconnected_at >= $2)"
@@ -98,10 +100,13 @@ func (s *Store) DeleteObsolete(ctx context.Context, _ *logger.Logger) error {
 	}
 	cutoff := s.cutoff()
 	return postgres.InTenantID(ctx, s.db, tid, func(tx *sqlx.Tx) error {
-		_, err := tx.ExecContext(ctx,
-			"DELETE FROM clients WHERE tenant_id = $1 AND disconnected_at IS NOT NULL AND disconnected_at < $2",
-			string(tid), cutoff)
-		return err
+		for _, tbl := range []string{"client_state", "clients"} {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM "+tbl+" WHERE tenant_id = $1 AND disconnected_at IS NOT NULL AND disconnected_at < $2",
+				string(tid), cutoff); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -111,6 +116,9 @@ func (s *Store) Delete(ctx context.Context, id string, _ *logger.Logger) error {
 		return err
 	}
 	return postgres.InTenantID(ctx, s.db, tid, func(tx *sqlx.Tx) error {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM client_state WHERE tenant_id = $1 AND client_id = $2", string(tid), id); err != nil {
+			return err
+		}
 		_, err := tx.ExecContext(ctx, "DELETE FROM clients WHERE tenant_id = $1 AND id = $2", string(tid), id)
 		return err
 	})

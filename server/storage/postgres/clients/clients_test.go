@@ -95,3 +95,35 @@ func TestRequiresTenantBeforeDatabase(t *testing.T) {
 	_, err := s.GetAll(context.Background(), testLog)
 	assert.Error(t, err)
 }
+
+// A client reported by a device process (client_state, no clients row) is listed with the reported fields and no
+// allowed user groups; deleting it deletes the reported state, so it doesn't come back.
+func TestDeviceReportedClients(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	ctx := repotest.Ctx(repotest.TenantA)
+	_, err := d.Owner.Exec("INSERT INTO clients_auth (tenant_id, id, password) VALUES ('a', 'auth', 'x')")
+	require.NoError(t, err)
+	_, err = d.Owner.Exec(`INSERT INTO client_state (tenant_id, client_id, client_auth_id, details, reported_at, disconnected_at)
+		VALUES ('a', 'dev', 'auth', '{"name":"reported","allowed_user_groups":["x"]}', now(), now() - interval '10 days')`)
+	require.NoError(t, err)
+
+	s := New(d.App, nil)
+	all, err := s.GetAll(ctx, testLog)
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	assert.Equal(t, "reported", all[0].GetName())
+	assert.Empty(t, all[0].GetAllowedUserGroups())
+
+	keep := 24 * time.Hour
+	require.NoError(t, New(d.App, &keep).DeleteObsolete(ctx, testLog))
+	all, err = s.GetAll(ctx, testLog)
+	require.NoError(t, err)
+	assert.Empty(t, all, "obsolete reported state is deleted")
+
+	_, err = d.Owner.Exec(`INSERT INTO client_state (tenant_id, client_id, client_auth_id, details, reported_at) VALUES ('a', 'dev', 'auth', '{}', now())`)
+	require.NoError(t, err)
+	require.NoError(t, s.Delete(ctx, "dev", testLog))
+	all, err = s.GetAll(ctx, testLog)
+	require.NoError(t, err)
+	assert.Empty(t, all)
+}

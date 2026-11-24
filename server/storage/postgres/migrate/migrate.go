@@ -17,6 +17,8 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+
+	"github.com/openrport/openrport/server/storage/postgres"
 )
 
 //go:embed migrations/*.sql
@@ -159,6 +161,28 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	for _, s := range stmts {
 		if _, err := db.ExecContext(ctx, s); err != nil {
 			return fmt.Errorf("migrate: grant to %s: %w", role, err)
+		}
+	}
+	return nil
+}
+
+// GrantDevice makes role the device role of a node with [storage] role = "device": it takes back every privilege
+// role has on tables and sequences and grants USAGE on the schema and EXECUTE on postgres.DeviceFunctions only
+// (lookups on the device path and the ingest functions, which check their input). role must be a separate login
+// from the application role; postgres.CheckDeviceRole refuses anything more privileged.
+func GrantDevice(ctx context.Context, db *sqlx.DB, role string) error {
+	q := quoteIdent(role)
+	stmts := []string{
+		"REVOKE ALL ON ALL TABLES IN SCHEMA public FROM " + q,
+		"REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM " + q,
+		"GRANT USAGE ON SCHEMA public TO " + q,
+	}
+	for _, f := range postgres.DeviceFunctions {
+		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+f+" TO "+q)
+	}
+	for _, s := range stmts {
+		if _, err := db.ExecContext(ctx, s); err != nil {
+			return fmt.Errorf("migrate: grant device role to %s: %w", role, err)
 		}
 	}
 	return nil

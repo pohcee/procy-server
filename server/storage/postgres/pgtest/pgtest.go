@@ -42,6 +42,12 @@ const AppRole = "rport_app"
 
 const appPassword = "rport_app"
 
+// DeviceRole is the login role New grants the device role's privileges (migrate.GrantDevice) on each database: what
+// a node with [storage] role = "device" connects as.
+const DeviceRole = "rport_device"
+
+const devicePassword = "rport_device"
+
 var adminURL string
 
 // Main runs the package's tests against Postgres; call it from TestMain: func TestMain(m *testing.M) { pgtest.Main(m) }.
@@ -146,6 +152,9 @@ func ensureAppRoleAt(adminURL string) error {
 		IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '`+AppRole+`') THEN
 			CREATE ROLE `+AppRole+` LOGIN PASSWORD '`+appPassword+`' NOSUPERUSER NOBYPASSRLS;
 		END IF;
+		IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '`+DeviceRole+`') THEN
+			CREATE ROLE `+DeviceRole+` LOGIN PASSWORD '`+devicePassword+`' NOSUPERUSER NOBYPASSRLS;
+		END IF;
 	END $$`)
 	return err
 }
@@ -157,6 +166,9 @@ type DB struct {
 	App   *sqlx.DB // rport_app: what a server connects as; row-level security applies
 	// AppURL and OwnerURL are the connection URLs of App and Owner, for code under test that opens its own.
 	AppURL, OwnerURL string
+	// Device is rport_device, granted the device role (migrate.GrantDevice) when the database is migrated.
+	Device    *sqlx.DB
+	DeviceURL string
 }
 
 // New creates a fresh, migrated database for t (dropped at the end of the test) in which the tenants given exist.
@@ -210,6 +222,9 @@ func newDB(t testing.TB, migrated bool, tenants ...tenant.ID) *DB {
 		if err := migrate.GrantApp(ctx, owner, AppRole); err != nil {
 			t.Fatal(err)
 		}
+		if err := migrate.GrantDevice(ctx, owner, DeviceRole); err != nil {
+			t.Fatal(err)
+		}
 	}
 	appURL := withDatabase(t, adminURL, name, AppRole, appPassword)
 	app, err := postgres.Open(ctx, appURL)
@@ -217,8 +232,14 @@ func newDB(t testing.TB, migrated bool, tenants ...tenant.ID) *DB {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { app.Close() })
+	deviceURL := withDatabase(t, adminURL, name, DeviceRole, devicePassword)
+	device, err := postgres.Open(ctx, deviceURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { device.Close() })
 
-	d := &DB{Name: name, Owner: owner, App: app, AppURL: appURL, OwnerURL: ownerURL}
+	d := &DB{Name: name, Owner: owner, App: app, AppURL: appURL, OwnerURL: ownerURL, Device: device, DeviceURL: deviceURL}
 	d.AddTenants(t, tenants...)
 	return d
 }
