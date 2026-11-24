@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/query"
-
-	"github.com/openrport/openrport/share/enc"
 
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/share/tenant"
@@ -62,25 +60,53 @@ type DbProviderFactory interface {
 	Init() error
 }
 
-// Manager runs the vault of each tenant. Each tenant has its own status and passphrase, so locking or unlocking one
+// Manager runs the vault of each tenant. Each tenant has its own status and key, so locking or unlocking one
 // tenant's vault doesn't affect another's. Every method needs a tenant in its context.
+//
+// The key comes from a KeyProvider. With the default PassphraseKeyProvider the vault is initialised, unlocked and
+// locked with a passphrase through the API. With any other (managed) provider it needs none of that: Init, UnLock
+// and Lock fail with ErrManagedKey and Status reports the vault as set up and managed.
 type Manager struct {
-	passLock sync.RWMutex
-	// passes holds the passphrase of each unlocked tenant's vault.
-	passes    map[tenant.ID]string
+	keys KeyProvider
+	// passphrase is keys when it is the passphrase provider, nil for a managed provider.
+	passphrase *PassphraseKeyProvider
+	// dbReady is set once a managed vault has opened its database.
+	dbReady   atomic.Bool
 	dbFactory DbProviderFactory
 	pm        PassManager
 	logger    *logger.Logger
 }
 
+// NewManager returns a vault manager whose key comes from a passphrase given through the API.
 func NewManager(dbFactory DbProviderFactory, pm PassManager, logger *logger.Logger) *Manager {
-	return &Manager{
-		passLock:  sync.RWMutex{},
-		passes:    map[tenant.ID]string{},
-		dbFactory: dbFactory,
-		pm:        pm,
-		logger:    logger,
+	return NewManagerWithKeyProvider(dbFactory, pm, nil, logger)
+}
+
+// NewManagerWithKeyProvider returns a vault manager whose key comes from keys. A nil keys, or a
+// *PassphraseKeyProvider, gives the passphrase vault of NewManager.
+func NewManagerWithKeyProvider(dbFactory DbProviderFactory, pm PassManager, keys KeyProvider, logger *logger.Logger) *Manager {
+	if keys == nil {
+		keys = NewPassphraseKeyProvider()
 	}
+	passphrase, _ := keys.(*PassphraseKeyProvider)
+	return &Manager{
+		keys:       keys,
+		passphrase: passphrase,
+		dbFactory:  dbFactory,
+		pm:         pm,
+		logger:     logger,
+	}
+}
+
+// UsesPassphrase reports whether the vault is initialised and unlocked with a passphrase through the API.
+func (m *Manager) UsesPassphrase() bool {
+	return m.passphrase != nil
+}
+
+// ErrManagedKey is returned by Init, UnLock and Lock when the vault key comes from a managed KeyProvider.
+var ErrManagedKey = errors2.APIError{
+	Message:    "the vault key is managed by the server: the vault needs no passphrase and cannot be initialized, unlocked or locked",
+	HTTPStatus: http.StatusConflict,
 }
 
 func vaultTenant(ctx context.Context) (tenant.ID, error) {
@@ -91,25 +117,20 @@ func vaultTenant(ctx context.Context) (tenant.ID, error) {
 	return id, nil
 }
 
-// passOf returns the passphrase of the tenant's vault, "" when it is locked.
-func (m *Manager) passOf(tid tenant.ID) string {
-	m.passLock.RLock()
-	defer m.passLock.RUnlock()
-	return m.passes[tid]
-}
-
-func (m *Manager) setPass(tid tenant.ID, pass string) {
-	m.passLock.Lock()
-	defer m.passLock.Unlock()
-	if pass == "" {
-		delete(m.passes, tid)
-		return
+// passphraseTenant returns ctx's tenant when the vault uses a passphrase, ErrManagedKey otherwise.
+func (m *Manager) passphraseTenant(ctx context.Context) (tenant.ID, error) {
+	tid, err := vaultTenant(ctx)
+	if err != nil {
+		return "", err
 	}
-	m.passes[tid] = pass
+	if m.passphrase == nil {
+		return "", ErrManagedKey
+	}
+	return tid, nil
 }
 
 func (m *Manager) Init(ctx context.Context, pass string) error {
-	tid, err := vaultTenant(ctx)
+	tid, err := m.passphraseTenant(ctx)
 	if err != nil {
 		return err
 	}
@@ -150,7 +171,7 @@ func (m *Manager) Init(ctx context.Context, pass string) error {
 		return err
 	}
 
-	m.setPass(tid, pass)
+	m.passphrase.setPass(tid, pass)
 	m.logger.Infof("unlocked vault")
 
 	return nil
@@ -175,11 +196,11 @@ func (m *Manager) isDatabaseInitialized(ctx context.Context) (bool, error) {
 }
 
 func (m *Manager) UnLock(ctx context.Context, pass string) error {
-	tid, err := vaultTenant(ctx)
+	tid, err := m.passphraseTenant(ctx)
 	if err != nil {
 		return err
 	}
-	if m.passOf(tid) != "" {
+	if m.passphrase.passOf(tid) != "" {
 		return errors2.APIError{
 			Message:    "vault is already unlocked",
 			HTTPStatus: http.StatusConflict,
@@ -210,17 +231,17 @@ func (m *Manager) UnLock(ctx context.Context, pass string) error {
 
 	m.logger.Infof("unlocked vault")
 
-	m.setPass(tid, pass)
+	m.passphrase.setPass(tid, pass)
 
 	return nil
 }
 
 func (m *Manager) Lock(ctx context.Context) error {
-	tid, err := vaultTenant(ctx)
+	tid, err := m.passphraseTenant(ctx)
 	if err != nil {
 		return err
 	}
-	if m.passOf(tid) == "" {
+	if m.passphrase.passOf(tid) == "" {
 		return errors2.APIError{
 			Message:    "vault is already locked",
 			HTTPStatus: http.StatusConflict,
@@ -240,24 +261,30 @@ func (m *Manager) Lock(ctx context.Context) error {
 	}
 
 	m.logger.Infof("locked vault")
-	m.setPass(tid, "")
+	m.passphrase.setPass(tid, "")
 
 	return nil
 }
 
 // IsLocked reports whether the vault of ctx's tenant is locked. Without a tenant it is locked.
 func (m *Manager) IsLocked(ctx context.Context) bool {
-	tid, err := vaultTenant(ctx)
-	if err != nil {
-		return true
-	}
-	return m.passOf(tid) == ""
+	return !m.keys.Unlocked(ctx)
 }
 
 func (m *Manager) Status(ctx context.Context) (StatusReport, error) {
 	sr := StatusReport{}
 	if _, err := vaultTenant(ctx); err != nil {
 		return sr, err
+	}
+
+	if m.passphrase == nil {
+		sr.InitStatus = DbStatusInit
+		sr.LockStatus = StatusUnlocked
+		if m.IsLocked(ctx) {
+			sr.LockStatus = StatusLocked
+		}
+		sr.Managed = true
+		return sr, nil
 	}
 
 	db := m.dbFactory.GetDbProvider()
@@ -347,11 +374,11 @@ func (m *Manager) GetOne(ctx context.Context, id int, user UserDataProvider) (St
 		return StoredValue{}, false, err
 	}
 
-	pass, err := m.unlockedPass(ctx)
+	key, err := m.keys.Key(ctx)
 	if err != nil {
 		return StoredValue{}, false, err
 	}
-	decryptedValue, err := enc.Aes256DecryptByPassFromBase64String(val.Value, pass)
+	decryptedValue, err := decryptValue(val.Value, key)
 	if err != nil {
 		return StoredValue{}, false, err
 	}
@@ -404,11 +431,11 @@ func (m *Manager) Store(ctx context.Context, existingID int64, valueToStore *Inp
 		}
 	}
 
-	pass, err := m.unlockedPass(ctx)
+	key, err := m.keys.Key(ctx)
 	if err != nil {
 		return StoredValueID{}, err
 	}
-	encValue, err := enc.Aes256EncryptByPassToBase64String([]byte(valueToStore.Value), pass)
+	encValue, err := encryptValue([]byte(valueToStore.Value), key)
 	if err != nil {
 		return StoredValueID{}, err
 	}
@@ -462,22 +489,24 @@ var errVaultLocked = errors2.APIError{
 	HTTPStatus: http.StatusConflict,
 }
 
-// unlockedPass returns the passphrase of ctx's tenant's vault, or an error when it is locked.
-func (m *Manager) unlockedPass(ctx context.Context) (string, error) {
-	tid, err := vaultTenant(ctx)
-	if err != nil {
-		return "", err
+// checkUnlocked fails when ctx has no tenant or the tenant's vault is locked.
+func (m *Manager) checkUnlocked(ctx context.Context) error {
+	if _, err := vaultTenant(ctx); err != nil {
+		return err
 	}
-	pass := m.passOf(tid)
-	if pass == "" {
-		return "", errVaultLocked
+	if !m.keys.Unlocked(ctx) {
+		return errVaultLocked
 	}
-	return pass, nil
+	return nil
 }
 
 func (m *Manager) checkUnlockedAndInitialized(ctx context.Context) error {
-	if _, err := m.unlockedPass(ctx); err != nil {
+	if err := m.checkUnlocked(ctx); err != nil {
 		return err
+	}
+
+	if m.passphrase == nil {
+		return m.openManagedDB()
 	}
 
 	isInit, err := m.isDatabaseInitialized(ctx)
@@ -492,6 +521,18 @@ func (m *Manager) checkUnlockedAndInitialized(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+// openManagedDB opens the vault database of a managed vault, which is never initialised through the API.
+func (m *Manager) openManagedDB() error {
+	if m.dbReady.Load() {
+		return nil
+	}
+	if err := m.dbFactory.Init(); err != nil {
+		return err
+	}
+	m.dbReady.Store(true)
 	return nil
 }
 

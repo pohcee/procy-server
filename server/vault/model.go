@@ -19,6 +19,8 @@ type DbStatus struct {
 type StatusReport struct {
 	InitStatus string `json:"init"`
 	LockStatus string `json:"status"`
+	// Managed is true when the vault key comes from a managed key provider: no passphrase is needed.
+	Managed bool `json:"managed,omitempty"`
 }
 
 type PassRequest struct {
