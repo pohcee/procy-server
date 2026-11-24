@@ -23,10 +23,10 @@ func TestSyncSharedTakesConnectionStateFromRegistry(t *testing.T) {
 	repo := NewClientRepository([]*clientdata.Client{held, stale, dropped}, nil, log)
 
 	stored := []*clientdata.Client{
-		{ID: "held", Name: "stored name"},                     // this instance holds it: keeps its object
+		{ID: "held", Name: "stored name"},                      // this instance holds it: keeps its object
 		{ID: "stale", Name: "new name", DisconnectedAt: &past}, // connected elsewhere per the registry
-		{ID: "fresh"},                                          // stored as connected, no live session
-		{ID: "other", DisconnectedAt: &past},                   // new, disconnected
+		{ID: "fresh"},                        // stored as connected, no live session
+		{ID: "other", DisconnectedAt: &past}, // new, disconnected
 	}
 	repo.SyncShared(tenant.Default, stored, map[string]bool{"stale": true, "held": true})
 
