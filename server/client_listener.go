@@ -666,6 +666,9 @@ func (cl *ClientListener) sendMeasurementToAlertingService(
 // saveCmdResult saves a job result sent by a client; ctx is the client's context, which carries
 // its tenant.
 func (cl *ClientListener) saveCmdResult(ctx context.Context, respBytes []byte) (*models.Job, error) {
+	// The result must be saved even when the connection ended or the server is shutting down, so the
+	// writes keep the client's tenant but not its cancellation.
+	ctx = context.WithoutCancel(ctx)
 	resp := models.Job{}
 	err := json.Unmarshal(respBytes, &resp)
 	if err != nil {

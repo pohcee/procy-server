@@ -319,7 +319,12 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	}
 
 	if s.alertingService != nil {
-		dispatcher := notifications.NewDispatcher(s.apiListener.notificationsStorage)
+		tid, err := tenant.FromContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		// The alerting plugin may dispatch with a context of its own; it runs for the server's tenant.
+		dispatcher := notifications.WithTenantFallback(notifications.NewDispatcher(s.apiListener.notificationsStorage), tid)
 		s.alertingService.Run(ctx, config.Notifications.NotificationScriptDir, dispatcher, maxAlertingWorkers)
 	}
 	return s, nil

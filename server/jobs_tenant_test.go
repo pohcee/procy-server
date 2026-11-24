@@ -76,3 +76,24 @@ func TestMultiJobRunSavedInRequestTenant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, none)
 }
+
+// A result still being processed when the connection ends (or the server shuts down) must be saved:
+// the client's context is cancelled by then.
+func TestCmdResultSavedAfterClientContextCancelled(t *testing.T) {
+	jp := makeJobsProvider(t, DataSourceOptions, testLog)
+	t.Cleanup(func() { jp.Close() })
+	cl := &ClientListener{logger: testLog, server: &Server{
+		config:          &chconfig.Config{Server: chconfig.ServerConfig{MaxRequestBytesClient: 1024 * 1024}},
+		jobProvider:     jp,
+		uiJobWebSockets: ws.NewWebSocketCache(),
+	}}
+	clientCtx, cancel := context.WithCancel(tenant.WithID(context.Background(), tenant.Default))
+	cancel()
+
+	_, err := cl.saveCmdResult(clientCtx, []byte(`{"jid":"j1","client_id":"c1","status":"successful","started_at":"2026-01-01T00:00:00Z"}`))
+	require.NoError(t, err)
+	got, err := jp.GetByJID(tenant.WithID(context.Background(), tenant.Default), "c1", "j1")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "successful", got.Status)
+}

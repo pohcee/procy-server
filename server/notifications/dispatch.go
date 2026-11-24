@@ -71,3 +71,22 @@ type NotificationDetails struct {
 	// it is processed on another goroutine. Never exposed in the API.
 	Tenant tenant.ID `json:"-"`
 }
+
+// WithTenantFallback wraps d for callers outside this repo (the alerting plugin) that may dispatch
+// with a context of their own: a context without a tenant gets id, the tenant the caller runs for.
+// A context that carries a tenant keeps it.
+func WithTenantFallback(d Dispatcher, id tenant.ID) Dispatcher {
+	return tenantFallbackDispatcher{inner: d, id: id}
+}
+
+type tenantFallbackDispatcher struct {
+	inner Dispatcher
+	id    tenant.ID
+}
+
+func (f tenantFallbackDispatcher) Dispatch(ctx context.Context, refID refs.Identifiable, notification NotificationData) (refs.Identifiable, error) {
+	if _, err := tenant.FromContext(ctx); err != nil {
+		ctx = tenant.WithID(ctx, f.id)
+	}
+	return f.inner.Dispatch(ctx, refID, notification)
+}
