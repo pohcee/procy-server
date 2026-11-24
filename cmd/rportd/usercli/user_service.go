@@ -2,12 +2,16 @@ package usercli
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
 
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/chconfig"
+	"github.com/openrport/openrport/server/storage/postgres"
+	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
 	"github.com/openrport/openrport/share/enums"
 	"github.com/openrport/openrport/share/tenant"
 )
@@ -26,7 +30,20 @@ type UserService interface {
 	ProviderType() enums.ProviderSource
 }
 
-func NewUserService(cfg *chconfig.Config) (UserService, error) {
+// NewUserService returns the service managing the users of the server configured by cfg. tenantID ("" is the default
+// tenant) chooses the tenant on a server with [storage] backend = "postgres"; a standalone server has only the
+// default tenant.
+func NewUserService(cfg *chconfig.Config, tenantID tenant.ID) (UserService, error) {
+	if tenantID == "" {
+		tenantID = tenant.Default
+	}
+	if cfg.Storage.IsPostgres() {
+		return newPostgresUserService(cfg, tenantID)
+	}
+	if tenantID != tenant.Default {
+		return nil, errors.New(`--tenant is used only with [storage] backend = "postgres"`)
+	}
+
 	var authDB *sqlx.DB
 	var err error
 	if cfg.Database.Driver != "" {
@@ -47,6 +64,33 @@ func NewUserService(cfg *chconfig.Config) (UserService, error) {
 	return &userServiceImpl{
 		ctx:            ctx,
 		apiUserService: apiUserService,
+	}, nil
+}
+
+// newPostgresUserService manages the users of tenant tid in the Postgres database of [storage] dsn (the application
+// role). The tenant must exist and be active.
+func newPostgresUserService(cfg *chconfig.Config, tid tenant.ID) (UserService, error) {
+	ctx := context.Background()
+	db, err := postgres.Open(ctx, cfg.Storage.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("Could not connect to Postgres: %w", err)
+	}
+	var status string
+	if err := db.GetContext(ctx, &status, "SELECT status FROM tenants WHERE id = $1", string(tid)); err != nil {
+		db.Close()
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("tenant %q does not exist (add it with rportd tenant add)", tid)
+		}
+		return nil, fmt.Errorf("tenant %q: %w", tid, err)
+	}
+	if status != "active" {
+		db.Close()
+		return nil, fmt.Errorf("tenant %q is %s; users can be managed only in active tenants", tid, status)
+	}
+	ctx = tenant.WithID(ctx, tid)
+	return &userServiceImpl{
+		ctx:            ctx,
+		apiUserService: users.NewAPIServiceFromConfig(ctx, pgusers.New(db), cfg),
 	}, nil
 }
 

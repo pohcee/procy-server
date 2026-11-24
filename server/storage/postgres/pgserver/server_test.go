@@ -3,20 +3,30 @@ package pgserver
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	chserver "github.com/openrport/openrport/server"
+	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients/clientdata"
 	pgclients "github.com/openrport/openrport/server/storage/postgres/clients"
 	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	chshare "github.com/openrport/openrport/share"
+	"github.com/openrport/openrport/share/files"
+	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/tenant"
 )
 
@@ -35,11 +45,60 @@ func freeAddr(t *testing.T) string {
 	return addr
 }
 
-// startNode runs a Postgres server on a fresh database with tenants a (user alice, client web01 named "a-web") and b (user
-// bob, client web01 named "b-web").
-func startNode(t *testing.T) *nodeFixture { return startNodeWith(t, Options{}) }
+// loadConfig decodes an rportd.conf the way rportd does: rportd's defaults, the TOML file, then validation.
+func loadConfig(t *testing.T, conf string) *chconfig.Config {
+	t.Helper()
+	v := viper.New()
+	v.SetConfigType("toml")
+	chconfig.SetDefaults(v)
+	cfg := &chconfig.Config{}
+	require.NoError(t, chshare.DecodeViperConfig(v, cfg, strings.NewReader(conf)))
+	mLog := logger.NewMemLogger()
+	require.NoError(t, cfg.ParseAndValidate(&mLog))
+	return cfg
+}
 
-func startNodeWith(t *testing.T, opts Options) *nodeFixture {
+type nodeSettings struct {
+	role  string // [storage] role; default "api"
+	vault string // extra [vault] settings
+}
+
+// nodeConf is the rportd.conf of a Postgres node with the API on apiAddr.
+func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
+	t.Helper()
+	if s.role == "" {
+		s.role = chconfig.StorageRoleAPI
+	}
+	return fmt.Sprintf(`
+[server]
+  address = %q
+  data_dir = %q
+[logging]
+  log_level = "error"
+[api]
+  address = %q
+  jwt_secret = %q
+[storage]
+  backend = "postgres"
+  dsn = %q
+  role = %q
+[vault]
+%s
+`, freeAddr(t), t.TempDir(), apiAddr, testSecret, dsn, s.role, s.vault)
+}
+
+func localKeyFile(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "vault.key")
+	require.NoError(t, os.WriteFile(path, []byte(hex.EncodeToString(bytes.Repeat([]byte{9}, 32))+"\n"), 0600))
+	return path
+}
+
+// startNode runs a Postgres node on a fresh database with tenants a (user alice, client web01 named "a-web") and b
+// (user bob, client web01 named "b-web").
+func startNode(t *testing.T) *nodeFixture { return startNodeWith(t, nodeSettings{}) }
+
+func startNodeWith(t *testing.T, s nodeSettings) *nodeFixture {
 	t.Helper()
 	ctx := context.Background()
 	d := pgtest.New(t)
@@ -55,17 +114,17 @@ func startNodeWith(t *testing.T, opts Options) *nodeFixture {
 	}
 
 	addr := freeAddr(t)
-	cfg, _, err := LoadConfig(env(map[string]string{
-		EnvDatabaseURL: d.AppURL, EnvJWTSecret: testSecret, EnvAPIAddress: addr, EnvDataDir: t.TempDir(),
-		EnvLogLevel: "error",
-	}))
-	require.NoError(t, err)
+	cfg := loadConfig(t, nodeConf(t, d.AppURL, addr, s))
 
 	runCtx, cancel := context.WithCancel(ctx)
-	s, err := NewServer(runCtx, cfg, d.App, opts)
+	db, err := Open(runCtx, cfg)
+	require.NoError(t, err)
+	opts, closeOpts, err := NodeOpts(runCtx, cfg, db, &chserver.ServerOpts{FilesAPI: files.NewFileSystem()}, io.Discard)
+	require.NoError(t, err)
+	srv, err := chserver.NewServer(runCtx, cfg, opts)
 	require.NoError(t, err)
 	done := make(chan error, 1)
-	go func() { done <- s.Run(runCtx) }()
+	go func() { done <- srv.Run(runCtx) }()
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -73,6 +132,8 @@ func startNodeWith(t *testing.T, opts Options) *nodeFixture {
 		case <-time.After(10 * time.Second):
 			t.Error("server did not stop")
 		}
+		closeOpts()
+		db.Close()
 	})
 	base := "http://" + addr + "/api/v1"
 	// wait for the port with a plain dial: an unauthenticated request would delay the next one (user_login_wait)
@@ -165,7 +226,7 @@ func TestNodeLoginUnknownUser401(t *testing.T) {
 }
 
 func TestNodeCommandNotConnected(t *testing.T) {
-	h := startNode(t)
+	h := startNode(t) // role "api"
 	tok := h.login(t, "alice")
 	code, out := h.do(t, http.MethodPost, "/clients/web01/commands", tok, map[string]any{"command": "uptime"})
 	assert.GreaterOrEqual(t, code, 400, out["_raw"])
@@ -174,13 +235,47 @@ func TestNodeCommandNotConnected(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code, out["_raw"])
 }
 
-func TestNodeVaultNotAvailable(t *testing.T) {
-	h := startNode(t)
+func TestNodeRoleAllServesAPI(t *testing.T) {
+	h := startNodeWith(t, nodeSettings{role: chconfig.StorageRoleAll})
 	tok := h.login(t, "alice")
-	code, out := h.do(t, http.MethodGet, "/vault-admin", tok, nil)
-	assert.Equal(t, http.StatusOK, code, out["_raw"])
-	code, out = h.do(t, http.MethodPost, "/vault-admin/init", tok, map[string]string{"password": "abcdefghijklmnop1234"})
-	assert.Equal(t, http.StatusNotImplemented, code, out["_raw"])
+	code, out := h.do(t, http.MethodGet, "/clients", tok, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, []string{"a-web"}, clientNames(t, out))
+}
+
+func TestNodePassphraseVault(t *testing.T) {
+	h := startNode(t) // [vault] key_provider defaults to "passphrase"
+	alice, bob := h.login(t, "alice"), h.login(t, "bob")
+	code, out := h.do(t, http.MethodPost, "/vault", alice, map[string]any{"client_id": "web01", "key": "db", "value": "s3cret", "type": "secret"})
+	assert.GreaterOrEqual(t, code, 400, "not initialised yet: %s", out["_raw"])
+
+	code, out = h.do(t, http.MethodPost, "/vault-admin/init", alice, map[string]string{"password": "abcdefghijklmnop1234"})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/vault", alice, map[string]any{"client_id": "web01", "key": "db", "value": "s3cret", "type": "secret"})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	code, out = h.do(t, http.MethodGet, "/vault", alice, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Len(t, out["data"], 1)
+
+	// the vault of another tenant is its own: not initialised
+	code, out = h.do(t, http.MethodGet, "/vault-admin", bob, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, "uninitialized", out["data"].(map[string]any)["init"], out["_raw"])
+}
+
+func TestNodeManagedVaultPerTenant(t *testing.T) {
+	h := startNodeWith(t, nodeSettings{vault: fmt.Sprintf("key_provider = \"local\"\nlocal_key_file = %q\n", localKeyFile(t))})
+	alice, bob := h.login(t, "alice"), h.login(t, "bob")
+	code, out := h.do(t, http.MethodPost, "/vault", alice, map[string]any{"client_id": "web01", "key": "db", "value": "s3cret", "type": "secret"})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	code, out = h.do(t, http.MethodGet, "/vault", alice, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Len(t, out["data"], 1)
+	code, out = h.do(t, http.MethodGet, "/vault", bob, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Empty(t, out["data"], "bob's tenant sees none of alice's values")
+	code, out = h.do(t, http.MethodPost, "/vault-admin/init", alice, map[string]string{"password": "abcdefghijklmnop1234"})
+	assert.Equal(t, http.StatusConflict, code, "a managed vault needs no passphrase: %s", out["_raw"])
 }
 
 func TestNodeAPITokenBasicAuth(t *testing.T) {
@@ -199,37 +294,56 @@ func TestNodeAPITokenBasicAuth(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
-// fixedKeys is a managed vault key provider with one key per tenant.
-type fixedKeys struct{}
-
-func (fixedKeys) Key(ctx context.Context) ([]byte, error) {
-	id, err := tenant.FromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return bytes.Repeat([]byte(id)[:1], 32), nil
-}
-func (fixedKeys) Unlocked(context.Context) bool { return true }
-
-func TestNodeManagedVaultPerTenant(t *testing.T) {
-	h := startNodeWith(t, Options{VaultKeys: fixedKeys{}})
-	alice, bob := h.login(t, "alice"), h.login(t, "bob")
-	code, out := h.do(t, http.MethodPost, "/vault", alice, map[string]any{"client_id": "web01", "key": "db", "value": "s3cret", "type": "secret"})
-	require.Equal(t, http.StatusCreated, code, out["_raw"])
-	code, out = h.do(t, http.MethodGet, "/vault", alice, nil)
-	require.Equal(t, http.StatusOK, code, out["_raw"])
-	assert.Len(t, out["data"], 1)
-	code, out = h.do(t, http.MethodGet, "/vault", bob, nil)
-	require.Equal(t, http.StatusOK, code, out["_raw"])
-	assert.Empty(t, out["data"], "bob's tenant sees none of alice's values")
-}
-
-func TestNodeRefusesPrivilegedRole(t *testing.T) {
+func TestPostgresRefusesOwnerRole(t *testing.T) {
 	d := pgtest.New(t)
-	cfg, _, err := LoadConfig(env(map[string]string{
-		EnvDatabaseURL: d.AppURL, EnvJWTSecret: testSecret, EnvAPIAddress: freeAddr(t), EnvDataDir: t.TempDir(),
-	}))
+	cfg := loadConfig(t, nodeConf(t, d.OwnerURL, freeAddr(t), nodeSettings{}))
+	db, err := Open(context.Background(), cfg)
 	require.NoError(t, err)
-	_, err = NewServer(context.Background(), cfg, d.Owner, Options{})
-	assert.ErrorContains(t, err, "row-level security")
+	defer db.Close()
+	_, _, err = NodeOpts(context.Background(), cfg, db, nil, io.Discard)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "row-level security")
+	assert.Contains(t, err.Error(), "connect as the application role")
+}
+
+func TestPostgresRefusesUnmigrated(t *testing.T) {
+	d := pgtest.NewEmpty(t)
+	cfg := loadConfig(t, nodeConf(t, d.AppURL, freeAddr(t), nodeSettings{}))
+	db, err := Open(context.Background(), cfg)
+	require.NoError(t, err)
+	defer db.Close()
+	_, _, err = NodeOpts(context.Background(), cfg, db, nil, io.Discard)
+	assert.ErrorContains(t, err, `run "rportd migrate"`)
+}
+
+func TestServerOptsRoleAPI(t *testing.T) {
+	d := pgtest.New(t)
+	fs := files.NewFileSystem()
+	base := &chserver.ServerOpts{FilesAPI: fs}
+
+	cfg := loadConfig(t, nodeConf(t, d.AppURL, freeAddr(t), nodeSettings{role: chconfig.StorageRoleAPI}))
+	opts, closeOpts, err := NodeOpts(context.Background(), cfg, d.App, base, io.Discard)
+	require.NoError(t, err)
+	defer closeOpts()
+	assert.True(t, opts.DisableClientListener)
+	assert.Equal(t, NotConnectedDispatcher{}, opts.Dispatcher)
+	assert.True(t, opts.SkipMigrations)
+	assert.NotNil(t, opts.TenantResolver)
+	assert.NotNil(t, opts.Repositories.Users)
+	assert.Nil(t, opts.VaultKeys, "passphrase vault by default")
+	assert.Same(t, fs, opts.FilesAPI, "copied from base")
+	assert.False(t, base.SkipMigrations, "base is not modified")
+
+	cfg = loadConfig(t, nodeConf(t, d.AppURL, freeAddr(t), nodeSettings{role: chconfig.StorageRoleAll}))
+	opts, closeOpts, err = NodeOpts(context.Background(), cfg, d.App, base, io.Discard)
+	require.NoError(t, err)
+	defer closeOpts()
+	assert.False(t, opts.DisableClientListener)
+	assert.Nil(t, opts.Dispatcher, "role all does the work on its own connected clients")
+
+	cfg = loadConfig(t, nodeConf(t, d.AppURL, freeAddr(t), nodeSettings{vault: fmt.Sprintf("key_provider = \"local\"\nlocal_key_file = %q\n", localKeyFile(t))}))
+	opts, closeOpts, err = NodeOpts(context.Background(), cfg, d.App, base, io.Discard)
+	require.NoError(t, err)
+	defer closeOpts()
+	assert.NotNil(t, opts.VaultKeys)
 }
