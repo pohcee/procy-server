@@ -115,4 +115,3 @@ func (cl *ClientListener) admitDevice(ctx context.Context, tid tenant.ID, client
 	}
 	return unlock, nil
 }
-
