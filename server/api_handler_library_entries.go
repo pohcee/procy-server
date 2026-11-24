@@ -126,6 +126,10 @@ func (al *APIListener) handleListLibraryEntries(w http.ResponseWriter, req *http
 		al.jsonError(w, err)
 		return
 	}
+	vars := al.libraryServeVars()
+	for i := range entries {
+		entries[i] = library.ExpandBuiltin(entries[i], vars)
+	}
 	al.writeJSONResponse(w, http.StatusOK, &api.SuccessPayload{Data: entries, Meta: api.NewMeta(count)})
 }
 
@@ -164,7 +168,7 @@ func (al *APIListener) handleGetLibraryEntry(w http.ResponseWriter, req *http.Re
 		al.jsonError(w, err)
 		return
 	}
-	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(entry))
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(library.ExpandBuiltin(*entry, al.libraryServeVars())))
 }
 
 // libraryEntrySaveInput is library.SaveInput with base_version detectable as missing.
@@ -258,6 +262,19 @@ func (al *APIListener) handleGetLibraryEntryVersion(w http.ResponseWriter, req *
 	if err != nil {
 		al.jsonError(w, err)
 		return
+	}
+	if vars := al.libraryServeVars(); vars != nil && v.Content != nil {
+		// versions carry no builtin flag: look at the entry
+		entry, err := al.libraryManager.Get(req.Context(), mux.Vars(req)[routes.ParamEntryID], true)
+		if err != nil {
+			al.jsonError(w, err)
+			return
+		}
+		if entry.BuiltinKey != nil {
+			c := *v.Content
+			c.Implementations = library.ExpandImplementations(c.Implementations, vars)
+			v.Content = &c
+		}
 	}
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(v))
 }

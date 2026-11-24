@@ -182,6 +182,25 @@ func (al *APIListener) executeMultiClientJob(
 // serverURLPlaceholder is filled with the public server URL in built-in entries.
 const serverURLPlaceholder = "{{server_url}}"
 
+// libraryServerURL is the public server URL filled into built-in entries:
+// empty when pairing is disabled (devices would get a 404 from /pairing/update)
+// or no URL is configured.
+func (al *APIListener) libraryServerURL() string {
+	if al.Server == nil || al.config == nil || !al.config.Pairing.Enabled {
+		return ""
+	}
+	return strings.TrimRight(al.config.PairingPublicURL(), "/")
+}
+
+// libraryServeVars are the placeholder values filled into built-in entries the
+// API serves; nil when the server URL is unavailable (placeholder stays).
+func (al *APIListener) libraryServeVars() map[string]string {
+	if u := al.libraryServerURL(); u != "" {
+		return map[string]string{"server_url": u}
+	}
+	return nil
+}
+
 // StartLibraryMultiJob starts a run of a library entry. The entry's active
 // version is resolved once, here, and every client runs it; a client whose OS
 // has no implementation gets a skipped job. The username is taken from the
@@ -232,7 +251,7 @@ func (al *APIListener) prepareLibraryMultiJob(ctx context.Context, entryID strin
 	// only skipped jobs
 	counts := map[string]int{}
 	resolved := 0
-	serverURL := strings.TrimRight(al.config.PairingPublicURL(), "/")
+	serverURL := al.libraryServerURL()
 	needsServerURL := false
 	for _, c := range req.OrderedClients {
 		osKernel := c.GetOSKernel()
@@ -259,7 +278,7 @@ func (al *APIListener) prepareLibraryMultiJob(ctx context.Context, entryID strin
 	}
 
 	if needsServerURL && serverURL == "" {
-		msg := fmt.Sprintf("set [pairing] url (or api.base_url) to use the built-in %q entry", entry.Name)
+		msg := fmt.Sprintf("enable [pairing] and set its url (or api.base_url) to use the built-in %q entry", entry.Name)
 		return nil, nil, errors2.APIError{Message: msg, Err: errors.New(msg), HTTPStatus: http.StatusBadRequest}
 	}
 	vars := map[string]string{"server_url": serverURL}

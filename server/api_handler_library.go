@@ -113,9 +113,10 @@ func listLibraryView[T any](
 		return nil, 0, err
 	}
 
+	serveVars := al.libraryServeVars()
 	views := make([]T, 0, len(entries))
 	for _, e := range entries {
-		v := toView(e)
+		v := toView(library.ExpandBuiltin(e, serveVars))
 		matches, err := query.MatchesFilters(v, opts.Filters)
 		if err != nil {
 			return nil, 0, err
@@ -149,7 +150,8 @@ func (al *APIListener) libraryViewEntry(req *http.Request, id string, kind libra
 	if err != nil {
 		return nil, false, err
 	}
-	return e, true, nil
+	expanded := library.ExpandBuiltin(*e, al.libraryServeVars())
+	return &expanded, true, nil
 }
 
 func (al *APIListener) handleListScripts(w http.ResponseWriter, req *http.Request) {

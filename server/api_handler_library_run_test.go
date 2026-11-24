@@ -3,7 +3,9 @@ package chserver
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -241,7 +243,13 @@ func TestBuiltinWithoutServerURLFails(t *testing.T) {
 
 	w := e.do(t, http.MethodPost, "/library/entries/"+entry.ID+"/run", `{"client_ids":["c-linux"]}`)
 	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
-	assert.Contains(t, w.Body.String(), `set [pairing] url (or api.base_url) to use the built-in \"Client update\" entry`)
+	assert.Contains(t, w.Body.String(), `enable [pairing] and set its url (or api.base_url) to use the built-in \"Client update\" entry`)
+
+	// a URL alone is not enough while pairing is disabled
+	e.al.config.Pairing.URL = "https://rport.example.com/"
+	w = e.do(t, http.MethodPost, "/library/entries/"+entry.ID+"/run", `{"client_ids":["c-linux"]}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `enable [pairing]`)
 
 	// a target without an implementation does not need the URL
 	w = e.do(t, http.MethodPost, "/library/entries/"+entry.ID+"/run", `{"client_ids":["c-mac"]}`)
@@ -251,6 +259,7 @@ func TestBuiltinWithoutServerURLFails(t *testing.T) {
 
 func TestBuiltinWithServerURLRuns(t *testing.T) {
 	e := newLibraryRunEnv(t)
+	e.al.config.Pairing.Enabled = true
 	e.al.config.Pairing.URL = "https://rport.example.com/"
 	entry := e.syncBuiltins(t)
 
@@ -263,4 +272,54 @@ func TestBuiltinWithServerURLRuns(t *testing.T) {
 	got := e.waitJobs(t, resp.JID, 1)
 	assert.Contains(t, got.Jobs[0].Command, "https://rport.example.com/pairing/update")
 	assert.NotContains(t, got.Jobs[0].Command, "{{server_url}}")
+}
+
+func TestBuiltinServedWithServerURL(t *testing.T) {
+	e := newLibraryRunEnv(t)
+	entry := e.syncBuiltins(t)
+	const want = "https://rport.example.com/pairing/update"
+
+	// without a usable URL the placeholder stays
+	w := e.do(t, http.MethodGet, "/library/entries/"+entry.ID, "")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "{{server_url}}")
+
+	e.al.config.Pairing.Enabled = true
+	e.al.config.Pairing.URL = "https://rport.example.com/"
+
+	user := e.createEntry(t, `{"name":"raw","message":"m","implementations":{"linux":{"kind":"command","code":"echo {{server_url}}"}}}`)
+
+	for _, path := range []string{
+		"/library/entries/" + entry.ID,
+		"/library/entries/" + entry.ID + "/versions/" + strconv.Itoa(entry.ActiveVersion),
+	} {
+		w = e.do(t, http.MethodGet, path, "")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), want, path)
+		assert.NotContains(t, w.Body.String(), "{{server_url}}", path)
+	}
+
+	// storage keeps the placeholder
+	stored, err := e.store.ByBuiltinKey(context.Background(), "client-update")
+	require.NoError(t, err)
+	assert.Contains(t, stored.Implementations["linux"].Code, "{{server_url}}")
+	v, err := e.store.Version(context.Background(), entry.ID, entry.ActiveVersion)
+	require.NoError(t, err)
+	assert.Contains(t, v.Content.Implementations["linux"].Code, "{{server_url}}")
+
+	// the compat view path serves the concrete URL too
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	got, found, err := e.al.libraryViewEntry(r, entry.ID, library.KindScript)
+	require.NoError(t, err)
+	if !found {
+		got, found, err = e.al.libraryViewEntry(r, entry.ID, library.KindCommand)
+		require.NoError(t, err)
+	}
+	require.True(t, found)
+	assert.Contains(t, got.Implementations["linux"].Code, want)
+
+	// user entries are returned verbatim
+	w = e.do(t, http.MethodGet, "/library/entries/"+user.ID, "")
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "echo {{server_url}}")
 }

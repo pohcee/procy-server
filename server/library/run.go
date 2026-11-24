@@ -30,9 +30,7 @@ func SpecFor(e Entry, osKernel string, vars map[string]string) (JobSpec, bool) {
 	}
 	code := impl.Code
 	if e.BuiltinKey != nil {
-		for k, v := range vars {
-			code = strings.ReplaceAll(code, "{{"+k+"}}", v)
-		}
+		code = expandVars(code, vars)
 	}
 	return JobSpec{
 		Command:        code,
@@ -45,6 +43,36 @@ func SpecFor(e Entry, osKernel string, vars map[string]string) (JobSpec, bool) {
 		LibraryVersion: e.ActiveVersion,
 		OS:             key,
 	}, true
+}
+
+func expandVars(code string, vars map[string]string) string {
+	for k, v := range vars {
+		code = strings.ReplaceAll(code, "{{"+k+"}}", v)
+	}
+	return code
+}
+
+// ExpandImplementations returns a copy of impls with every {{key}} of vars
+// replaced in the code. Use it for built-in entries only.
+func ExpandImplementations(impls map[string]Implementation, vars map[string]string) map[string]Implementation {
+	if impls == nil || len(vars) == 0 {
+		return impls
+	}
+	out := make(map[string]Implementation, len(impls))
+	for k, impl := range impls {
+		impl.Code = expandVars(impl.Code, vars)
+		out[k] = impl
+	}
+	return out
+}
+
+// ExpandBuiltin returns e with the {{key}} placeholders of vars filled in its
+// implementations when e is a built-in entry; other entries are returned as is.
+func ExpandBuiltin(e Entry, vars map[string]string) Entry {
+	if e.BuiltinKey != nil {
+		e.Implementations = ExpandImplementations(e.Implementations, vars)
+	}
+	return e
 }
 
 // OSLabel is the human-readable name of an os_kernel value.
