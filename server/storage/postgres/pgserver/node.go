@@ -15,6 +15,7 @@ import (
 	"github.com/openrport/openrport/server/vault"
 	"github.com/openrport/openrport/server/vault/vaultkms"
 	"github.com/openrport/openrport/share/files"
+	"github.com/openrport/openrport/share/logger"
 )
 
 // localKeyName is the key name stored with the vault keys wrapped by a local key file. The local key file KMS
@@ -48,7 +49,8 @@ func OpenOwner(ctx context.Context, cfg *chconfig.Config, ownerDSN string) (*sql
 // NodeOpts returns the server options of a node on the Postgres database db (connected as the application role,
 // migrated): base with every repository on Postgres, the tenant of each request from the resolver, the vault keys of
 // [vault] key_provider, and, for [storage] role = "api", no client listener and work on clients refused as not
-// connected. It refuses a database that is not migrated (run rportd migrate) and a connection row-level security
+// connected; the cluster coordinator of [cluster] node_id (a node with a client listener takes the cluster's
+// client listener lease, or is refused while another node holds it). It refuses a database that is not migrated (run rportd migrate) and a connection row-level security
 // would not apply to (superuser, BYPASSRLS or table owner). close releases what NodeOpts opened (not db); call it
 // after the server stopped.
 func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chserver.ServerOpts, logw io.Writer) (_ *chserver.ServerOpts, close func(), _ error) {
@@ -73,6 +75,19 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 	if opts.FilesAPI == nil {
 		opts.FilesAPI = files.NewFileSystem()
 	}
+	// take the change feed's head before the server loads what it caches
+	coord, err := NewCoordinator(ctx, db, cfg.Cluster.NodeID, logger.NewLogger("cluster", cfg.Logging.LogOutput, cfg.Logging.LogLevel))
+	if err != nil {
+		return nil, nil, err
+	}
+	if cfg.Storage.Role != chconfig.StorageRoleAPI {
+		// phase 2: one node of a cluster accepts the client connections
+		if err := coord.AcquireClientListener(ctx); err != nil {
+			return nil, nil, err
+		}
+	}
+	opts.Cluster = coord
+
 	opts.Repositories = Repositories(db, cfg)
 	opts.TenantResolver = NewResolver(db, cfg.API.JWTSecret)
 	// every repository is injected; refuse rather than create any SQLite file
