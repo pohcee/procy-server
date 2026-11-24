@@ -93,8 +93,8 @@ func TestLeaseExpiry(t *testing.T) {
 	require.NotNil(t, loc)
 
 	require.Eventually(t, func() bool {
-		loc, err := s.Locate(ctxFor("a"), "c1")
-		return err == nil && loc == nil
+		got, err := s.Locate(ctxFor("a"), "c1")
+		return err == nil && got == nil
 	}, 5*time.Second, 100*time.Millisecond, "an expired session is not located")
 
 	// renewing an expired, not replaced session takes it back

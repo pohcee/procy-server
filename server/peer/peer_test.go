@@ -33,13 +33,11 @@ const td = "test.cluster"
 var testLog = logger.NewLogger("test", logger.LogOutput{}, logger.LogLevelError)
 
 type pki struct {
-	dir            string
-	caCert, caKey  []byte
-	caFile         string
-	otherCAFile    string
-	otherCACert    []byte
-	otherCAKeyPEM  []byte
-	issuedAuthOpts map[string][3]string
+	dir           string
+	caCert, caKey []byte
+	caFile        string
+	otherCACert   []byte
+	otherCAKeyPEM []byte
 }
 
 func newPKI(t *testing.T) *pki {
@@ -108,7 +106,7 @@ func (f *fakeLocal) seen(ctx context.Context) {
 	f.mu.Unlock()
 }
 
-func (f *fakeLocal) RunJob(ctx context.Context, clientID string, job *models.Job) (*comm.RunCmdResponse, error) {
+func (f *fakeLocal) RunJob(ctx context.Context, _ string, job *models.Job) (*comm.RunCmdResponse, error) {
 	f.seen(ctx)
 	if f.err != nil {
 		return nil, f.err
@@ -134,7 +132,7 @@ func (f *fakeLocal) RunJob(ctx context.Context, clientID string, job *models.Job
 	return &comm.RunCmdResponse{Pid: 42, StartedAt: time.Now()}, nil
 }
 
-func (f *fakeLocal) Upload(ctx context.Context, clientID string, file *models.UploadedFile) (*models.UploadResponse, error) {
+func (f *fakeLocal) Upload(ctx context.Context, _ string, file *models.UploadedFile) (*models.UploadResponse, error) {
 	f.seen(ctx)
 	b, err := os.ReadFile(file.SourceFilePath)
 	if err != nil {
@@ -146,12 +144,12 @@ func (f *fakeLocal) Upload(ctx context.Context, clientID string, file *models.Up
 	return &models.UploadResponse{UploadResponseShort: models.UploadResponseShort{ID: file.ID, Filepath: file.DestinationPath, SizeBytes: int64(len(b))}, Status: "success"}, nil
 }
 
-func (f *fakeLocal) IsTunnelAllowed(ctx context.Context, clientID, remote string) (bool, error) {
+func (f *fakeLocal) IsTunnelAllowed(ctx context.Context, _, remote string) (bool, error) {
 	f.seen(ctx)
 	return remote == "127.0.0.1:22", f.err
 }
 
-func (f *fakeLocal) CheckPort(ctx context.Context, clientID string, req *comm.CheckPortRequest) (*comm.CheckPortResponse, error) {
+func (f *fakeLocal) CheckPort(ctx context.Context, _ string, _ *comm.CheckPortRequest) (*comm.CheckPortResponse, error) {
 	f.seen(ctx)
 	if f.err != nil {
 		return nil, f.err
@@ -159,7 +157,7 @@ func (f *fakeLocal) CheckPort(ctx context.Context, clientID string, req *comm.Ch
 	return &comm.CheckPortResponse{Open: true}, nil
 }
 
-func (f *fakeLocal) StartTunnels(ctx context.Context, clientID string, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
+func (f *fakeLocal) StartTunnels(ctx context.Context, _ string, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
 	f.seen(ctx)
 	out := make([]*clienttunnel.Tunnel, 0, len(remotes))
 	for i, r := range remotes {
@@ -168,19 +166,19 @@ func (f *fakeLocal) StartTunnels(ctx context.Context, clientID string, remotes [
 	return out, f.err
 }
 
-func (f *fakeLocal) CloseTunnel(ctx context.Context, clientID, tunnelID string, force bool) error {
+func (f *fakeLocal) CloseTunnel(ctx context.Context, _, _ string, _ bool) error {
 	f.seen(ctx)
 	return f.err
 }
-func (f *fakeLocal) SetTunnelACL(ctx context.Context, clientID, tunnelID string, acl *string) error {
+func (f *fakeLocal) SetTunnelACL(ctx context.Context, _, _ string, _ *string) error {
 	f.seen(ctx)
 	return f.err
 }
-func (f *fakeLocal) RefreshUpdatesStatus(ctx context.Context, clientID string) error {
+func (f *fakeLocal) RefreshUpdatesStatus(ctx context.Context, _ string) error {
 	f.seen(ctx)
 	return f.err
 }
-func (f *fakeLocal) UpdateAttributes(ctx context.Context, clientID string, a models.Attributes) error {
+func (f *fakeLocal) UpdateAttributes(ctx context.Context, _ string, _ models.Attributes) error {
 	f.seen(ctx)
 	return f.err
 }

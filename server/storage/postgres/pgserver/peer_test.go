@@ -202,11 +202,11 @@ func TestPeerDispatchEndToEnd(t *testing.T) {
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	jid := out["data"].(map[string]any)["jid"].(string)
 	require.Eventually(t, func() bool {
-		code, out := a.do(t, http.MethodGet, "/clients/"+peerClientID+"/commands/"+jid, token, nil)
-		if code != http.StatusOK {
+		got, res := a.do(t, http.MethodGet, "/clients/"+peerClientID+"/commands/"+jid, token, nil)
+		if got != http.StatusOK {
 			return false
 		}
-		job := out["data"].(map[string]any)
+		job := res["data"].(map[string]any)
 		return job["status"] == "successful" && strings.Contains(fmt.Sprint(job["result"]), "rest-call")
 	}, 30*time.Second, 200*time.Millisecond, "the command's result is readable through A")
 
@@ -277,7 +277,7 @@ func TestPeerDispatchEndToEnd(t *testing.T) {
 	}
 }
 
-// Without peer calls an api node still refuses work on clients as not connected (phase 2 behaviour).
+// Without peer calls an api node still refuses work on clients as not connected (as in phase 2).
 func TestAPINodeWithoutPeerCallsRefusesWork(t *testing.T) {
 	d := pgtest.New(t)
 	ctx := tenant.WithID(context.Background(), tenant.Default)
