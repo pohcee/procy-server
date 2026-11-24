@@ -57,7 +57,7 @@ func (al *APIListener) handleGetLogin(w http.ResponseWriter, req *http.Request) 
 }
 
 func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPasswordValidation bool, w http.ResponseWriter, req *http.Request) {
-	if al.bannedUsers.IsBanned(username) {
+	if al.isUserBanned(req.Context(), username) {
 		al.jsonErrorResponseWithTitle(w, http.StatusTooManyRequests, ErrTooManyRequests.Error())
 		return
 	}
@@ -67,7 +67,7 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 		return
 	}
 
-	authorized, user, err := al.validateCredentials(username, pwd, skipPasswordValidation)
+	authorized, user, err := al.validateCredentials(req.Context(), username, pwd, skipPasswordValidation)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -78,7 +78,7 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 	}
 
 	if !authorized {
-		al.bannedUsers.Add(username)
+		al.banUser(req.Context(), username)
 		al.jsonErrorResponseWithTitle(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -92,6 +92,7 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 	// Only set the new password after the old password has been verified.
 	if newpwd != "" {
 		if err := al.userService.Change(
+			req.Context(),
 			&users.User{
 				Password:        newpwd,
 				PasswordExpired: users.PasswordExpired(false)},
@@ -141,7 +142,10 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 	}
 
 	if al.config.API.TotPEnabled {
-		al.twoFASrv.SetTotPLoginSession(username, al.config.API.TotPLoginSessionTimeout)
+		if err := al.twoFASrv.SetTotPLoginSession(req.Context(), username, al.config.API.TotPLoginSessionTimeout); err != nil {
+			al.jsonError(w, err)
+			return
+		}
 
 		loginResp := loginResponse{
 			TwoFA: &twoFAResponse{

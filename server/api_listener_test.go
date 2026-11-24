@@ -1,12 +1,14 @@
 package chserver
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func TestValidateCredentials(t *testing.T) {
@@ -125,7 +127,7 @@ func TestValidateCredentials(t *testing.T) {
 		al.userService = users.NewAPIService(users.NewStaticProvider(tc.repoUsers), false, 0, -1)
 
 		// when
-		gotRes, _, gotErr := al.validateCredentials(tc.username, tc.password, false)
+		gotRes, _, gotErr := al.validateCredentials(tenant.WithID(context.Background(), tenant.Default), tc.username, tc.password, false)
 
 		// then
 		assert.NoErrorf(t, gotErr, msg)

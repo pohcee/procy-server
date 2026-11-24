@@ -11,6 +11,7 @@ import (
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/chconfig"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 // runWithPermission sends a request as username through permissionsMiddleware(permission),
@@ -30,7 +31,7 @@ func runWithPermission(t *testing.T, username string, permission string) (nextCa
 	handler := al.permissionsMiddleware(permission)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { nextCalled = true }))
 
 	req := httptest.NewRequest("POST", "/api/v1/commands", nil)
-	req = req.WithContext(api.WithUser(req.Context(), username))
+	req = req.WithContext(api.WithUser(tenant.WithID(req.Context(), tenant.Default), username))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	return nextCalled, w.Code

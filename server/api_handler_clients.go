@@ -119,7 +119,7 @@ func (al *APIListener) handlePostClientACL(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	err = al.userService.ExistGroups(reqBody.AllowedUserGroups)
+	err = al.userService.ExistGroups(req.Context(), reqBody.AllowedUserGroups)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -541,7 +541,7 @@ func (al *APIListener) handleDeleteClientTunnel(w http.ResponseWriter, req *http
 		return
 	}
 
-	err = al.extendedPermissionDeleteTunnelRaw(tunnel, curUser)
+	err = al.extendedPermissionDeleteTunnelRaw(req.Context(), tunnel, curUser)
 	if err != nil {
 		al.jsonError(w, err)
 		return

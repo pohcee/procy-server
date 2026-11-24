@@ -13,6 +13,7 @@ import (
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/message"
 	"github.com/openrport/openrport/share/security"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type TwoFAService struct {
@@ -21,8 +22,22 @@ type TwoFAService struct {
 	UserSrv     UserService
 	SendTimeout time.Duration
 
-	tokensByUser map[string]*expirableToken
+	// tokensByUser holds the pending 2FA codes and TotP login sessions, per tenant and username.
+	tokensByUser map[twoFAKey]*expirableToken
 	mu           sync.RWMutex
+}
+
+type twoFAKey struct {
+	tenant   tenant.ID
+	username string
+}
+
+func twoFAKeyFor(ctx context.Context, username string) (twoFAKey, error) {
+	tid, err := tenant.FromContext(ctx)
+	if err != nil {
+		return twoFAKey{}, fmt.Errorf("2fa: %w", err)
+	}
+	return twoFAKey{tenant: tid, username: username}, nil
 }
 
 func NewTwoFAService(tokenTTLSeconds int, sendTimeout time.Duration, userSrv UserService, msgSrv message.Service) TwoFAService {
@@ -31,7 +46,7 @@ func NewTwoFAService(tokenTTLSeconds int, sendTimeout time.Duration, userSrv Use
 		UserSrv:      userSrv,
 		MsgSrv:       msgSrv,
 		SendTimeout:  sendTimeout,
-		tokensByUser: make(map[string]*expirableToken),
+		tokensByUser: make(map[twoFAKey]*expirableToken),
 	}
 }
 
@@ -47,6 +62,10 @@ const twoFATokenLength = 6
 const maxTwoFAAttempts = 5
 
 func (srv *TwoFAService) SendToken(ctx context.Context, username string, userAgent string, remoteAddress string) (sendTo string, err error) {
+	key, err := twoFAKeyFor(ctx, username)
+	if err != nil {
+		return "", err
+	}
 	ctx, cancel := context.WithTimeout(ctx, srv.SendTimeout)
 	defer cancel()
 
@@ -57,7 +76,7 @@ func (srv *TwoFAService) SendToken(ctx context.Context, username string, userAge
 		}
 	}
 
-	user, err := srv.UserSrv.GetByUsername(username)
+	user, err := srv.UserSrv.GetByUsername(ctx, username)
 	if err != nil {
 		return "", err
 	}
@@ -96,7 +115,7 @@ func (srv *TwoFAService) SendToken(ctx context.Context, username string, userAge
 	}
 
 	srv.mu.Lock()
-	srv.tokensByUser[username] = &expirableToken{
+	srv.tokensByUser[key] = &expirableToken{
 		token:  token,
 		expiry: time.Now().Add(srv.TokenTTL),
 	}
@@ -105,19 +124,28 @@ func (srv *TwoFAService) SendToken(ctx context.Context, username string, userAge
 	return user.TwoFASendTo, nil
 }
 
-func (srv *TwoFAService) SetTotPLoginSession(username string, loginSessionTTL time.Duration) {
+func (srv *TwoFAService) SetTotPLoginSession(ctx context.Context, username string, loginSessionTTL time.Duration) error {
+	key, err := twoFAKeyFor(ctx, username)
+	if err != nil {
+		return err
+	}
 	srv.mu.Lock()
-	srv.tokensByUser[username] = &expirableToken{
+	srv.tokensByUser[key] = &expirableToken{
 		expiry: time.Now().Add(loginSessionTTL),
 	}
 	srv.mu.Unlock()
+	return nil
 }
 
-func (srv *TwoFAService) ValidateTotPCode(user *users.User, code string) error {
+func (srv *TwoFAService) ValidateTotPCode(ctx context.Context, user *users.User, code string) error {
+	key, err := twoFAKeyFor(ctx, user.Username)
+	if err != nil {
+		return err
+	}
 	// Write lock for the whole check: a successful code removes the login session below.
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	t := srv.tokensByUser[user.Username]
+	t := srv.tokensByUser[key]
 
 	if t == nil {
 		return errors2.APIError{
@@ -154,18 +182,22 @@ func (srv *TwoFAService) ValidateTotPCode(user *users.User, code string) error {
 		}
 	}
 
-	delete(srv.tokensByUser, user.Username)
+	delete(srv.tokensByUser, key)
 
 	return nil
 }
 
 // ValidateToken checks a sent 2FA code. A code works once, and is discarded after
 // maxTwoFAAttempts wrong guesses or when it expires.
-func (srv *TwoFAService) ValidateToken(username, token string) error {
+func (srv *TwoFAService) ValidateToken(ctx context.Context, username, token string) error {
+	key, err := twoFAKeyFor(ctx, username)
+	if err != nil {
+		return err
+	}
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 
-	t := srv.tokensByUser[username]
+	t := srv.tokensByUser[key]
 	if t == nil {
 		return errors2.APIError{
 			Message:    "2fa token not found for provided username",
@@ -174,7 +206,7 @@ func (srv *TwoFAService) ValidateToken(username, token string) error {
 	}
 
 	if time.Now().After(t.expiry) {
-		delete(srv.tokensByUser, username)
+		delete(srv.tokensByUser, key)
 		return errors2.APIError{
 			Message:    "2fa token expired",
 			HTTPStatus: http.StatusUnauthorized,
@@ -184,7 +216,7 @@ func (srv *TwoFAService) ValidateToken(username, token string) error {
 	if subtle.ConstantTimeCompare([]byte(t.token), []byte(token)) != 1 {
 		t.attempts++
 		if t.attempts >= maxTwoFAAttempts {
-			delete(srv.tokensByUser, username)
+			delete(srv.tokensByUser, key)
 		}
 		return errors2.APIError{
 			Message:    "invalid token",
@@ -192,6 +224,6 @@ func (srv *TwoFAService) ValidateToken(username, token string) error {
 		}
 	}
 
-	delete(srv.tokensByUser, username)
+	delete(srv.tokensByUser, key)
 	return nil
 }

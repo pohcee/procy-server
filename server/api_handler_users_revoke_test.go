@@ -24,7 +24,7 @@ type deletableUsersService struct {
 	UserService
 }
 
-func (deletableUsersService) Delete(string) error { return nil }
+func (deletableUsersService) Delete(context.Context, string) error { return nil }
 
 func TestDeletingAUserRevokesTheirSessionsAndAPITokens(t *testing.T) {
 	ctx := tenant.WithID(context.Background(), tenant.Default)

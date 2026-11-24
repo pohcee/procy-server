@@ -11,7 +11,7 @@ import (
 )
 
 func (al *APIListener) handleListUserGroups(w http.ResponseWriter, req *http.Request) {
-	items, err := al.userService.ListGroups()
+	items, err := al.userService.ListGroups(req.Context())
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -24,7 +24,7 @@ func (al *APIListener) handleGetUserGroup(w http.ResponseWriter, req *http.Reque
 	vars := mux.Vars(req)
 	name := vars["group_name"]
 
-	group, err := al.userService.GetGroup(name)
+	group, err := al.userService.GetGroup(req.Context(), name)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -44,7 +44,7 @@ func (al *APIListener) handleUpdateUserGroup(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	group, err := al.userService.UpdateGroup(name, input)
+	group, err := al.userService.UpdateGroup(req.Context(), name, input)
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -64,7 +64,7 @@ func (al *APIListener) handleDeleteUserGroup(w http.ResponseWriter, req *http.Re
 	vars := mux.Vars(req)
 	name := vars["group_name"]
 
-	err := al.userService.DeleteGroup(name)
+	err := al.userService.DeleteGroup(req.Context(), name)
 	if err != nil {
 		al.jsonError(w, err)
 		return

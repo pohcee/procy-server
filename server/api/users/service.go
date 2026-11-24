@@ -23,15 +23,15 @@ import (
 type Provider interface {
 	Type() enums.ProviderSource
 	SupportsGroupPermissions() bool
-	GetAll() ([]*User, error)
-	ListGroups() ([]Group, error)
-	GetGroup(string) (Group, error)
-	UpdateGroup(string, Group) error
-	DeleteGroup(string) error
-	GetByUsername(username string) (*User, error)
-	Add(usr *User) error
-	Update(usr *User, usernameToUpdate string) error
-	Delete(usernameToDelete string) error
+	GetAll(ctx context.Context) ([]*User, error)
+	ListGroups(ctx context.Context) ([]Group, error)
+	GetGroup(ctx context.Context, name string) (Group, error)
+	UpdateGroup(ctx context.Context, name string, g Group) error
+	DeleteGroup(ctx context.Context, name string) error
+	GetByUsername(ctx context.Context, username string) (*User, error)
+	Add(ctx context.Context, usr *User) error
+	Update(ctx context.Context, usr *User, usernameToUpdate string) error
+	Delete(ctx context.Context, usernameToDelete string) error
 }
 
 type APIService struct {
@@ -52,13 +52,15 @@ func NewAPIService(provider Provider, twoFAOn bool, passwordMinLength int, Passw
 	}
 }
 
-func NewAPIServiceFromConfig(authDB *sqlx.DB, config *chconfig.Config) (*APIService, error) {
+// NewAPIServiceFromConfig builds the user service. ctx is the server context: it carries the tenant users from a
+// file are loaded into (users from a file reload with it on SIGUSR1).
+func NewAPIServiceFromConfig(ctx context.Context, authDB *sqlx.DB, config *chconfig.Config) (*APIService, error) {
 	var usersProvider Provider
 	var err error
 	if rportplus.IsOAuthPermittedUserList(config.PlusConfig) {
 		if config.API.AuthFile != "" {
 			logger := logger.NewLogger("auth-file", config.Logging.LogOutput, config.Logging.LogLevel)
-			usersProvider, err = NewFileAdapter(logger, NewFileManager(logger, config.API.AuthFile))
+			usersProvider, err = NewFileAdapter(ctx, logger, NewFileManager(logger, config.API.AuthFile))
 			if err != nil {
 				return nil, err
 			}
@@ -71,7 +73,7 @@ func NewAPIServiceFromConfig(authDB *sqlx.DB, config *chconfig.Config) (*APIServ
 		}
 	} else if config.API.AuthFile != "" {
 		logger := logger.NewLogger("auth-file", config.Logging.LogOutput, config.Logging.LogLevel)
-		usersProvider, err = NewFileAdapter(logger, NewFileManager(logger, config.API.AuthFile))
+		usersProvider, err = NewFileAdapter(ctx, logger, NewFileManager(logger, config.API.AuthFile))
 		if err != nil {
 			return nil, err
 		}
@@ -103,32 +105,32 @@ func (as APIService) GetProviderType() enums.ProviderSource {
 	return as.Provider.Type()
 }
 
-func (as *APIService) GetAll() ([]*User, error) {
-	return as.Provider.GetAll()
+func (as *APIService) GetAll(ctx context.Context) ([]*User, error) {
+	return as.Provider.GetAll(ctx)
 }
 
-func (as *APIService) GetByUsername(username string) (*User, error) {
-	return as.Provider.GetByUsername(username)
+func (as *APIService) GetByUsername(ctx context.Context, username string) (*User, error) {
+	return as.Provider.GetByUsername(ctx, username)
 }
 
-func (as *APIService) ListGroups() ([]Group, error) {
-	return as.Provider.ListGroups()
+func (as *APIService) ListGroups(ctx context.Context) ([]Group, error) {
+	return as.Provider.ListGroups(ctx)
 }
 
-func (as *APIService) GetGroup(name string) (Group, error) {
-	return as.Provider.GetGroup(name)
+func (as *APIService) GetGroup(ctx context.Context, name string) (Group, error) {
+	return as.Provider.GetGroup(ctx, name)
 }
 
-func (as *APIService) UpdateGroup(name string, g Group) (Group, error) {
-	err := as.Provider.UpdateGroup(name, g)
+func (as *APIService) UpdateGroup(ctx context.Context, name string, g Group) (Group, error) {
+	err := as.Provider.UpdateGroup(ctx, name, g)
 	if err != nil {
 		return Group{}, err
 	}
-	return as.Provider.GetGroup(name)
+	return as.Provider.GetGroup(ctx, name)
 }
 
-func (as *APIService) DeleteGroup(name string) error {
-	return as.Provider.DeleteGroup(name)
+func (as *APIService) DeleteGroup(ctx context.Context, name string) error {
+	return as.Provider.DeleteGroup(ctx, name)
 }
 
 func (as *APIService) ExtendedPermissionsParsingValidation(g Group) error {
@@ -137,9 +139,9 @@ func (as *APIService) ExtendedPermissionsParsingValidation(g Group) error {
 		HTTPStatus: http.StatusBadRequest,
 	}
 }
-func (as *APIService) CheckPermission(user *User, permission string) error {
+func (as *APIService) CheckPermission(ctx context.Context, user *User, permission string) error {
 	for _, groupName := range user.Groups {
-		group, err := as.Provider.GetGroup(groupName)
+		group, err := as.Provider.GetGroup(ctx, groupName)
 		if err != nil {
 			return err
 		}
@@ -153,12 +155,12 @@ func (as *APIService) CheckPermission(user *User, permission string) error {
 	}
 }
 
-func (as *APIService) GetEffectiveUserExtendedPermissions(user *User) ([]extperm.PermissionParams, []extperm.PermissionParams) {
+func (as *APIService) GetEffectiveUserExtendedPermissions(ctx context.Context, user *User) ([]extperm.PermissionParams, []extperm.PermissionParams) {
 	var tunnelsRestricted []extperm.PermissionParams
 	var commandsRestricted []extperm.PermissionParams
 
 	for _, groupName := range user.Groups {
-		group, err := as.Provider.GetGroup(groupName)
+		group, err := as.Provider.GetGroup(ctx, groupName)
 		if err == nil {
 			if group.TunnelsRestricted != nil {
 				tunnelsRestricted = append(tunnelsRestricted, *group.TunnelsRestricted)
@@ -171,14 +173,14 @@ func (as *APIService) GetEffectiveUserExtendedPermissions(user *User) ([]extperm
 	return tunnelsRestricted, commandsRestricted
 }
 
-func (as *APIService) GetEffectiveUserPermissions(user *User) (map[string]bool, error) {
+func (as *APIService) GetEffectiveUserPermissions(ctx context.Context, user *User) (map[string]bool, error) {
 	if !as.SupportsGroupPermissions() {
 		return NewPermissions(AllPermissions...).All(), nil
 	}
 	permissions := NewPermissions().All()
 
 	for _, groupName := range user.Groups {
-		group, err := as.Provider.GetGroup(groupName)
+		group, err := as.Provider.GetGroup(ctx, groupName)
 		if err != nil {
 			return permissions, err
 		}
@@ -191,8 +193,8 @@ func (as *APIService) GetEffectiveUserPermissions(user *User) (map[string]bool, 
 	return permissions, nil
 }
 
-func (as *APIService) ExistGroups(groups []string) error {
-	existingGroups, err := as.ListGroups()
+func (as *APIService) ExistGroups(ctx context.Context, groups []string) error {
+	existingGroups, err := as.ListGroups(ctx)
 	if err != nil {
 		return err
 	}
@@ -221,8 +223,8 @@ func (as *APIService) ExistGroups(groups []string) error {
 	return nil
 }
 
-func (as *APIService) Change(usr *User, username string) error {
-	err := as.validate(usr, username)
+func (as *APIService) Change(ctx context.Context, usr *User, username string) error {
+	err := as.validate(ctx, usr, username)
 	if err != nil {
 		return err
 	}
@@ -235,12 +237,12 @@ func (as *APIService) Change(usr *User, username string) error {
 	}
 
 	if username != "" {
-		return as.updateUser(usr, username)
+		return as.updateUser(ctx, usr, username)
 	}
-	return as.addUser(usr)
+	return as.addUser(ctx, usr)
 }
 
-func (as *APIService) validate(dataToChange *User, usernameToFind string) error {
+func (as *APIService) validate(ctx context.Context, dataToChange *User, usernameToFind string) error {
 	errs := errors2.APIErrors{}
 	var zxcvbnUserInputs []string
 
@@ -310,8 +312,7 @@ func (as *APIService) validate(dataToChange *User, usernameToFind string) error 
 	}
 
 	if dataToChange.TwoFASendTo != "" && as.DeliverySrv != nil {
-		// TODO: use proper ctx when it will be propagated
-		err := as.DeliverySrv.ValidateReceiver(context.Background(), dataToChange.TwoFASendTo)
+		err := as.DeliverySrv.ValidateReceiver(ctx, dataToChange.TwoFASendTo)
 		if err != nil {
 			errs = append(errs, errors2.APIError{
 				Err:        fmt.Errorf("invalid two_fa_send_to: %v", err),
@@ -327,8 +328,8 @@ func (as *APIService) validate(dataToChange *User, usernameToFind string) error 
 	return errs
 }
 
-func (as *APIService) addUser(dataToChange *User) error {
-	existingUser, err := as.Provider.GetByUsername(dataToChange.Username)
+func (as *APIService) addUser(ctx context.Context, dataToChange *User) error {
+	existingUser, err := as.Provider.GetByUsername(ctx, dataToChange.Username)
 	if err != nil {
 		return err
 	}
@@ -339,7 +340,7 @@ func (as *APIService) addUser(dataToChange *User) error {
 		}
 	}
 
-	err = as.Provider.Add(dataToChange)
+	err = as.Provider.Add(ctx, dataToChange)
 	if err != nil {
 		return err
 	}
@@ -348,8 +349,8 @@ func (as *APIService) addUser(dataToChange *User) error {
 }
 
 // todo make concurrent save
-func (as *APIService) updateUser(dataToChange *User, usernameToFind string) error {
-	existingUser, err := as.Provider.GetByUsername(usernameToFind)
+func (as *APIService) updateUser(ctx context.Context, dataToChange *User, usernameToFind string) error {
+	existingUser, err := as.Provider.GetByUsername(ctx, usernameToFind)
 	if err != nil {
 		return err
 	}
@@ -362,7 +363,7 @@ func (as *APIService) updateUser(dataToChange *User, usernameToFind string) erro
 	}
 
 	if dataToChange.Username != "" && dataToChange.Username != usernameToFind {
-		existingUser, err := as.Provider.GetByUsername(dataToChange.Username)
+		existingUser, err := as.Provider.GetByUsername(ctx, dataToChange.Username)
 		if err != nil {
 			return err
 		}
@@ -374,7 +375,7 @@ func (as *APIService) updateUser(dataToChange *User, usernameToFind string) erro
 		}
 	}
 
-	err = as.Provider.Update(dataToChange, usernameToFind)
+	err = as.Provider.Update(ctx, dataToChange, usernameToFind)
 	if err != nil {
 		return err
 	}
@@ -383,8 +384,8 @@ func (as *APIService) updateUser(dataToChange *User, usernameToFind string) erro
 	return nil
 }
 
-func (as *APIService) Delete(usernameToDelete string) error {
-	user, err := as.Provider.GetByUsername(usernameToDelete)
+func (as *APIService) Delete(ctx context.Context, usernameToDelete string) error {
+	user, err := as.Provider.GetByUsername(ctx, usernameToDelete)
 	if err != nil {
 		return err
 	}
@@ -397,7 +398,7 @@ func (as *APIService) Delete(usernameToDelete string) error {
 		}
 	}
 
-	return as.Provider.Delete(usernameToDelete)
+	return as.Provider.Delete(ctx, usernameToDelete)
 }
 
 func GenerateTokenHash(newTokenClear string) (string, error) {

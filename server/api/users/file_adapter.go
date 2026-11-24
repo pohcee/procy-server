@@ -1,13 +1,16 @@
 package users
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/share/enums"
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type FileProvider interface {
@@ -15,6 +18,8 @@ type FileProvider interface {
 	SaveUsersToFile(users []*User) error
 }
 
+// FileAdapter serves users from a json file. It is single-tenant: every method accepts only the default tenant
+// (tenant.RequireDefault).
 type FileAdapter struct {
 	*UserCache
 	*logger.Logger
@@ -23,59 +28,114 @@ type FileAdapter struct {
 	FileProvider FileProvider
 }
 
-func NewFileAdapter(logger *logger.Logger, fileProvider FileProvider) (*FileAdapter, error) {
+// NewFileAdapter loads the users from the file into the tenant of ctx, which must be the default tenant. ctx is the
+// server context: the reload on SIGUSR1 runs with it, and stops when it is done.
+func NewFileAdapter(ctx context.Context, logger *logger.Logger, fileProvider FileProvider) (*FileAdapter, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, fmt.Errorf("users file: %w", err)
+	}
 	fa := &FileAdapter{
 		UserCache:    NewUserCache(nil),
 		Logger:       logger,
 		FileProvider: fileProvider,
 	}
-	if err := fa.load(); err != nil {
+	if err := fa.load(ctx); err != nil {
 		return nil, err
 	}
-	go fa.reload()
+	go fa.reload(ctx)
 	return fa, nil
 }
 
 // load reads users from FileProvider and saves them in cache. It's called from New, on every write and when reload signal is received.
-func (fa *FileAdapter) load() error {
+func (fa *FileAdapter) load(ctx context.Context) error {
 	users, err := fa.FileProvider.ReadUsersFromFile()
 	if err != nil {
 		return err
 	}
+	if err := fa.UserCache.Load(ctx, users); err != nil {
+		return err
+	}
 	fa.Infof("Loaded %v users from file.", len(users))
-	fa.UserCache.Load(users)
 	return nil
 }
 
-func (fa *FileAdapter) ListGroups() ([]Group, error) {
+// reloadOn reloads the users from file whenever a signal arrives, until ctx is done.
+func (fa *FileAdapter) reloadOn(ctx context.Context, signals <-chan os.Signal) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-signals:
+			fa.Infof("Signal SIGUSR1 received. Start to reload API users from file.")
+
+			if err := fa.load(ctx); err != nil {
+				fa.Errorf("Failed to reload API users: %v", err)
+				continue
+			}
+
+			fa.Infof("Finished to reload API users from file.")
+		}
+	}
+}
+
+func (fa *FileAdapter) GetByUsername(ctx context.Context, username string) (*User, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, err
+	}
+	return fa.UserCache.GetByUsername(ctx, username)
+}
+
+func (fa *FileAdapter) GetAll(ctx context.Context) ([]*User, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, err
+	}
+	return fa.UserCache.GetAll(ctx)
+}
+
+func (fa *FileAdapter) ListGroups(ctx context.Context) ([]Group, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, err
+	}
 	return nil, errors2.APIError{
 		Message:    "The json file authentication backend doesn't support this feature.",
 		HTTPStatus: http.StatusBadRequest,
 	}
 }
 
-func (fa *FileAdapter) GetGroup(string) (Group, error) {
+func (fa *FileAdapter) GetGroup(ctx context.Context, _ string) (Group, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return Group{}, err
+	}
 	return Group{}, errors2.APIError{
 		Message:    "The json file authentication backend doesn't support this feature.",
 		HTTPStatus: http.StatusBadRequest,
 	}
 }
 
-func (fa *FileAdapter) UpdateGroup(string, Group) error {
+func (fa *FileAdapter) UpdateGroup(ctx context.Context, _ string, _ Group) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	return errors2.APIError{
 		Message:    "The json file authentication backend doesn't support this feature.",
 		HTTPStatus: http.StatusBadRequest,
 	}
 }
 
-func (fa *FileAdapter) DeleteGroup(string) error {
+func (fa *FileAdapter) DeleteGroup(ctx context.Context, _ string) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	return errors2.APIError{
 		Message:    "The json file authentication backend doesn't support this feature.",
 		HTTPStatus: http.StatusBadRequest,
 	}
 }
 
-func (fa *FileAdapter) Delete(usernameToDelete string) error {
+func (fa *FileAdapter) Delete(ctx context.Context, usernameToDelete string) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	fa.mtx.Lock()
 	defer fa.mtx.Unlock()
 
@@ -104,10 +164,13 @@ func (fa *FileAdapter) Delete(usernameToDelete string) error {
 		return err
 	}
 
-	return fa.load()
+	return fa.load(ctx)
 }
 
-func (fa *FileAdapter) Update(dataToChange *User, usernameToFind string) error {
+func (fa *FileAdapter) Update(ctx context.Context, dataToChange *User, usernameToFind string) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	fa.mtx.Lock()
 	defer fa.mtx.Unlock()
 
@@ -158,10 +221,13 @@ func (fa *FileAdapter) Update(dataToChange *User, usernameToFind string) error {
 		return err
 	}
 
-	return fa.load()
+	return fa.load(ctx)
 }
 
-func (fa *FileAdapter) Add(dataToChange *User) error {
+func (fa *FileAdapter) Add(ctx context.Context, dataToChange *User) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	fa.mtx.Lock()
 	defer fa.mtx.Unlock()
 
@@ -185,7 +251,7 @@ func (fa *FileAdapter) Add(dataToChange *User) error {
 		return err
 	}
 
-	return fa.load()
+	return fa.load(ctx)
 }
 
 func (fa *FileAdapter) Type() enums.ProviderSource {

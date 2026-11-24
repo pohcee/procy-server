@@ -177,7 +177,7 @@ func TestGetByUsername(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			u, err := d.GetByUsername(tc.Username)
+			u, err := d.GetByUsername(defaultCtx, tc.Username)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.ExpectedUser, u)
@@ -200,7 +200,7 @@ func TestGetAll(t *testing.T) {
 	d, err := NewUserDatabase(db, "users", "groups", "", false, true, false, testLog)
 	require.NoError(t, err)
 
-	actualUsers, err := d.GetAll()
+	actualUsers, err := d.GetAll(defaultCtx)
 	require.NoError(t, err)
 
 	expectedUsers := []*User{
@@ -272,7 +272,7 @@ func TestListGroups(t *testing.T) {
 			d, err := NewUserDatabase(db, "users", "groups", tc.DetailsTable, false, false, false, testLog)
 			require.NoError(t, err)
 
-			actualGroups, err := d.ListGroups()
+			actualGroups, err := d.ListGroups(defaultCtx)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, tc.Expected, actualGroups)
@@ -328,7 +328,7 @@ func TestListGroupsPlusEnabled(t *testing.T) {
 			d, err := NewUserDatabase(db, "users", "groups", tc.DetailsTable, false, false, true, testLog)
 			require.NoError(t, err)
 
-			actualGroups, err := d.ListGroups()
+			actualGroups, err := d.ListGroups(defaultCtx)
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, tc.Expected, actualGroups)
@@ -378,7 +378,7 @@ func TestGetGroup(t *testing.T) {
 			d, err := NewUserDatabase(db, "users", "groups", tc.DetailsTable, false, false, false, testLog)
 			require.NoError(t, err)
 
-			actual, err := d.GetGroup(tc.Group)
+			actual, err := d.GetGroup(defaultCtx, tc.Group)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.Expected, actual)
@@ -448,7 +448,7 @@ func TestGetGroupPlusEnabled(t *testing.T) {
 			d, err := NewUserDatabase(db, "users", "groups", tc.DetailsTable, false, false, true, testLog)
 			require.NoError(t, err)
 
-			actual, err := d.GetGroup(tc.Group)
+			actual, err := d.GetGroup(defaultCtx, tc.Group)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.Expected, actual)
@@ -486,10 +486,10 @@ func TestUpdateGroup(t *testing.T) {
 			d, err := NewUserDatabase(db, "users", "groups", "group_details", false, false, false, testLog)
 			require.NoError(t, err)
 
-			err = d.UpdateGroup(tc.Group.Name, tc.Group)
+			err = d.UpdateGroup(defaultCtx, tc.Group.Name, tc.Group)
 			require.NoError(t, err)
 
-			actual, err := d.GetGroup(tc.Group.Name)
+			actual, err := d.GetGroup(defaultCtx, tc.Group.Name)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.Group, actual)
@@ -593,12 +593,12 @@ func TestUpdateGroupPlusEnabled(t *testing.T) {
 			d, err := NewUserDatabase(db, "users", "groups", "group_details", false, false, true, testLog)
 			require.NoError(t, err)
 
-			err = d.UpdateGroup(tc.Group.Name, tc.Group)
+			err = d.UpdateGroup(defaultCtx, tc.Group.Name, tc.Group)
 			if tc.ExpectedError != "" {
 				require.EqualError(t, err, tc.ExpectedError)
 			} else {
 				require.NoError(t, err)
-				actual, err := d.GetGroup(tc.Group.Name)
+				actual, err := d.GetGroup(defaultCtx, tc.Group.Name)
 				require.NoError(t, err)
 
 				assert.Equal(t, tc.Group, actual)
@@ -621,10 +621,10 @@ func TestDeleteGroup(t *testing.T) {
 	d, err := NewUserDatabase(db, "users", "groups", "group_details", false, false, false, testLog)
 	require.NoError(t, err)
 
-	err = d.DeleteGroup("group1")
+	err = d.DeleteGroup(defaultCtx, "group1")
 	require.NoError(t, err)
 
-	actual, err := d.ListGroups()
+	actual, err := d.ListGroups(defaultCtx)
 	require.NoError(t, err)
 
 	expected := []Group{
@@ -685,7 +685,7 @@ func TestAdd(t *testing.T) {
 			d, err := NewUserDatabase(db, "users", "groups", "", false, false, false, testLog)
 			require.NoError(t, err)
 
-			err = d.Add(testCase.userToChange)
+			err = d.Add(defaultCtx, testCase.userToChange)
 			require.NoError(t, err)
 
 			assertUserTableEquals(t, d.db, d.usersTableName, testCase.expectedUserRows)
@@ -871,7 +871,7 @@ func TestUpdate(t *testing.T) {
 
 			testCase := testCases[i]
 
-			err = d.Update(testCase.userToChange, testCase.username)
+			err = d.Update(defaultCtx, testCase.userToChange, testCase.username)
 			require.NoError(t, err)
 
 			assertUserTableEquals(t, d.db, d.usersTableName, testCase.expectedUserRows)
@@ -894,13 +894,13 @@ func TestDelete(t *testing.T) {
 	d, err := NewUserDatabase(db, "users", "groups", "", false, false, false, testLog)
 	require.NoError(t, err)
 
-	err = d.Delete("user1")
+	err = d.Delete(defaultCtx, "user1")
 	require.NoError(t, err)
 
-	err = d.Delete("user2")
+	err = d.Delete(defaultCtx, "user2")
 	require.NoError(t, err)
 
-	err = d.Delete("user3")
+	err = d.Delete(defaultCtx, "user3")
 	require.NoError(t, err)
 
 	assertUserTableEquals(t, db, d.usersTableName, []map[string]interface{}{})
@@ -1040,13 +1040,13 @@ func TestUpdateGroupStoresScriptsWithCommands(t *testing.T) {
 
 	d, err := NewUserDatabase(db, "users", "groups", "group_details", false, false, false, testLog)
 	require.NoError(t, err)
-	require.NoError(t, d.UpdateGroup("ops", NewGroup("ops", nil, nil, PermissionCommands)))
+	require.NoError(t, d.UpdateGroup(defaultCtx, "ops", NewGroup("ops", nil, nil, PermissionCommands)))
 
 	var raw string
 	require.NoError(t, db.Get(&raw, "SELECT permissions FROM group_details WHERE name = 'ops'"))
 	assert.JSONEq(t, `{"commands":true,"scripts":true}`, raw)
 
-	g, err := d.GetGroup("ops")
+	g, err := d.GetGroup(defaultCtx, "ops")
 	require.NoError(t, err)
 	assert.True(t, g.Permissions.Has(PermissionCommands))
 	b, err := json.Marshal(g.Permissions)

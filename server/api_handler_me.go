@@ -31,13 +31,13 @@ func (al *APIListener) handleGetMe(w http.ResponseWriter, req *http.Request) {
 		al.jsonErrorResponseWithTitle(w, http.StatusNotFound, "user not found")
 		return
 	}
-	eup, err := al.userService.GetEffectiveUserPermissions(user)
+	eup, err := al.userService.GetEffectiveUserPermissions(req.Context(), user)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	tr, cr := al.userService.GetEffectiveUserExtendedPermissions(user)
+	tr, cr := al.userService.GetEffectiveUserExtendedPermissions(req.Context(), user)
 	eep := EffectiveExtendedPermissions{
 		TunnelsRestricted:  tr,
 		CommandsRestricted: cr,
@@ -140,7 +140,7 @@ func (al *APIListener) handleManageTotP(w http.ResponseWriter, req *http.Request
 		userDataToChange.TotP = " "
 	}
 
-	if err := al.userService.Change(userDataToChange, user.Username); err != nil {
+	if err := al.userService.Change(req.Context(), userDataToChange, user.Username); err != nil {
 		al.jsonError(w, err)
 		return
 	}
@@ -197,7 +197,7 @@ func (al *APIListener) handleChangeMe(w http.ResponseWriter, req *http.Request) 
 		}
 	}
 
-	if err := al.userService.Change(&users.User{
+	if err := al.userService.Change(req.Context(), &users.User{
 		Username:    r.Username,
 		Password:    r.Password,
 		TwoFASendTo: r.TwoFASendTo,

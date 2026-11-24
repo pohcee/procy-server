@@ -19,6 +19,7 @@ import (
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/test"
 	"github.com/openrport/openrport/share/ws"
 )
@@ -193,7 +194,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		al, jp, cls, conns := typedRunFixture(t)
 		uiConn := &fakeUIConn{}
 		uiConnTS := ws.NewConcurrentWebSocket(uiConn, testLog)
-		ctx := api.WithUser(context.Background(), "tester")
+		ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), "tester")
 
 		al.handleCommandsExecutionWS(ctx, uiConnTS, &jobs.MultiJobRequest{
 			ClientIDs:      []string{"c1", "c2", "c3"},
@@ -234,7 +235,7 @@ func TestTypedRunUnchanged(t *testing.T) {
 		al.testDone = done
 		uiConn := &fakeUIConn{}
 		uiConnTS := ws.NewConcurrentWebSocket(uiConn, testLog)
-		ctx := api.WithUser(context.Background(), "tester")
+		ctx := api.WithUser(tenant.WithID(context.Background(), tenant.Default), "tester")
 		abort := true
 
 		al.handleCommandsExecutionWS(ctx, uiConnTS, &jobs.MultiJobRequest{

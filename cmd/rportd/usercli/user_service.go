@@ -1,6 +1,7 @@
 package usercli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
@@ -8,6 +9,7 @@ import (
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/share/enums"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type UserInput struct {
@@ -34,22 +36,26 @@ func NewUserService(cfg *chconfig.Config) (UserService, error) {
 		}
 	}
 
-	apiUserService, err := users.NewAPIServiceFromConfig(authDB, cfg)
+	// the CLI manages the users of a standalone server, which belong to the default tenant
+	ctx := tenant.WithID(context.Background(), tenant.Default)
+	apiUserService, err := users.NewAPIServiceFromConfig(ctx, authDB, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("Could not initialize user service: %w", err)
 	}
 
 	return &userServiceImpl{
+		ctx:            ctx,
 		apiUserService: apiUserService,
 	}, nil
 }
 
 type userServiceImpl struct {
+	ctx            context.Context
 	apiUserService *users.APIService
 }
 
 func (u *userServiceImpl) Create(input UserInput) error {
-	return u.apiUserService.Change(&users.User{
+	return u.apiUserService.Change(u.ctx, &users.User{
 		Username:    input.Username,
 		Password:    input.Password,
 		Groups:      input.Groups,
@@ -58,7 +64,7 @@ func (u *userServiceImpl) Create(input UserInput) error {
 }
 
 func (u *userServiceImpl) Change(input UserInput) error {
-	return u.apiUserService.Change(&users.User{
+	return u.apiUserService.Change(u.ctx, &users.User{
 		Password:    input.Password,
 		Groups:      input.Groups,
 		TwoFASendTo: input.TwoFASendTo,
@@ -66,7 +72,7 @@ func (u *userServiceImpl) Change(input UserInput) error {
 }
 
 func (u *userServiceImpl) Delete(username string) error {
-	return u.apiUserService.Delete(username)
+	return u.apiUserService.Delete(u.ctx, username)
 }
 
 func (u *userServiceImpl) ProviderType() enums.ProviderSource {

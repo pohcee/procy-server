@@ -101,20 +101,20 @@ func (al *APIListener) Log() (l *logger.Logger) {
 }
 
 type UserService interface {
-	GetAll() ([]*users.User, error)
-	GetByUsername(username string) (*users.User, error)
-	Change(*users.User, string) error
-	Delete(string) error
-	ExistGroups([]string) error
+	GetAll(ctx context.Context) ([]*users.User, error)
+	GetByUsername(ctx context.Context, username string) (*users.User, error)
+	Change(ctx context.Context, user *users.User, username string) error
+	Delete(ctx context.Context, username string) error
+	ExistGroups(ctx context.Context, groups []string) error
 	GetProviderType() enums.ProviderSource
-	ListGroups() ([]users.Group, error)
-	GetGroup(string) (users.Group, error)
-	UpdateGroup(string, users.Group) (users.Group, error)
-	DeleteGroup(string) error
-	CheckPermission(*users.User, string) error
+	ListGroups(ctx context.Context) ([]users.Group, error)
+	GetGroup(ctx context.Context, name string) (users.Group, error)
+	UpdateGroup(ctx context.Context, name string, g users.Group) (users.Group, error)
+	DeleteGroup(ctx context.Context, name string) error
+	CheckPermission(ctx context.Context, user *users.User, permission string) error
 	SupportsGroupPermissions() bool
-	GetEffectiveUserPermissions(*users.User) (map[string]bool, error)
-	GetEffectiveUserExtendedPermissions(*users.User) ([]extperm.PermissionParams, []extperm.PermissionParams)
+	GetEffectiveUserPermissions(ctx context.Context, user *users.User) (map[string]bool, error)
+	GetEffectiveUserExtendedPermissions(ctx context.Context, user *users.User) ([]extperm.PermissionParams, []extperm.PermissionParams)
 }
 
 func NewAPIListener(
@@ -215,7 +215,7 @@ func NewAPIListener(
 	tokenProvider := authorization.NewSqliteProvider(apiTokenDb)
 	tokenManager := authorization.NewManager(tokenProvider)
 
-	userService, err := users.NewAPIServiceFromConfig(server.authDB, config)
+	userService, err := users.NewAPIServiceFromConfig(ctx, server.authDB, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed init api users service: %w", err)
 	}
@@ -447,7 +447,7 @@ func (al *APIListener) lookupUser(r *http.Request, isBearerOnly bool) (authorize
 	}
 
 	// case when no auth method is provided
-	if al.bannedUsers.IsBanned("") {
+	if al.isUserBanned(r.Context(), "") {
 		return false, "", ErrTooManyRequests
 	}
 
@@ -456,7 +456,7 @@ func (al *APIListener) lookupUser(r *http.Request, isBearerOnly bool) (authorize
 
 // handleBasicAuth checks username and password against either user's password or token
 func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, username, password string) (authorized bool, name string, err error) {
-	if al.bannedUsers.IsBanned(username) {
+	if al.isUserBanned(ctx, username) {
 		return false, username, ErrTooManyRequests
 	}
 
@@ -464,9 +464,9 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 		return false, "", nil
 	}
 
-	user, err := al.userService.GetByUsername(username)
+	user, err := al.userService.GetByUsername(ctx, username)
 	if err != nil {
-		return false, username, fmt.Errorf("failed to get user: %v", err)
+		return false, username, fmt.Errorf("failed to get user: %w", err)
 	}
 	if user == nil {
 		return false, username, nil
@@ -532,7 +532,7 @@ func (al *APIListener) checkBearerToken(ctx context.Context, bearerToken, uri, m
 		return false, nil, nil
 	}
 
-	if al.bannedUsers.IsBanned(tokenCtx.AppClaims.Username) {
+	if al.isUserBanned(ctx, tokenCtx.AppClaims.Username) {
 		al.Errorf(
 			"User %s is banned",
 			tokenCtx.AppClaims.Username,
@@ -563,14 +563,14 @@ func (al *APIListener) checkBearerToken(ctx context.Context, bearerToken, uri, m
 const htpasswdBcryptPrefix = "$2y$"
 
 // validateCredentials returns true if given credentials belong to a user with access to the API.
-func (al *APIListener) validateCredentials(username, password string, skipPasswordValidation bool) (bool, *users.User, error) {
+func (al *APIListener) validateCredentials(ctx context.Context, username, password string, skipPasswordValidation bool) (bool, *users.User, error) {
 	if username == "" {
 		return false, nil, nil
 	}
 
-	user, err := al.userService.GetByUsername(username)
+	user, err := al.userService.GetByUsername(ctx, username)
 	if err != nil {
-		return false, nil, fmt.Errorf("failed to get user: %v", err)
+		return false, nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	if al.shouldCreateMissingUser(user, skipPasswordValidation) {
@@ -585,7 +585,7 @@ func (al *APIListener) validateCredentials(username, password string, skipPasswo
 		if al.config.API.DefaultUserGroup != "" {
 			user.Groups = []string{al.config.API.DefaultUserGroup}
 		}
-		err = al.userService.Change(user, "")
+		err = al.userService.Change(ctx, user, "")
 		if err != nil {
 			return false, user, fmt.Errorf("failed to create missing user: %v", err)
 		}
@@ -672,7 +672,7 @@ func (al *APIListener) wsAuth(f http.Handler) http.HandlerFunc {
 		}
 
 		if !authorized || username == "" {
-			al.bannedUsers.Add(username)
+			al.banUser(r.Context(), username)
 			al.jsonErrorResponse(w, http.StatusUnauthorized, errUnauthorized)
 			return
 		}

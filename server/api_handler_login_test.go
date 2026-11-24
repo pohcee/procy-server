@@ -296,7 +296,7 @@ type MockUsersService struct {
 	ChangeUsername string
 }
 
-func (s *MockUsersService) Change(user *users.User, username string) error {
+func (s *MockUsersService) Change(_ context.Context, user *users.User, username string) error {
 	s.ChangeUser = user
 	s.ChangeUsername = username
 	return nil

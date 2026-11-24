@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -26,15 +27,15 @@ type ProviderMock struct {
 	UsernameToDelete    string
 }
 
-func (dpm *ProviderMock) GetAll() ([]*User, error) {
+func (dpm *ProviderMock) GetAll(context.Context) ([]*User, error) {
 	return dpm.UsersToGive, dpm.ErrorToGiveOnRead
 }
 
-func (dpm *ProviderMock) ListGroups() ([]Group, error) {
+func (dpm *ProviderMock) ListGroups(context.Context) ([]Group, error) {
 	return dpm.GroupsToGive, dpm.ErrorToGiveOnRead
 }
 
-func (dpm *ProviderMock) GetGroup(name string) (Group, error) {
+func (dpm *ProviderMock) GetGroup(_ context.Context, name string) (Group, error) {
 	for _, g := range dpm.GroupsToGive {
 		if g.Name == name {
 			return g, dpm.ErrorToGiveOnRead
@@ -43,15 +44,15 @@ func (dpm *ProviderMock) GetGroup(name string) (Group, error) {
 	return NewGroup(name, nil, nil), dpm.ErrorToGiveOnRead
 }
 
-func (dpm *ProviderMock) UpdateGroup(string, Group) error {
+func (dpm *ProviderMock) UpdateGroup(context.Context, string, Group) error {
 	return dpm.ErrorToGiveOnWrite
 }
 
-func (dpm *ProviderMock) DeleteGroup(string) error {
+func (dpm *ProviderMock) DeleteGroup(context.Context, string) error {
 	return dpm.ErrorToGiveOnDelete
 }
 
-func (dpm *ProviderMock) GetByUsername(username string) (*User, error) {
+func (dpm *ProviderMock) GetByUsername(_ context.Context, username string) (*User, error) {
 	var usr *User
 	for i := range dpm.UsersToGive {
 		if dpm.UsersToGive[i].Username == username {
@@ -62,7 +63,7 @@ func (dpm *ProviderMock) GetByUsername(username string) (*User, error) {
 	return usr, dpm.ErrorToGiveOnRead
 }
 
-func (dpm *ProviderMock) Add(usr *User) error {
+func (dpm *ProviderMock) Add(_ context.Context, usr *User) error {
 	if dpm.UsersToAdd == nil {
 		dpm.UsersToAdd = []*User{}
 	}
@@ -72,7 +73,7 @@ func (dpm *ProviderMock) Add(usr *User) error {
 	return dpm.ErrorToGiveOnWrite
 }
 
-func (dpm *ProviderMock) Update(usr *User, usernameToUpdate string) error {
+func (dpm *ProviderMock) Update(_ context.Context, usr *User, usernameToUpdate string) error {
 	if dpm.UsersToUpdate == nil {
 		dpm.UsersToUpdate = []*User{}
 	}
@@ -83,7 +84,7 @@ func (dpm *ProviderMock) Update(usr *User, usernameToUpdate string) error {
 	return dpm.ErrorToGiveOnWrite
 }
 
-func (dpm *ProviderMock) Delete(usernameToDelete string) error {
+func (dpm *ProviderMock) Delete(_ context.Context, usernameToDelete string) error {
 	dpm.UsernameToDelete = usernameToDelete
 	return dpm.ErrorToGiveOnDelete
 }
@@ -112,7 +113,7 @@ func TestGetUsersFromProvider(t *testing.T) {
 		Provider: db,
 	}
 
-	actualUsers, err := service.GetAll()
+	actualUsers, err := service.GetAll(defaultCtx)
 
 	require.NoError(t, err)
 	assert.Equal(t, givenUsers, actualUsers)
@@ -126,7 +127,7 @@ func TestGetUsersFromProvider(t *testing.T) {
 		Provider: db,
 	}
 
-	_, err = service.GetAll()
+	_, err = service.GetAll(defaultCtx)
 	require.EqualError(t, err, "some db error")
 }
 
@@ -235,7 +236,7 @@ func TestValidate(t *testing.T) {
 		service.DeliverySrv = testCase.deliverySrv
 		t.Run(testCase.name, func(t *testing.T) {
 			service.TwoFAOn = testCase.twoFAOn
-			err := service.Change(testCase.user, testCase.userKeyToProvide)
+			err := service.Change(defaultCtx, testCase.user, testCase.userKeyToProvide)
 			require.EqualError(t, err, testCase.expectedError)
 		})
 	}
@@ -252,7 +253,7 @@ func TestAddUser(t *testing.T) {
 		Provider: dbProvider,
 	}
 
-	err := service.Change(givenUser, "")
+	err := service.Change(defaultCtx, givenUser, "")
 	require.NoError(t, err)
 
 	require.Len(t, dbProvider.UsersToAdd, 1)
@@ -266,7 +267,7 @@ func TestAddUser(t *testing.T) {
 	service = APIService{
 		Provider: dbProvider,
 	}
-	err = service.Change(givenUser, "")
+	err = service.Change(defaultCtx, givenUser, "")
 	require.EqualError(t, err, "some read error")
 
 	dbProvider = &ProviderMock{
@@ -275,7 +276,7 @@ func TestAddUser(t *testing.T) {
 	service = APIService{
 		Provider: dbProvider,
 	}
-	err = service.Change(givenUser, "")
+	err = service.Change(defaultCtx, givenUser, "")
 	require.EqualError(t, err, "some write error")
 }
 
@@ -302,7 +303,7 @@ func TestAddUserIfItExists(t *testing.T) {
 		Provider: dbProvider,
 	}
 
-	err := service.Change(userToUpdate, "")
+	err := service.Change(defaultCtx, userToUpdate, "")
 	require.EqualError(t, err, "Another user with this username already exists")
 	require.Len(t, dbProvider.UsersToAdd, 0)
 	require.Len(t, dbProvider.UsersToUpdate, 0)
@@ -331,7 +332,7 @@ func TestUpdateUserIfItExists(t *testing.T) {
 		Provider: dbProvider,
 	}
 
-	err := service.Change(givenUser, "user2")
+	err := service.Change(defaultCtx, givenUser, "user2")
 	require.EqualError(t, err, "Another user with this username already exists")
 	require.Len(t, dbProvider.UsersToAdd, 0)
 	require.Len(t, dbProvider.UsersToUpdate, 0)
@@ -360,7 +361,7 @@ func TestUpdateUserInProvider(t *testing.T) {
 		Provider: dbProvider,
 	}
 
-	err := service.Change(userToUpdate, "user1")
+	err := service.Change(defaultCtx, userToUpdate, "user1")
 	require.NoError(t, err)
 
 	assert.Len(t, dbProvider.UsersToAdd, 0)
@@ -371,11 +372,11 @@ func TestUpdateUserInProvider(t *testing.T) {
 
 	dbProvider.UsersToUpdate = []*User{}
 	userToUpdate2 := &User{Groups: []string{}}
-	err = service.Change(userToUpdate2, "user1")
+	err = service.Change(defaultCtx, userToUpdate2, "user1")
 	require.NoError(t, err)
 	assert.Equal(t, []string{}, dbProvider.UsersToUpdate[0].Groups)
 
-	err = service.Change(userToUpdate, "non-existing-user")
+	err = service.Change(defaultCtx, userToUpdate, "non-existing-user")
 	assert.Equal(
 		t,
 		errors2.APIError{
@@ -400,7 +401,7 @@ func TestUpdateUserInProvider(t *testing.T) {
 		Username: "user2",
 		Password: "3342",
 	}
-	err = service.Change(userToUpdate, "user2")
+	err = service.Change(defaultCtx, userToUpdate, "user2")
 	require.EqualError(t, err, "failed to write")
 }
 
@@ -417,11 +418,11 @@ func TestDeleteUserFromProvider(t *testing.T) {
 		Provider: dbProvider,
 	}
 
-	err := service.Delete("user2")
+	err := service.Delete(defaultCtx, "user2")
 	require.NoError(t, err)
 	assert.Equal(t, "user2", dbProvider.UsernameToDelete)
 
-	err = service.Delete("unknown_user")
+	err = service.Delete(defaultCtx, "unknown_user")
 	assert.Equal(
 		t,
 		errors2.APIError{
@@ -444,7 +445,7 @@ func TestDeleteUserFromProvider(t *testing.T) {
 		Provider: dbProvider,
 	}
 
-	err = service.Delete("user2")
+	err = service.Delete(defaultCtx, "user2")
 	require.EqualError(t, err, "failed to delete")
 }
 
@@ -458,16 +459,16 @@ func TestExistsUserGroups(t *testing.T) {
 		Provider: db,
 	}
 
-	gotErr1 := service.ExistGroups([]string{"group4"})
+	gotErr1 := service.ExistGroups(defaultCtx, []string{"group4"})
 	require.NoError(t, gotErr1)
 
-	gotErr2 := service.ExistGroups([]string{"group1", "group2", "group3", "group4", Administrators})
+	gotErr2 := service.ExistGroups(defaultCtx, []string{"group1", "group2", "group3", "group4", Administrators})
 	require.NoError(t, gotErr2)
 
-	gotErr3 := service.ExistGroups([]string{"group1", "group2", "admin", Administrators})
+	gotErr3 := service.ExistGroups(defaultCtx, []string{"group1", "group2", "admin", Administrators})
 	require.EqualError(t, gotErr3, "user groups not found: admin")
 
-	gotErr4 := service.ExistGroups([]string{"group1", "group2", "group3", "admin", Administrators, "group5"})
+	gotErr4 := service.ExistGroups(defaultCtx, []string{"group1", "group2", "group3", "admin", Administrators, "group5"})
 	require.EqualError(t, gotErr4, "user groups not found: admin, group5")
 
 	db = &ProviderMock{
@@ -479,7 +480,7 @@ func TestExistsUserGroups(t *testing.T) {
 		Provider: db,
 	}
 
-	gotErr5 := service.ExistGroups([]string{"group1"})
+	gotErr5 := service.ExistGroups(defaultCtx, []string{"group1"})
 	require.EqualError(t, gotErr5, "some error")
 }
 
@@ -543,7 +544,7 @@ func TestCheckPermission(t *testing.T) {
 				Provider: db,
 			}
 
-			err := service.CheckPermission(tc.User, tc.Permission)
+			err := service.CheckPermission(defaultCtx, tc.User, tc.Permission)
 			if tc.Expected {
 				assert.NoError(t, err)
 			} else {

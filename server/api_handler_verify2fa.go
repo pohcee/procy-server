@@ -41,7 +41,7 @@ func (al *APIListener) parseAndValidate2FATokenRequest(req *http.Request) (usern
 		return "", err
 	}
 
-	if al.bannedUsers.IsBanned(reqBody.Username) {
+	if al.isUserBanned(req.Context(), reqBody.Username) {
 		return reqBody.Username, errors2.APIError{
 			HTTPStatus: http.StatusTooManyRequests,
 			Err:        ErrTooManyRequests,
@@ -84,11 +84,11 @@ func (al *APIListener) parseAndValidate2FATokenRequest(req *http.Request) (usern
 			}
 		}
 
-		user, err := al.userService.GetByUsername(token.AppClaims.Username)
+		user, err := al.userService.GetByUsername(req.Context(), token.AppClaims.Username)
 		if err != nil {
 			return "", err
 		}
-		return token.AppClaims.Username, al.twoFASrv.ValidateTotPCode(user, reqBody.Token)
+		return token.AppClaims.Username, al.twoFASrv.ValidateTotPCode(req.Context(), user, reqBody.Token)
 	}
 
 	// The code must verify the login that the scoped token belongs to, not a username from the body.
@@ -99,5 +99,5 @@ func (al *APIListener) parseAndValidate2FATokenRequest(req *http.Request) (usern
 			Message:    "login session required",
 		}
 	}
-	return username, al.twoFASrv.ValidateToken(username, reqBody.Token)
+	return username, al.twoFASrv.ValidateToken(req.Context(), username, reqBody.Token)
 }

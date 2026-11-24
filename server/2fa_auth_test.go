@@ -11,6 +11,7 @@ import (
 
 	"github.com/openrport/openrport/server/api/message"
 	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func TestValidateTotPCode(t *testing.T) {
@@ -21,7 +22,7 @@ func TestValidateTotPCode(t *testing.T) {
 	msgSErvice := &message.ServiceMock{}
 
 	tfaService := NewTwoFAService(100, time.Second, usrService, msgSErvice)
-	tfaService.SetTotPLoginSession(usr.Username, time.Minute)
+	require.NoError(t, tfaService.SetTotPLoginSession(tenantCtx(tenant.Default), usr.Username, time.Minute))
 
 	inpt := &TotPInput{
 		Issuer:      "iss1",
@@ -35,10 +36,10 @@ func TestValidateTotPCode(t *testing.T) {
 	code, err := totp.GenerateCode(totP.Secret, time.Now())
 	require.NoError(t, err)
 
-	err = tfaService.ValidateTotPCode(usr, code)
+	err = tfaService.ValidateTotPCode(tenantCtx(tenant.Default), usr, code)
 	require.NoError(t, err)
 
-	err = tfaService.ValidateTotPCode(usr, "dfasdf")
+	err = tfaService.ValidateTotPCode(tenantCtx(tenant.Default), usr, "dfasdf")
 	require.EqualError(t, err, "login request not found for provided username")
 }
 
@@ -48,7 +49,7 @@ func TestInvalidTotPCode(t *testing.T) {
 	}
 
 	tfaService := NewTwoFAService(100, time.Second, &MockUsersService{}, &message.ServiceMock{})
-	tfaService.SetTotPLoginSession(usr.Username, time.Minute)
+	require.NoError(t, tfaService.SetTotPLoginSession(tenantCtx(tenant.Default), usr.Username, time.Minute))
 
 	inpt := &TotPInput{
 		Issuer:      "iss2",
@@ -59,7 +60,7 @@ func TestInvalidTotPCode(t *testing.T) {
 
 	StoreTotPCodeInUser(usr, totP)
 
-	err = tfaService.ValidateTotPCode(usr, "dfasdf")
+	err = tfaService.ValidateTotPCode(tenantCtx(tenant.Default), usr, "dfasdf")
 	require.EqualError(t, err, "invalid code")
 }
 
@@ -71,9 +72,9 @@ func TestValidateTotPCodeLoginExpired(t *testing.T) {
 	msgSErvice := &message.ServiceMock{}
 
 	tfaService := NewTwoFAService(100, time.Second, usrService, msgSErvice)
-	tfaService.SetTotPLoginSession(usr.Username, -100)
+	require.NoError(t, tfaService.SetTotPLoginSession(tenantCtx(tenant.Default), usr.Username, -100))
 
-	err := tfaService.ValidateTotPCode(usr, "123")
+	err := tfaService.ValidateTotPCode(tenantCtx(tenant.Default), usr, "123")
 	require.EqualError(t, err, "login request expired")
 }
 
@@ -86,16 +87,16 @@ func TestValidateTotPCodeInvalidTotPData(t *testing.T) {
 	msgSErvice := &message.ServiceMock{}
 
 	tfaService := NewTwoFAService(100, time.Second, usrService, msgSErvice)
-	tfaService.SetTotPLoginSession(usr.Username, time.Minute)
+	require.NoError(t, tfaService.SetTotPLoginSession(tenantCtx(tenant.Default), usr.Username, time.Minute))
 
-	err := tfaService.ValidateTotPCode(usr, "123")
+	err := tfaService.ValidateTotPCode(tenantCtx(tenant.Default), usr, "123")
 	assert.Contains(t, err.Error(), "failed to convert 'w43dfa' to TotP secret data")
 
 	usr2 := &users.User{
 		Username: "no@mail.me",
 		TotP:     "",
 	}
-	err = tfaService.ValidateTotPCode(usr2, "123")
+	err = tfaService.ValidateTotPCode(tenantCtx(tenant.Default), usr2, "123")
 	require.EqualError(t, err, "time based one time secret key should be generated for this user")
 }
 
@@ -106,6 +107,6 @@ func TestValidateTotPCodeWithUnknownUser(t *testing.T) {
 
 	tfaService := NewTwoFAService(100, time.Second, usrService, msgSErvice)
 
-	err := tfaService.ValidateTotPCode(usr, "123")
+	err := tfaService.ValidateTotPCode(tenantCtx(tenant.Default), usr, "123")
 	require.EqualError(t, err, "login request not found for provided username")
 }
