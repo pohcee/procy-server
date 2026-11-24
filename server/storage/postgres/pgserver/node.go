@@ -10,6 +10,7 @@ import (
 
 	chserver "github.com/openrport/openrport/server"
 	"github.com/openrport/openrport/server/chconfig"
+	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/storage/postgres"
 	"github.com/openrport/openrport/server/storage/postgres/migrate"
 	"github.com/openrport/openrport/server/vault"
@@ -89,6 +90,10 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 	opts.Cluster = coord
 
 	opts.Repositories = Repositories(db, cfg)
+	if cfg.Storage.Role == chconfig.StorageRoleAPI {
+		// the clients are connected to another node: loading them must not mark them disconnected
+		opts.Repositories.Clients = clients.KeepConnectionStateOnLoad(opts.Repositories.Clients)
+	}
 	opts.TenantResolver = NewResolver(db, cfg.API.JWTSecret)
 	// every repository is injected; refuse rather than create any SQLite file
 	opts.SkipMigrations = true

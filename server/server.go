@@ -357,6 +357,9 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		s.clientService.SetCaddyAPI(s.caddyServer)
 	}
 
+	// from here on the caches follow the changes other nodes make
+	s.watchCluster()
+
 	if s.alertingService != nil {
 		tid, err := tenant.FromContext(ctx)
 		if err != nil {
