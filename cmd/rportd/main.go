@@ -79,6 +79,9 @@ var serverHelp = `
     ./rportd user
     commands for user management, run './rportd user help' for more options
 
+    ./rportd migrate -c /etc/rport/rportd.conf
+    migrates the databases in the data directory to the latest version and exits
+
   Options:
 
     --addr, -a, Defines the IP address and port the HTTP server listens on.
