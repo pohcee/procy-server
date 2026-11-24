@@ -29,3 +29,11 @@ func TestWithEmptyIDIsMissing(t *testing.T) {
 func TestDefaultIsDefault(t *testing.T) {
 	assert.Equal(t, tenant.ID("default"), tenant.Default)
 }
+
+func TestRequireDefault(t *testing.T) {
+	assert.NoError(t, tenant.RequireDefault(tenant.WithID(context.Background(), tenant.Default)))
+	assert.ErrorIs(t, tenant.RequireDefault(context.Background()), tenant.ErrMissing)
+	err := tenant.RequireDefault(tenant.WithID(context.Background(), "acme"))
+	assert.ErrorIs(t, err, tenant.ErrNotSupported)
+	assert.Contains(t, err.Error(), "acme")
+}

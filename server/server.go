@@ -281,7 +281,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.filesAPI = filesAPI
 
-	s.apiListener, err = NewAPIListener(s, fingerprint)
+	s.apiListener, err = NewAPIListener(ctx, s, fingerprint)
 	if err != nil {
 		return nil, err
 	}

@@ -118,10 +118,15 @@ type UserService interface {
 }
 
 func NewAPIListener(
+	ctx context.Context,
 	server *Server,
 	fingerprint string,
 ) (*APIListener, error) {
-	ctx := context.Background()
+	// ctx is the server context; it carries the tenant that startup work (session cache, library import and
+	// built-in sync) runs in.
+	if _, err := tenant.FromContext(ctx); err != nil {
+		return nil, fmt.Errorf("api listener: %w", err)
+	}
 
 	config := server.config
 
@@ -251,7 +256,7 @@ func NewAPIListener(
 		notificationsCleaner:   notificationsCleaner,
 	}
 
-	imported, err := libraryentries.ImportLegacy(context.Background(), libraryDb, libraryStore)
+	imported, err := libraryentries.ImportLegacy(ctx, libraryDb, libraryStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to import scripts and commands into the library: %w", err)
 	}
@@ -263,7 +268,7 @@ func NewAPIListener(
 	if builtins, err := libraryentries.Builtins(); err != nil {
 		allog.Errorf("library: failed to load built-in entries: %v", err)
 	} else {
-		created, updated, skipped, err := libraryentries.SyncBuiltins(context.Background(), libraryStore, builtins, chshare.BuildVersion, time.Now())
+		created, updated, skipped, err := libraryentries.SyncBuiltins(ctx, libraryStore, builtins, chshare.BuildVersion, time.Now())
 		if err != nil {
 			allog.Errorf("library: failed to sync built-in entries: %v", err)
 		}
