@@ -40,6 +40,9 @@ type Options struct {
 	PublicURL string
 	// DownloadsURL is the base URL of the client packages, e.g. https://rport.example.com/downloads.
 	DownloadsURL string
+	// ConnectURLs are the client connect URLs ([server] url), offered to the update script's
+	// server switch. Only public ones are used (PublicConnectURLs).
+	ConnectURLs []string
 	// CodeTTL is how long a code stays valid (0 = DefaultCodeTTL).
 	CodeTTL time.Duration
 	// AllowCodeReuse keeps a code valid for further fetches until it expires.
@@ -95,7 +98,7 @@ func requestBaseURL(r *http.Request) string {
 }
 
 func (s *Service) settings(r *http.Request) scriptSettings {
-	return scriptSettings{DownloadsURL: s.opts.DownloadsURL, PairingURL: s.URL(r)}
+	return scriptSettings{DownloadsURL: s.opts.DownloadsURL, PairingURL: s.URL(r), ConnectURLs: PublicConnectURLs(s.opts.ConnectURLs)}
 }
 
 // HandleDeposit stores client credentials and returns a pairing code with install

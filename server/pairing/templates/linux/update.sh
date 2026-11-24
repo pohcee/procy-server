@@ -125,6 +125,7 @@ CONFIG_FILE='${CONFIG_FILE}'
 LOG_FILE='$(client_log_file)'
 FROM_VERSION='${CURRENT_VERSION}'
 TO_VERSION='${TARGET_VERSION}'
+CHANGE='${CHANGE:-}'
 PKG_KIND='${PKG_KIND}'
 HEALTH_TIMEOUT='${HEALTH_TIMEOUT}'
 STABLE_SECS='${STABLE_SECS}'
@@ -217,6 +218,59 @@ update() {
   throw_info "Waiting for the new client to connect (up to ${HEALTH_TIMEOUT}s, then ${STABLE_SECS}s to confirm) ..."
   if wait_for_supervisor; then
       finish
+      return 0
+  fi
+  fail
+  exit 1
+}
+
+#---  FUNCTION  -------------------------------------------------------------------------------------------------------
+#          NAME:  switch_server
+#   DESCRIPTION:  Point the client at this server's connect URLs (RPORT_CONNECT_URLS, from [server] url): the first as
+#                 server, the others as fallback_servers. Supervised like an update: if the client does not reconnect,
+#                 the previous rport.conf is restored.
+#----------------------------------------------------------------------------------------------------------------------
+switch_server() {
+  check_prerequisites
+  RPORT_BIN=$(current_binary)
+  CURRENT_VERSION=$(current_version)
+  # shellcheck disable=SC2086
+  set -- ${RPORT_CONNECT_URLS:-}
+  if [ $# -eq 0 ]; then
+      throw_fatal "No public connect URL configured on the server ([server] url). Nothing changed."
+  fi
+  case "$*" in
+  *"'"*) throw_fatal "Invalid connect URL: $*" ;;
+  esac
+  # Check the config can be changed before anything else is touched.
+  SWITCH_CHECK=$(mktemp)
+  cp "$CONFIG_FILE" "$SWITCH_CHECK"
+  if ! set_client_servers "$SWITCH_CHECK" "$@"; then
+      rm -f "$SWITCH_CHECK"
+      throw_fatal "${CONFIG_FILE} can't be changed. Nothing changed."
+  fi
+  rm -f "$SWITCH_CHECK"
+  prepare_stage
+  cp -p "$RPORT_BIN" "${UPDATE_STAGE}/new/rport"
+  PKG_KIND=tarball
+  TARGET_VERSION=$CURRENT_VERSION
+  SWITCH_SERVER=$1
+  shift
+  CHANGE="server to ${SWITCH_SERVER}"
+  [ $# -gt 0 ] && CHANGE="${CHANGE} (fallback $*)"
+  set_client_servers "$CONFIG_FILE" "$SWITCH_SERVER" "$@"
+  throw_info "Switching the ${CHANGE}"
+
+  start_supervisor
+  if is_rport_subprocess; then
+      throw_info "The switch runs in the background, because this script was started by the rport client."
+      throw_info "The client restarts; if it does not connect within ${HEALTH_TIMEOUT}s, the previous config is restored."
+      throw_info "Result: ${UPDATE_STAGE}/status.json, log: ${UPDATE_STAGE}/update.log"
+      exit 0
+  fi
+  throw_info "Waiting for the client to connect (up to ${HEALTH_TIMEOUT}s, then ${STABLE_SECS}s to confirm) ..."
+  if wait_for_supervisor; then
+      throw_info "Server switched: ${CHANGE}"
       return 0
   fi
   fail
@@ -449,6 +503,8 @@ Options:
 -p  No effect; kept for compatibility (packages always come from the downloads site).
 -z  Install the rport client tar.gz|deb|rpm from the given URL or local file instead of the downloads site.
     Set PKG_SHA256 to verify its checksum.
+-S  Point the client at this server's connect URLs ([server] url): the first as server, the others as
+    fallback_servers. Supervised: if the client does not reconnect, the previous rport.conf is restored.
 
 The update is supervised: if the new client does not connect to the server within HEALTH_TIMEOUT
 seconds (default 120), the previous binary and config are restored. Result: /var/lib/rport-update/status.json
@@ -468,7 +524,7 @@ ENABLE_SCRIPTS=undef
 ENABLE_FILEREC=0
 ENABLE_FILEREC_SUDO=0
 NO_REPO=0
-while getopts "phcuxdsnmrbtz:" opt; do
+while getopts "phcuxdsnmrbtSz:" opt; do
   case "${opt}" in
 
   h) ACTION=help ;;
@@ -484,6 +540,7 @@ while getopts "phcuxdsnmrbtz:" opt; do
   b) export ENABLE_FILEREC_SUDO=1 ;;
   p) NO_REPO=1 ;;
   z) PKG_URL="${OPTARG}" ;;
+  S) ACTION=switch_server ;;
 
   \?)
     echo "Option does not exist."

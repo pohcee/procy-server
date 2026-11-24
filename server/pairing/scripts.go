@@ -37,6 +37,9 @@ type scriptSettings struct {
 	DownloadsURL string
 	// PairingURL is the public URL of the pairing endpoints, used for client self-updates.
 	PairingURL string
+	// ConnectURLs are the public client connect URLs ([server] url): the first is the server a
+	// server switch sets, the others its fallback servers.
+	ConnectURLs []string
 }
 
 type script struct {
@@ -99,12 +102,20 @@ func (s *script) render(name string, tpl *template.Template, data interface{}) e
 // pairing endpoints the scripts use for self-updates.
 func (s *script) downloadBase(os string, cfg scriptSettings) {
 	if os == osWindows {
-		fmt.Fprintf(&s.buf, "$RportDownloadBase = \"%s\"\n$RportPairingUrl = \"%s\"\n",
-			EscapeForPowerShell(cfg.DownloadsURL), EscapeForPowerShell(cfg.PairingURL))
+		quoted := make([]string, len(cfg.ConnectURLs))
+		for i, u := range cfg.ConnectURLs {
+			quoted[i] = "\"" + EscapeForPowerShell(u) + "\""
+		}
+		fmt.Fprintf(&s.buf, "$RportDownloadBase = \"%s\"\n$RportPairingUrl = \"%s\"\n$RportConnectUrls = @(%s)\n",
+			EscapeForPowerShell(cfg.DownloadsURL), EscapeForPowerShell(cfg.PairingURL), strings.Join(quoted, ", "))
 		return
 	}
-	fmt.Fprintf(&s.buf, "RPORT_DOWNLOAD_BASE=\"%s\"\nRPORT_PAIRING_URL=\"%s\"\n",
-		EscapeForBash(cfg.DownloadsURL), EscapeForBash(cfg.PairingURL))
+	escaped := make([]string, len(cfg.ConnectURLs))
+	for i, u := range cfg.ConnectURLs {
+		escaped[i] = EscapeForBash(u)
+	}
+	fmt.Fprintf(&s.buf, "RPORT_DOWNLOAD_BASE=\"%s\"\nRPORT_PAIRING_URL=\"%s\"\nRPORT_CONNECT_URLS=\"%s\"\n",
+		EscapeForBash(cfg.DownloadsURL), EscapeForBash(cfg.PairingURL), strings.Join(escaped, " "))
 }
 
 func mustRead(name string) []byte {

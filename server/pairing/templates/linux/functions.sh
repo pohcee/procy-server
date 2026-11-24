@@ -664,3 +664,62 @@ abort_on_rport_subprocess() {
         throw_fatal "You cannot update rport from an rport subprocess."
     fi
 }
+
+#---  FUNCTION  -------------------------------------------------------------------------------------------------------
+#          NAME:  set_client_servers
+#   DESCRIPTION:  Point [client] at a new server: set_client_servers <rport.conf> <server> [fallback ...]
+#                 Replaces the live "server" line and every live "fallback_servers" key (also one over several
+#                 lines) in the [client] section; nothing else changes. Fails, leaving the file untouched, if
+#                 [client] has no live "server" line.
+#----------------------------------------------------------------------------------------------------------------------
+set_client_servers() {
+    scs_conf=$1
+    shift
+    scs_server=$1
+    shift
+    scs_fallback=""
+    for scs_v in "$scs_server" "$@"; do
+        case "$scs_v" in
+        *'"'* | *'\'* | '') throw_fatal "Invalid server address: '$scs_v'" ; return 1 ;;
+        esac
+    done
+    for scs_v in "$@"; do
+        [ -n "$scs_fallback" ] && scs_fallback="${scs_fallback}, "
+        scs_fallback="${scs_fallback}\"${scs_v}\""
+    done
+    SCS_SERVER="$scs_server" SCS_FALLBACK="$scs_fallback" awk -v q="'" '
+    BEGIN { sec = ""; done = 0; skip = 0; strre = "\"[^\"]*\"|" q "[^" q "]*" q }
+    {
+        line = $0; cr = ""
+        if (sub(/\r$/, "", line)) cr = "\r"
+        if (skip) {
+            rest = line; gsub(strre, "", rest)
+            if (rest ~ /\]/) skip = 0
+            next
+        }
+        if (line ~ /^[ \t]*\[[^]=]*\][ \t]*(#.*)?$/) {
+            sec = line; sub(/^[ \t]*\[[ \t]*/, "", sec); sub(/[ \t]*\].*$/, "", sec)
+        }
+        if (sec == "client" && line ~ /^[ \t]*fallback_servers[ \t]*=/) {
+            rest = line; sub(/^[^=]*=/, "", rest); gsub(strre, "", rest)
+            if (rest !~ /\]/) skip = 1
+            next
+        }
+        if (sec == "client" && !done && line ~ /^[ \t]*server[ \t]*=/) {
+            print "  server = \"" ENVIRON["SCS_SERVER"] "\"" cr
+            print "  fallback_servers = [" ENVIRON["SCS_FALLBACK"] "]" cr
+            done = 1
+            next
+        }
+        print $0
+    }
+    END { if (!done) exit 3 }
+    ' "$scs_conf" >"${scs_conf}.switch" || {
+        rm -f "${scs_conf}.switch"
+        throw_fatal "No server setting found in the [client] section of ${scs_conf}"
+        return 1
+    }
+    # cat keeps the owner and mode of the config
+    cat "${scs_conf}.switch" >"$scs_conf"
+    rm -f "${scs_conf}.switch"
+}

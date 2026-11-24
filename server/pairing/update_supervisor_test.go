@@ -200,3 +200,23 @@ func TestWindowsUpdateFallsBackWhenTheTaskDoesNotStart(t *testing.T) {
 	assert.Contains(t, s, "Win32_Process")
 	assert.Contains(t, s, "did not start; starting the supervisor through WMI")
 }
+
+func TestUpdateSupervisorReportsTheChange(t *testing.T) {
+	r := runSupervisor(t, "good", "CHANGE=server to http://connect.procy.sh")
+	assert.Equal(t, "success", r.status["status"], r.output)
+	assert.Contains(t, r.status["message"], "server to http://connect.procy.sh")
+}
+
+func TestUpdateScriptOffersServerSwitch(t *testing.T) {
+	body, _ := renderUpdate(osLinux, scriptSettings{DownloadsURL: dlURL, PairingURL: publicURL + "/pairing",
+		ConnectURLs: []string{"http://connect.procy.sh", "http://us-central1.connect.procy.sh"}})
+	s := string(body)
+	assert.Contains(t, s, `RPORT_CONNECT_URLS="http://connect.procy.sh http://us-central1.connect.procy.sh"`)
+	assert.Contains(t, s, "switch_server")
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+	out, err := exec.Command(sh, "-n", "-c", s).CombinedOutput()
+	assert.NoError(t, err, "the rendered script parses: %s", out)
+}

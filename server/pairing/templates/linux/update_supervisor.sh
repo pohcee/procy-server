@@ -13,6 +13,7 @@
 #   CONFIG_FILE    rport.conf
 #   LOG_FILE       client log file ("" = read the systemd journal)
 #   FROM_VERSION, TO_VERSION
+#   CHANGE         what is changed, for the messages (default "$FROM_VERSION to $TO_VERSION")
 #   PKG_KIND       tarball (default), deb or rpm; deb/rpm install $STAGE/new/rport.<kind>
 #   HEALTH_TIMEOUT seconds to wait for a connection (default 120)
 #   STABLE_SECS    seconds the client must keep running after connecting (default 20)
@@ -32,6 +33,7 @@ PKG_KIND=${PKG_KIND:-tarball}
 SERVICE_CMD=${SERVICE_CMD:-}
 LOG_FILE=${LOG_FILE:-}
 HANDOVER_DELAY=${HANDOVER_DELAY:-5}
+CHANGE=${CHANGE:-"$FROM_VERSION to $TO_VERSION"}
 STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 ULOG="$STAGE/update.log"
 
@@ -148,8 +150,8 @@ recent_output() {
     fi
 }
 
-log "update $FROM_VERSION -> $TO_VERSION started ($PKG_KIND)"
-status running "updating $FROM_VERSION to $TO_VERSION"
+log "update started: $CHANGE ($PKG_KIND)"
+status running "updating $CHANGE"
 
 if [ "$HANDOVER_DELAY" -gt 0 ]; then
     log "waiting ${HANDOVER_DELAY}s so the client can report the result of the update command"
@@ -169,7 +171,7 @@ svc start >>"$ULOG" 2>&1 || log "starting the new client returned an error"
 HEALTH_ERROR=""
 if wait_healthy "$offset" "$t0"; then
     log "update to $TO_VERSION succeeded: the client is connected"
-    status success "updated $FROM_VERSION to $TO_VERSION; the client is connected"
+    status success "updated $CHANGE; the client is connected"
     exit 0
 fi
 

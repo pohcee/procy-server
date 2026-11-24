@@ -16,6 +16,7 @@ func (al *APIListener) initPairing() {
 	al.pairing = pairing.NewService(pairing.Options{
 		PublicURL:      al.config.PairingPublicURL(),
 		DownloadsURL:   cfg.DownloadsURL,
+		ConnectURLs:    al.config.Server.URL,
 		CodeTTL:        cfg.CodeTTL,
 		AllowCodeReuse: cfg.AllowCodeReuse,
 	}, al.Logger)
