@@ -30,6 +30,9 @@ This opens the API and enables HTTP basic authentication with a single user `adm
 A JWT secret for API tokens is generated on first start and saved in the data directory.
 Restart the rportd after any changes to the configuration. Read more about API [authentication options](/docs/get-started/api-authentication/).
 
+An empty `address` disables the API and the web UI: `rportd` then only listens for clients on the `[server]` address,
+and clients still connect. `doc_root` must be empty then.
+
 {{< hint type=warning >}}
 Choose a strong password. `rportd` refuses to start with the sample credentials from `rportd.example.conf`
 (`admin:foobaz`, `clientAuth1:1234`) and with placeholder or too-short secrets. If you set `jwt_secret` yourself, use at
