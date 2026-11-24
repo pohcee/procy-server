@@ -14,6 +14,12 @@ build-debug:
 test:
 	go test -race -v ./...
 
+# Postgres storage tests against an embedded Postgres (downloaded once into ~/.cache/rport-embedded-postgres).
+# Set RPORT_TEST_POSTGRES_URL to a superuser URL to use an existing server instead.
+RPORT_TEST_POSTGRES_URL ?= embedded
+test-postgres:
+	RPORT_TEST_POSTGRES_URL=$(RPORT_TEST_POSTGRES_URL) go test ./server/storage/... ./server/vault/... ./cmd/rportd/...
+
 clean:
 	go clean
 	rm -f $(BINARIES)

@@ -3,7 +3,9 @@
 
 package chserver
 
+import "github.com/openrport/openrport/server/chconfig"
+
 // Contains constants applicable only to non windows OS.
 const (
-	DefaultDataDirectory = "/var/lib/rport"
+	DefaultDataDirectory = chconfig.DefaultDataDirectory
 )

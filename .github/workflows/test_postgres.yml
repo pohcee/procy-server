@@ -1,0 +1,33 @@
+name: Test Postgres storage
+on: [push]
+jobs:
+  test:
+    name: Test Postgres storage
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # superuser URL: each test creates its own database and a non-owner application role
+      RPORT_TEST_POSTGRES_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # the repository contract suites (server/repotest) run on Postgres here and on SQLite in the main test job
+      - name: Test
+        run: go test -race ./server/storage/... ./server/vault/... ./server/chconfig/... ./cmd/rportd/...

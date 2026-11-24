@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
-	"time"
 
 	"github.com/openrport/openrport/cmd/rportd/servicemanagement"
 	"github.com/openrport/openrport/share/logger"
@@ -22,8 +21,6 @@ import (
 	"github.com/spf13/viper"
 
 	chserver "github.com/openrport/openrport/server"
-	"github.com/openrport/openrport/server/api/message"
-	auditlog "github.com/openrport/openrport/server/auditlog/config"
 	"github.com/openrport/openrport/server/chconfig"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/files"
@@ -32,35 +29,7 @@ import (
 const (
 	writeCPUProfile    = false
 	writeMemoryProfile = false
-
-	DefaultKeepDisconnectedClients          = time.Hour
-	DefaultPurgeDisconnectedClientsInterval = 1 * time.Minute
-	DefaultCheckClientsConnectionInterval   = 5 * time.Minute
-	DefaultCheckClientsConnectionTimeout    = 30 * time.Second
-	DefaultMaxRequestBytes                  = 10 * 1024       // 10 KB
-	DefaultMaxRequestBytesLibrary           = 256 * 1024      // 256KB
-	DefaultMaxRequestBytesClient            = 512 * 1024      // 512KB
-	DefaultMaxFilePushBytes                 = int64(10 << 20) // 10M
-	DefaultCheckPortTimeout                 = 2 * time.Second
-	DefaultUsedPorts                        = "20000-30000"
-	DefaultExcludedPorts                    = "1-1024"
-	DefaultServerAddress                    = "0.0.0.0:8080"
-	DefaultLogLevel                         = "info"
-	DefaultRunRemoteCmdTimeoutSec           = 60
-	DefaultMonitoringDataStorageDuration    = "7d"
 )
-
-var (
-	DefaultMaxConcurrentSSHConnectionHandshakes = calcMaxConcurrentSSHConnectionHandshakes()
-)
-
-func calcMaxConcurrentSSHConnectionHandshakes() (max int) {
-	maxProcs := runtime.GOMAXPROCS(0)
-	if maxProcs == 1 {
-		return maxProcs
-	}
-	return maxProcs / 2
-}
 
 var serverHelp = `
   Usage: rportd [options]
@@ -82,6 +51,10 @@ var serverHelp = `
 
     ./rportd migrate -c /etc/rport/rportd.conf
     migrates the databases in the data directory to the latest version and exits
+    (with [storage] backend = "postgres": the Postgres schema, see './rportd migrate --help')
+
+    ./rportd tenant add acme "Acme Corp" -c /etc/rport/rportd.conf --dsn <owner-url>
+    adds a tenant to a server with [storage] backend = "postgres"
 
   Options:
 
@@ -292,56 +265,15 @@ func init() {
 		return nil
 	})
 
-	viperCfg = viper.New()
-	viperCfg.SetConfigType("toml")
+	viperCfg = newViperConfig()
+}
 
-	viperCfg.SetDefault("logging.log_level", DefaultLogLevel)
-	viperCfg.SetDefault("server.address", DefaultServerAddress)
-	viperCfg.SetDefault("server.used_ports", []string{DefaultUsedPorts})
-	viperCfg.SetDefault("server.excluded_ports", []string{DefaultExcludedPorts})
-	viperCfg.SetDefault("server.data_dir", chserver.DefaultDataDirectory)
-	viperCfg.SetDefault("server.sqlite_wal", true)
-	viperCfg.SetDefault("server.keep_disconnected_clients", DefaultKeepDisconnectedClients)
-	viperCfg.SetDefault("server.max_concurrent_ssh_handshakes", DefaultMaxConcurrentSSHConnectionHandshakes)
-	viperCfg.SetDefault("server.purge_disconnected_clients_interval", DefaultPurgeDisconnectedClientsInterval)
-	viperCfg.SetDefault("server.check_clients_connection_interval", DefaultCheckClientsConnectionInterval)
-	viperCfg.SetDefault("server.check_clients_connection_timeout", DefaultCheckClientsConnectionTimeout)
-	viperCfg.SetDefault("server.max_request_bytes_client", DefaultMaxRequestBytesClient)
-	viperCfg.SetDefault("server.check_port_timeout", DefaultCheckPortTimeout)
-	viperCfg.SetDefault("server.auth_write", true)
-	viperCfg.SetDefault("server.auth_multiuse_creds", true)
-	viperCfg.SetDefault("server.run_remote_cmd_timeout_sec", DefaultRunRemoteCmdTimeoutSec)
-	viperCfg.SetDefault("server.client_login_wait", 2)
-	viperCfg.SetDefault("server.max_failed_login", 5)
-	viperCfg.SetDefault("pairing.enabled", false)
-	viperCfg.SetDefault("pairing.code_ttl", chconfig.DefaultPairingCodeTTL)
-	viperCfg.SetDefault("server.ban_time", 3600)
-	viperCfg.SetDefault("server.jobs_max_results", 10000)
-	viperCfg.SetDefault("server.tls_min", "1.3")
-	viperCfg.SetDefault("api.user_header", "Authentication-User")
-	// Users created on the fly (header auth with create_missing_users) get no group unless configured.
-	viperCfg.SetDefault("api.default_user_group", "")
-	viperCfg.SetDefault("api.user_login_wait", 2)
-	viperCfg.SetDefault("api.max_failed_login", 10)
-	viperCfg.SetDefault("api.ban_time", 600)
-	viperCfg.SetDefault("api.two_fa_token_ttl_seconds", 600)
-	viperCfg.SetDefault("api.two_fa_send_timeout", 10*time.Second)
-	viperCfg.SetDefault("api.two_fa_send_to_type", message.ValidationNone)
-	viperCfg.SetDefault("api.enable_audit_log", true)
-	viperCfg.SetDefault("api.totp_enabled", false)
-	viperCfg.SetDefault("api.audit_log_rotation", auditlog.RotationMonthly)
-	viperCfg.SetDefault("monitoring.data_storage_duration", DefaultMonitoringDataStorageDuration)
-	viperCfg.SetDefault("monitoring.enabled", true)
-	viperCfg.SetDefault("api.max_request_bytes", DefaultMaxRequestBytes)
-	viperCfg.SetDefault("api.max_request_bytes_library", DefaultMaxRequestBytesLibrary)
-	viperCfg.SetDefault("api.max_filepush_size", DefaultMaxFilePushBytes)
-	viperCfg.SetDefault("api.enable_ws_test_endpoints", false)
-	viperCfg.SetDefault("api.totp_login_session_ttl", time.Minute*10)
-	viperCfg.SetDefault("api.totp_account_name", "RPort")
-	viperCfg.SetDefault("api.password_min_length", 14)
-	viperCfg.SetDefault("api.password_zxcvbn_minscore", 0)
-	viperCfg.SetDefault("api.tls_min", "1.2")
-	viperCfg.SetDefault("notifications.notification_script_dir", "/usr/local/lib/rport/notification_scripts")
+// newViperConfig returns a viper with rportd's defaults that reads a TOML config file.
+func newViperConfig() *viper.Viper {
+	v := viper.New()
+	v.SetConfigType("toml")
+	chconfig.SetDefaults(v)
+	return v
 }
 
 // addServerFlags registers the flags that override config file settings when the server starts.
@@ -467,23 +399,33 @@ func rootRefused(cfg *chconfig.Config) bool {
 	return !cfg.Server.AllowRoot && isRunningAsRoot()
 }
 
+// decodeAndValidateConfig loads the config of the server (with the server flags bound to viperCfg) into cfg.
 func decodeAndValidateConfig(mLog *logger.MemLogger) error {
+	return decodeAndValidateConfigFrom(viperCfg, mLog)
+}
+
+// loadCommandConfig loads the config of a subcommand (migrate, user, tenant) into cfg: the config file only, read
+// afresh, since the server flags don't apply and decoding leaves every key set on the viper it reads.
+func loadCommandConfig(mLog *logger.MemLogger) error {
+	return decodeAndValidateConfigFrom(newViperConfig(), mLog)
+}
+
+func decodeAndValidateConfigFrom(v *viper.Viper, mLog *logger.MemLogger) error {
 	if *cfgPath != "" {
-		viperCfg.SetConfigFile(*cfgPath)
+		v.SetConfigFile(*cfgPath)
 	} else {
-		viperCfg.AddConfigPath(".")
-		viperCfg.SetConfigName("rportd.conf")
+		v.AddConfigPath(".")
+		v.SetConfigName("rportd.conf")
 	}
 
-	if err := chshare.DecodeViperConfig(viperCfg, cfg, nil); err != nil {
+	c := &chconfig.Config{}
+	if err := chshare.DecodeViperConfig(v, c, nil); err != nil {
 		return err
 	}
-
-	err := cfg.ParseAndValidate(mLog)
-	if err != nil {
+	if err := c.ParseAndValidate(mLog); err != nil {
 		return err
 	}
-
+	cfg = c
 	return nil
 }
 
@@ -558,10 +500,20 @@ func runMain(*cobra.Command, []string) {
 		log.Fatal(err)
 	}
 
-	s, err := chserver.NewServer(ctx, cfg, &chserver.ServerOpts{
+	opts := &chserver.ServerOpts{
 		FilesAPI:    filesAPI,
 		PlusManager: plusManager,
-	})
+	}
+	if cfg.Storage.IsPostgres() {
+		pgOpts, closePostgres, err := postgresServerOpts(ctx, cfg, opts)
+		if err != nil {
+			log.Fatalf("Postgres storage: %v", err)
+		}
+		defer closePostgres()
+		opts = pgOpts
+	}
+
+	s, err := chserver.NewServer(ctx, cfg, opts)
 	if err != nil {
 		log.Fatal(err)
 	}
