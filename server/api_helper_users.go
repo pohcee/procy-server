@@ -16,7 +16,7 @@ func (al *APIListener) getUserModel(ctx context.Context) (*users.User, error) {
 		return nil, nil
 	}
 
-	user, err := al.userService.GetByUsername(curUsername)
+	user, err := al.userService.GetByUsername(ctx, curUsername)
 	if err != nil {
 		return nil, err
 	}

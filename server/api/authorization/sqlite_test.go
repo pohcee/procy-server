@@ -1,7 +1,6 @@
 package authorization
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -13,12 +12,14 @@ import (
 	"github.com/openrport/openrport/db/migration/api_token"
 	"github.com/openrport/openrport/db/sqlite"
 	"github.com/openrport/openrport/share/ptr"
+	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/test"
 )
 
 var DataSourceOptions = sqlite.DataSourceOptions{WALEnabled: false}
 var demoData = []APIToken{
 	{
+		TenantID:  tenant.Default,
 		Username:  "username1",
 		Prefix:    "prefix1",
 		Name:      "This is a token name 1",
@@ -28,6 +29,7 @@ var demoData = []APIToken{
 		Token:     "onelongtoken1",
 	},
 	{
+		TenantID:  tenant.Default,
 		Username:  "username2",
 		Prefix:    "prefix2",
 		Name:      "This is a token name 2",
@@ -37,6 +39,7 @@ var demoData = []APIToken{
 		Token:     "onelongtoken2",
 	},
 	{
+		TenantID:  tenant.Default,
 		Username:  "username3",
 		Prefix:    "prefix3",
 		Name:      "This is a token name 3",
@@ -46,6 +49,7 @@ var demoData = []APIToken{
 		Token:     "onelongtoken3",
 	},
 	{
+		TenantID:  tenant.Default,
 		Username:  "username4",
 		Prefix:    "prefix4",
 		Name:      "This is a token name 4",
@@ -55,6 +59,7 @@ var demoData = []APIToken{
 		Token:     "onelongtoken4",
 	},
 	{
+		TenantID:  tenant.Default,
 		Username:  "username4",
 		Prefix:    "prefix41",
 		Name:      "This is a token name 41",
@@ -71,7 +76,7 @@ func TestGet(t *testing.T) {
 	dbProv := NewSqliteProvider(db)
 	defer dbProv.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = addDemoData(dbProv.db)
 	require.NoError(t, err)
@@ -98,11 +103,11 @@ func TestList(t *testing.T) {
 	err = addDemoData(dbProv.db)
 	require.NoError(t, err)
 
-	result, err := dbProv.GetAll(context.Background(), "username1")
+	result, err := dbProv.GetAll(ctxFor(tenant.Default), "username1")
 	require.NoError(t, err)
 	assert.Equal(t, demoData[0], *result[0])
 
-	result, err = dbProv.GetAll(context.Background(), "username4")
+	result, err = dbProv.GetAll(ctxFor(tenant.Default), "username4")
 	require.NoError(t, err)
 	assert.Equal(t, demoData[3], *result[0])
 	assert.Equal(t, demoData[4], *result[1])
@@ -117,7 +122,7 @@ func TestCreate(t *testing.T) {
 
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 	itemToSave := demoData[0]
 	err = dbProv.Save(ctx, &itemToSave)
 	require.NoError(t, err)
@@ -146,7 +151,7 @@ func TestUpdate(t *testing.T) {
 
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 	itemToSave := demoData[0]
 	err = dbProv.Save(ctx, &itemToSave)
 	require.NoError(t, err)
@@ -180,7 +185,7 @@ func TestUpdateOneAtATimeName(t *testing.T) {
 
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 	itemToSave := demoData[0]
 	err = dbProv.Save(ctx, &itemToSave)
 	require.NoError(t, err)
@@ -214,7 +219,7 @@ func TestUpdateOneAtATimeExpiresAt(t *testing.T) {
 
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 	itemToSave := demoData[0]
 	err = dbProv.Save(ctx, &itemToSave)
 	require.NoError(t, err)
@@ -246,7 +251,7 @@ func TestDelete(t *testing.T) {
 	dbProv := NewSqliteProvider(db)
 	defer dbProv.Close()
 
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	err = addDemoData(dbProv.db)
 	require.NoError(t, err)
@@ -268,6 +273,7 @@ func TestDelete(t *testing.T) {
 
 	expectedRows := []map[string]interface{}{
 		{
+			"tenant_id":  "default",
 			"username":   demoData[0].Username,
 			"prefix":     demoData[0].Prefix,
 			"name":       demoData[0].Name,

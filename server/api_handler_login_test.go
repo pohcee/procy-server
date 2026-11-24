@@ -25,6 +25,7 @@ import (
 	"github.com/openrport/openrport/share/ptr"
 	"github.com/openrport/openrport/share/random"
 	"github.com/openrport/openrport/share/security"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func TestAPITokenOps(t *testing.T) {
@@ -260,7 +261,7 @@ func CommonAPITokenTestDb(t *testing.T, username, prefix, name string, scope aut
 	require.NoError(t, err)
 	dbProv := authorization.NewSqliteProvider(db)
 
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 	itemToSave := authorization.APIToken{
 		Username:  username,
 		Prefix:    prefix,
@@ -295,7 +296,7 @@ type MockUsersService struct {
 	ChangeUsername string
 }
 
-func (s *MockUsersService) Change(user *users.User, username string) error {
+func (s *MockUsersService) Change(_ context.Context, user *users.User, username string) error {
 	s.ChangeUser = user
 	s.ChangeUsername = username
 	return nil
@@ -364,7 +365,7 @@ func TestPostToken(t *testing.T) {
 	assert.JSONEq(t, expectedJSON, w.Body.String())
 }
 func TestWrapWithAuthMiddleware(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 
 	user := &users.User{
 		Username: "user1",
@@ -504,7 +505,7 @@ func TestWrapWithAuthMiddleware(t *testing.T) {
 			}))
 
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/some-endpoint", nil)
+			req := httptest.NewRequest("GET", "/some-endpoint", nil).WithContext(ctx)
 			if tc.Username != "" {
 				req.SetBasicAuth(tc.Username, tc.Password)
 			}
@@ -521,7 +522,7 @@ func TestWrapWithAuthMiddleware(t *testing.T) {
 }
 
 func TestAPISessionUpdates(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 
 	user := &users.User{
 		Username: "user1",
@@ -649,7 +650,7 @@ func TestAPISessionUpdates(t *testing.T) {
 			}))
 
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/some-endpoint", nil)
+			req := httptest.NewRequest("GET", "/some-endpoint", nil).WithContext(ctx)
 			req.RemoteAddr = testIPAddress
 			req.Header.Set("User-Agent", testUserAgent)
 

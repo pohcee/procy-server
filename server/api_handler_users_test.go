@@ -21,6 +21,7 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/security"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type UserAPISessionsResponse struct {
@@ -30,7 +31,7 @@ type UserAPISessionsResponse struct {
 func TestShouldHandleGetAllUserAPISessions(t *testing.T) {
 	al, adminUser := setupTestAPIListenerUserAPISessions(t, nil)
 
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 	testRunTime := time.Now()
 
 	_, err := bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, time.Hour, adminUser.Username, []bearer.Scope{}, "1.2.3.4", "Safari")
@@ -59,7 +60,7 @@ func TestShouldHandleGetAllUserAPISessions(t *testing.T) {
 func TestShouldHandleDeleteUserSession(t *testing.T) {
 	al, adminUser := setupTestAPIListenerUserAPISessions(t, nil)
 
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 
 	_, err := bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, time.Hour, adminUser.Username, []bearer.Scope{}, "1.2.3.4", "Safari")
 	require.NoError(t, err)
@@ -77,7 +78,7 @@ func TestShouldHandleDeleteUserSession(t *testing.T) {
 func TestShouldHandleDeleteAllUserSessions(t *testing.T) {
 	al, adminUser := setupTestAPIListenerUserAPISessions(t, nil)
 
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 
 	_, err := bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, time.Hour, adminUser.Username, []bearer.Scope{}, "1.2.3.4", "Safari")
 	require.NoError(t, err)
@@ -93,7 +94,7 @@ func TestShouldHandleDeleteAllUserSessions(t *testing.T) {
 }
 
 func TestShouldHandleAuthorization(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 
 	cases := []struct {
 		name       string
@@ -169,7 +170,7 @@ func TestShouldHandleAuthorization(t *testing.T) {
 func TestShouldErrorWhenNonAdminUser(t *testing.T) {
 	al, adminUser := setupTestAPIListenerUserAPISessions(t, nil)
 
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 
 	nonAdminUser := &users.User{
 		Username: "user1",
@@ -257,7 +258,7 @@ func TestShouldErrorIfUnableToGetAllSessionsForUser(t *testing.T) {
 
 	al, adminUser := setupTestAPIListenerUserAPISessions(t, sessionCache)
 
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 
 	_, err = bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, time.Hour, adminUser.Username, []bearer.Scope{}, "1.2.3.4", "Safari")
 	require.NoError(t, err)
@@ -289,7 +290,7 @@ func TestShouldErrorIfUnableToDeleteSessionForUser(t *testing.T) {
 
 	al, adminUser := setupTestAPIListenerUserAPISessions(t, sessionCache)
 
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 
 	_, err = bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, time.Hour, adminUser.Username, []bearer.Scope{}, "1.2.3.4", "Safari")
 	require.NoError(t, err)
@@ -321,7 +322,7 @@ func TestShouldErrorIfUnableToDeleteAllSessionsForUser(t *testing.T) {
 
 	al, adminUser := setupTestAPIListenerUserAPISessions(t, sessionCache)
 
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 
 	_, err = bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, time.Hour, adminUser.Username, []bearer.Scope{}, "1.2.3.4", "Safari")
 	require.NoError(t, err)
@@ -343,7 +344,7 @@ func TestShouldErrorIfUnableToDeleteAllSessionsForUser(t *testing.T) {
 }
 
 func newEmptyAPISessionCacheWithProviders(t *testing.T, mp *MockAPISessionStorageProvider, cp *MockAPISessionCacheProvider) *session.Cache {
-	c, err := session.NewCache(context.Background(), time.Hour, time.Hour, mp, cp)
+	c, err := session.NewCache(tenant.WithID(context.Background(), tenant.Default), time.Hour, time.Hour, mp, cp)
 	require.NoError(t, err)
 	return c
 }

@@ -18,6 +18,7 @@ import (
 
 	"github.com/openrport/openrport/server/api/message"
 	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type usrService struct {
@@ -25,7 +26,7 @@ type usrService struct {
 	twoFASendTo string
 }
 
-func (u usrService) GetByUsername(username string) (*users.User, error) {
+func (u usrService) GetByUsername(_ context.Context, username string) (*users.User, error) {
 	return &users.User{
 		Username:    username,
 		TwoFASendTo: u.twoFASendTo,
@@ -56,7 +57,7 @@ func TestSMTPMessage(t *testing.T) {
 	require.NoError(t, err)
 	// Send the message using the service to be tested
 	srv := NewTwoFAService(tokenTTL, 2*time.Second, &usrService{twoFASendTo: "j@example.com"}, msgSrv)
-	ctx := context.Background()
+	ctx := tenantCtx(tenant.Default)
 	sendTo, err := srv.SendToken(ctx, "John", "Go", "127.0.0.1")
 	assert.Contains(t, sendTo, "j@example.com")
 	require.NoError(t, err)
@@ -93,7 +94,7 @@ func TestScriptMessage(t *testing.T) {
 	)
 	// Send the message using the service to be tested
 	srv := NewTwoFAService(tokenTTL, 2*time.Second, &usrService{twoFASendTo: "t@example.com"}, msgSrv)
-	sendTo, err := srv.SendToken(context.Background(), "Tilda", "Go", "127.0.0.1")
+	sendTo, err := srv.SendToken(tenantCtx(tenant.Default), "Tilda", "Go", "127.0.0.1")
 	require.NoError(t, err, "message service sendToken returns error")
 	assert.Contains(t, sendTo, "t@example.com")
 
@@ -138,7 +139,7 @@ func TestPushoverMessage(t *testing.T) {
 	// Send the message using the service to be tested
 	msgSrv := message.NewPushoverService("Aec5oohoa7aePooTee1sheesae1lei")
 	srv := NewTwoFAService(tokenTTL, 2*time.Second, &usrService{twoFASendTo: "uo2t5thob2f1cbpssn6a8zq7i2bdka"}, msgSrv)
-	sendTo, err := srv.SendToken(context.Background(), "Wendy", "Go", "127.0.0.1")
+	sendTo, err := srv.SendToken(tenantCtx(tenant.Default), "Wendy", "Go", "127.0.0.1")
 	require.NoError(t, err, "message service sendToken returns error")
 	assert.Contains(t, sendTo, "uo2t5thob2f1cbpssn6a8zq7i2bdka")
 }

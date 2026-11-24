@@ -38,7 +38,7 @@ type EffectiveExtendedPermissions struct {
 }
 
 func (al *APIListener) handleGetUsers(w http.ResponseWriter, req *http.Request) {
-	usrs, err := al.userService.GetAll()
+	usrs, err := al.userService.GetAll(req.Context())
 	if err != nil {
 		al.jsonError(w, err)
 		return
@@ -69,7 +69,7 @@ func (al *APIListener) handleChangeUser(w http.ResponseWriter, req *http.Request
 	if !userIDExists {
 		userID = ""
 
-		err := al.checkUserCount()
+		err := al.checkUserCount(req.Context())
 		if err != nil {
 			al.jsonError(w, err)
 			return
@@ -83,7 +83,7 @@ func (al *APIListener) handleChangeUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	if err := al.userService.Change(&user, userID); err != nil {
+	if err := al.userService.Change(req.Context(), &user, userID); err != nil {
 		al.jsonError(w, err)
 		return
 	}
@@ -117,11 +117,11 @@ func (al *APIListener) handleChangeUser(w http.ResponseWriter, req *http.Request
 	}
 }
 
-func (al *APIListener) checkUserCount() (err error) {
+func (al *APIListener) checkUserCount(ctx context.Context) (err error) {
 	maxUsers := al.getMaxUsers()
 
 	if maxUsers > 0 {
-		users, err := al.userService.GetAll()
+		users, err := al.userService.GetAll(ctx)
 		if err != nil {
 			return err
 		}
@@ -149,7 +149,7 @@ func (al *APIListener) handleDeleteUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	if err := al.userService.Delete(userID); err != nil {
+	if err := al.userService.Delete(req.Context(), userID); err != nil {
 		al.jsonError(w, err)
 		return
 	}
@@ -177,7 +177,7 @@ func (al *APIListener) handleDeleteUsersTotP(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	user, err := al.userService.GetByUsername(userID)
+	user, err := al.userService.GetByUsername(req.Context(), userID)
 	if err != nil {
 		al.jsonError(w, err)
 		return

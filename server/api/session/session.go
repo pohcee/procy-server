@@ -5,9 +5,12 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
+
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type APISession struct {
+	TenantID     tenant.ID `json:"-" db:"tenant_id"`
 	SessionID    int64     `json:"session_id" db:"session_id"`
 	ExpiresAt    time.Time `json:"expires_at" db:"expires_at"`
 	LastAccessAt time.Time `json:"last_access_at" db:"last_access_at"`

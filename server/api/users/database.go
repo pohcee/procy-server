@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -10,10 +11,13 @@ import (
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/share/enums"
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 
 	"github.com/jmoiron/sqlx"
 )
 
+// UserDatabase serves users and groups from admin-defined tables. It is single-tenant: every method accepts only
+// the default tenant (tenant.RequireDefault).
 type UserDatabase struct {
 	db *sqlx.DB
 
@@ -89,7 +93,10 @@ func (d *UserDatabase) checkDatabaseTables() error {
 }
 
 // GetByUsername @todo use context for all db operations
-func (d *UserDatabase) GetByUsername(username string) (*User, error) {
+func (d *UserDatabase) GetByUsername(ctx context.Context, username string) (*User, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, err
+	}
 	user := &User{}
 	err := d.db.Get(user, fmt.Sprintf("SELECT %s FROM `%s` WHERE username = ? LIMIT 1", d.getSelectClause(), d.usersTableName), username)
 	if err != nil {
@@ -107,7 +114,10 @@ func (d *UserDatabase) GetByUsername(username string) (*User, error) {
 }
 
 // GetAll @todo use context for all db operations
-func (d *UserDatabase) GetAll() ([]*User, error) {
+func (d *UserDatabase) GetAll(ctx context.Context) ([]*User, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, err
+	}
 	var usrs []*User
 	err := d.db.Select(&usrs, fmt.Sprintf("SELECT %s FROM `%s` ORDER BY username", d.getSelectClause(), d.usersTableName))
 	if err != nil {
@@ -139,7 +149,10 @@ func (d *UserDatabase) GetAll() ([]*User, error) {
 	return usrs, nil
 }
 
-func (d *UserDatabase) ListGroups() ([]Group, error) {
+func (d *UserDatabase) ListGroups(ctx context.Context) ([]Group, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return nil, err
+	}
 	var groups []Group
 
 	if d.groupDetailsTableName != "" {
@@ -171,7 +184,10 @@ func (d *UserDatabase) ListGroups() ([]Group, error) {
 	return groups, nil
 }
 
-func (d *UserDatabase) GetGroup(name string) (Group, error) {
+func (d *UserDatabase) GetGroup(ctx context.Context, name string) (Group, error) {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return Group{}, err
+	}
 	if d.groupDetailsTableName == "" {
 		return NewGroup(name, nil, nil), nil
 	}
@@ -187,7 +203,10 @@ func (d *UserDatabase) GetGroup(name string) (Group, error) {
 	return group, nil
 }
 
-func (d *UserDatabase) UpdateGroup(name string, group Group) error {
+func (d *UserDatabase) UpdateGroup(ctx context.Context, name string, group Group) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	if d.groupDetailsTableName == "" {
 		return errors2.APIError{
 			Message:    "User group details table must be configured for this operation.",
@@ -230,7 +249,10 @@ func (d *UserDatabase) UpdateGroup(name string, group Group) error {
 	return nil
 }
 
-func (d *UserDatabase) DeleteGroup(name string) error {
+func (d *UserDatabase) DeleteGroup(ctx context.Context, name string) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	if d.groupDetailsTableName == "" {
 		return errors2.APIError{
 			Message:    "User group details table must be configured for this operation.",
@@ -266,7 +288,10 @@ func (d *UserDatabase) handleRollback(tx *sqlx.Tx) {
 }
 
 // Add todo use context for all db operations
-func (d *UserDatabase) Add(usr *User) error {
+func (d *UserDatabase) Add(ctx context.Context, usr *User) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	tx, err := d.db.Beginx()
 	if err != nil {
 		return err
@@ -327,7 +352,10 @@ func (d *UserDatabase) Add(usr *User) error {
 }
 
 // Update @todo use context for all db operations
-func (d *UserDatabase) Update(usr *User, usernameToUpdate string) error {
+func (d *UserDatabase) Update(ctx context.Context, usr *User, usernameToUpdate string) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	if usernameToUpdate == "" {
 		return errors.New("cannot update user with empty username")
 	}
@@ -425,7 +453,10 @@ func (d *UserDatabase) Update(usr *User, usernameToUpdate string) error {
 }
 
 // Delete @todo use context for all db operations
-func (d *UserDatabase) Delete(usernameToDelete string) error {
+func (d *UserDatabase) Delete(ctx context.Context, usernameToDelete string) error {
+	if err := tenant.RequireDefault(ctx); err != nil {
+		return err
+	}
 	tx, err := d.db.Beginx()
 	if err != nil {
 		return err

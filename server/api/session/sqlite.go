@@ -10,8 +10,11 @@ import (
 
 	"github.com/openrport/openrport/db/migration/api_sessions"
 	"github.com/openrport/openrport/db/sqlite"
+	"github.com/openrport/openrport/share/tenant"
 )
 
+// SqliteProvider stores API sessions. Every method is scoped to the tenant carried by its context
+// and fails with tenant.ErrMissing when there is none.
 type SqliteProvider struct {
 	db *sqlx.DB
 }
@@ -25,11 +28,24 @@ func NewSqliteProvider(dbPath string, dataSourceOptions sqlite.DataSourceOptions
 	return &SqliteProvider{db: db}, nil
 }
 
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("api sessions: %w", err)
+	}
+	return id, nil
+}
+
 func (p *SqliteProvider) GetAll(ctx context.Context) ([]APISession, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var result []APISession
-	err := p.db.SelectContext(
+	err = p.db.SelectContext(
 		ctx, &result,
-		"SELECT * FROM api_sessions WHERE DATETIME(expires_at) >= DATETIME(?)",
+		"SELECT * FROM api_sessions WHERE tenant_id = ? AND DATETIME(expires_at) >= DATETIME(?)",
+		tid,
 		time.Now(),
 	)
 	if err != nil {
@@ -40,9 +56,14 @@ func (p *SqliteProvider) GetAll(ctx context.Context) ([]APISession, error) {
 }
 
 func (p *SqliteProvider) Get(ctx context.Context, sessionID int64) (found bool, sessionInfo APISession, err error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return false, APISession{}, err
+	}
 	err = p.db.GetContext(ctx,
 		&sessionInfo,
-		"SELECT * FROM api_sessions WHERE session_id = ?",
+		"SELECT * FROM api_sessions WHERE tenant_id = ? AND session_id = ?",
+		tid,
 		sessionID,
 	)
 	if err != nil {
@@ -57,6 +78,11 @@ func (p *SqliteProvider) Get(ctx context.Context, sessionID int64) (found bool, 
 }
 
 func (p *SqliteProvider) Save(ctx context.Context, session APISession) (sessionID int64, err error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return -1, err
+	}
+	session.TenantID = tid
 	if session.SessionID == 0 {
 		sessionID, err = p.add(ctx, session)
 	} else {
@@ -74,8 +100,8 @@ func (p *SqliteProvider) add(ctx context.Context, session APISession) (sessionID
 	result, err := p.db.NamedExecContext(
 		ctx,
 		"INSERT INTO"+
-			" api_sessions (expires_at, username, last_access_at, user_agent, ip_address)"+
-			" VALUES (:expires_at, :username, :last_access_at, :user_agent, :ip_address)",
+			" api_sessions (tenant_id, expires_at, username, last_access_at, user_agent, ip_address)"+
+			" VALUES (:tenant_id, :expires_at, :username, :last_access_at, :user_agent, :ip_address)",
 		session,
 	)
 	if err != nil {
@@ -96,7 +122,7 @@ func (p *SqliteProvider) update(ctx context.Context, session APISession) (sessio
 		"UPDATE api_sessions"+
 			"  SET expires_at=:expires_at,username=:username,"+
 			"   last_access_at=:last_access_at, user_agent=:user_agent, ip_address=:ip_address"+
-			"  WHERE session_id=:session_id",
+			"  WHERE tenant_id=:tenant_id AND session_id=:session_id",
 		session,
 	)
 	if err != nil {
@@ -108,9 +134,14 @@ func (p *SqliteProvider) update(ctx context.Context, session APISession) (sessio
 }
 
 func (p *SqliteProvider) Delete(ctx context.Context, sessionID int64) error {
-	_, err := p.db.ExecContext(
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = p.db.ExecContext(
 		ctx,
-		"DELETE FROM api_sessions WHERE session_id = ?",
+		"DELETE FROM api_sessions WHERE tenant_id = ? AND session_id = ?",
+		tid,
 		sessionID,
 	)
 	if err != nil {
@@ -121,9 +152,14 @@ func (p *SqliteProvider) Delete(ctx context.Context, sessionID int64) error {
 }
 
 func (p *SqliteProvider) DeleteExpired(ctx context.Context) error {
-	_, err := p.db.ExecContext(
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = p.db.ExecContext(
 		ctx,
-		"DELETE FROM api_sessions WHERE DATETIME(expires_at) <= DATETIME(?)",
+		"DELETE FROM api_sessions WHERE tenant_id = ? AND DATETIME(expires_at) <= DATETIME(?)",
+		tid,
 		time.Now(),
 	)
 	if err != nil {
@@ -138,9 +174,14 @@ func (p *SqliteProvider) Close() error {
 }
 
 func (p *SqliteProvider) DeleteAllByUser(ctx context.Context, username string) (err error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 	_, err = p.db.ExecContext(
 		ctx,
-		"DELETE FROM api_sessions WHERE username = ?",
+		"DELETE FROM api_sessions WHERE tenant_id = ? AND username = ?",
+		tid,
 		username,
 	)
 	if err != nil {
@@ -151,9 +192,14 @@ func (p *SqliteProvider) DeleteAllByUser(ctx context.Context, username string) (
 }
 
 func (p *SqliteProvider) DeleteByID(ctx context.Context, username string, sessionID int64) (err error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 	_, err = p.db.ExecContext(
 		ctx,
-		"DELETE FROM api_sessions WHERE username = ? AND session_id = ?",
+		"DELETE FROM api_sessions WHERE tenant_id = ? AND username = ? AND session_id = ?",
+		tid,
 		username,
 		sessionID,
 	)

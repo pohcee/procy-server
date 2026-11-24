@@ -6,8 +6,12 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
+
+	"github.com/openrport/openrport/share/tenant"
 )
 
+// SqliteProvider stores API tokens. Every method is scoped to the tenant carried by its context
+// and fails with tenant.ErrMissing when there is none.
 type SqliteProvider struct {
 	db *sqlx.DB
 }
@@ -18,11 +22,24 @@ func NewSqliteProvider(db *sqlx.DB) *SqliteProvider {
 	}
 }
 
+func tenantOf(ctx context.Context) (tenant.ID, error) {
+	id, err := tenant.FromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("api tokens: %w", err)
+	}
+	return id, nil
+}
+
 func (p *SqliteProvider) GetAll(ctx context.Context, username string) ([]*APIToken, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var result []*APIToken
-	err := p.db.SelectContext(
+	err = p.db.SelectContext(
 		ctx, &result,
-		"SELECT * FROM api_tokens WHERE username = ?",
+		"SELECT * FROM api_tokens WHERE tenant_id = ? AND username = ?",
+		tid,
 		username,
 	)
 	if err != nil {
@@ -33,11 +50,16 @@ func (p *SqliteProvider) GetAll(ctx context.Context, username string) ([]*APITok
 }
 
 func (p *SqliteProvider) Get(ctx context.Context, username, prefix string) (*APIToken, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	res := &APIToken{}
 
-	err := p.db.GetContext(ctx,
+	err = p.db.GetContext(ctx,
 		res,
-		"SELECT * FROM api_tokens WHERE username = ? AND prefix = ?",
+		"SELECT * FROM api_tokens WHERE tenant_id = ? AND username = ? AND prefix = ?",
+		tid,
 		username,
 		prefix,
 	)
@@ -53,10 +75,15 @@ func (p *SqliteProvider) Get(ctx context.Context, username, prefix string) (*API
 }
 
 func (p *SqliteProvider) GetByName(ctx context.Context, username, name string) (*APIToken, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	res := &APIToken{}
-	err := p.db.GetContext(ctx,
+	err = p.db.GetContext(ctx,
 		res,
-		"SELECT * FROM api_tokens WHERE username = ? AND name = ?",
+		"SELECT * FROM api_tokens WHERE tenant_id = ? AND username = ? AND name = ?",
+		tid,
 		username,
 		name,
 	)
@@ -70,16 +97,22 @@ func (p *SqliteProvider) GetByName(ctx context.Context, username, name string) (
 }
 
 func (p *SqliteProvider) Save(ctx context.Context, tokenLine *APIToken) (err error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	tokenLine.TenantID = tid
 	res, err := p.db.NamedExecContext(
 		ctx,
-		`INSERT INTO api_tokens (username, prefix, name, created_at, expires_at, scope, token)
-			      VALUES (:username, :prefix, :name, 
+		`INSERT INTO api_tokens (tenant_id, username, prefix, name, created_at, expires_at, scope, token)
+			      VALUES (:tenant_id, :username, :prefix, :name, 
 					CASE WHEN :created_at IS NOT NULL THEN :created_at ELSE CURRENT_TIMESTAMP END,
 					:expires_at, :scope, :token)
-			 	ON CONFLICT(username, prefix) DO UPDATE SET
+			 	ON CONFLICT(tenant_id, username, prefix) DO UPDATE SET
 				 expires_at=CASE WHEN :expires_at IS NOT NULL THEN EXCLUDED.expires_at ELSE api_tokens.expires_at END,
 				 name=CASE WHEN :name != "" THEN EXCLUDED.name ELSE api_tokens.name END
-				WHERE EXCLUDED.username = api_tokens.username AND
+				WHERE EXCLUDED.tenant_id = api_tokens.tenant_id AND
+				       EXCLUDED.username = api_tokens.username AND
 				       EXCLUDED.prefix = api_tokens.prefix`,
 		tokenLine,
 	)
@@ -99,9 +132,14 @@ func (p *SqliteProvider) Save(ctx context.Context, tokenLine *APIToken) (err err
 }
 
 func (p *SqliteProvider) Delete(ctx context.Context, username, prefix string) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 	res, err := p.db.ExecContext(
 		ctx,
-		"DELETE FROM api_tokens WHERE username = ? AND prefix = ?",
+		"DELETE FROM api_tokens WHERE tenant_id = ? AND username = ? AND prefix = ?",
+		tid,
 		username,
 		prefix,
 	)

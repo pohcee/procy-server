@@ -41,18 +41,18 @@ func TestFileAdapterLoad(t *testing.T) {
 	fileManagerMock := &FileManagerMock{
 		Users: []*User{user1},
 	}
-	fa, err := NewFileAdapter(logger, fileManagerMock)
+	fa, err := NewFileAdapter(defaultCtx, logger, fileManagerMock)
 	require.NoError(t, err)
 
-	users, err := fa.GetAll()
+	users, err := fa.GetAll(defaultCtx)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*User{user1}, users)
 
 	fileManagerMock.Users = []*User{user1, user2}
-	err = fa.load()
+	err = fa.load(defaultCtx)
 	require.NoError(t, err)
 
-	users, err = fa.GetAll()
+	users, err = fa.GetAll(defaultCtx)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*User{user1, user2}, users)
 }
@@ -62,19 +62,19 @@ func TestFileAdapterAdd(t *testing.T) {
 	fileManagerMock := &FileManagerMock{
 		Users: []*User{user1},
 	}
-	fa, err := NewFileAdapter(logger, fileManagerMock)
+	fa, err := NewFileAdapter(defaultCtx, logger, fileManagerMock)
 	require.NoError(t, err)
 
 	// add new user
-	err = fa.Add(user2)
+	err = fa.Add(defaultCtx, user2)
 	require.NoError(t, err)
 
-	users, err := fa.GetAll()
+	users, err := fa.GetAll(defaultCtx)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*User{user1, user2}, users)
 
 	// error when adding existing user
-	err = fa.Add(user1)
+	err = fa.Add(defaultCtx, user1)
 
 	assert.Error(t, err)
 }
@@ -84,19 +84,19 @@ func TestFileAdapterDelete(t *testing.T) {
 	fileManagerMock := &FileManagerMock{
 		Users: []*User{user1},
 	}
-	fa, err := NewFileAdapter(logger, fileManagerMock)
+	fa, err := NewFileAdapter(defaultCtx, logger, fileManagerMock)
 	require.NoError(t, err)
 
 	// delete existing user
-	err = fa.Delete(user1.Username)
+	err = fa.Delete(defaultCtx, user1.Username)
 	require.NoError(t, err)
 
-	users, err := fa.GetAll()
+	users, err := fa.GetAll(defaultCtx)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*User{}, users)
 
 	// error when deleting non-existent user
-	err = fa.Delete(user2.Username)
+	err = fa.Delete(defaultCtx, user2.Username)
 
 	assert.Error(t, err)
 }
@@ -106,7 +106,7 @@ func TestFileAdapterUpdate(t *testing.T) {
 	fileManagerMock := &FileManagerMock{
 		Users: []*User{user1, user2},
 	}
-	fa, err := NewFileAdapter(logger, fileManagerMock)
+	fa, err := NewFileAdapter(defaultCtx, logger, fileManagerMock)
 	require.NoError(t, err)
 
 	updates := &User{
@@ -118,21 +118,21 @@ func TestFileAdapterUpdate(t *testing.T) {
 	}
 
 	// update existing user
-	err = fa.Update(updates, user1.Username)
+	err = fa.Update(defaultCtx, updates, user1.Username)
 	require.NoError(t, err)
 
-	users, err := fa.GetAll()
+	users, err := fa.GetAll(defaultCtx)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*User{updates, user2}, users)
 
 	// error when updating non-existent user
-	err = fa.Update(updates, "non-existent")
+	err = fa.Update(defaultCtx, updates, "non-existent")
 
 	assert.Error(t, err)
 
 	// error when updating to username that exists
 	updates.Username = "user2"
-	err = fa.Update(updates, user1.Username)
+	err = fa.Update(defaultCtx, updates, user1.Username)
 
 	assert.Error(t, err)
 }

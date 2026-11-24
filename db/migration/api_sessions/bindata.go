@@ -4,6 +4,8 @@
 // 001_init.up.sql (195B)
 // 002_extended_session_tracking.down.sql (231B)
 // 002_extended_session_tracking.up.sql (490B)
+// 003_tenant.down.sql (855B)
+// 003_tenant.up.sql (1.073kB)
 
 package api_sessions
 
@@ -86,7 +88,7 @@ func _001_initDownSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "001_init.down.sql", size: 58, mode: os.FileMode(0644), modTime: time.Unix(1685339919, 0)}
+	info := bindataFileInfo{name: "001_init.down.sql", size: 58, mode: os.FileMode(0664), modTime: time.Unix(1795497916, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x3c, 0xb5, 0xcd, 0x16, 0x28, 0xc, 0x3b, 0x37, 0x73, 0xff, 0x20, 0xa6, 0x6f, 0x10, 0x17, 0xa2, 0x88, 0xf6, 0x5e, 0x72, 0x1a, 0x52, 0x96, 0xc, 0x54, 0x58, 0xe2, 0x5c, 0xaa, 0x4e, 0x2f, 0x6c}}
 	return a, nil
 }
@@ -106,7 +108,7 @@ func _001_initUpSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "001_init.up.sql", size: 195, mode: os.FileMode(0644), modTime: time.Unix(1685339919, 0)}
+	info := bindataFileInfo{name: "001_init.up.sql", size: 195, mode: os.FileMode(0664), modTime: time.Unix(1795497916, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0xac, 0x88, 0x3a, 0x91, 0x2e, 0x75, 0x12, 0xa8, 0x3d, 0x55, 0x94, 0xe4, 0xfb, 0x54, 0x29, 0x5, 0xa6, 0xb9, 0x1b, 0xa3, 0xb0, 0xcc, 0x19, 0x4d, 0x5e, 0xc4, 0xf1, 0x4b, 0xe9, 0x83, 0x68, 0x8f}}
 	return a, nil
 }
@@ -126,7 +128,7 @@ func _002_extended_session_trackingDownSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "002_extended_session_tracking.down.sql", size: 231, mode: os.FileMode(0644), modTime: time.Unix(1685339919, 0)}
+	info := bindataFileInfo{name: "002_extended_session_tracking.down.sql", size: 231, mode: os.FileMode(0664), modTime: time.Unix(1795497916, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x91, 0xa3, 0x64, 0xe0, 0x6b, 0x2b, 0x57, 0xfa, 0x82, 0xee, 0xd3, 0x62, 0xaa, 0xf9, 0x34, 0xbb, 0xb6, 0x6b, 0x3f, 0x90, 0x86, 0xe0, 0x27, 0x84, 0x75, 0xd5, 0x3f, 0xeb, 0x24, 0x29, 0x10, 0x9d}}
 	return a, nil
 }
@@ -146,8 +148,48 @@ func _002_extended_session_trackingUpSql() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "002_extended_session_tracking.up.sql", size: 490, mode: os.FileMode(0644), modTime: time.Unix(1685339919, 0)}
+	info := bindataFileInfo{name: "002_extended_session_tracking.up.sql", size: 490, mode: os.FileMode(0664), modTime: time.Unix(1795497916, 0)}
 	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0xa, 0x33, 0x6f, 0xac, 0x6b, 0x14, 0xe9, 0xed, 0x4e, 0xd, 0x34, 0xd0, 0xb8, 0x71, 0x74, 0x67, 0x8d, 0xb8, 0x60, 0x81, 0xce, 0xb2, 0x0, 0xe1, 0x5, 0x58, 0x4e, 0x4a, 0x34, 0x89, 0x6e, 0xbc}}
+	return a, nil
+}
+
+var __003_tenantDownSql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xac\x92\x41\x8f\xd3\x30\x10\x85\xcf\xf8\x57\xbc\xdb\x36\x52\x56\xfc\x80\x88\x43\x68\x67\x21\x22\x4d\x56\x8e\x11\xdd\x93\xe5\xad\x67\xc1\xa2\x75\x4a\xec\x8a\xe5\xdf\xa3\xa6\x0d\xe9\xa6\x05\x2e\x7b\x9d\x79\x7a\xef\x1b\xfb\xcd\x25\xe5\x8a\xa0\xf2\xf7\x25\xc1\xec\x9c\x0e\x1c\x82\x6b\x7d\xd0\xed\xc6\x62\x26\x00\xe0\x34\xd2\xce\xa2\xa8\x14\x7d\x20\x89\x7b\x59\x2c\x73\xf9\x80\x4f\xf4\x80\xaa\x56\xa8\x3e\x97\x65\xda\x8b\xf9\x79\xe7\x3a\x0e\xda\x44\x2c\x72\x45\xaa\x58\xd2\x44\xb1\x0f\xdc\x79\xb3\x65\x28\x5a\xa9\xc9\x6e\x63\x42\xd4\x66\xbd\xe6\xf0\x3f\x07\x6d\xbe\xb2\x8f\xbd\xc7\x71\xe8\x76\xda\x58\xdb\x71\x08\xfd\x50\x24\x99\x28\xaa\x86\xa4\x3a\x40\xd7\x57\x6e\x1b\xcf\x4a\xcf\xa8\xd3\x3f\x7c\xe9\x84\x26\x3d\xcb\x4d\xcf\xe2\x92\x3e\xbe\xa1\x92\xe6\x0a\xaf\x65\x8a\x3b\x59\x2f\x5f\x40\xe3\xcb\x47\x92\x84\xc8\xde\xf8\x78\xf8\x8b\x77\xb8\xb1\xfc\x64\xf6\x9b\x78\x93\x89\x85\xac\xef\x51\x54\x0b\x5a\xa1\xb8\x03\xad\x8a\x46\x35\x70\xf6\x59\x8f\x10\x3a\xba\x2d\xff\x43\x79\x72\x1e\x48\x4f\xca\xcb\x66\x64\x22\x2f\x15\xc9\xbf\x75\x46\x52\x95\x2f\x09\x93\x27\xcf\x84\x38\x55\xed\x18\x7d\x05\x4d\xbc\xa9\xab\x97\x17\xcf\x86\xff\x9f\x8d\xd2\x04\x0b\x6a\xe6\x49\x26\xc4\xed\xed\x58\xa5\xad\xf9\x05\xdf\x46\x3c\x32\xf6\xde\xfd\xd8\x33\x4c\x40\xfc\xc6\xbd\xa2\xdf\xae\x3b\x36\x91\xe1\xf9\x27\x62\xfb\x9d\x7d\xc0\x23\x3f\xb5\x1d\xe3\xc0\xdc\x7a\x0e\x30\x1d\xc3\xf2\x86\x23\xdb\xb7\xc7\x3c\x7b\xc9\x3c\x24\x0a\xe0\x82\x76\xd8\x25\x99\xf8\x1d\x00\x00\xff\xff\xde\xca\x73\x69\x57\x03\x00\x00")
+
+func _003_tenantDownSqlBytes() ([]byte, error) {
+	return bindataRead(
+		__003_tenantDownSql,
+		"003_tenant.down.sql",
+	)
+}
+
+func _003_tenantDownSql() (*asset, error) {
+	bytes, err := _003_tenantDownSqlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "003_tenant.down.sql", size: 855, mode: os.FileMode(0664), modTime: time.Unix(1795498083, 0)}
+	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0xfe, 0xc, 0x83, 0xbe, 0xf8, 0xa0, 0x1f, 0x8f, 0x41, 0x18, 0xce, 0xa9, 0x8e, 0x1b, 0x27, 0x3c, 0xbe, 0xd, 0xc5, 0x21, 0x96, 0xde, 0xdf, 0x2e, 0xd7, 0x47, 0x68, 0xf8, 0xee, 0x73, 0x90, 0x0}}
+	return a, nil
+}
+
+var __003_tenantUpSql = []byte("\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\xa4\x93\xc1\x6e\xdb\x3c\x10\x84\xcf\x3f\x9f\x62\x6e\xb1\x00\x39\xff\xbd\x3a\xa9\x31\x53\x08\x95\xe5\x40\x66\x80\xe4\x24\xd0\xe6\xc6\x25\x22\x53\x0e\x97\x4e\xa3\xb7\x2f\x24\xc5\xb6\x62\xa7\xed\xa1\x17\x1d\xb8\xc3\xd9\x6f\x57\xc3\xe9\x14\x4c\xcc\xb6\x71\x95\x35\xe0\xa0\x5b\x46\xf8\x41\x98\x6c\xea\x66\xa5\xeb\x08\xd6\x05\xda\x90\xc7\xce\xdb\xad\xf6\x2d\x9e\xa9\xfd\x02\x1b\x60\x19\x1b\x72\xe4\x75\x20\x83\x55\xdb\x5f\x32\x3a\xe8\x95\x66\x8a\xc1\x4d\xa7\x71\xf4\x4a\x1e\xeb\xa6\xae\xad\x21\x16\xd3\x29\xf4\xda\x37\xcc\x08\xe4\xb4\x0b\x7c\x0d\xf9\x4a\xbe\xc5\xcb\xbe\xfb\xea\x9a\x1b\x3c\xd9\x3a\x90\xe7\xde\xb1\x17\x55\xd6\x5c\x8b\x9b\x52\xa6\x4a\x42\xa5\x5f\x73\x09\xbd\xb3\xd5\x3b\x33\x57\x8e\x7e\x62\x22\x00\x8c\xc7\xc8\x0a\x25\xbf\xc9\x12\x77\x65\x36\x4f\xcb\x47\x7c\x97\x8f\x28\x16\x0a\xc5\x7d\x9e\xc7\xbd\xf8\xe8\x0d\x25\x1f\xd4\xb1\x88\x99\xbc\x4d\xef\x73\x85\x2b\x43\x4f\x7a\x5f\x87\xab\x41\x4e\x6f\x3b\xeb\x89\x2b\x1d\x30\x4b\x95\x54\xd9\x5c\x9e\x19\xee\x99\xbc\xd3\x5b\xfa\xe8\x37\xd4\x6a\xcd\xa1\xd2\xeb\x35\xf1\xdf\x1c\x2a\xbd\x21\x17\x7a\x8f\xe1\xd0\xee\x2a\x6d\x8c\x27\xe6\xfe\x50\x44\x89\xc8\x8a\xa5\x2c\x55\x37\xe3\xe2\x93\x55\x9c\xb6\x10\x9f\x86\x8c\x47\x03\xc4\x47\xd4\xf8\x0c\x2c\x1e\x21\xc4\xa3\xce\x51\x4f\xb2\x94\xb9\xbc\x51\x18\xfb\x9f\x96\xf4\x4f\xfe\xb8\x2d\x17\xf3\x0f\xa3\x24\x62\x56\x2e\xee\x90\x15\x33\xf9\x80\xec\x16\xf2\x21\x5b\xaa\x25\xac\x79\xab\x4e\x8d\xaa\x60\xb7\xf4\x07\xe5\x01\xe3\x5d\x72\x99\x9d\x44\xa4\xb9\x92\xe5\xef\x52\x55\xca\x22\x9d\x4b\x9c\x6d\x39\x11\x87\x30\x0e\x3d\x3f\x61\x12\xff\x2d\x8a\x0f\x77\x30\x39\xfc\xf2\xc9\x49\x1a\x61\x26\x97\x37\x51\x22\xba\x67\x71\x4c\xcf\x56\xb7\x70\x4d\xc0\x8a\xb0\x77\xf6\x65\x4f\xd0\xc3\x7b\xec\x14\x7d\x75\xed\x49\x07\x42\x47\x18\x9a\x67\x72\x8c\x15\x3d\x35\x9e\xd0\xd4\x06\x8d\x23\x86\xf6\x04\x43\x35\x05\x32\xff\x0f\xfd\xcc\x25\xf3\x7b\x36\x0e\x8d\x05\x70\x01\x3d\x8a\xcf\x41\x16\x25\xe2\x57\x00\x00\x00\xff\xff\x1e\xde\xa6\xaa\x31\x04\x00\x00")
+
+func _003_tenantUpSqlBytes() ([]byte, error) {
+	return bindataRead(
+		__003_tenantUpSql,
+		"003_tenant.up.sql",
+	)
+}
+
+func _003_tenantUpSql() (*asset, error) {
+	bytes, err := _003_tenantUpSqlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "003_tenant.up.sql", size: 1073, mode: os.FileMode(0664), modTime: time.Unix(1795498083, 0)}
+	a := &asset{bytes: bytes, info: info, digest: [32]uint8{0x59, 0x3a, 0xdf, 0x59, 0xf5, 0xd7, 0xcd, 0xc1, 0x77, 0x5f, 0xb, 0xc9, 0xe2, 0xb8, 0xf9, 0xae, 0xea, 0x3a, 0x90, 0xf1, 0x10, 0x62, 0x9a, 0xa2, 0xd6, 0x89, 0x61, 0x87, 0x21, 0x14, 0x38, 0x2d}}
 	return a, nil
 }
 
@@ -246,6 +288,8 @@ var _bindata = map[string]func() (*asset, error){
 	"001_init.up.sql":                        _001_initUpSql,
 	"002_extended_session_tracking.down.sql": _002_extended_session_trackingDownSql,
 	"002_extended_session_tracking.up.sql":   _002_extended_session_trackingUpSql,
+	"003_tenant.down.sql":                    _003_tenantDownSql,
+	"003_tenant.up.sql":                      _003_tenantUpSql,
 }
 
 // AssetDebug is true if the assets were built with the debug flag enabled.
@@ -298,6 +342,8 @@ var _bintree = &bintree{nil, map[string]*bintree{
 	"001_init.up.sql":                        {_001_initUpSql, map[string]*bintree{}},
 	"002_extended_session_tracking.down.sql": {_002_extended_session_trackingDownSql, map[string]*bintree{}},
 	"002_extended_session_tracking.up.sql":   {_002_extended_session_trackingUpSql, map[string]*bintree{}},
+	"003_tenant.down.sql":                    {_003_tenantDownSql, map[string]*bintree{}},
+	"003_tenant.up.sql":                      {_003_tenantUpSql, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory.

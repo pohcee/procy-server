@@ -2,12 +2,14 @@ package authorization
 
 import (
 	"errors"
-
 	"strings"
 	"time"
+
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type APIToken struct {
+	TenantID  tenant.ID     `json:"-" db:"tenant_id"`
 	Username  string        `json:"username,omitempty" db:"username"`
 	Prefix    string        `json:"prefix,omitempty" db:"prefix"`
 	Name      string        `json:"name,omitempty" db:"name"`

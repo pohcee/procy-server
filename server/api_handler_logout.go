@@ -24,7 +24,7 @@ func (al *APIListener) handleDeleteLogout(w http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	if al.bannedUsers.IsBanned(tokenCtx.AppClaims.Username) {
+	if al.isUserBanned(req.Context(), tokenCtx.AppClaims.Username) {
 		al.Errorf(
 			"User %s is banned",
 			tokenCtx.AppClaims.Username,
@@ -48,7 +48,7 @@ func (al *APIListener) handleDeleteLogout(w http.ResponseWriter, req *http.Reque
 		return
 	}
 	if !valid {
-		al.bannedUsers.Add(tokenCtx.AppClaims.Username)
+		al.banUser(req.Context(), tokenCtx.AppClaims.Username)
 		al.jsonErrorResponse(w, http.StatusBadRequest, fmt.Errorf("token is invalid or expired"))
 		return
 	}

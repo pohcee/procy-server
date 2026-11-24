@@ -91,7 +91,7 @@ func (al *APIListener) wrapWithAuthMiddleware(isBearerOnly bool) mux.MiddlewareF
 			}
 
 			if !authorized || username == "" {
-				al.bannedUsers.Add(username)
+				al.banUser(r.Context(), username)
 				al.jsonErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
 				return
 			}
@@ -147,11 +147,11 @@ func (al *APIListener) wrapClientAccessMiddleware(next http.Handler) http.Handle
 	})
 }
 
-func (al *APIListener) extendedPermissionDeleteTunnelRaw(tunnel *clienttunnel.Tunnel, currUser *users.User) error {
+func (al *APIListener) extendedPermissionDeleteTunnelRaw(ctx context.Context, tunnel *clienttunnel.Tunnel, currUser *users.User) error {
 	// TODO: this should be moved in the permission middleware
 	if rportplus.IsPlusEnabled(al.config.PlusConfig) && !currUser.IsAdmin() && tunnel.Owner != currUser.Username {
 		plusPermissionCapability := al.Server.plusManager.GetExtendedPermissionCapabilityEx()
-		tr, _ := al.userService.GetEffectiveUserExtendedPermissions(currUser)
+		tr, _ := al.userService.GetEffectiveUserExtendedPermissions(ctx, currUser)
 		if tr != nil {
 			err := plusPermissionCapability.ValidateExtendedDeleteNonOwnedTunnelPermissionRaw(tr)
 			if err != nil {
@@ -162,11 +162,11 @@ func (al *APIListener) extendedPermissionDeleteTunnelRaw(tunnel *clienttunnel.Tu
 	return nil
 }
 
-func (al *APIListener) extendedPermissionCommandRaw(cmd string, currUser *users.User) error {
+func (al *APIListener) extendedPermissionCommandRaw(ctx context.Context, cmd string, currUser *users.User) error {
 	if rportplus.IsPlusEnabled(al.config.PlusConfig) {
 		// check only if plus is enabled, no error otherwise
 		plusPermissionCapability := al.Server.plusManager.GetExtendedPermissionCapabilityEx()
-		_, cr := al.userService.GetEffectiveUserExtendedPermissions(currUser)
+		_, cr := al.userService.GetEffectiveUserExtendedPermissions(ctx, currUser)
 		if cr != nil {
 			err := plusPermissionCapability.ValidateExtendedCommandPermissionRaw(cmd, false, cr)
 			if err != nil {
@@ -200,7 +200,7 @@ func (al *APIListener) permissionsMiddleware(permission string) mux.MiddlewareFu
 					return
 				}
 			} else {
-				err = al.userService.CheckPermission(currUser, permission)
+				err = al.userService.CheckPermission(r.Context(), currUser, permission)
 				if err != nil {
 					al.jsonError(w, err)
 					return
@@ -211,7 +211,7 @@ func (al *APIListener) permissionsMiddleware(permission string) mux.MiddlewareFu
 						permission == users.PermissionScheduler) {
 					plusPermissionCapability := al.Server.plusManager.GetExtendedPermissionCapabilityEx()
 					al.Debugf("extended \"%s\" permission middleware: %v %v", permission, r.Method, r.URL.Path)
-					tr, cr := al.userService.GetEffectiveUserExtendedPermissions(currUser)
+					tr, cr := al.userService.GetEffectiveUserExtendedPermissions(r.Context(), currUser)
 					switch permission {
 					case users.PermissionTunnels:
 						if tr != nil {
