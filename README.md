@@ -120,3 +120,12 @@ This way you won't miss any updates and the upcoming features.
 ## Versioning model
 
 Procy uses `<major>.<minor>.<buildnumber>` version pattern for compatibility with a maximum number of package managers.
+
+## License
+
+Procy is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-only). If you run a
+modified version as a network service, you must offer its source code to that service's users.
+
+Procy builds on rport and OpenRPort, which were released under the MIT License; that code is included under its
+original terms, and the notice is kept in [LICENSES/MIT-rport-openrport.txt](LICENSES/MIT-rport-openrport.txt).
+See [NOTICE](NOTICE).

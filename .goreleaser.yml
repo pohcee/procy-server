@@ -67,6 +67,9 @@ archives:
         format: zip
     files:
       - rport.example.conf
+      - LICENSE
+      - NOTICE
+      - LICENSES/*
   - id: rportd-only
     name_template: >-
       rportd_{{ .Version }}_{{ .Os }}_
@@ -79,6 +82,9 @@ archives:
       - rportd
     files:
       - rportd.example.conf
+      - LICENSE
+      - NOTICE
+      - LICENSES/*
 checksum:
   name_template: 'checksums.txt'
 snapshot:

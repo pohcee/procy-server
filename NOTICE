@@ -1,0 +1,17 @@
+Procy
+Copyright (c) 2026 Procy authors
+
+Procy is licensed under the GNU Affero General Public License, version 3 only
+(SPDX: AGPL-3.0-only). See LICENSE.
+
+Procy continues rport and OpenRPort. Code from those projects was received
+under the MIT License and is included under its terms; the MIT notice for
+those portions is in LICENSES/MIT-rport-openrport.txt:
+
+  Copyright for portions held by CloudRadar, 2020, as part of project rport.
+  Copyright for portions held by RealVNC limited, 2023, as part of project rport.
+  Copyright for portions held by the openrport authors, 2024.
+
+Changes and additions made in Procy after the move to AGPL are licensed under
+AGPL-3.0-only. Code received under MIT remains available under MIT from its
+original sources.
