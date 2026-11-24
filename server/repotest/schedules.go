@@ -223,7 +223,9 @@ func Schedules(t *testing.T, newRepos Factory[SchedulesRepos]) {
 		assert.Equal(t, base, *ex.StartedAt)
 		assert.Equal(t, 2, *ex.ClientCount)
 		assert.Equal(t, 1, *ex.SuccessCount)
-		assert.Nil(t, ex.Status, "status only for single-client runs")
+		require.NotNil(t, ex.Status)
+		assert.Equal(t, models.JobStatusFailed, *ex.Status, "the lowest device status: one device failed")
+		assert.Nil(t, ex.Summary, "summary only for single-client runs")
 		assert.Nil(t, ex.Summary)
 		assert.Nil(t, ex.Error)
 
@@ -273,7 +275,8 @@ func Schedules(t *testing.T, newRepos Factory[SchedulesRepos]) {
 		assert.Equal(t, base.Add(time.Hour), *ex.StartedAt)
 		assert.Equal(t, 0, *ex.ClientCount)
 		assert.Equal(t, 0, *ex.SuccessCount)
-		assert.Nil(t, ex.Status, "status only for single-client runs")
+		require.NotNil(t, ex.Status)
+		assert.Equal(t, models.JobStatusSkipped, *ex.Status, "every device was skipped")
 		assert.Nil(t, ex.Error)
 	})
 

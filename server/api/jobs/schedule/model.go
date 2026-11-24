@@ -136,14 +136,12 @@ func (e *Execution) ToLastExecution() *Execution {
 		return e
 	}
 
-	if e.ClientCount != nil {
-		if *e.ClientCount == 1 {
-			if e.Details != nil && e.Details.Result != nil {
-				e.Summary = &e.Details.Result.Summary
-			}
-		} else {
-			e.Status = nil
-
+	// Status is the lowest of the device statuses (failed < running < successful), so for a run on
+	// several devices it says whether one failed or one still runs; success_count/client_count tell
+	// how many succeeded. The summary is that of a single device only.
+	if e.ClientCount != nil && *e.ClientCount == 1 {
+		if e.Details != nil && e.Details.Result != nil {
+			e.Summary = &e.Details.Result.Summary
 		}
 	}
 	return e
