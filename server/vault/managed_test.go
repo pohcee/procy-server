@@ -160,7 +160,7 @@ func TestManagedKeyErrorNothingWritten(t *testing.T) {
 	keys.err = nil
 	keys.keys["a"] = []byte("too short")
 	_, err = m.Store(ctx, 0, input("c1", "k2", "v"), user)
-	assert.ErrorContains(t, err, "9-byte key")
+	assert.Equal(t, errManagedCrypto, err, "the cause is logged, not returned")
 
 	list, err := m.List(ctx, &http.Request{URL: mustURL(t, "/vault")})
 	require.NoError(t, err)
@@ -189,4 +189,45 @@ func mustURL(t *testing.T, raw string) *url.URL {
 	u, err := url.Parse(raw)
 	require.NoError(t, err)
 	return u
+}
+
+func TestManagedRefusesPassphraseVault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vault.sqlite.db")
+	factory := NewStatefulDbProviderFactory(
+		func() (DbProvider, error) { return openTestSqliteProvider(fileConfig(path), testLog) },
+		&NotInitDbProvider{},
+	)
+	user := UserDataProviderMock{UsernameToGive: "u"}
+	// tenant a was set up with a passphrase before the server got a key provider
+	pm := NewManager(factory, &Aes256PassManager{}, testLog)
+	require.NoError(t, pm.Init(ctxFor("a"), "passwordA1"))
+	_, err := pm.Store(ctxFor("a"), 0, input("c1", "k1", "old secret"), user)
+	require.NoError(t, err)
+
+	m := NewManagerWithKeyProvider(factory, &Aes256PassManager{}, newFakeKeys(), testLog)
+	defer m.Close()
+	_, err = m.Store(ctxFor("a"), 0, input("c1", "k2", "new secret"), user)
+	assert.Equal(t, ErrPassphraseVault, err)
+	_, err = m.List(ctxFor("a"), &http.Request{URL: mustURL(t, "/vault")})
+	assert.Equal(t, ErrPassphraseVault, err)
+	// tenant b never had a passphrase
+	_, err = m.Store(ctxFor("b"), 0, input("c1", "k1", "b secret"), user)
+	assert.NoError(t, err)
+}
+
+func TestManagedDecryptFailureIsGeneric(t *testing.T) {
+	keys := newFakeKeys()
+	m := newManagedSqliteManager(t, keys)
+	user := UserDataProviderMock{UsernameToGive: "u"}
+	id, err := m.Store(ctxFor("a"), 0, input("c1", "k1", "v"), user)
+	require.NoError(t, err)
+	keys.keys["a"] = bytes.Repeat([]byte{9}, KeySize) // the provider's key changed
+	_, _, err = m.GetOne(ctxFor("a"), int(id.ID), user)
+	assert.Equal(t, errManagedCrypto, err)
+}
+
+func TestTypedNilPassphraseProviderIsDefault(t *testing.T) {
+	m := NewManagerWithKeyProvider(&DbProviderMock{}, &PassManagerMock{}, (*PassphraseKeyProvider)(nil), testLog)
+	assert.True(t, m.UsesPassphrase())
+	assert.True(t, m.IsLocked(ctxFor("a")))
 }

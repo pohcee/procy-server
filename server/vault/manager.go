@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -71,10 +72,12 @@ type Manager struct {
 	// passphrase is keys when it is the passphrase provider, nil for a managed provider.
 	passphrase *PassphraseKeyProvider
 	// dbReady is set once a managed vault has opened its database.
-	dbReady   atomic.Bool
-	dbFactory DbProviderFactory
-	pm        PassManager
-	logger    *logger.Logger
+	dbReady atomic.Bool
+	// managedTenants holds the tenants whose vault was checked to have no passphrase setup (tenant.ID → struct{}).
+	managedTenants sync.Map
+	dbFactory      DbProviderFactory
+	pm             PassManager
+	logger         *logger.Logger
 }
 
 // NewManager returns a vault manager whose key comes from a passphrase given through the API.
@@ -85,7 +88,7 @@ func NewManager(dbFactory DbProviderFactory, pm PassManager, logger *logger.Logg
 // NewManagerWithKeyProvider returns a vault manager whose key comes from keys. A nil keys, or a
 // *PassphraseKeyProvider, gives the passphrase vault of NewManager.
 func NewManagerWithKeyProvider(dbFactory DbProviderFactory, pm PassManager, keys KeyProvider, logger *logger.Logger) *Manager {
-	if keys == nil {
+	if pk, ok := keys.(*PassphraseKeyProvider); keys == nil || (ok && pk == nil) {
 		keys = NewPassphraseKeyProvider()
 	}
 	passphrase, _ := keys.(*PassphraseKeyProvider)
@@ -380,7 +383,7 @@ func (m *Manager) GetOne(ctx context.Context, id int, user UserDataProvider) (St
 	}
 	decryptedValue, err := decryptValue(val.Value, key)
 	if err != nil {
-		return StoredValue{}, false, err
+		return StoredValue{}, false, m.managedCryptoError(err)
 	}
 	val.Value = string(decryptedValue)
 
@@ -437,7 +440,7 @@ func (m *Manager) Store(ctx context.Context, existingID int64, valueToStore *Inp
 	}
 	encValue, err := encryptValue([]byte(valueToStore.Value), key)
 	if err != nil {
-		return StoredValueID{}, err
+		return StoredValueID{}, m.managedCryptoError(err)
 	}
 
 	valueToStore.Value = encValue
@@ -506,7 +509,7 @@ func (m *Manager) checkUnlockedAndInitialized(ctx context.Context) error {
 	}
 
 	if m.passphrase == nil {
-		return m.openManagedDB()
+		return m.checkManagedTenant(ctx)
 	}
 
 	isInit, err := m.isDatabaseInitialized(ctx)
@@ -534,6 +537,56 @@ func (m *Manager) openManagedDB() error {
 	}
 	m.dbReady.Store(true)
 	return nil
+}
+
+// ErrPassphraseVault is returned in managed mode when the tenant's vault was set up with a passphrase: its values
+// are encrypted with the passphrase key, not the key provider's.
+var ErrPassphraseVault = errors2.APIError{
+	Message:    "this vault was set up with a passphrase: its values must be re-encrypted for the server's key provider before it can be used",
+	HTTPStatus: http.StatusConflict,
+}
+
+// errManagedCrypto is what the API caller gets when a value cannot be encrypted or decrypted with the key of a
+// managed provider; the cause is logged.
+var errManagedCrypto = errors2.APIError{
+	Message:    "the vault value cannot be encrypted or decrypted with the server's vault key",
+	HTTPStatus: http.StatusInternalServerError,
+}
+
+// checkManagedTenant opens the database of a managed vault and refuses a tenant whose vault was set up with a
+// passphrase, so values encrypted under two different keys never mix.
+func (m *Manager) checkManagedTenant(ctx context.Context) error {
+	if err := m.openManagedDB(); err != nil {
+		return err
+	}
+	tid, err := vaultTenant(ctx)
+	if err != nil {
+		return err
+	}
+	if _, ok := m.managedTenants.Load(tid); ok {
+		return nil
+	}
+	st, err := m.dbFactory.GetDbProvider().GetStatus(ctx)
+	if err != nil {
+		return err
+	}
+	if st.StatusName == DbStatusInit || st.EncCheckValue != "" {
+		return ErrPassphraseVault
+	}
+	m.managedTenants.Store(tid, struct{}{})
+	return nil
+}
+
+// managedCryptoError hides the cause of a value encryption error from the API caller in managed mode. In passphrase
+// mode the error is returned as before.
+func (m *Manager) managedCryptoError(err error) error {
+	if m.passphrase != nil {
+		return err
+	}
+	if m.logger != nil {
+		m.logger.Errorf("vault: %v", err)
+	}
+	return errManagedCrypto
 }
 
 func (m *Manager) Close() error {
