@@ -443,6 +443,16 @@ func main() {
 	}
 }
 
+// isRunningAsRoot is replaced in tests.
+var isRunningAsRoot = chshare.IsRunningAsRoot
+
+const rootRefusedMsg = "By default running as root is not allowed."
+
+// rootRefused reports whether rportd runs as root without allow_root.
+func rootRefused(cfg *chconfig.Config) bool {
+	return !cfg.Server.AllowRoot && isRunningAsRoot()
+}
+
 func decodeAndValidateConfig(mLog *logger.MemLogger) error {
 	if *cfgPath != "" {
 		viperCfg.SetConfigFile(*cfgPath)
@@ -491,8 +501,8 @@ func runMain(*cobra.Command, []string) {
 		log.Fatalf("Invalid config: %v. See --help", err)
 	}
 
-	if !cfg.Server.AllowRoot && chshare.IsRunningAsRoot() {
-		log.Fatal("By default running as root is not allowed.")
+	if rootRefused(cfg) {
+		log.Fatal(rootRefusedMsg)
 	}
 
 	err = cfg.Logging.LogOutput.Start()
