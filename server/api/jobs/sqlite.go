@@ -45,8 +45,9 @@ func tenantOf(ctx context.Context) (tenant.ID, error) {
 	return id, nil
 }
 
-// jobsQuery selects jobs with the schedule of their multi-job, scoped to one tenant.
-const jobsQuery = "SELECT jobs.*, schedule_id FROM jobs LEFT JOIN multi_jobs ON jobs.tenant_id = multi_jobs.tenant_id AND jobs.multi_job_id = multi_jobs.jid WHERE jobs.tenant_id = ?"
+// jobsQuery selects jobs with the schedule of their multi-job, scoped to one tenant. The join is in a subquery so
+// that filters and sorts on columns both tables have (jid, started_at, created_by) name the job's.
+const jobsQuery = "SELECT j.* FROM (SELECT jobs.*, multi_jobs.schedule_id FROM jobs LEFT JOIN multi_jobs ON jobs.tenant_id = multi_jobs.tenant_id AND jobs.multi_job_id = multi_jobs.jid) j WHERE j.tenant_id = ?"
 
 func (p *SqliteProvider) GetByJID(ctx context.Context, clientID, jid string) (*models.Job, error) {
 	tid, err := tenantOf(ctx)
@@ -54,7 +55,7 @@ func (p *SqliteProvider) GetByJID(ctx context.Context, clientID, jid string) (*m
 		return nil, err
 	}
 	res := &jobSqlite{}
-	err = p.db.GetContext(ctx, res, jobsQuery+" AND jobs.jid=?", tid, jid)
+	err = p.db.GetContext(ctx, res, jobsQuery+" AND j.jid=?", tid, jid)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

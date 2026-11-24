@@ -14,7 +14,8 @@ import (
 
 // schedulesQuery lists the schedules of one tenant with their last run. Its two parameters are both
 // the tenant: the runs are matched inside the subquery (in HAVING, so the query has a single WHERE),
-// the schedules by the closing WHERE, so filters appended by the converter join it with AND.
+// the schedules by the closing WHERE, so filters appended by the converter join it with AND (the
+// converter finds it by " WHERE ", so it follows a space, not a line break).
 const schedulesQuery = `
 SELECT
 	s.*,
@@ -40,8 +41,7 @@ LEFT JOIN (
 	GROUP BY mj.tenant_id, mj.jid
 	HAVING mj.tenant_id = ? AND (COUNT(j.jid) > 0 OR COALESCE(json_extract(mj.details, '$.error'), '') <> '')
 
-) mj ON s.id = mj.schedule_id AND mj.rn = 1
-WHERE s.tenant_id = ?
+) mj ON s.id = mj.schedule_id AND mj.rn = 1 WHERE s.tenant_id = ?
 `
 
 // SQLiteProvider stores schedules in the jobs database; it reads the jobs and multi-job tables for
