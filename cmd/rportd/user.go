@@ -9,6 +9,7 @@ import (
 	"github.com/openrport/openrport/cmd/rportd/usercli"
 	"github.com/openrport/openrport/share/enums"
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 const (
@@ -30,12 +31,12 @@ var (
 		Example: "rportd user add -u admin -g Administrators --2fa-sendto admin@example.com",
 		Run: func(*cobra.Command, []string) {
 			mLog := logger.NewMemLogger()
-			err := decodeAndValidateConfig(&mLog)
+			err := loadCommandConfig(&mLog)
 			if err != nil {
 				log.Fatalf("Invalid config: %v. See rportd --help", err)
 			}
 
-			userService, err := usercli.NewUserService(cfg)
+			userService, err := usercli.NewUserService(cfg, tenant.ID(*tenantFlag))
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -57,12 +58,12 @@ var (
 		Example: "rportd user delete -u admin",
 		Run: func(*cobra.Command, []string) {
 			mLog := logger.NewMemLogger()
-			err := decodeAndValidateConfig(&mLog)
+			err := loadCommandConfig(&mLog)
 			if err != nil {
 				log.Fatalf("Invalid config: %v. See rportd --help", err)
 			}
 
-			userService, err := usercli.NewUserService(cfg)
+			userService, err := usercli.NewUserService(cfg, tenant.ID(*tenantFlag))
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -84,12 +85,12 @@ var (
 		Long:    "Change a user",
 		Run: func(*cobra.Command, []string) {
 			mLog := logger.NewMemLogger()
-			err := decodeAndValidateConfig(&mLog)
+			err := loadCommandConfig(&mLog)
 			if err != nil {
 				log.Fatalf("Invalid config: %v. See rportd --help", err)
 			}
 
-			userService, err := usercli.NewUserService(cfg)
+			userService, err := usercli.NewUserService(cfg, tenant.ID(*tenantFlag))
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -109,6 +110,7 @@ var (
 	twoFASendToFlag *string
 	groupsFlag      *[]string
 	passwordFlag    *bool
+	tenantFlag      *string
 )
 
 func init() {
@@ -124,6 +126,8 @@ func init() {
 		// This will return error if the flag doesn't exist, so it's ok to panic because it can only happen when changing the code
 		panic(err)
 	}
+
+	tenantFlag = userCmd.PersistentFlags().String("tenant", string(tenant.Default), "tenant of the user ([storage] backend = \"postgres\" only)")
 
 	groupsFlag = userAddCmd.Flags().StringSliceP("group", "g", nil, "group(s) user should be part of (comma separated)")
 	twoFASendToFlag = userAddCmd.Flags().String("2fa-sendto", "", "email for 2fa")

@@ -43,8 +43,7 @@ func TestMigrateRefusesRoot(t *testing.T) {
 	assert.NoDirExists(t, dataDir, "nothing may be created as root")
 }
 
-// Decoding the config sets every key on the process-wide viper (see share.readEnvVars), so only one test here runs
-// runMigrate; the allow_root cases are checked on rootRefused directly.
+// The allow_root cases are checked on rootRefused directly.
 func TestRootRefused(t *testing.T) {
 	asRoot(t)
 	assert.True(t, rootRefused(&chconfig.Config{}))

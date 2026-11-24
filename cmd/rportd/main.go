@@ -51,6 +51,10 @@ var serverHelp = `
 
     ./rportd migrate -c /etc/rport/rportd.conf
     migrates the databases in the data directory to the latest version and exits
+    (with [storage] backend = "postgres": the Postgres schema, see './rportd migrate --help')
+
+    ./rportd tenant add acme "Acme Corp" -c /etc/rport/rportd.conf --dsn <owner-url>
+    adds a tenant to a server with [storage] backend = "postgres"
 
   Options:
 
@@ -261,10 +265,15 @@ func init() {
 		return nil
 	})
 
-	viperCfg = viper.New()
-	viperCfg.SetConfigType("toml")
+	viperCfg = newViperConfig()
+}
 
-	chconfig.SetDefaults(viperCfg)
+// newViperConfig returns a viper with rportd's defaults that reads a TOML config file.
+func newViperConfig() *viper.Viper {
+	v := viper.New()
+	v.SetConfigType("toml")
+	chconfig.SetDefaults(v)
+	return v
 }
 
 // addServerFlags registers the flags that override config file settings when the server starts.
@@ -390,23 +399,33 @@ func rootRefused(cfg *chconfig.Config) bool {
 	return !cfg.Server.AllowRoot && isRunningAsRoot()
 }
 
+// decodeAndValidateConfig loads the config of the server (with the server flags bound to viperCfg) into cfg.
 func decodeAndValidateConfig(mLog *logger.MemLogger) error {
+	return decodeAndValidateConfigFrom(viperCfg, mLog)
+}
+
+// loadCommandConfig loads the config of a subcommand (migrate, user, tenant) into cfg: the config file only, read
+// afresh, since the server flags don't apply and decoding leaves every key set on the viper it reads.
+func loadCommandConfig(mLog *logger.MemLogger) error {
+	return decodeAndValidateConfigFrom(newViperConfig(), mLog)
+}
+
+func decodeAndValidateConfigFrom(v *viper.Viper, mLog *logger.MemLogger) error {
 	if *cfgPath != "" {
-		viperCfg.SetConfigFile(*cfgPath)
+		v.SetConfigFile(*cfgPath)
 	} else {
-		viperCfg.AddConfigPath(".")
-		viperCfg.SetConfigName("rportd.conf")
+		v.AddConfigPath(".")
+		v.SetConfigName("rportd.conf")
 	}
 
-	if err := chshare.DecodeViperConfig(viperCfg, cfg, nil); err != nil {
+	c := &chconfig.Config{}
+	if err := chshare.DecodeViperConfig(v, c, nil); err != nil {
 		return err
 	}
-
-	err := cfg.ParseAndValidate(mLog)
-	if err != nil {
+	if err := c.ParseAndValidate(mLog); err != nil {
 		return err
 	}
-
+	cfg = c
 	return nil
 }
 
@@ -481,10 +500,20 @@ func runMain(*cobra.Command, []string) {
 		log.Fatal(err)
 	}
 
-	s, err := chserver.NewServer(ctx, cfg, &chserver.ServerOpts{
+	opts := &chserver.ServerOpts{
 		FilesAPI:    filesAPI,
 		PlusManager: plusManager,
-	})
+	}
+	if cfg.Storage.IsPostgres() {
+		pgOpts, closePostgres, err := postgresServerOpts(ctx, cfg, opts)
+		if err != nil {
+			log.Fatalf("Postgres storage: %v", err)
+		}
+		defer closePostgres()
+		opts = pgOpts
+	}
+
+	s, err := chserver.NewServer(ctx, cfg, opts)
 	if err != nil {
 		log.Fatal(err)
 	}

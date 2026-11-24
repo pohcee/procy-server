@@ -28,6 +28,22 @@ func Open(ctx context.Context, cfg *chconfig.Config) (*sqlx.DB, error) {
 	return postgres.Open(ctx, cfg.Storage.DSN)
 }
 
+// OpenOwner connects to the Postgres database of a node as the schema owner, for migrating it and adding tenants:
+// with ownerDSN, or with [storage] dsn when ownerDSN is empty.
+func OpenOwner(ctx context.Context, cfg *chconfig.Config, ownerDSN string) (*sqlx.DB, error) {
+	if !cfg.Storage.IsPostgres() {
+		return nil, errors.New(`pgserver: [storage] backend is not "postgres"`)
+	}
+	if ownerDSN == "" {
+		ownerDSN = cfg.Storage.DSN
+	}
+	db, err := postgres.Open(ctx, ownerDSN)
+	if err != nil {
+		return nil, fmt.Errorf("connect to Postgres: %w", err)
+	}
+	return db, nil
+}
+
 // NodeOpts returns the server options of a node on the Postgres database db (connected as the application role,
 // migrated): base with every repository on Postgres, the tenant of each request from the resolver, the vault keys of
 // [vault] key_provider, and, for [storage] role = "api", no client listener and work on clients refused as not
