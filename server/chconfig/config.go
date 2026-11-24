@@ -343,6 +343,8 @@ type Config struct {
 	Pairing       PairingConfig        `mapstructure:"pairing"`
 	Library       LibraryConfig        `mapstructure:"library"`
 	PlusConfig    rportplus.PlusConfig `mapstructure:",squash"`
+	Storage       StorageConfig        `mapstructure:"storage"`
+	Vault         VaultConfig          `mapstructure:"vault"`
 }
 
 var (
@@ -380,6 +382,10 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 		mLog.Infof("server setting '%s' is deprecated and will be removed soon. Use '%s' instead.", old, new)
 	}
 	if err != nil {
+		return err
+	}
+
+	if err := c.parseAndValidateStorage(); err != nil {
 		return err
 	}
 
@@ -481,7 +487,8 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 }
 
 func (c *Config) parseAndValidateClientAuth() error {
-	if c.Server.Auth == "" && c.Server.AuthFile == "" && c.Server.AuthTable == "" {
+	// on Postgres the client credentials are stored in the database (no auth source is configured)
+	if !c.Storage.IsPostgres() && c.Server.Auth == "" && c.Server.AuthFile == "" && c.Server.AuthTable == "" {
 		return errors.New("client authentication must be enabled: set either 'auth', 'auth_file' or 'auth_table'")
 	}
 	if err := checkNotExampleValue("auth", c.Server.Auth); err != nil {
@@ -756,7 +763,8 @@ func (c *Config) parseAndValidate2FA() error {
 }
 
 func (c *Config) parseAndValidateAPIAuth() error {
-	if c.API.AuthFile == "" && c.API.Auth == "" && c.API.AuthUserTable == "" {
+	// on Postgres the users are stored in the database (no auth source is configured)
+	if !c.Storage.IsPostgres() && c.API.AuthFile == "" && c.API.Auth == "" && c.API.AuthUserTable == "" {
 		return errors.New("authentication must be enabled: set either 'auth', 'auth_file' or 'auth_user_table'")
 	}
 
