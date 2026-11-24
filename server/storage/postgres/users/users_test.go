@@ -150,3 +150,14 @@ func TestStoresOSSJSON(t *testing.T) {
 	assert.JSONEq(t, `{"commands":true,"scripts":true}`, perms)
 	assert.Nil(t, tr)
 }
+
+// The reserved tenants (requests whose tenant can't be resolved) never have users, whatever writes them.
+func TestNoUsersInReservedTenant(t *testing.T) {
+	s, d := newStore(t)
+	err := s.Add(tenant.WithID(context.Background(), "_unresolved"), &users.User{Username: "someone", Password: "$2y$05$x"})
+	assert.ErrorContains(t, err, "reserved")
+	var n int
+	require.NoError(t, d.Owner.Get(&n, "SELECT count(*) FROM users"))
+	assert.Zero(t, n)
+	require.NoError(t, s.Add(tenant.WithID(context.Background(), tenant.Default), &users.User{Username: "admin", Password: "$2y$05$x"}))
+}

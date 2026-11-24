@@ -1,9 +1,12 @@
 package chconfig
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+
+	rportplus "github.com/openrport/openrport/plus"
 )
 
 // Storage backends ([storage] backend).
@@ -134,6 +137,14 @@ func (c *Config) refuseLocalAuthSources() error {
 		if kv[1] != "" {
 			return fmt.Errorf("%s %s", kv[0], postgresStoresCredentials)
 		}
+	}
+	// these logins name no tenant the server can look up yet: the user would land in the reserved tenant of
+	// unresolved requests
+	if c.API.AuthHeader != "" {
+		return errors.New(`[api] auth_header is not yet supported with [storage] backend = "postgres"`)
+	}
+	if rportplus.IsPlusOAuthEnabled(c.PlusConfig) {
+		return errors.New(`[plus-oauth] is not yet supported with [storage] backend = "postgres"`)
 	}
 	return nil
 }

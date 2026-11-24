@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	rportplus "github.com/openrport/openrport/plus"
+	"github.com/openrport/openrport/plus/capabilities/oauth"
 	"github.com/openrport/openrport/share/logger"
 )
 
@@ -181,4 +183,17 @@ func TestVaultKMSNeedsKey(t *testing.T) {
 	c = postgresConfig()
 	c.Vault = VaultConfig{KeyProvider: "passphrase", KMSKey: "projects/p/locations/l/keyRings/r/cryptoKeys/k"}
 	assert.ErrorContains(t, validate(c), `[vault] kms_key is set but key_provider is not "kms"`)
+}
+
+// A login by proxy header or Plus OAuth names no tenant the server could look up yet, so it would land in the
+// reserved tenant; on Postgres both are refused until logins pick their organization.
+func TestStoragePostgresRefusesHeaderAndOAuthLogin(t *testing.T) {
+	c := postgresConfig()
+	c.API.AuthHeader = "X-Remote-User"
+	assert.EqualError(t, validate(c), `[api] auth_header is not yet supported with [storage] backend = "postgres"`)
+
+	c = postgresConfig()
+	c.PlusConfig.PluginConfig = &rportplus.PluginConfig{PluginPath: "/usr/local/lib/rport/rport-plus.so"}
+	c.PlusConfig.OAuthConfig = &oauth.Config{}
+	assert.EqualError(t, validate(c), `[plus-oauth] is not yet supported with [storage] backend = "postgres"`)
 }
