@@ -51,6 +51,7 @@ func TestHandleGetClient(t *testing.T) {
 			clientGroupProvider: mockClientGroupProvider{},
 		},
 	}
+	useLocalDispatcher(&al)
 
 	al.initRouter()
 
@@ -198,6 +199,7 @@ func TestHandleGetClients(t *testing.T) {
 		},
 		userService: users.NewAPIService(users.NewStaticProvider([]*users.User{curUser}), false, 0, -1),
 	}
+	useLocalDispatcher(&al)
 	al.initRouter()
 
 	testCases := []struct {
@@ -386,6 +388,11 @@ func (mcs *SimpleMockClientService) GetActiveByID(_ context.Context, id string) 
 	return mcs.ActiveClients[0], nil
 }
 
+// GetByID is what the local dispatcher looks the client up with.
+func (mcs *SimpleMockClientService) GetByID(ctx context.Context, id string) (*clientdata.Client, error) {
+	return mcs.GetActiveByID(ctx, id)
+}
+
 func (mcs *SimpleMockClientService) StartClientTunnels(_ context.Context, client *clientdata.Client, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
 	tunnels := make([]*clienttunnel.Tunnel, 0, 32)
 	for i, remote := range remotes {
@@ -569,6 +576,7 @@ func TestHandlePutTunnelWithName(t *testing.T) {
 				userService: mockUsersService,
 				Logger:      testLog,
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			w := httptest.NewRecorder()
@@ -796,6 +804,7 @@ func TestHandlePutTunnelUsingCaddyProxies(t *testing.T) {
 				userService: mockUsersService,
 				Logger:      testLog,
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			originalGenerator := al.Server.config.Caddy.SubDomainGenerator
@@ -851,6 +860,7 @@ func TestHandlePutClientTunnelACL(t *testing.T) {
 			},
 		},
 	}
+	useLocalDispatcher(&al)
 
 	al.initRouter()
 

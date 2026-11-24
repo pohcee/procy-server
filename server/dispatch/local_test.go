@@ -84,8 +84,10 @@ func TestLocalUnknownOrUnconnectedClient(t *testing.T) {
 			_, calls["IsTunnelAllowed"] = d.IsTunnelAllowed(ctx, id, "127.0.0.1:22")
 			_, calls["CheckPort"] = d.CheckPort(ctx, id, &comm.CheckPortRequest{HostPort: "127.0.0.1:22"})
 			_, calls["StartTunnels"] = d.StartTunnels(ctx, id, nil)
-			calls["CloseTunnel"] = d.CloseTunnel(ctx, id, "1", false)
-			calls["SetTunnelACL"] = d.SetTunnelACL(ctx, id, "1", nil)
+			if id == "unknown" {
+				calls["CloseTunnel"] = d.CloseTunnel(ctx, id, "1", false)
+				calls["SetTunnelACL"] = d.SetTunnelACL(ctx, id, "1", nil)
+			}
 			calls["RefreshUpdatesStatus"] = d.RefreshUpdatesStatus(ctx, id)
 			calls["UpdateAttributes"] = d.UpdateAttributes(ctx, id, models.Attributes{})
 			for method, err := range calls {
@@ -93,6 +95,16 @@ func TestLocalUnknownOrUnconnectedClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLocalTunnelLookupNeedsNoConnection(t *testing.T) {
+	cl := clients.New(t).ID("c1").Logger(testLog).Build()
+	cl.SetConnection(nil)
+	d, _ := newLocal(t, cl)
+
+	// the server's end of a tunnel is found without the client's connection
+	assert.ErrorIs(t, d.SetTunnelACL(defaultCtx(), "c1", "nope", nil), ErrTunnelNotFound)
+	assert.ErrorIs(t, d.CloseTunnel(defaultCtx(), "c1", "nope", false), ErrTunnelNotFound)
 }
 
 func TestLocalOtherTenantIsNotReachable(t *testing.T) {

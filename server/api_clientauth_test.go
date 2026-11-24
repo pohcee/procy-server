@@ -124,6 +124,7 @@ func TestHandleGetClientsAuth(t *testing.T) {
 					clientAuthProvider: tc.provider,
 				},
 			}
+			useLocalDispatcher(&al)
 
 			// when
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/clients-auth", nil)
@@ -342,6 +343,7 @@ func TestHandlePostClientsAuth(t *testing.T) {
 				},
 				Logger: testLog,
 			}
+			useLocalDispatcher(&al)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/clients-auth", tc.requestBody)
 			req = req.WithContext(tenant.WithID(req.Context(), tenant.Default))
@@ -526,6 +528,7 @@ func TestHandleDeleteClientAuth(t *testing.T) {
 				},
 				Logger: testLog,
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 			mockConn.closed = false
 

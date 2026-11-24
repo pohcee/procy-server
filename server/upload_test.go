@@ -365,6 +365,7 @@ func TestHandleFileUploads(t *testing.T) {
 				Logger:      testLog,
 				userService: MockUserService(tc.user, tc.group),
 			}
+			useLocalDispatcher(&al)
 
 			al.initRouter()
 

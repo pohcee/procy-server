@@ -41,6 +41,7 @@ func TestClientAccessMiddlewareStopsWhenClientGroupsCannotBeLoaded(t *testing.T)
 		},
 		userService: &MockUsersService{UserService: users.NewAPIService(users.NewStaticProvider([]*users.User{admin}), false, 0, -1)},
 	}
+	useLocalDispatcher(al)
 
 	nextCalled := false
 	handler := al.wrapClientAccessMiddleware(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { nextCalled = true }))

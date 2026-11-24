@@ -293,6 +293,7 @@ func TestHandlePostCommand(t *testing.T) {
 				},
 				Logger: testLog,
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			jp := NewJobProviderMock()
@@ -394,6 +395,7 @@ func TestHandleGetCommand(t *testing.T) {
 					},
 				},
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			jp := NewJobProviderMock()
@@ -503,6 +505,7 @@ func TestHandleGetCommands(t *testing.T) {
 					},
 				},
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			jp := NewJobProviderMock()
@@ -676,6 +679,7 @@ func TestHandlePostMultiClientCommand(t *testing.T) {
 				userService: users.NewAPIService(users.NewStaticProvider([]*users.User{curUser}), false, 0, -1),
 				Logger:      testLog,
 			}
+			useLocalDispatcher(&al)
 			var done chan bool
 			if tc.wantStatusCode == http.StatusOK {
 				done = make(chan bool)
@@ -840,6 +844,7 @@ func TestHandlePostMultiClientCommandWithPausedClient(t *testing.T) {
 				userService: users.NewAPIService(users.NewStaticProvider([]*users.User{curUser}), false, 0, -1),
 				Logger:      testLog,
 			}
+			useLocalDispatcher(&al)
 
 			done := make(chan bool)
 			al.testDone = done
@@ -2095,6 +2100,7 @@ func makeAPIListener(
 		userService:  users.NewAPIService(users.NewStaticProvider([]*users.User{curUser}), false, 0, -1),
 		Logger:       testLog,
 	}
+	useLocalDispatcher(al)
 
 	return al
 }

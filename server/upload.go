@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -11,13 +12,11 @@ import (
 	"time"
 
 	errors2 "github.com/openrport/openrport/server/api/errors"
-	errors3 "github.com/openrport/openrport/share/errors"
 
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/auditlog"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/files"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/random"
@@ -140,7 +139,8 @@ func (al *APIListener) handleFileUploads(w http.ResponseWriter, req *http.Reques
 		WithID(uploadRequest.UploadedFile.ID).
 		SaveForMultipleClients(uploadRequest.Clients)
 
-	go al.sendFileToClients(uploadRequest)
+	// the sends outlive the request; they keep its tenant
+	go al.sendFileToClients(context.WithoutCancel(req.Context()), uploadRequest)
 
 	response := api.NewSuccessPayload(uploadRep)
 
@@ -193,14 +193,14 @@ type UploadOutput struct {
 	*models.UploadResponse
 }
 
-func (al *APIListener) sendFileToClients(uploadRequest *UploadRequest) {
+func (al *APIListener) sendFileToClients(ctx context.Context, uploadRequest *UploadRequest) {
 	wg := &sync.WaitGroup{}
 	wg.Add(len(uploadRequest.Clients))
 
 	resChan := make(chan *uploadResult, len(uploadRequest.Clients))
 
 	for _, cl := range uploadRequest.Clients {
-		go al.sendFileToClient(wg, uploadRequest.UploadedFile, cl, resChan)
+		go al.sendFileToClient(ctx, wg, uploadRequest.UploadedFile, cl, resChan)
 	}
 
 	go func() {
@@ -269,26 +269,10 @@ func (al *APIListener) consumeUploadResults(resChan chan *uploadResult, uploadRe
 	}
 }
 
-func (al *APIListener) sendFileToClient(wg *sync.WaitGroup, file *models.UploadedFile, cl *clientdata.Client, resChan chan *uploadResult) {
+func (al *APIListener) sendFileToClient(ctx context.Context, wg *sync.WaitGroup, file *models.UploadedFile, cl *clientdata.Client, resChan chan *uploadResult) {
 	defer wg.Done()
 
-	fileReceptionConfig := cl.GetFileReceptionConfig()
-	if fileReceptionConfig != nil && !fileReceptionConfig.Enabled {
-		resChan <- &uploadResult{
-			err:    errors3.ErrUploadsDisabled,
-			client: cl,
-			resp:   nil,
-		}
-		return
-	}
-	conn := cl.GetConnection()
-	// The client fetches the file over SFTP while it handles the request.
-	revoke := al.Server.fileGrants.Grant(conn, file.SourceFilePath)
-	defer revoke()
-
-	resp := &models.UploadResponse{}
-	err := comm.SendRequestAndGetResponse(conn, comm.RequestTypeUpload, file, resp, al.Log())
-
+	resp, err := al.dispatcher.Upload(ctx, cl.GetID(), file)
 	resChan <- &uploadResult{
 		err:    err,
 		client: cl,

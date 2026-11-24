@@ -72,16 +72,18 @@ type Server struct {
 	uiJobWebSockets  ws.WebSocketCache // used to push job result to UI
 	uploadWebSockets sync.Map
 	fileGrants       *dispatch.FileGrants
-	jobsDoneChannel  jobResultChanMap // used for sequential command execution to know when command is finished
-	auditLog         *auditlog.AuditLog
-	capabilities     *models.Capabilities
-	scheduleManager  *schedule.Manager
-	filesAPI         files.FileAPI
-	plusManager      rportplus.Manager
-	caddyServer      *caddy.Server
-	acme             *acme.Acme
-	alertingService  alertingcap.Service
-	monitoringQueue  monitoring.MeasurementSaver
+	// dispatcher does all work on clients (ServerOpts.Dispatcher, or the local one)
+	dispatcher      dispatch.Dispatcher
+	jobsDoneChannel jobResultChanMap // used for sequential command execution to know when command is finished
+	auditLog        *auditlog.AuditLog
+	capabilities    *models.Capabilities
+	scheduleManager *schedule.Manager
+	filesAPI        files.FileAPI
+	plusManager     rportplus.Manager
+	caddyServer     *caddy.Server
+	acme            *acme.Acme
+	alertingService alertingcap.Service
+	monitoringQueue monitoring.MeasurementSaver
 	// capabilitiesOverride is ServerOpts.Capabilities; nil reports the computed capabilities.
 	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
 }
@@ -96,6 +98,9 @@ type ServerOpts struct {
 	// latest version (run "rportd migrate" first). Files the server creates while running (the vault on init, the
 	// audit log after a rotation) are migrated regardless.
 	SkipMigrations bool
+	// Dispatcher, when set, does the work on clients (commands, scripts, tunnels, uploads) instead of
+	// dispatch.Local, which uses the connections of the clients connected to this server.
+	Dispatcher dispatch.Dispatcher
 	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
 	// It receives the capabilities computed from the config and returns the ones to report.
 	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
@@ -207,6 +212,11 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	s.dispatcher = opts.Dispatcher
+	if s.dispatcher == nil {
+		s.dispatcher = dispatch.NewLocal(s.clientService, s.fileGrants, s.Logger.Fork("dispatch"))
 	}
 
 	if rportplus.IsPlusEnabled(config.PlusConfig) {

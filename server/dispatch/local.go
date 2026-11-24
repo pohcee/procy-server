@@ -55,10 +55,15 @@ func (d *Local) client(ctx context.Context, clientID string) (*clientdata.Client
 	return client, conn, nil
 }
 
+// tunnel returns the client and its tunnel. Closing a tunnel and setting its ACL act on the
+// server's end of the tunnel, so the client needs no connection for them.
 func (d *Local) tunnel(ctx context.Context, clientID, tunnelID string) (*clientdata.Client, *clienttunnel.Tunnel, error) {
-	client, _, err := d.client(ctx, clientID)
+	client, err := d.clients.GetByID(ctx, clientID)
 	if err != nil {
 		return nil, nil, err
+	}
+	if client == nil {
+		return nil, nil, ErrClientNotConnected
 	}
 	t := d.clients.FindTunnel(client, tunnelID)
 	if t == nil {

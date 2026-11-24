@@ -13,6 +13,7 @@ import (
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/jobs"
 	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/models"
@@ -20,7 +21,8 @@ import (
 	"github.com/openrport/openrport/share/ws"
 )
 
-var ErrClientNotConnected = errors.New("client is not connected")
+// ErrClientNotConnected is dispatch.ErrClientNotConnected, kept under its old name.
+var ErrClientNotConnected = dispatch.ErrClientNotConnected
 
 var generateNewJobID = func() (string, error) {
 	return random.UUID4()
@@ -45,10 +47,9 @@ func (al *APIListener) createAndRunJob(
 
 	var err error
 	if !client.IsPaused() {
-		if client.Connection != nil {
-			err = comm.SendRequestAndGetResponse(client.GetConnection(), comm.RequestTypeRunCmd, curJob, sshResp, al.Log())
-		} else {
-			err = ErrClientNotConnected
+		var resp *comm.RunCmdResponse
+		if resp, err = al.dispatcher.RunJob(ctx, client.GetID(), &curJob); err == nil {
+			sshResp = resp
 		}
 	} else {
 		err = fmt.Errorf("client is paused (reason = %s)", client.PausedReason)

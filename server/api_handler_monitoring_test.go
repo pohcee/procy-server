@@ -68,6 +68,7 @@ func TestHandleRefreshUpdatesStatus(t *testing.T) {
 				},
 				Logger: testLog,
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/v1/clients/%s/updates-status", tc.ClientID), nil)
@@ -123,6 +124,7 @@ func TestListClientMetrics(t *testing.T) {
 			monitoringService: monitoringService,
 		},
 	}
+	useLocalDispatcher(&al)
 	al.initRouter()
 
 	testCases := []struct {
@@ -252,6 +254,7 @@ func TestMonitoringDisabled(t *testing.T) {
 					monitoringService: monitoringService,
 				},
 			}
+			useLocalDispatcher(&al)
 			al.initRouter()
 
 			w := httptest.NewRecorder()
