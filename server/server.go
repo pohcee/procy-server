@@ -26,6 +26,7 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clientsauth"
+	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
@@ -70,7 +71,7 @@ type Server struct {
 	storageClosers   []func() error
 	uiJobWebSockets  ws.WebSocketCache // used to push job result to UI
 	uploadWebSockets sync.Map
-	fileGrants       *fileGrants
+	fileGrants       *dispatch.FileGrants
 	jobsDoneChannel  jobResultChanMap // used for sequential command execution to know when command is finished
 	auditLog         *auditlog.AuditLog
 	capabilities     *models.Capabilities
@@ -113,7 +114,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		config:           config,
 		uiJobWebSockets:  ws.NewWebSocketCache(),
 		uploadWebSockets: sync.Map{},
-		fileGrants:       newFileGrants(),
+		fileGrants:       dispatch.NewFileGrants(),
 		jobsDoneChannel: jobResultChanMap{
 			m: make(map[string]chan *models.Job),
 		},
