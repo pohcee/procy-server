@@ -16,6 +16,7 @@ import (
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/routes"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 // deletableUsersService accepts Delete, which the single-user provider doesn't support.
@@ -26,7 +27,7 @@ type deletableUsersService struct {
 func (deletableUsersService) Delete(string) error { return nil }
 
 func TestDeletingAUserRevokesTheirSessionsAndAPITokens(t *testing.T) {
-	ctx := context.Background()
+	ctx := tenant.WithID(context.Background(), tenant.Default)
 	sessions := newEmptyAPISessionCache(t)
 	_, err := sessions.Save(ctx, session.APISession{Username: "bob", ExpiresAt: time.Now().Add(time.Hour)})
 	require.NoError(t, err)
@@ -42,7 +43,7 @@ func TestDeletingAUserRevokesTheirSessionsAndAPITokens(t *testing.T) {
 		tokenManager: tokens,
 	}
 
-	req := httptest.NewRequest("DELETE", "/api/v1/users/bob", nil)
+	req := httptest.NewRequest("DELETE", "/api/v1/users/bob", nil).WithContext(ctx)
 	req = mux.SetURLVars(req, map[string]string{routes.ParamUserID: "bob"})
 	w := httptest.NewRecorder()
 	al.handleDeleteUser(w, req)

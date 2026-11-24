@@ -7,12 +7,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func SetupTestAPISessionCache(t *testing.T) (ctx context.Context, cache *Cache) {
 	t.Helper()
 
-	ctx = context.Background()
+	ctx = ctxFor(tenant.Default)
 
 	defaultExpiration := time.Duration(100)
 	cleanupInterval := time.Duration(200)

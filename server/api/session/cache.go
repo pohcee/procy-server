@@ -8,8 +8,12 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
+
+	"github.com/openrport/openrport/share/tenant"
 )
 
+// Cache keeps the live API sessions in memory, keyed by tenant and session ID, in front of the storage.
+// Every method is scoped to the tenant carried by its context and fails with tenant.ErrMissing when there is none.
 type Cache struct {
 	cache   InternalCacheProvider
 	storage StorageProvider
@@ -22,17 +26,23 @@ func NewCache(
 	storage StorageProvider,
 	c InternalCacheProvider,
 ) (*Cache, error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if c == nil {
 		c = cache.New(defaultExpiration, cleanupInterval)
 	}
 	now := time.Now()
+	// loads the sessions of the context's tenant
 	validSessions, err := storage.GetAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get api sessions from storage: %w", err)
 	}
 
 	for _, cur := range validSessions {
-		c.Set(formatID(cur.SessionID), cur, cur.ExpiresAt.Sub(now))
+		cur.TenantID = tid
+		c.Set(cacheKey(tid, cur.SessionID), cur, cur.ExpiresAt.Sub(now))
 	}
 
 	return &Cache{
@@ -42,10 +52,18 @@ func NewCache(
 }
 
 func (p *Cache) Get(ctx context.Context, sessionID int64) (found bool, sessionInfo APISession, err error) {
-	return p.getFromCache(sessionID)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return false, APISession{}, err
+	}
+	return p.getFromCache(tid, sessionID)
 }
 
 func (p *Cache) Save(ctx context.Context, session APISession) (sessionID int64, err error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return -1, err
+	}
 	// always save to storage as we want the token last access time saved
 	sessionID, err = p.storage.Save(ctx, session)
 	if err != nil {
@@ -54,18 +72,23 @@ func (p *Cache) Save(ctx context.Context, session APISession) (sessionID int64, 
 
 	// make sure the session id is included in the cache version.
 	session.SessionID = sessionID
+	session.TenantID = tid
 
-	p.cache.Set(formatID(sessionID), session, time.Until(session.ExpiresAt))
+	p.cache.Set(cacheKey(tid, sessionID), session, time.Until(session.ExpiresAt))
 
 	return sessionID, nil
 }
 
 func (p *Cache) Delete(ctx context.Context, sessionID int64) error {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
 	if err := p.storage.Delete(ctx, sessionID); err != nil {
 		return err
 	}
 
-	p.cache.Delete(formatID(sessionID))
+	p.cache.Delete(cacheKey(tid, sessionID))
 
 	return nil
 }
@@ -80,8 +103,8 @@ func (p *Cache) Close() error {
 	return p.storage.Close()
 }
 
-func (p *Cache) getFromCache(sessionID int64) (found bool, sessionInfo APISession, err error) {
-	existingObj, found := p.cache.Get(formatID(sessionID))
+func (p *Cache) getFromCache(tid tenant.ID, sessionID int64) (found bool, sessionInfo APISession, err error) {
+	existingObj, found := p.cache.Get(cacheKey(tid, sessionID))
 	if !found {
 		return false, APISession{}, nil
 	}
@@ -95,6 +118,10 @@ func (p *Cache) getFromCache(sessionID int64) (found bool, sessionInfo APISessio
 }
 
 func (p *Cache) GetAllByUser(ctx context.Context, username string) (sessions []APISession, err error) {
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	sessions = make([]APISession, 0)
 	// just query the go-cache tokens. they will be more up to date than the storage tokens.
 	for _, item := range p.cache.Items() {
@@ -102,7 +129,7 @@ func (p *Cache) GetAllByUser(ctx context.Context, username string) (sessions []A
 		if !ok {
 			return nil, fmt.Errorf("invalid cache entry: expected *APISession, got %T", item.Object)
 		}
-		if session.Username == username {
+		if session.TenantID == tid && session.Username == username {
 			sessions = append(sessions, session)
 		}
 	}
@@ -115,7 +142,11 @@ func (p *Cache) GetAllByUser(ctx context.Context, username string) (sessions []A
 }
 
 func (p *Cache) DeleteByID(ctx context.Context, username string, sessionID int64) (err error) {
-	err = p.deleteUserSessionsFromCache(username, sessionID)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	err = p.deleteUserSessionsFromCache(tid, username, sessionID)
 	if err != nil {
 		return err
 	}
@@ -126,9 +157,9 @@ func (p *Cache) DeleteByID(ctx context.Context, username string, sessionID int64
 	return nil
 }
 
-func (p *Cache) deleteUserSessionsFromCache(username string, sessionID int64) (err error) {
+func (p *Cache) deleteUserSessionsFromCache(tid tenant.ID, username string, sessionID int64) (err error) {
 	if sessionID != -1 {
-		p.cache.Delete(formatID(sessionID))
+		p.cache.Delete(cacheKey(tid, sessionID))
 		return
 	}
 
@@ -139,8 +170,8 @@ func (p *Cache) deleteUserSessionsFromCache(username string, sessionID int64) (e
 		if !ok {
 			return fmt.Errorf("invalid cache entry: expected *APISession, got %T", item.Object)
 		}
-		if session.Username == username {
-			p.cache.Delete(formatID(session.SessionID))
+		if session.TenantID == tid && session.Username == username {
+			p.cache.Delete(cacheKey(tid, session.SessionID))
 		}
 	}
 
@@ -156,7 +187,11 @@ func (p *Cache) deleteUserSessionFromStorage(ctx context.Context, username strin
 }
 
 func (p *Cache) DeleteAllByUser(ctx context.Context, username string) (err error) {
-	err = p.deleteUserSessionsFromCache(username, -1 /* delete all sessions for user */)
+	tid, err := tenantOf(ctx)
+	if err != nil {
+		return err
+	}
+	err = p.deleteUserSessionsFromCache(tid, username, -1 /* delete all sessions for user */)
 	if err != nil {
 		return err
 	}
@@ -175,6 +210,7 @@ func (p *Cache) deleteUserSessionsFromStorage(ctx context.Context, username stri
 	return nil
 }
 
-func formatID(sessionID int64) (id string) {
-	return strconv.FormatInt(sessionID, 10)
+// cacheKey is the in-memory key of a session: its tenant and ID.
+func cacheKey(tid tenant.ID, sessionID int64) string {
+	return string(tid) + "/" + strconv.FormatInt(sessionID, 10)
 }

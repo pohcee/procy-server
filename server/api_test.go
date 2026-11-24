@@ -13,6 +13,7 @@ import (
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/bearer"
 	chshare "github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var testLog = chshare.NewLogger("chserver-test", chshare.LogOutput{File: os.Stdout}, chshare.LogLevelDebug)
@@ -33,7 +34,7 @@ func (m *mockConnection) Close() error {
 func newEmptyAPISessionCache(t *testing.T) *session.Cache {
 	storage, err := session.NewSqliteProvider(":memory:", DataSourceOptions)
 	require.NoError(t, err)
-	c, err := session.NewCache(context.Background(), bearer.DefaultTokenLifetime, cleanupAPISessionsInterval, storage, nil)
+	c, err := session.NewCache(tenant.WithID(context.Background(), tenant.Default), bearer.DefaultTokenLifetime, cleanupAPISessionsInterval, storage, nil)
 	require.NoError(t, err)
 	return c
 }

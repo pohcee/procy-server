@@ -1,7 +1,6 @@
 package session
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -10,12 +9,14 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var DataSourceOptions = sqlite.DataSourceOptions{WALEnabled: false}
 
 func TestAPISessionSqlite(t *testing.T) {
-	ctx := context.Background()
+	ctx := ctxFor(tenant.Default)
 
 	longTTL := time.Hour
 	negativeTTL := -time.Minute
@@ -32,6 +33,7 @@ func TestAPISessionSqlite(t *testing.T) {
 	p := newInmemoryDB(t, &s1, &s2, &s3, &s4Expired, &s5Expired)
 
 	s5Updated := APISession{
+		TenantID:  tenant.Default,
 		SessionID: s5Expired.SessionID,
 		ExpiresAt: timeNow.Add(longTTL),
 	}
@@ -106,7 +108,7 @@ func newInmemoryDB(t *testing.T, sessions ...*APISession) *SqliteProvider {
 	require.NoError(t, err)
 
 	for _, cur := range sessions {
-		sessionID, err := p.Save(context.Background(), *cur)
+		sessionID, err := p.Save(ctxFor(tenant.Default), *cur)
 		require.NoError(t, err)
 
 		// this will patch the supplied sessions to give them their session ids
@@ -125,6 +127,7 @@ func generateAPISession(t *testing.T, username string, expiresAt time.Time, last
 	t.Helper()
 
 	apiSession = APISession{
+		TenantID:     tenant.Default,
 		Username:     username,
 		ExpiresAt:    expiresAt,
 		LastAccessAt: lastAccessAt,
