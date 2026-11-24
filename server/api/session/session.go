@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -30,6 +31,10 @@ type InternalCacheProvider interface {
 	// deal with this then.
 	Items() map[string]cache.Item
 }
+
+// ErrNotFound is returned (wrapped) by StorageProvider.Save when it updates a session that is no longer stored, for
+// example one deleted by a logout while a request using it was still running.
+var ErrNotFound = errors.New("api session not found")
 
 type StorageProvider interface {
 	Get(ctx context.Context, sessionID int64) (found bool, sessionInfo APISession, err error)

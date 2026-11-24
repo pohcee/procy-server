@@ -87,7 +87,7 @@ func TestSessionStorageIsolatesTenants(t *testing.T) {
 
 	// b can't update a's session
 	_, err = p.Save(b, APISession{SessionID: aID, Username: "u", ExpiresAt: time.Now().Add(time.Hour), UserAgent: "hijack"})
-	require.NoError(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
 	_, got, err = p.Get(a, aID)
 	require.NoError(t, err)
 	assert.Equal(t, "ua", got.UserAgent)

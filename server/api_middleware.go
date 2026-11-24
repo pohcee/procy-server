@@ -12,6 +12,7 @@ import (
 	rportplus "github.com/openrport/openrport/plus"
 	"github.com/openrport/openrport/server/api"
 	errors2 "github.com/openrport/openrport/server/api/errors"
+	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/bearer"
 	"github.com/openrport/openrport/server/clients/clienttunnel"
@@ -262,6 +263,10 @@ func (al *APIListener) updateTokenAccess(ctx context.Context, token string, acce
 	sessionInfo.IPAddress = remoteAddress
 
 	_, err = al.apiSessions.Save(ctx, sessionInfo)
+	if errors.Is(err, session.ErrNotFound) {
+		// logged out while this request was running; the next request with the token fails authentication
+		return nil
+	}
 	if err != nil {
 		return err
 	}

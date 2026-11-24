@@ -73,6 +73,16 @@ func APISessions(t *testing.T, newRepo Factory[session.StorageProvider]) {
 		assertSameSession(t, upd, got)
 	})
 
+	t.Run("SaveOfDeletedSessionIsNotFound", func(t *testing.T) {
+		p := newRepo(t)
+		id, err := p.Save(a, expiredAPISession("u"))
+		require.NoError(t, err)
+		require.NoError(t, p.Delete(a, id))
+		_, err = p.Save(a, session.APISession{SessionID: id, Username: "u", ExpiresAt: time.Now().Add(time.Hour)})
+		assert.ErrorIs(t, err, session.ErrNotFound, "an update must not create the session again")
+		requireSessionFound(a, t, p, id, false)
+	})
+
 	t.Run("GetAllOnlyUnexpired", func(t *testing.T) {
 		p := newRepo(t)
 		live1, err := p.Save(a, liveAPISession("u"))
@@ -151,7 +161,7 @@ func APISessions(t *testing.T, newRepo Factory[session.StorageProvider]) {
 
 		// b can't update a's session
 		_, err = p.Save(b, session.APISession{SessionID: aID, Username: "u", ExpiresAt: time.Now().Add(time.Hour), UserAgent: "hijack"})
-		require.NoError(t, err)
+		assert.ErrorIs(t, err, session.ErrNotFound)
 		_, got, err = p.Get(a, aID)
 		require.NoError(t, err)
 		assert.Equal(t, "ua", got.UserAgent)
