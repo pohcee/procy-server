@@ -11,6 +11,8 @@ Parameters:
 -m  do not install or update tacoscript
 -f  force update without comparing versions
 -r  activate file reception
+-s  Point the client at this server's connect URLs ([server] url): the first as server, the others as
+    fallback_servers. Supervised: if the client does not reconnect, the previous rport.conf is restored.
 "
     exit
 }
@@ -42,7 +44,7 @@ if (-Not(Test-Path "$( $installDir )\rport.exe"))
 }
 Set-Location $installDir
 Enable-ModernTls
-if ($f)
+if ($f -and -not $s)
 {
     # If current version is set to 0 an update will always be forced
     Write-Output "* Forcing an update or redownload"
@@ -56,6 +58,24 @@ else
 
 $isMsiInstallation = $False
 
+$downloadFile = $null
+$switchServer = $null
+$switchFallback = @()
+if ($s)
+{
+    if (@($RportConnectUrls).Count -eq 0)
+    {
+        Write-Output "* No public connect URL configured on the server ([server] url). Nothing changed."
+        Set-Location $myLocation
+        exit 1
+    }
+    $switchServer = @($RportConnectUrls)[0]
+    $switchFallback = @(@($RportConnectUrls) | Select-Object -Skip 1)
+    # Check the config can be changed before anything else is touched.
+    $null = Set-ClientServers -ConfigContent (Get-Content $configFile -Encoding utf8) -Server $switchServer -Fallback $switchFallback
+}
+else
+{
 $downloadFile = Invoke-Download -gt $currentVersion -pkgUrl $pkgUrl
 If ((Get-Item $downloadFile).length -eq 0)
 {
@@ -70,6 +90,7 @@ If ((Get-Item $downloadFile).length -eq 0)
     exit 0
 }
 Write-Output "* Download finished and stored to $( $downloadFile ) ."
+}
 
 # Updates are installed by a supervisor that runs as a scheduled task, detached from the rport
 # service. It keeps the previous rport.exe and rport.conf, checks that the new client connects to the
@@ -80,7 +101,10 @@ $stableSecs = 20
 if ((Test-Path "$stage\status.json") -and ((Get-Content -Raw "$stage\status.json") -match '"status":"running"') -and
         (Get-ScheduledTask -TaskName 'rport-update-*' -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Running' }))
 {
-    Remove-Item $downloadFile -Force
+    if ($downloadFile)
+    {
+        Remove-Item $downloadFile -Force
+    }
     throw "Another update is running. See $stage\update.log"
 }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
@@ -100,7 +124,19 @@ Write-Output "* Backed up rport.exe ($currentVersion) and rport.conf to $stage\p
 
 $kind = 'exe'
 $migrate = $false
-if ($downloadFile -match '\.msi$')
+$change = ''
+if ($s)
+{
+    Copy-Item "$installDir\rport.exe" "$stage\new\rport.exe"
+    $targetVersion = $currentVersion
+    $change = "server to $switchServer"
+    if ($switchFallback.Count -gt 0)
+    {
+        $change += " (fallback $( $switchFallback -join ' ' ))"
+    }
+    Write-Output "* Switching the $change"
+}
+elseif ($downloadFile -match '\.msi$')
 {
     $kind = 'msi'
     # Installed from a ZIP, updated with an MSI: the supervisor removes the old service registration first.
@@ -354,6 +390,13 @@ function Invoke-Later
     Write-Output "  It will be executed within $( $Delay ) seconds."
 }
 
+if ($s)
+{
+    # A server switch changes only [client] server and fallback_servers.
+    $configContent = @(Set-ClientServers -ConfigContent (Get-Content $configFile -Encoding utf8) -Server $switchServer -Fallback $switchFallback)
+}
+else
+{
 # Install or update tacoscript
 if ($m -eq $false)
 {
@@ -371,6 +414,7 @@ $configContent = Enable-Network-Monitoring -ConfigContent $configContent
 $configContent = Enable-FileReception -ConfigContent $configContent -Switch $r
 # Insert watchdog integration
 $configContent = Add-WatchdogIntegration -ConfigContent $configContent
+}
 # Finally, write the config to a file
 $Utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $False
 [IO.File]::WriteAllLines($configFile, $configContent, $Utf8NoBomEncoding)
@@ -384,7 +428,7 @@ $settingsFile = "$stage\settings.json"
 $settings = [ordered]@{
     Stage = $stage; InstallDir = $installDir; ConfigFile = $configFile; LogFile = (Get-ClientLogFile)
     FromVersion = $currentVersion; ToVersion = $targetVersion; Kind = $kind; Migrate = $migrate
-    HealthTimeout = $healthTimeout; StableSecs = $stableSecs; TaskName = $taskName
+    HealthTimeout = $healthTimeout; StableSecs = $stableSecs; TaskName = $taskName; Change = $change
 }
 $Utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $False
 [IO.File]::WriteAllText($settingsFile, ($settings | ConvertTo-Json), $Utf8NoBomEncoding)

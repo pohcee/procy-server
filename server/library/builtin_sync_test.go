@@ -32,7 +32,7 @@ func TestSyncCreatesBuiltins(t *testing.T) {
 
 	created, updated, _, err := SyncBuiltins(context.Background(), s, bs, "1.2.3", t0)
 	require.NoError(t, err)
-	assert.Equal(t, 2, created)
+	assert.Equal(t, len(bs), created)
 	assert.Equal(t, 0, updated)
 
 	e := entryByKey(t, s, "os-updates")

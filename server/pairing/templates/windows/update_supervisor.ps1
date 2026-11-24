@@ -7,7 +7,8 @@
 #
 # Settings come from the JSON file given as -Settings:
 #   Stage, InstallDir, ConfigFile, LogFile, FromVersion, ToVersion, Kind (exe|msi), Migrate (bool),
-#   HealthTimeout, StableSecs, TaskName
+#   HealthTimeout, StableSecs, TaskName, Change (optional: what is changed, for the messages;
+#   default "<FromVersion> to <ToVersion>")
 # Result: <Stage>\status.json and <Stage>\update.log, plus Application event log entries (source rport-update).
 param([string]$Settings)
 $ErrorActionPreference = 'Continue'
@@ -17,6 +18,11 @@ $ulog = Join-Path $stage 'update.log'
 $exe = Join-Path $s.InstallDir 'rport.exe'
 $started = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 $script:HealthError = ''
+$change = "$( $s.FromVersion ) to $( $s.ToVersion )"
+if ($s.Change)
+{
+    $change = $s.Change
+}
 $utf8 = New-Object System.Text.UTF8Encoding $False
 
 function Write-UpdateLog([string]$Message, [string]$Level = 'Information')
@@ -176,8 +182,8 @@ function Complete([string]$State, [string]$Message, [int]$Code)
     exit $Code
 }
 
-Write-UpdateLog "update $( $s.FromVersion ) -> $( $s.ToVersion ) started ($( $s.Kind ))"
-Set-UpdateStatus 'running' "updating $( $s.FromVersion ) to $( $s.ToVersion )"
+Write-UpdateLog "update started: $change ($( $s.Kind ))"
+Set-UpdateStatus 'running' "updating $change"
 
 # Give the client time to report the result of the command that started the update.
 Write-UpdateLog "waiting 5s so the client can report the result of the update command"
@@ -203,7 +209,7 @@ Start-Client
 if (Wait-Healthy $offset)
 {
     Write-UpdateLog "update to $( $s.ToVersion ) succeeded: the client is connected"
-    Complete 'success' "updated $( $s.FromVersion ) to $( $s.ToVersion ); the client is connected" 0
+    Complete 'success' "updated $change; the client is connected" 0
 }
 
 $firstError = $script:HealthError

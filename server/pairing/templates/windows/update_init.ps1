@@ -18,5 +18,7 @@ Param(
 # Enable file reception
     [Switch]$r,
 # Use a specific version from any URL
-    [string]$pkgUrl
+    [string]$pkgUrl,
+# Switch the client to this server's connect URLs ([server] url)
+    [Switch]$s
 )

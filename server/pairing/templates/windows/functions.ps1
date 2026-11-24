@@ -714,3 +714,70 @@ function Get-MSIVersionInfo
         throw "Failed to get MSI file version: {0}." -f $_
     }
 }
+function Set-ClientServers
+{
+    <#
+    .SYNOPSIS
+        Point [client] at a new server: replaces the live "server" line and every live "fallback_servers"
+        key (also one over several lines) in the [client] section; nothing else changes. Throws if [client]
+        has no live "server" line.
+    #>
+    Param(
+        [Parameter(Mandatory)]
+        [Object[]]$ConfigContent,
+        [Parameter(Mandatory)]
+        [String]$Server,
+        [String[]]$Fallback = @()
+    )
+    foreach ($v in @($Server) + @($Fallback))
+    {
+        if (-not $v -or $v -match '["''\\]')
+        {
+            throw "Invalid server address: $v"
+        }
+    }
+    $strRe = '"[^"]*"|''[^'']*'''
+    $list = (@($Fallback) | Where-Object { $_ } | ForEach-Object { '"' + $_ + '"' }) -join ', '
+    $out = New-Object System.Collections.Generic.List[string]
+    $section = ''
+    $skip = $false
+    $done = $false
+    foreach ($line in $ConfigContent)
+    {
+        $l = [string]$line
+        if ($skip)
+        {
+            if (($l -replace $strRe, '') -match '\]')
+            {
+                $skip = $false
+            }
+            continue
+        }
+        if ($l -match '^\s*\[\s*([^\]=]*?)\s*\]\s*(#.*)?$')
+        {
+            $section = $Matches[1]
+        }
+        if ($section -eq 'client' -and $l -match '^\s*fallback_servers\s*=')
+        {
+            $rest = ($l -replace '^[^=]*=', '') -replace $strRe, ''
+            if ($rest -notmatch '\]')
+            {
+                $skip = $true
+            }
+            continue
+        }
+        if ($section -eq 'client' -and -not $done -and $l -match '^\s*server\s*=')
+        {
+            $out.Add("  server = `"$Server`"")
+            $out.Add("  fallback_servers = [$list]")
+            $done = $true
+            continue
+        }
+        $out.Add($l)
+    }
+    if (-not $done)
+    {
+        throw "No server setting found in the [client] section of rport.conf"
+    }
+    $out.ToArray()
+}

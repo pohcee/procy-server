@@ -220,3 +220,16 @@ func TestUpdateScriptOffersServerSwitch(t *testing.T) {
 	out, err := exec.Command(sh, "-n", "-c", s).CombinedOutput()
 	assert.NoError(t, err, "the rendered script parses: %s", out)
 }
+
+func TestWindowsUpdateScriptOffersServerSwitch(t *testing.T) {
+	body, _ := renderUpdate(osWindows, scriptSettings{DownloadsURL: dlURL, PairingURL: publicURL + "/pairing",
+		ConnectURLs: []string{"http://connect.procy.sh", "http://us-central1.connect.procy.sh"}})
+	s := string(body)
+	assert.Contains(t, s, `$RportConnectUrls = @("http://connect.procy.sh", "http://us-central1.connect.procy.sh")`)
+	assert.Contains(t, s, "function Set-ClientServers")
+	assert.Contains(t, s, "[Switch]$s")
+	assert.Contains(t, s, "Change = $change", "the supervisor reports what was switched")
+
+	empty, _ := renderUpdate(osWindows, scriptSettings{DownloadsURL: dlURL, PairingURL: publicURL + "/pairing"})
+	assert.Contains(t, string(empty), "$RportConnectUrls = @()\n")
+}
