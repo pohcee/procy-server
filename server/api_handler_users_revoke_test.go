@@ -37,7 +37,7 @@ func TestDeletingAUserRevokesTheirSessionsAndAPITokens(t *testing.T) {
 
 	al := &APIListener{
 		Logger:       testLog,
-		Server:       &Server{config: &chconfig.Config{}},
+		apiServices:  &apiServices{config: &chconfig.Config{}},
 		userService:  deletableUsersService{UserService: users.NewAPIService(users.NewStaticProvider(nil), false, 0, -1)},
 		apiSessions:  sessions,
 		tokenManager: tokens,

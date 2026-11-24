@@ -21,7 +21,7 @@ import (
 )
 
 func (al *APIListener) getAlertingService() (as alertingcap.Service, statusCode int, err error) {
-	plusManager := al.Server.plusManager
+	plusManager := al.plusManager
 	if plusManager == nil {
 		return nil, http.StatusUnauthorized, rportplus.ErrPlusNotAvailable
 	}

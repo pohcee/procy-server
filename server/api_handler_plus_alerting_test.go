@@ -117,7 +117,7 @@ func setupTestAPIListenerForAlerting(
 
 	al = &APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{
 					DefaultUserGroup: userGroup,

@@ -10,6 +10,6 @@ import (
 )
 
 func TestNewAPIListenerRequiresTenant(t *testing.T) {
-	_, err := NewAPIListener(context.Background(), &Server{}, "")
+	_, err := NewAPIListener(context.Background(), APIListenerOptions{})
 	assert.ErrorIs(t, err, tenant.ErrMissing)
 }

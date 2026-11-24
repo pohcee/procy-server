@@ -14,7 +14,7 @@ import (
 func TestRouterSetsDefaultTenant(t *testing.T) {
 	al := &APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{API: chconfig.APIConfig{MaxRequestBytes: 1024 * 1024}},
 		},
 		Logger: testLog,

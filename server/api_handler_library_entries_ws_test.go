@@ -74,7 +74,7 @@ func TestWSRunEntryStreamsResults(t *testing.T) {
 	require.NotEmpty(t, linuxJID)
 
 	// a result from an old client that does not echo the library fields
-	cl := &ClientListener{logger: testLog, server: listenerServicesOf(e.al.Server)}
+	cl := &ClientListener{logger: testLog, server: listenerServicesOf(e.al)}
 	res := `{"jid":"` + linuxJID + `","multi_job_id":"` + mjid + `","client_id":"c-linux","status":"successful","started_at":"2026-01-01T00:00:00Z","result":{"stdout":"up 1 day"}}`
 	_, err := cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(res))
 	require.NoError(t, err)
@@ -122,21 +122,21 @@ func TestTypedResultForwardedUntouched(t *testing.T) {
 			return
 		}
 		cts := newTestConcurrentWS(conn, e.al)
-		e.al.Server.uiJobWebSockets.Set("t1", cts)
+		e.al.uiJobWebSockets.Set("t1", cts)
 		<-r.Context().Done()
 	}))
 	defer s.Close()
 	c, _, err := websocket.DefaultDialer.Dial(httpToWS(t, s.URL), nil)
 	require.NoError(t, err)
 	defer c.Close()
-	require.Eventually(t, func() bool { return e.al.Server.uiJobWebSockets.Get("t1") != nil }, 5*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return e.al.uiJobWebSockets.Get("t1") != nil }, 5*time.Second, 10*time.Millisecond)
 	go func() {
 		_, m, _ := c.ReadMessage()
 		received <- m
 	}()
 
 	raw := `{"jid":"t1","client_id":"c-linux","status":"successful",  "started_at":"2026-01-01T00:00:00Z"}`
-	cl := &ClientListener{logger: testLog, server: listenerServicesOf(e.al.Server)}
+	cl := &ClientListener{logger: testLog, server: listenerServicesOf(e.al)}
 	_, err = cl.saveCmdResult(tenant.WithID(context.Background(), tenant.Default), []byte(raw))
 	require.NoError(t, err)
 	select {

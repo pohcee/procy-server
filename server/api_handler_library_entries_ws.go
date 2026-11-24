@@ -73,8 +73,8 @@ func (al *APIListener) handleLibraryEntriesWS(w http.ResponseWriter, req *http.R
 		return
 	}
 
-	al.Server.uiJobWebSockets.Set(multiJob.JID, uiConnTS)
-	defer al.Server.uiJobWebSockets.Delete(multiJob.JID)
+	al.uiJobWebSockets.Set(multiJob.JID, uiConnTS)
+	defer al.uiJobWebSockets.Delete(multiJob.JID)
 
 	al.auditLog.Entry(auditlog.ApplicationLibraryEntry, auditlog.ActionRun).
 		WithHTTPRequest(req).

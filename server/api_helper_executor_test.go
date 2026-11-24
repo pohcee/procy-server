@@ -293,7 +293,7 @@ type doneSignalingJobProvider struct {
 func (p *doneSignalingJobProvider) CreateJob(ctx context.Context, job *models.Job) error {
 	err := p.SqliteProvider.CreateJob(ctx, job)
 	if job.Status == models.JobStatusRunning && job.MultiJobID != nil {
-		if ch := p.al.jobsDoneChannel.Get(*job.MultiJobID); ch != nil {
+		if ch := doneChannelsOf(p.al).Get(*job.MultiJobID); ch != nil {
 			finished := *job
 			finished.Status = models.JobStatusSuccessful
 			go func() { ch <- &finished }()

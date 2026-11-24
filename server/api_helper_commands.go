@@ -61,8 +61,8 @@ func (al *APIListener) handleCommandsExecutionWS(
 		uiConnTS.WriteError("Could not generate job id.", err)
 		return
 	}
-	al.Server.uiJobWebSockets.Set(jid, uiConnTS)
-	defer al.Server.uiJobWebSockets.Delete(jid)
+	al.uiJobWebSockets.Set(jid, uiConnTS)
+	defer al.uiJobWebSockets.Delete(jid)
 
 	auditLogEntry.
 		WithRequest(inboundMsg).

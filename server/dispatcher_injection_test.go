@@ -78,7 +78,7 @@ func TestPostCommandUsesDispatcher(t *testing.T) {
 	user := &users.User{Username: "admin", Groups: []string{users.Administrators}}
 	al := &APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1}, &hour, testLog), testLog, nil),
 			config:        &chconfig.Config{API: chconfig.APIConfig{MaxRequestBytes: 1 << 20}},
 			jobProvider:   jp,

@@ -2,6 +2,7 @@ package chserver
 
 import (
 	"context"
+	"sync"
 
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients/clientdata"
@@ -72,18 +73,11 @@ func (l liveLibrary) ActiveForRun(ctx context.Context, id string) (*library.Entr
 // each multi-client run, and with insecureForTests does not wait for sequential results. Call it
 // again after changing insecureForTests or config.
 func useLocalDispatcher(al *APIListener) {
-	if al.Server == nil {
-		al.Server = &Server{}
+	if al.apiServices == nil {
+		al.apiServices = &apiServices{}
 	}
 	if al.dispatcher == nil {
-		grants := al.fileGrants
-		if grants == nil {
-			grants = dispatch.NewFileGrants()
-		}
-		al.dispatcher = dispatch.NewLocal(liveClients{al}, grants, testLog)
-	}
-	if al.jobsDoneChannel == nil {
-		al.jobsDoneChannel = jobrunner.NewDoneChannels()
+		al.dispatcher = dispatch.NewLocal(liveClients{al}, dispatch.NewFileGrants(), testLog)
 	}
 	cfg := al.config
 	if cfg == nil {
@@ -95,7 +89,7 @@ func useLocalDispatcher(al *APIListener) {
 		Targets:    liveTargets{al},
 		Library:    liveLibrary{al},
 		Config:     cfg,
-		Done:       al.jobsDoneChannel,
+		Done:       doneChannelsOf(al),
 		Logger:     testLog,
 		NewJobID:   func() (string, error) { return generateNewJobID() },
 		OnRunDone: func() {
@@ -117,19 +111,26 @@ func newUIStreams() *ws.WebSocketCache {
 	return &c
 }
 
-// listenerServicesOf is what NewServer gives the client listener from s.
-func listenerServicesOf(s *Server) *listenerServices {
+// testDoneChannels are the sequential done channels of each hand-built API listener's runner.
+var testDoneChannels sync.Map
+
+// doneChannelsOf returns the done channels the runner of al (made by useLocalDispatcher) uses.
+func doneChannelsOf(al *APIListener) *jobrunner.DoneChannels {
+	done, _ := testDoneChannels.LoadOrStore(al, jobrunner.NewDoneChannels())
+	return done.(*jobrunner.DoneChannels)
+}
+
+// listenerServicesOf is a client listener on the services of a hand-built API listener, sharing
+// its UI job streams and done channels as NewServer does.
+func listenerServicesOf(al *APIListener) *listenerServices {
 	return &listenerServices{
-		config:             s.config,
-		clientService:      s.clientService,
-		clientAuthProvider: s.clientAuthProvider,
-		auditLog:           s.auditLog,
-		jobProvider:        s.jobProvider,
-		jobsDoneChannel:    s.jobsDoneChannel,
-		uiJobWebSockets:    &s.uiJobWebSockets,
-		fileGrants:         s.fileGrants,
-		monitoringQueue:    s.monitoringQueue,
-		plusManager:        s.plusManager,
-		capabilities:       s.capabilities,
+		config:             al.config,
+		clientService:      al.clientService,
+		clientAuthProvider: al.clientAuthProvider,
+		auditLog:           al.auditLog,
+		jobProvider:        al.jobProvider,
+		jobsDoneChannel:    doneChannelsOf(al),
+		uiJobWebSockets:    al.uiJobWebSockets,
+		plusManager:        al.plusManager,
 	}
 }

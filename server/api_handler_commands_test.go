@@ -32,7 +32,6 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/test/jb"
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/logger"
@@ -42,7 +41,6 @@ import (
 	"github.com/openrport/openrport/share/security"
 	"github.com/openrport/openrport/share/tenant"
 	"github.com/openrport/openrport/share/test"
-	"github.com/openrport/openrport/share/ws"
 )
 
 type JobProviderMock struct {
@@ -281,7 +279,7 @@ func TestHandlePostCommand(t *testing.T) {
 			clientService := clients.NewClientService(nil, nil, clients.NewClientRepository(tc.clients, &hour, testLog), testLog, nil)
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: clientService,
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
@@ -388,7 +386,7 @@ func TestHandleGetCommand(t *testing.T) {
 			al := APIListener{
 				insecureForTests: true,
 				Logger:           testLog,
-				Server: &Server{
+				apiServices: &apiServices{
 					config: &chconfig.Config{
 						API: chconfig.APIConfig{
 							MaxRequestBytes: 1024 * 1024,
@@ -498,7 +496,7 @@ func TestHandleGetCommands(t *testing.T) {
 			al := APIListener{
 				insecureForTests: true,
 				Logger:           testLog,
-				Server: &Server{
+				apiServices: &apiServices{
 					config: &chconfig.Config{
 						API: chconfig.APIConfig{
 							MaxRequestBytes: 1024 * 1024,
@@ -662,7 +660,7 @@ func TestHandlePostMultiClientCommand(t *testing.T) {
 			// given
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1, c2, c3}, &hour, testLog), testLog, nil),
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
@@ -672,7 +670,6 @@ func TestHandlePostMultiClientCommand(t *testing.T) {
 							MaxRequestBytes: 1024 * 1024,
 						},
 					},
-					jobsDoneChannel:     jobrunner.NewDoneChannels(),
 					clientGroupProvider: mockClientGroupProvider{},
 				},
 				userService: users.NewAPIService(users.NewStaticProvider([]*users.User{curUser}), false, 0, -1),
@@ -825,7 +822,7 @@ func TestHandlePostMultiClientCommandWithPausedClient(t *testing.T) {
 			// given
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1, c2}, &hour, testLog), testLog, nil),
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
@@ -835,7 +832,6 @@ func TestHandlePostMultiClientCommandWithPausedClient(t *testing.T) {
 							MaxRequestBytes: 1024 * 1024,
 						},
 					},
-					jobsDoneChannel:     jobrunner.NewDoneChannels(),
 					clientGroupProvider: mockClientGroupProvider{},
 				},
 				userService: users.NewAPIService(users.NewStaticProvider([]*users.User{curUser}), false, 0, -1),
@@ -1517,7 +1513,7 @@ func TestHandlePostMultiClientWSCommandWithTags(t *testing.T) {
 
 				// gotta find the job id somehow. not available in the WS as that is updated via
 				// the client listener which isn't running as part of the test.
-				multiJobIDs := al.jobsDoneChannel.GetAllKeys()
+				multiJobIDs := doneChannelsOf(al).GetAllKeys()
 				multiJobID := multiJobIDs[0]
 				multiJob, err := jp.GetMultiJob(ctx, multiJobID)
 				assert.NoError(t, err)
@@ -1991,7 +1987,7 @@ func TestHandlePostMultiClientWSScriptWithTags(t *testing.T) {
 
 				// gotta find the job id somehow. not available in the WS as that is updated via
 				// the client listener which isn't running as part of the test.
-				multiJobIDs := al.jobsDoneChannel.GetAllKeys()
+				multiJobIDs := doneChannelsOf(al).GetAllKeys()
 				multiJobID := multiJobIDs[0]
 				multiJob, err := jp.GetMultiJob(ctx, multiJobID)
 				assert.NoError(t, err)
@@ -2077,7 +2073,7 @@ func makeAPIListener(
 	clientService := clients.NewClientService(nil, nil, clientRepo, testLog, nil)
 	al = &APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			clientService: clientService,
 			config: &chconfig.Config{
 				Server: chconfig.ServerConfig{
@@ -2087,8 +2083,7 @@ func makeAPIListener(
 					MaxRequestBytes: 1024 * 1024,
 				},
 			},
-			uiJobWebSockets: ws.NewWebSocketCache(),
-			jobsDoneChannel: jobrunner.NewDoneChannels(),
+			uiJobWebSockets: newUIStreams(),
 		},
 		bannedUsers:  security.NewBanList(time.Duration(60) * time.Second),
 		tokenManager: tokenManager,

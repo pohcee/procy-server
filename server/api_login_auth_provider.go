@@ -64,7 +64,7 @@ func (al *APIListener) handleGetAuthSettings(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	plusManager := al.Server.plusManager
+	plusManager := al.plusManager
 	capEx := plusManager.GetOAuthCapabilityEx()
 	if capEx == nil {
 		al.jsonErrorResponse(w, http.StatusForbidden, rportplus.ErrCapabilityNotAvailable(rportplus.PlusOAuthCapability))
@@ -90,7 +90,7 @@ func (al *APIListener) handleGetAuthDeviceSettings(w http.ResponseWriter, req *h
 		return
 	}
 
-	plusManager := al.Server.plusManager
+	plusManager := al.plusManager
 	capEx := plusManager.GetOAuthCapabilityEx()
 	if capEx == nil {
 		al.jsonErrorResponse(w, http.StatusForbidden, rportplus.ErrCapabilityNotAvailable(rportplus.PlusOAuthCapability))

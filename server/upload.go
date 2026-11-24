@@ -160,9 +160,9 @@ func (al *APIListener) handleUploadsWS(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	al.Server.uploadWebSockets.Store(connID, uiConn)
+	al.uploadWebSockets.Store(connID, uiConn)
 
-	defer al.Server.uploadWebSockets.Delete(connID)
+	defer al.uploadWebSockets.Delete(connID)
 	defer uiConn.Close()
 
 	for {

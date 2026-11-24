@@ -19,6 +19,17 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jpillora/requestlog"
 
+	"github.com/openrport/openrport/server/acme"
+	"github.com/openrport/openrport/server/auditlog"
+	servercaps "github.com/openrport/openrport/server/capabilities"
+	"github.com/openrport/openrport/server/cgroups"
+	"github.com/openrport/openrport/server/chconfig"
+	"github.com/openrport/openrport/server/clients"
+	"github.com/openrport/openrport/server/clientsauth"
+	"github.com/openrport/openrport/server/dispatch"
+	"github.com/openrport/openrport/server/jobrunner"
+	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/notifications/channels/rmailer"
 	"github.com/openrport/openrport/server/notifications/channels/scriptRunner"
@@ -26,6 +37,7 @@ import (
 	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
 
 	"github.com/openrport/openrport/server/api/authorization"
+	"github.com/openrport/openrport/server/api/jobs/schedule"
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/clients/storedtunnels"
 	"github.com/openrport/openrport/server/pairing"
@@ -40,21 +52,73 @@ import (
 	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/enums"
+	"github.com/openrport/openrport/share/files"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/random"
 	"github.com/openrport/openrport/share/security"
 	"github.com/openrport/openrport/share/tenant"
+	"github.com/openrport/openrport/share/ws"
 )
 
 const (
 	DefaultMaxCheckPortTimeout = time.Minute
 )
 
+// APIListenerOptions are what the API listener (the API and the web UI) needs from the rest of the
+// server. Config, Repositories, ClientService, Dispatcher, JobRunner, Library, Schedules, AuditLog
+// and Files are required; Acme is required when [api] enable_acme is set.
+type APIListenerOptions struct {
+	Config *chconfig.Config
+	// Fingerprint is the server's SSH host key fingerprint, shown to API users.
+	Fingerprint string
+	// Repositories is the storage; every field the API uses must be set.
+	Repositories  *Repositories
+	ClientService clients.ClientService
+	// Dispatcher does the work on clients.
+	Dispatcher dispatch.Dispatcher
+	// JobRunner runs the commands, scripts and library entries the API starts.
+	JobRunner *jobrunner.Runner
+	Library   *library.Manager
+	Schedules *schedule.Manager
+	AuditLog  *auditlog.AuditLog
+	// Monitoring answers the metrics queries.
+	Monitoring  monitoring.Service
+	Files       files.FileAPI
+	PlusManager rportplus.Manager
+	Acme        *acme.Acme
+	// UIJobStreams are the UI websockets job results are streamed to (shared with the client
+	// listener); nil gets an empty cache.
+	UIJobStreams *ws.WebSocketCache
+	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
+	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
+}
+
+// apiServices holds the options under the names the handler code uses.
+type apiServices struct {
+	config               *chconfig.Config
+	clientService        clients.ClientService
+	clientAuthProvider   clientsauth.Provider
+	jobProvider          JobProvider
+	clientGroupProvider  cgroups.ClientGroupProvider
+	monitoringService    monitoring.Service
+	dispatcher           dispatch.Dispatcher
+	jobRunner            *jobrunner.Runner
+	libraryManager       *library.Manager
+	scheduleManager      *schedule.Manager
+	auditLog             *auditlog.AuditLog
+	filesAPI             files.FileAPI
+	plusManager          rportplus.Manager
+	uiJobWebSockets      *ws.WebSocketCache
+	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
+}
+
 type APIListener struct {
 	*logger.Logger
 	errResponseLogger *logger.Logger
 
-	*Server
+	*apiServices
+
+	uploadWebSockets sync.Map
 
 	fingerprint       string
 	apiSessions       *session.Cache
@@ -108,18 +172,43 @@ type UserService interface {
 	GetEffectiveUserExtendedPermissions(ctx context.Context, user *users.User) ([]extperm.PermissionParams, []extperm.PermissionParams)
 }
 
-func NewAPIListener(
-	ctx context.Context,
-	server *Server,
-	fingerprint string,
-) (*APIListener, error) {
-	// ctx is the server context; it carries the tenant that startup work (session cache, library import and
-	// built-in sync) runs in.
+// NewAPIListener returns the API listener. It needs no client listener: work on clients goes
+// through o.Dispatcher. ctx is the server context; it carries the tenant that startup work (the
+// session cache) runs in.
+func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, error) {
 	if _, err := tenant.FromContext(ctx); err != nil {
 		return nil, fmt.Errorf("api listener: %w", err)
 	}
+	switch {
+	case o.Config == nil:
+		return nil, errors.New("api listener: Config is required")
+	case o.Repositories == nil:
+		return nil, errors.New("api listener: Repositories is required")
+	case o.ClientService == nil:
+		return nil, errors.New("api listener: ClientService is required")
+	case o.Dispatcher == nil:
+		return nil, errors.New("api listener: Dispatcher is required")
+	case o.JobRunner == nil:
+		return nil, errors.New("api listener: JobRunner is required")
+	case o.Library == nil:
+		return nil, errors.New("api listener: Library is required")
+	case o.Schedules == nil:
+		return nil, errors.New("api listener: Schedules is required")
+	case o.AuditLog == nil:
+		return nil, errors.New("api listener: AuditLog is required")
+	case o.Files == nil:
+		return nil, errors.New("api listener: Files is required")
+	case o.Config.API.EnableAcme && o.Acme == nil:
+		return nil, errors.New("api listener: Acme is required with enable_acme")
+	}
+	uiStreams := o.UIJobStreams
+	if uiStreams == nil {
+		streams := ws.NewWebSocketCache()
+		uiStreams = &streams
+	}
+	fingerprint := o.Fingerprint
 
-	config := server.config
+	config := o.Config
 
 	if config.Server.CheckPortTimeout > DefaultMaxCheckPortTimeout {
 		return nil, fmt.Errorf("'check_port_timeout' can not be more than %s", DefaultMaxCheckPortTimeout)
@@ -127,9 +216,9 @@ func NewAPIListener(
 
 	vaultLogger := logger.NewLogger("vault", config.Logging.LogOutput, config.Logging.LogLevel)
 
-	repos := server.repos
+	repos := o.Repositories
 
-	notificationsLogger := server.Logger.Fork("notifications")
+	notificationsLogger := logger.NewLogger("server", config.Logging.LogOutput, config.Logging.LogLevel).Fork("notifications")
 
 	store := repos.Notifications
 	scriptConsumer := scriptRunner.NewConsumer(notificationsLogger.Fork("scriptrunner"), config.Notifications.NotificationScriptDir)
@@ -171,8 +260,8 @@ func NewAPIListener(
 	}
 
 	if config.API.EnableAcme {
-		server.acme.AddHost(config.API.BaseURL)
-		tlsConfig := server.acme.ApplyTLSConfig(security.TLSConfig(config.API.TLSMin))
+		o.Acme.AddHost(config.API.BaseURL)
+		tlsConfig := o.Acme.ApplyTLSConfig(security.TLSConfig(config.API.TLSMin))
 		HTTPServerOptions = []chshare.ServerOption{
 			chshare.WithTLS("", "", tlsConfig),
 		}
@@ -180,7 +269,23 @@ func NewAPIListener(
 
 	allog := logger.NewLogger("api-listener", config.Logging.LogOutput, config.Logging.LogLevel)
 	a := &APIListener{
-		Server:                 server,
+		apiServices: &apiServices{
+			config:               config,
+			clientService:        o.ClientService,
+			clientAuthProvider:   repos.ClientAuth,
+			jobProvider:          repos.Jobs,
+			clientGroupProvider:  repos.ClientGroups,
+			monitoringService:    o.Monitoring,
+			dispatcher:           o.Dispatcher,
+			jobRunner:            o.JobRunner,
+			libraryManager:       o.Library,
+			scheduleManager:      o.Schedules,
+			auditLog:             o.AuditLog,
+			filesAPI:             o.Files,
+			plusManager:          o.PlusManager,
+			uiJobWebSockets:      uiStreams,
+			capabilitiesOverride: o.Capabilities,
+		},
 		Logger:                 allog,
 		fingerprint:            fingerprint,
 		httpServer:             chshare.NewHTTPServer(int(config.API.MaxRequestBytes), allog, HTTPServerOptions...),
@@ -314,6 +419,13 @@ func (al *APIListener) Close() error {
 	if al.apiSessions != nil {
 		g.Go(al.apiSessions.Close)
 	}
+
+	al.uploadWebSockets.Range(func(key, value interface{}) bool {
+		if wsConn, ok := value.(*ws.ConcurrentWebSocket); ok {
+			g.Go(wsConn.Close)
+		}
+		return true
+	})
 
 	g.Go(al.notificationsStorage.Close)
 	g.Go(al.notificationsProcessor.Close)

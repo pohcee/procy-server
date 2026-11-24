@@ -115,7 +115,7 @@ func TestHandleGetClientsAuth(t *testing.T) {
 			// given
 			al := APIListener{
 				Logger: testLog,
-				Server: &Server{
+				apiServices: &apiServices{
 					config: &chconfig.Config{
 						API: chconfig.APIConfig{
 							MaxRequestBytes: 1024 * 1024,
@@ -330,7 +330,7 @@ func TestHandlePostClientsAuth(t *testing.T) {
 		t.Run(tc.descr, func(t *testing.T) {
 			// given
 			al := APIListener{
-				Server: &Server{
+				apiServices: &apiServices{
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
 							AuthWrite: tc.clientAuthWrite,
@@ -514,7 +514,7 @@ func TestHandleDeleteClientAuth(t *testing.T) {
 			// given
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: clients.NewClientService(nil, nil, clients.NewClientRepository(tc.clients, &hour, testLog), testLog, nil),
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{

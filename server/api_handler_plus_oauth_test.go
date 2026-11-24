@@ -434,7 +434,7 @@ func setupTestAPIListenerForOAuth(
 	plusConfig.OAuthConfig = oauthConfig
 
 	al = &APIListener{
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{
 					DefaultUserGroup: userGroup,

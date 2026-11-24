@@ -41,7 +41,7 @@ func TestHandleGetClient(t *testing.T) {
 	c1 := clients.New(t).ID("client-1").ClientAuthID(cl1.ID).Logger(testLog).Build()
 	al := APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1}, &hour, testLog), testLog, nil),
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{
@@ -188,7 +188,7 @@ func TestHandleGetClients(t *testing.T) {
 
 	al := APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1, c2}, &hour, testLog), testLog, nil),
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{
@@ -559,7 +559,7 @@ func TestHandlePutTunnelWithName(t *testing.T) {
 
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: mockClientService,
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
@@ -777,7 +777,7 @@ func TestHandlePutTunnelUsingCaddyProxies(t *testing.T) {
 
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: mockClientService,
 					config: &chconfig.Config{
 						Server: chconfig.ServerConfig{
@@ -807,11 +807,11 @@ func TestHandlePutTunnelUsingCaddyProxies(t *testing.T) {
 			useLocalDispatcher(&al)
 			al.initRouter()
 
-			originalGenerator := al.Server.config.Caddy.SubDomainGenerator
-			al.Server.config.Caddy.SubDomainGenerator = &MockSubdomainGenerator{}
+			originalGenerator := al.config.Caddy.SubDomainGenerator
+			al.config.Caddy.SubDomainGenerator = &MockSubdomainGenerator{}
 
 			if tc.DisableCaddyConfig {
-				al.Server.config.Caddy.Enabled = false
+				al.config.Caddy.Enabled = false
 			}
 
 			w := httptest.NewRecorder()
@@ -830,7 +830,7 @@ func TestHandlePutTunnelUsingCaddyProxies(t *testing.T) {
 			}
 
 			// be good and restore the original generator
-			al.Server.config.Caddy.SubDomainGenerator = originalGenerator
+			al.config.Caddy.SubDomainGenerator = originalGenerator
 		})
 	}
 }
@@ -851,7 +851,7 @@ func TestHandlePutClientTunnelACL(t *testing.T) {
 	c1.Tunnels[0].TunnelProtocol = mockTunnelProtocol
 	al := APIListener{
 		insecureForTests: true,
-		Server: &Server{
+		apiServices: &apiServices{
 			clientService: clients.NewClientService(nil, nil, clients.NewClientRepository([]*clientdata.Client{c1}, &hour, testLog), testLog, nil),
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{

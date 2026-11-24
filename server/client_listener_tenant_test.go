@@ -99,7 +99,7 @@ func TestCmdResultAuditEntryIsSavedForTheClientsTenant(t *testing.T) {
 func TestUploadAuditEntryIsSavedForTheClientsTenant(t *testing.T) {
 	al := newTestAuditLog(t)
 	t.Cleanup(func() { al.Close() })
-	api := &APIListener{Logger: testLog, Server: &Server{auditLog: al}}
+	api := &APIListener{Logger: testLog, apiServices: &apiServices{auditLog: al}}
 
 	client := &clientdata.Client{}
 	client.SetID("c1")

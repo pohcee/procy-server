@@ -24,7 +24,7 @@ import (
 func newStatusTestListener(cfg *chconfig.Config, override func(capabilities.Capabilities) capabilities.Capabilities) *APIListener {
 	hour := time.Hour
 	return &APIListener{
-		Server: &Server{
+		apiServices: &apiServices{
 			config:               cfg,
 			clientService:        clients.NewClientService(nil, nil, clients.NewClientRepository(nil, &hour, testLog), testLog, nil),
 			clientAuthProvider:   clientsauth.NewSingleProvider("client", "secret"),

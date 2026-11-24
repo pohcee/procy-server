@@ -22,7 +22,6 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/share/files"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/test"
@@ -342,7 +341,7 @@ func TestHandleFileUploads(t *testing.T) {
 
 			al := APIListener{
 				insecureForTests: true,
-				Server: &Server{
+				apiServices: &apiServices{
 					clientService: clients.NewClientService(
 						nil,
 						nil,
@@ -359,8 +358,7 @@ func TestHandleFileUploads(t *testing.T) {
 							MaxFilePushSize: int64(10 << 20),
 						},
 					},
-					filesAPI:   fileAPIMock,
-					fileGrants: dispatch.NewFileGrants(),
+					filesAPI: fileAPIMock,
 				},
 				Logger:      testLog,
 				userService: MockUserService(tc.user, tc.group),

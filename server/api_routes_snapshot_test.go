@@ -88,7 +88,7 @@ func TestAPIRouteSnapshot(t *testing.T) {
 func newRouteSnapshotListener(cfg *chconfig.Config) *APIListener {
 	return &APIListener{
 		insecureForTests: true,
-		Server:           &Server{config: cfg},
+		apiServices:      &apiServices{config: cfg},
 		Logger:           testLog,
 	}
 }

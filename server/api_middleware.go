@@ -150,7 +150,7 @@ func (al *APIListener) wrapClientAccessMiddleware(next http.Handler) http.Handle
 func (al *APIListener) extendedPermissionDeleteTunnelRaw(ctx context.Context, tunnel *clienttunnel.Tunnel, currUser *users.User) error {
 	// TODO: this should be moved in the permission middleware
 	if rportplus.IsPlusEnabled(al.config.PlusConfig) && !currUser.IsAdmin() && tunnel.Owner != currUser.Username {
-		plusPermissionCapability := al.Server.plusManager.GetExtendedPermissionCapabilityEx()
+		plusPermissionCapability := al.plusManager.GetExtendedPermissionCapabilityEx()
 		tr, _ := al.userService.GetEffectiveUserExtendedPermissions(ctx, currUser)
 		if tr != nil {
 			err := plusPermissionCapability.ValidateExtendedDeleteNonOwnedTunnelPermissionRaw(tr)
@@ -165,7 +165,7 @@ func (al *APIListener) extendedPermissionDeleteTunnelRaw(ctx context.Context, tu
 func (al *APIListener) extendedPermissionCommandRaw(ctx context.Context, cmd string, currUser *users.User) error {
 	if rportplus.IsPlusEnabled(al.config.PlusConfig) {
 		// check only if plus is enabled, no error otherwise
-		plusPermissionCapability := al.Server.plusManager.GetExtendedPermissionCapabilityEx()
+		plusPermissionCapability := al.plusManager.GetExtendedPermissionCapabilityEx()
 		_, cr := al.userService.GetEffectiveUserExtendedPermissions(ctx, currUser)
 		if cr != nil {
 			err := plusPermissionCapability.ValidateExtendedCommandPermissionRaw(cmd, false, cr)
@@ -209,7 +209,7 @@ func (al *APIListener) permissionsMiddleware(permission string) mux.MiddlewareFu
 					(permission == users.PermissionTunnels ||
 						permission == users.PermissionCommands ||
 						permission == users.PermissionScheduler) {
-					plusPermissionCapability := al.Server.plusManager.GetExtendedPermissionCapabilityEx()
+					plusPermissionCapability := al.plusManager.GetExtendedPermissionCapabilityEx()
 					al.Debugf("extended \"%s\" permission middleware: %v %v", permission, r.Method, r.URL.Path)
 					tr, cr := al.userService.GetEffectiveUserExtendedPermissions(r.Context(), currUser)
 					switch permission {

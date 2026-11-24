@@ -37,7 +37,7 @@ func newPairingTestListener(t *testing.T, insecure bool, docRoot string) *APILis
 	al := &APIListener{
 		insecureForTests: insecure,
 		Logger:           logger.NewLogger("api-listener-test", logger.LogOutput{File: os.Stdout}, logger.LogLevelError),
-		Server: &Server{
+		apiServices: &apiServices{
 			config: &chconfig.Config{
 				API: chconfig.APIConfig{
 					DocRoot:         docRoot,
@@ -135,7 +135,7 @@ func TestPairingRoutesDoNotConflictWithDocRoot(t *testing.T) {
 func TestPairingDisabledServesNothing(t *testing.T) {
 	al := &APIListener{
 		insecureForTests: true,
-		Server:           &Server{config: &chconfig.Config{Server: chconfig.ServerConfig{PairingURL: "https://pairing.example.com"}}},
+		apiServices:      &apiServices{config: &chconfig.Config{Server: chconfig.ServerConfig{PairingURL: "https://pairing.example.com"}}},
 	}
 	al.initRouter()
 	rec := httptest.NewRecorder()

@@ -110,7 +110,7 @@ func TestBannedUserIsScopedToTenant(t *testing.T) {
 func TestBasicAuthLooksUpUsersInTheRequestTenant(t *testing.T) {
 	alice := &users.User{Username: "alice", Password: "secret"}
 	al := &APIListener{
-		Server:      &Server{config: &chconfig.Config{}},
+		apiServices: &apiServices{config: &chconfig.Config{}},
 		Logger:      testLog,
 		bannedUsers: security.NewBanList(0),
 		userService: users.NewAPIService(users.NewStaticProvider([]*users.User{alice}), false, 0, -1),

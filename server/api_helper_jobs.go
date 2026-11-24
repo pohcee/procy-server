@@ -20,7 +20,7 @@ type JobProvider = jobs.Provider
 
 // libraryServerURL is the public server URL filled into built-in entries (see jobrunner.LibraryServerURL).
 func (al *APIListener) libraryServerURL() string {
-	if al.Server == nil {
+	if al.apiServices == nil {
 		return ""
 	}
 	return jobrunner.LibraryServerURL(al.config)

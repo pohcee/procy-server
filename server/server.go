@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path"
 	"runtime"
-	"sync"
 	"time"
 
 	"go.etcd.io/bbolt"
@@ -69,11 +68,10 @@ type Server struct {
 	clientGroupProvider cgroups.ClientGroupProvider
 	monitoringService   monitoring.Service
 	// repos is the storage of every domain; storageClosers close the SQLite files no repository closes.
-	repos            *Repositories
-	storageClosers   []func() error
-	uiJobWebSockets  ws.WebSocketCache // used to push job result to UI
-	uploadWebSockets sync.Map
-	fileGrants       *dispatch.FileGrants
+	repos           *Repositories
+	storageClosers  []func() error
+	uiJobWebSockets ws.WebSocketCache // used to push job result to UI
+	fileGrants      *dispatch.FileGrants
 	// dispatcher does all work on clients (ServerOpts.Dispatcher, or the local one)
 	dispatcher      dispatch.Dispatcher
 	jobsDoneChannel *jobrunner.DoneChannels // used for sequential command execution to know when command is finished
@@ -119,12 +117,11 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	chshare.SetTrustedProxies(config.API.ParsedTrustedProxies)
 
 	s := &Server{
-		Logger:           logger.NewLogger("server", config.Logging.LogOutput, config.Logging.LogLevel),
-		config:           config,
-		uiJobWebSockets:  ws.NewWebSocketCache(),
-		uploadWebSockets: sync.Map{},
-		fileGrants:       dispatch.NewFileGrants(),
-		jobsDoneChannel:  jobrunner.NewDoneChannels(),
+		Logger:          logger.NewLogger("server", config.Logging.LogOutput, config.Logging.LogLevel),
+		config:          config,
+		uiJobWebSockets: ws.NewWebSocketCache(),
+		fileGrants:      dispatch.NewFileGrants(),
+		jobsDoneChannel: jobrunner.NewDoneChannels(),
 	}
 
 	s.acme = acme.New(s.Logger.Fork("acme"), config.Server.DataDir, config.Server.AcmeHTTPPort)
@@ -275,17 +272,34 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		return nil, err
 	}
 
-	s.apiListener, err = NewAPIListener(ctx, s, fingerprint)
-	if err != nil {
-		return nil, err
-	}
-
 	s.scheduleManager, err = schedule.New(ctx, s.Logger, repos.Schedules, s.jobRunner, config.Server.RunRemoteCmdTimeoutSec)
 	if err != nil {
 		return nil, err
 	}
 	s.scheduleManager.SetLibrary(s.libraryManager, s.jobProvider)
 	s.libraryManager.SetReferenceChecker(s.scheduleManager)
+
+	// built even when [api] address is empty (then it is not started): notifications are processed in it
+	s.apiListener, err = NewAPIListener(ctx, APIListenerOptions{
+		Config:        config,
+		Fingerprint:   fingerprint,
+		Repositories:  repos,
+		ClientService: s.clientService,
+		Dispatcher:    s.dispatcher,
+		JobRunner:     s.jobRunner,
+		Library:       s.libraryManager,
+		Schedules:     s.scheduleManager,
+		AuditLog:      s.auditLog,
+		Monitoring:    s.monitoringService,
+		Files:         s.filesAPI,
+		PlusManager:   s.plusManager,
+		Acme:          s.acme,
+		UIJobStreams:  &s.uiJobWebSockets,
+		Capabilities:  s.capabilitiesOverride,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	if s.config.CaddyEnabled() {
 		cfg := s.config
@@ -510,13 +524,6 @@ func (s *Server) Close() error {
 	if s.auditLog != nil {
 		wg.Go(s.auditLog.Close)
 	}
-
-	s.uploadWebSockets.Range(func(key, value interface{}) bool {
-		if wsConn, ok := value.(*ws.ConcurrentWebSocket); ok {
-			wg.Go(wsConn.Close)
-		}
-		return true
-	})
 
 	wg.Go(s.monitoringQueue.Close)
 

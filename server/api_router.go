@@ -91,7 +91,7 @@ func (al *APIListener) initRouter() {
 	clientMonitoring := clientDetails.NewRoute().Subrouter()
 	clientMonitoring.Use(al.permissionsMiddleware(users.PermissionMonitoring))
 	clientMonitoring.HandleFunc("/updates-status", al.handleRefreshUpdatesStatus).Methods(http.MethodPost)
-	if al.Server.config.Monitoring.Enabled {
+	if al.config.Monitoring.Enabled {
 		clientMonitoring.HandleFunc("/graph-metrics", al.handleGetClientGraphMetrics).Methods(http.MethodGet)
 		clientMonitoring.HandleFunc("/graph-metrics/{"+routes.ParamGraphName+"}", al.handleGetClientGraphMetricsGraph).Methods(http.MethodGet)
 		clientMonitoring.HandleFunc("/metrics", al.handleGetClientMetrics).Methods(http.MethodGet)
