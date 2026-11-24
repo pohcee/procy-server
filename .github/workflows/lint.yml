@@ -13,15 +13,13 @@ jobs:
 
       - name: golangci-lint
         shell: bash
+        env:
+          # v1.x can't read the export data of Go >= 1.22 and panics
+          GOLANGCI_LINT_VERSION: 2.15.0
         run: |
-          mkdir ~/bin
-          curl -L https://github.com/golangci/golangci-lint/releases/download/v1.50.1/golangci-lint-1.50.1-linux-amd64.tar.gz -o /tmp/golangci-lint-1.50.1-linux-amd64.tar.gz
-          tar xzf /tmp/golangci-lint-1.50.1-linux-amd64.tar.gz -C /tmp/
-          mv /tmp/golangci-lint-1.50.1-linux-amd64/golangci-lint ~/bin
-          echo "Running go mod vendor"
-          go mod vendor
+          mkdir -p ~/bin
+          curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" \
+            | tar xz -C /tmp
+          mv "/tmp/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint" ~/bin
           ~/bin/golangci-lint version
-          echo "Running ~/bin/golangci-lint run"
           ~/bin/golangci-lint run
-
-# trigger workflow registration
