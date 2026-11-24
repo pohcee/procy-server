@@ -29,3 +29,10 @@ func TestCronCallbackInheritsBaseContext(t *testing.T) {
 		t.Fatal("cron callback did not run")
 	}
 }
+
+// The schedule manager must refuse to start without a tenant: otherwise every scheduled run that
+// targets client groups would fail silently with "no tenant in context".
+func TestNewRequiresTenant(t *testing.T) {
+	_, err := New(context.Background(), nil, nil, nil, 30)
+	assert.ErrorIs(t, err, tenant.ErrMissing)
+}

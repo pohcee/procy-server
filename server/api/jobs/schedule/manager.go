@@ -18,6 +18,7 @@ import (
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
 	"github.com/openrport/openrport/share/random"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var (
@@ -85,6 +86,11 @@ type Manager struct {
 }
 
 func New(ctx context.Context, logger *logger.Logger, db *sqlx.DB, jobRunner JobRunner, runRemoteCmdTimeoutSec int) (*Manager, error) {
+	// Scheduled runs inherit ctx's tenant; without one every run would fail silently later.
+	if _, err := tenant.FromContext(ctx); err != nil {
+		return nil, fmt.Errorf("schedule manager: %w", err)
+	}
+
 	m := NewManager(ctx, jobRunner, db, logger, runRemoteCmdTimeoutSec)
 
 	existing, err := m.provider.List(ctx, nil)
