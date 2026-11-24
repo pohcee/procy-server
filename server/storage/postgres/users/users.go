@@ -1,4 +1,4 @@
-// Package users stores API users and groups in Postgres: the users.Provider of the OSS API (the same behaviour as
+// Package users stores API users and groups in Postgres: the users.Provider of the OSS API (the same behavior as
 // the OSS [database] user provider, with group details), scoped to the tenant of each call.
 //
 // Logins are unique across tenants: a trigger keeps the global table user_logins in step with users, so Add or a

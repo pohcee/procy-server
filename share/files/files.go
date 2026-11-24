@@ -99,7 +99,7 @@ func (f *FileSystem) Write(fileName string, content string) error {
 // ReadJSON reads a given file and stores the parsed content into a destination value.
 // A successful call returns err == nil, not err == EOF.
 func (f *FileSystem) ReadJSON(file string, dest interface{}) error {
-	b, err := ioutil.ReadFile(file)
+	b, err := os.ReadFile(file)
 	if err != nil {
 		return fmt.Errorf("failed to read data from file: %s", err)
 	}

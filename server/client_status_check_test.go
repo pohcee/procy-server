@@ -22,7 +22,7 @@ type mockSSHConn struct {
 	shallTimeout bool
 }
 
-func (m mockSSHConn) SendRequest(name string, wantReply bool, payload []byte) (bool, []byte, error) {
+func (m mockSSHConn) SendRequest(name string, _ bool, _ []byte) (bool, []byte, error) {
 	if name != comm.RequestTypePing {
 		return false, []byte(""), errors.New("bad request: only ping simulated")
 	}

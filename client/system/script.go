@@ -3,7 +3,6 @@ package system
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,7 +37,7 @@ func CreateScriptFile(scriptDir, scriptContent string, interpreter Interpreter, 
 		}
 	}
 
-	err = ioutil.WriteFile(scriptFilePath, byteContent, DefaultFileMode)
+	err = os.WriteFile(scriptFilePath, byteContent, DefaultFileMode)
 	if err != nil {
 		return "", err
 	}

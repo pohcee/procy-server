@@ -22,7 +22,7 @@ var (
 	windowsVarsTpl = template.Must(template.ParseFS(templates, "templates/windows/vars.ps1"))
 )
 
-// clientOS picks the script flavour by User-Agent, like the standalone service:
+// clientOS picks the script flavor by User-Agent, like the standalone service:
 // PowerShell (Invoke-WebRequest/Invoke-RestMethod) gets Windows, everything else Linux.
 func clientOS(r *http.Request) string {
 	if strings.Contains(r.UserAgent(), "PowerShell") {

@@ -17,7 +17,7 @@ func NewLogConsumer(logger *logger.Logger, target notifications.Target) *logCons
 	return &logConsumer{logger: logger, target: target}
 }
 
-func (l logConsumer) Process(ctx context.Context, details notifications.NotificationDetails) (string, error) {
+func (l logConsumer) Process(_ context.Context, details notifications.NotificationDetails) (string, error) {
 	l.logger.Logf(l.logger.Level, "received notification: %v", details)
 	return "", nil
 }

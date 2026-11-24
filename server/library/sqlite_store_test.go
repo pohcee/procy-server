@@ -53,10 +53,10 @@ func testEntry(id, name string) (Entry, Version) {
 
 func addVersion(t *testing.T, s *SQLiteStore, id string, n int, at time.Time) {
 	t.Helper()
-	addVersionIn(t, s, testCtx, id, n, at)
+	addVersionIn(testCtx, t, s, id, n, at)
 }
 
-func addVersionIn(t *testing.T, s *SQLiteStore, ctx context.Context, id string, n int, at time.Time) {
+func addVersionIn(ctx context.Context, t *testing.T, s *SQLiteStore, id string, n int, at time.Time) {
 	t.Helper()
 	c := testContent("A")
 	c.Description = fmt.Sprintf("d%d", n)
@@ -67,10 +67,10 @@ func addVersionIn(t *testing.T, s *SQLiteStore, ctx context.Context, id string, 
 
 func versionNumbers(t *testing.T, s *SQLiteStore, id string) []int {
 	t.Helper()
-	return versionNumbersIn(t, s, testCtx, id)
+	return versionNumbersIn(testCtx, t, s, id)
 }
 
-func versionNumbersIn(t *testing.T, s *SQLiteStore, ctx context.Context, id string) []int {
+func versionNumbersIn(ctx context.Context, t *testing.T, s *SQLiteStore, id string) []int {
 	t.Helper()
 	vs, err := s.Versions(ctx, id)
 	require.NoError(t, err)

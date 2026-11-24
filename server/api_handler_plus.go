@@ -100,7 +100,7 @@ func (al *APIListener) handleGetDeviceAuth(w http.ResponseWriter, r *http.Reques
 }
 
 // handlePlusStatus makes a request to the plugin for it's status/version info
-func (al *APIListener) handlePlusStatus(w http.ResponseWriter, r *http.Request) {
+func (al *APIListener) handlePlusStatus(w http.ResponseWriter, _ *http.Request) {
 	plusManager := al.plusManager
 	if plusManager == nil {
 		statusInfo := status.PlusStatusInfo{

@@ -3,7 +3,6 @@ package chclient
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -91,7 +90,7 @@ func TestHandleUploadRequest(t *testing.T) {
 				fs.On("CreateDirIfNotExists", "destination", files.DefaultMode).Return(true, nil)
 
 				fileExpectation := func(f io.ReadCloser) bool {
-					actualFileContent, err := ioutil.ReadAll(f)
+					actualFileContent, err := io.ReadAll(f)
 
 					require.NoError(t, err)
 

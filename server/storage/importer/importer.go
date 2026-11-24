@@ -64,7 +64,7 @@ const (
 	fileClientGroups  = "client_groups.db"
 	fileJobs          = "jobs.db"
 	fileLibrary       = "library.db"
-	fileAPITokens     = "api_token.db"
+	fileAPITokens     = "api_token.db" //nolint:gosec // G101: a file name
 	fileAPISessions   = "api_sessions.db"
 	fileVault         = "vault.sqlite.db"
 	fileMonitoring    = "monitoring.db"

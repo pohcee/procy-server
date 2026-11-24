@@ -38,7 +38,7 @@ type plusManagerMock struct {
 	rportplus.ManagerProvider
 }
 
-func (pm *plusManagerMock) RegisterCapability(capName string, newCap rportplus.Capability) (cap rportplus.Capability, err error) {
+func (pm *plusManagerMock) RegisterCapability(capName string, newCap rportplus.Capability) (capability rportplus.Capability, err error) {
 	pm.CapabilityCount++
 	if pm.Caps == nil {
 		pm.Caps = make(map[string]rportplus.Capability, 0)
@@ -47,7 +47,7 @@ func (pm *plusManagerMock) RegisterCapability(capName string, newCap rportplus.C
 	return newCap, nil
 }
 
-func (pm *plusManagerMock) GetConfigValidator(capName string) (v validator.Validator) {
+func (pm *plusManagerMock) GetConfigValidator(_ string) (v validator.Validator) {
 	return &mockValidator{}
 }
 

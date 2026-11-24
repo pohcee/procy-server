@@ -68,7 +68,7 @@ func (h *HTTPServer) GoListenAndServe(ctx context.Context, addr string, handler 
 	h.ctx = ctx
 	h.Handler = handler
 	h.listener = l
-	h.BaseContext = func(l net.Listener) context.Context {
+	h.BaseContext = func(_ net.Listener) context.Context {
 		return h.ctx
 	}
 
@@ -105,7 +105,12 @@ func (h *HTTPServer) Wait() error {
 		return errors.New("Already closed")
 	}
 	select {
-	case <-h.running:
+	case err := <-h.running:
+		// unchanged behavior: a server that stopped on its own is not an error
+		// for callers, but don't drop why it stopped
+		if err != nil {
+			h.logger.Errorf("HTTP server stopped: %v", err)
+		}
 		return nil
 	case <-h.ctx.Done():
 		h.logger.Debugf("context canceled")

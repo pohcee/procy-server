@@ -3,7 +3,7 @@ package updates
 import (
 	"context"
 	"errors"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,7 +50,7 @@ func TestAptPackageMangerIsAvailable(t *testing.T) { //nolint:dupl
 
 func TestAptPackageMangerGetUpdatesStatus(t *testing.T) {
 	ctx := context.Background()
-	tmpFile, err := ioutil.TempFile("", "reboot-required")
+	tmpFile, err := os.CreateTemp("", "reboot-required")
 	require.NoError(t, err)
 
 	testCases := []struct {

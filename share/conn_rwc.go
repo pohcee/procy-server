@@ -33,14 +33,14 @@ func (c *rwcConn) String() string {
 	return ""
 }
 
-func (c *rwcConn) SetDeadline(t time.Time) error {
+func (c *rwcConn) SetDeadline(_ time.Time) error {
 	return nil //no-op
 }
 
-func (c *rwcConn) SetReadDeadline(t time.Time) error {
+func (c *rwcConn) SetReadDeadline(_ time.Time) error {
 	return nil //no-op
 }
 
-func (c *rwcConn) SetWriteDeadline(t time.Time) error {
+func (c *rwcConn) SetWriteDeadline(_ time.Time) error {
 	return nil //no-op
 }

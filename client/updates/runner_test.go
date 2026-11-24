@@ -17,7 +17,7 @@ func newMockRunner() *mockRunner {
 	}
 }
 
-func (r *mockRunner) Run(ctx context.Context, args ...string) (string, error) {
+func (r *mockRunner) Run(_ context.Context, args ...string) (string, error) {
 	key := strings.Join(args, " ")
 	// try prefix commands if full is not registered
 	for i := len(args) - 1; i > 0; i-- {

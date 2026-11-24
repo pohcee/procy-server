@@ -90,7 +90,7 @@ func (im *importer) writeClientAuth(w *writer) error {
 	var taken []string
 	for _, cr := range im.creds {
 		count.Read++
-		added, err := w.insertOne("clients_auth", []string{"id", "password"}, []any{cr.ID, cr.Password}, onConflictNothing)
+		added, err := w.insertOne("clients_auth", []string{"id", "password"}, []any{cr.ID, cr.Password})
 		if err != nil {
 			return err
 		}
@@ -189,7 +189,7 @@ func (im *importer) writeUsers(w *writer) error {
 			return err
 		}
 		added, err := w.insertOne("users", []string{"username", "password", "password_expired", "two_fa_send_to", "totp_secret"},
-			[]any{u.Username, u.Password, u.PasswordExpired, u.TwoFASendTo, u.TotPSecret}, onConflictNothing)
+			[]any{u.Username, u.Password, u.PasswordExpired, u.TwoFASendTo, u.TotPSecret})
 		if err != nil {
 			return err
 		}
@@ -199,7 +199,7 @@ func (im *importer) writeUsers(w *writer) error {
 			uc.Present++
 		}
 		for _, g := range u.Groups {
-			added, err := w.insertOne("user_groups", []string{"username", "group_name"}, []any{u.Username, g}, onConflictNothing)
+			added, err := w.insertOne("user_groups", []string{"username", "group_name"}, []any{u.Username, g})
 			if err != nil {
 				return err
 			}
@@ -216,7 +216,7 @@ func (im *importer) writeUsers(w *writer) error {
 	for _, g := range im.groups {
 		gc.Read++
 		added, err := w.insertOne("groups", []string{"name", "permissions", "tunnels_restricted", "commands_restricted"},
-			[]any{g.Name, g.Permissions, g.TunnelsRestricted, g.CommandsRestricted}, onConflictNothing)
+			[]any{g.Name, g.Permissions, g.TunnelsRestricted, g.CommandsRestricted})
 		if err != nil {
 			return err
 		}
@@ -311,7 +311,7 @@ func (im *importer) writeAPISessions(w *writer) error {
 			}
 			return err
 		}
-		added, err := w.insertOne("api_sessions", names(cols), vals, onConflictNothing)
+		added, err := w.insertOne("api_sessions", names(cols), vals)
 		if err != nil {
 			return err
 		}
@@ -397,7 +397,7 @@ func (im *importer) writeLibrary(w *writer) error {
 				return nil
 			}
 		}
-		added, err := w.insertOne("library_entries", names(entryCols), vals, onConflictNothing)
+		added, err := w.insertOne("library_entries", names(entryCols), vals)
 		if err != nil {
 			return err
 		}

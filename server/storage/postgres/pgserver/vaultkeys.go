@@ -14,9 +14,9 @@ import (
 )
 
 // KMSVaultKeys returns the managed vault key provider that wraps every tenant's vault key with the Cloud KMS
-// CryptoKey keyName (projects/<p>/locations/<l>/keyRings/<r>/cryptoKeys/<k>), the wrapped keys stored in db. close
+// CryptoKey keyName (projects/<p>/locations/<l>/keyRings/<r>/cryptoKeys/<k>), the wrapped keys stored in db. closeFn
 // releases the KMS client.
-func KMSVaultKeys(ctx context.Context, keyName string, db *sqlx.DB, logw io.Writer) (_ *vaultkms.Provider, close func(), _ error) {
+func KMSVaultKeys(ctx context.Context, keyName string, db *sqlx.DB, logw io.Writer) (_ *vaultkms.Provider, closeFn func(), _ error) {
 	client, err := kms.NewKeyManagementClient(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("vault: Cloud KMS client: %w", err)

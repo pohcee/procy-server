@@ -121,9 +121,9 @@ func TestImportDryRunWritesNothing(t *testing.T) {
 	require.NoError(t, pg.Owner.Get(&last, "SELECT last_value FROM api_sessions_session_id_seq"))
 	assert.Equal(t, int64(1), last, "a dry run doesn't move sequences")
 
-	// the dry run reports what the real run then does
-	real := run(t, pg, Options{From: d.dir, FromConfig: conf, WithHistory: true})
-	assert.Equal(t, dry.Entities, real.Entities)
+	// the dry run reports what the realRun run then does
+	realRun := run(t, pg, Options{From: d.dir, FromConfig: conf, WithHistory: true})
+	assert.Equal(t, dry.Entities, realRun.Entities)
 }
 
 func TestImportUnknownTenant(t *testing.T) {
@@ -167,7 +167,7 @@ func TestHelperHoldDatabase(t *testing.T) {
 func TestImportRefusesHeldDataDir(t *testing.T) {
 	pg := pgtest.New(t)
 	d := newDataDir(t)
-	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperHoldDatabase$")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperHoldDatabase$") //nolint:gosec // G702: re-runs the test binary
 	cmd.Env = append(os.Environ(), "IMPORT_TEST_HOLD_DB="+d.path("clients.db"), pgtest.EnvDatabaseURL+"=")
 	stdin, err := cmd.StdinPipe()
 	require.NoError(t, err)

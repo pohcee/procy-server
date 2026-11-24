@@ -24,7 +24,7 @@ type ServiceMock struct {
 	ReturnError error
 }
 
-func (s *ServiceMock) Send(ctx context.Context, data Data) error {
+func (s *ServiceMock) Send(_ context.Context, _ Data) error {
 	return nil
 }
 
@@ -32,6 +32,6 @@ func (s *ServiceMock) DeliveryMethod() string {
 	return "mock"
 }
 
-func (s *ServiceMock) ValidateReceiver(ctx context.Context, receiver string) error {
+func (s *ServiceMock) ValidateReceiver(_ context.Context, _ string) error {
 	return s.ReturnError
 }

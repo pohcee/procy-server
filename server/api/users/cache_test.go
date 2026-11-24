@@ -30,7 +30,7 @@ func TestUserCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*User{u1, u2}, users)
 
-	c.Load(defaultCtx, []*User{u2, u3})
+	require.NoError(t, c.Load(defaultCtx, []*User{u2, u3}))
 
 	u, err = c.GetByUsername(defaultCtx, "u1")
 	require.NoError(t, err)

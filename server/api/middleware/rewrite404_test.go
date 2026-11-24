@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -42,7 +42,7 @@ func TestRewrite404(t *testing.T) {
 			h.ServeHTTP(rw, req)
 
 			result := rw.Result()
-			resultBody, err := ioutil.ReadAll(result.Body)
+			resultBody, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
 			expectedHeader := []string{"success"}
 

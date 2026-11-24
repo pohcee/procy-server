@@ -33,7 +33,7 @@ func main() {
 		fmt.Println(err)
 	}
 
-	err = os.WriteFile("out.json", serialized, os.ModePerm)
+	err = os.WriteFile("out.json", serialized, 0o600)
 	if err != nil {
 		fmt.Println(err)
 	}

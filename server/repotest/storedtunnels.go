@@ -86,18 +86,18 @@ func StoredTunnels(t *testing.T, newRepos Factory[StoredTunnelRepos]) {
 		tu.TenantID = TenantB
 		require.NoError(t, p.Insert(a, tu))
 		assert.Equal(t, TenantA, tu.TenantID)
-		assert.Len(t, list(t, p, a, "c1", all), 1)
-		assert.Empty(t, list(t, p, b, "c1", all))
+		assert.Len(t, list(a, t, p, "c1", all), 1)
+		assert.Empty(t, list(b, t, p, "c1", all))
 	})
 
 	t.Run("tunnels are listed per client", func(t *testing.T) {
 		p := setup(t)
 		require.NoError(t, p.Insert(a, tunnel("t1", "c1", "one")))
 		require.NoError(t, p.Insert(a, tunnel("t2", "c2", "two")))
-		got := list(t, p, a, "c2", all)
+		got := list(a, t, p, "c2", all)
 		require.Len(t, got, 1)
 		assert.Equal(t, "t2", got[0].ID)
-		assert.Empty(t, list(t, p, a, "unknown", all))
+		assert.Empty(t, list(a, t, p, "unknown", all))
 	})
 
 	t.Run("update", func(t *testing.T) {
@@ -111,7 +111,7 @@ func StoredTunnels(t *testing.T, newRepos Factory[StoredTunnelRepos]) {
 		changed.FurtherOptions = jsonString(`{"idle_timeout_minutes":7}`)
 		require.NoError(t, p.Update(a, changed))
 
-		got := list(t, p, a, "c1", all)
+		got := list(a, t, p, "c1", all)
 		require.Len(t, got, 1)
 		changed.CreatedAt = orig.CreatedAt
 		assertSameTunnel(t, changed, got[0])
@@ -119,8 +119,8 @@ func StoredTunnels(t *testing.T, newRepos Factory[StoredTunnelRepos]) {
 		// the tunnel is found by client and id
 		other := tunnel("t1", "c2", "wrong client")
 		require.NoError(t, p.Update(a, other))
-		assert.Equal(t, "renamed", list(t, p, a, "c1", all)[0].Name)
-		assert.Empty(t, list(t, p, a, "c2", all))
+		assert.Equal(t, "renamed", list(a, t, p, "c1", all)[0].Name)
+		assert.Empty(t, list(a, t, p, "c2", all))
 	})
 
 	t.Run("delete", func(t *testing.T) {
@@ -130,7 +130,7 @@ func StoredTunnels(t *testing.T, newRepos Factory[StoredTunnelRepos]) {
 		require.NoError(t, p.Delete(a, "c2", "t1")) // other client: nothing deleted
 		require.NoError(t, p.Delete(a, "c1", "unknown"))
 		require.NoError(t, p.Delete(a, "c1", "t1"))
-		got := list(t, p, a, "c1", all)
+		got := list(a, t, p, "c1", all)
 		require.Len(t, got, 1)
 		assert.Equal(t, "t2", got[0].ID)
 	})
@@ -173,7 +173,7 @@ func StoredTunnels(t *testing.T, newRepos Factory[StoredTunnelRepos]) {
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				got := list(t, p, a, "c1", tc.opts)
+				got := list(a, t, p, "c1", tc.opts)
 				ids := make([]string, 0, len(got))
 				for _, tu := range got {
 					ids = append(ids, tu.ID)
@@ -200,7 +200,7 @@ func StoredTunnels(t *testing.T, newRepos Factory[StoredTunnelRepos]) {
 		require.NoError(t, p.Insert(a, tunnel("same", "c1", "from a")))
 		require.NoError(t, p.Insert(b, tunnel("same", "c1", "from b")))
 
-		got := list(t, p, b, "c1", all)
+		got := list(b, t, p, "c1", all)
 		require.Len(t, got, 1)
 		assert.Equal(t, "from b", got[0].Name)
 		assert.Equal(t, TenantB, got[0].TenantID)
@@ -209,19 +209,19 @@ func StoredTunnels(t *testing.T, newRepos Factory[StoredTunnelRepos]) {
 		assert.Equal(t, 1, n)
 
 		require.NoError(t, p.Update(a, tunnel("same", "c1", "a updated")))
-		assert.Equal(t, "from b", list(t, p, b, "c1", all)[0].Name)
-		assert.Equal(t, "a updated", list(t, p, a, "c1", all)[0].Name)
+		assert.Equal(t, "from b", list(b, t, p, "c1", all)[0].Name)
+		assert.Equal(t, "a updated", list(a, t, p, "c1", all)[0].Name)
 
 		// a tunnel only b has can't be changed from a
 		require.NoError(t, p.Insert(b, tunnel("only-b", "c1", "b only")))
 		require.NoError(t, p.Update(a, tunnel("only-b", "c1", "changed by a")))
 		require.NoError(t, p.Delete(a, "c1", "only-b"))
-		assert.Len(t, list(t, p, b, "c1", all), 2)
-		assert.Len(t, list(t, p, a, "c1", all), 1)
+		assert.Len(t, list(b, t, p, "c1", all), 2)
+		assert.Len(t, list(a, t, p, "c1", all), 1)
 
 		require.NoError(t, p.Delete(a, "c1", "same"))
-		assert.Empty(t, list(t, p, a, "c1", all))
-		got = list(t, p, b, "c1", all)
+		assert.Empty(t, list(a, t, p, "c1", all))
+		got = list(b, t, p, "c1", all)
 		require.Len(t, got, 2)
 		for _, tu := range got {
 			assert.NotEqual(t, "changed by a", tu.Name)
@@ -229,7 +229,7 @@ func StoredTunnels(t *testing.T, newRepos Factory[StoredTunnelRepos]) {
 	})
 }
 
-func list(t *testing.T, p storedtunnels.Provider, ctx context.Context, clientID string, o *query.ListOptions) []*storedtunnels.StoredTunnel {
+func list(ctx context.Context, t *testing.T, p storedtunnels.Provider, clientID string, o *query.ListOptions) []*storedtunnels.StoredTunnel {
 	t.Helper()
 	got, err := p.List(ctx, clientID, o)
 	require.NoError(t, err)

@@ -18,7 +18,7 @@ func CheckOperationHTTPStatus(suite *suite.Suite, requestURL string, method stri
 
 	req, err := http.NewRequest(method, requestURL, bytes.NewReader(content))
 	suite.NoError(err)
-	req.SetBasicAuth("admin", "foobaz")
+	req.SetBasicAuth("admin", "bdd-admin-password")
 	res, err := client.Do(req)
 	suite.NoError(err)
 
@@ -39,7 +39,7 @@ func CallURL[T any](suite *suite.Suite, requestURL string) T {
 
 	req, err := http.NewRequest(http.MethodGet, requestURL, nil)
 	suite.NoError(err)
-	req.SetBasicAuth("admin", "foobaz")
+	req.SetBasicAuth("admin", "bdd-admin-password")
 	res, err := client.Do(req)
 	suite.NoError(err)
 	suite.Equal(http.StatusOK, res.StatusCode)

@@ -90,13 +90,13 @@ func OSLabel(os string) string {
 
 // MaxTimeout is the largest timeout_sec among the implementations, 0 when none.
 func MaxTimeout(e Entry) int {
-	max := 0
+	maxTimeout := 0
 	for _, impl := range e.Implementations {
-		if impl.TimeoutSec > max {
-			max = impl.TimeoutSec
+		if impl.TimeoutSec > maxTimeout {
+			maxTimeout = impl.TimeoutSec
 		}
 	}
-	return max
+	return maxTimeout
 }
 
 // ActiveForRun returns the live entry with its active implementations; 404

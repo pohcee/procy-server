@@ -46,7 +46,7 @@ func (c *ConnMock) InputSendRequest() (name string, wantReply bool, payload []by
 	return c.inputRequestName, c.inputWantReply, c.inputPayload
 }
 
-func (c *ConnMock) OpenChannel(name string, data []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+func (c *ConnMock) OpenChannel(name string, _ []byte) (ssh.Channel, <-chan *ssh.Request, error) {
 	ch := &ChannelMock{}
 	if c.ChannelMocks == nil {
 		c.ChannelMocks = make(map[string]*ChannelMock)

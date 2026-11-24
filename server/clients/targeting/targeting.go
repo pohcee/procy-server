@@ -247,7 +247,7 @@ func validateNonClientsTagTargeting(params Params, groupClientsCount int, ordere
 }
 
 func validateClientTagsTargeting(orderedClients []*clientdata.Client) (err error) {
-	if orderedClients == nil || len(orderedClients) < minClientsForTargeting {
+	if len(orderedClients) < minClientsForTargeting {
 		return errors2.APIError{
 			Err:        errors.New("at least 1 client should be specified"),
 			HTTPStatus: http.StatusBadRequest,

@@ -62,34 +62,34 @@ func (dpm *DbProviderMock) Init() error {
 	return dpm.initErr
 }
 
-func (dpm *DbProviderMock) GetStatus(ctx context.Context) (DbStatus, error) {
+func (dpm *DbProviderMock) GetStatus(_ context.Context) (DbStatus, error) {
 	return dpm.statusToGive, dpm.statusToGiveErr
 }
 
-func (dpm *DbProviderMock) SetStatus(ctx context.Context, newStatus DbStatus) error {
+func (dpm *DbProviderMock) SetStatus(_ context.Context, newStatus DbStatus) error {
 	dpm.statusToStore = newStatus
 	return dpm.statusToStoreErr
 }
 
-func (dpm *DbProviderMock) GetByID(ctx context.Context, id int) (val StoredValue, found bool, err error) {
+func (dpm *DbProviderMock) GetByID(_ context.Context, id int) (val StoredValue, found bool, err error) {
 	dpm.getByID = id
 	return dpm.getByIDStoredValue, dpm.getByIDFound, dpm.getByIDError
 }
 
-func (dpm *DbProviderMock) List(ctx context.Context, lo *query.ListOptions) ([]ValueKey, error) {
+func (dpm *DbProviderMock) List(_ context.Context, lo *query.ListOptions) ([]ValueKey, error) {
 	dpm.listOptionInput = lo
 
 	return dpm.listValuesToGive, dpm.listErrorToGive
 }
 
-func (dpm *DbProviderMock) FindByKeyAndClientID(ctx context.Context, key, clientID string) (val StoredValue, found bool, err error) {
+func (dpm *DbProviderMock) FindByKeyAndClientID(_ context.Context, key, clientID string) (val StoredValue, found bool, err error) {
 	dpm.findByKeyAndClientIDKey = key
 	dpm.findByKeyAndClientIDClientID = clientID
 
 	return dpm.FindByKeyAndClientIDValueToGive, dpm.FindByKeyAndClientIDFoundToGive, dpm.FindByKeyAndClientIDErrorToGive
 }
 
-func (dpm *DbProviderMock) Save(ctx context.Context, user string, idToUpdate int64, val *InputValue, nowDate time.Time) (int64, error) {
+func (dpm *DbProviderMock) Save(_ context.Context, user string, idToUpdate int64, val *InputValue, nowDate time.Time) (int64, error) {
 	dpm.SaveUserGiven = user
 	dpm.SaveIDGiven = idToUpdate
 	dpm.SaveInputGiven = val
@@ -98,7 +98,7 @@ func (dpm *DbProviderMock) Save(ctx context.Context, user string, idToUpdate int
 	return dpm.SaveIDToGive, dpm.SaveErrorToGive
 }
 
-func (dpm *DbProviderMock) Delete(ctx context.Context, id int) error {
+func (dpm *DbProviderMock) Delete(_ context.Context, id int) error {
 	dpm.DeleteIDGiven = id
 
 	return dpm.DeleteErrorToGive

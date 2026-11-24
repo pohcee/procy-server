@@ -64,7 +64,7 @@ type DbProviderFactory interface {
 // Manager runs the vault of each tenant. Each tenant has its own status and key, so locking or unlocking one
 // tenant's vault doesn't affect another's. Every method needs a tenant in its context.
 //
-// The key comes from a KeyProvider. With the default PassphraseKeyProvider the vault is initialised, unlocked and
+// The key comes from a KeyProvider. With the default PassphraseKeyProvider the vault is initialized, unlocked and
 // locked with a passphrase through the API. With any other (managed) provider it needs none of that: Init, UnLock
 // and Lock fail with ErrManagedKey and Status reports the vault as set up and managed.
 type Manager struct {
@@ -101,7 +101,7 @@ func NewManagerWithKeyProvider(dbFactory DbProviderFactory, pm PassManager, keys
 	}
 }
 
-// UsesPassphrase reports whether the vault is initialised and unlocked with a passphrase through the API.
+// UsesPassphrase reports whether the vault is initialized and unlocked with a passphrase through the API.
 func (m *Manager) UsesPassphrase() bool {
 	return m.passphrase != nil
 }
@@ -527,7 +527,7 @@ func (m *Manager) checkUnlockedAndInitialized(ctx context.Context) error {
 	return nil
 }
 
-// openManagedDB opens the vault database of a managed vault, which is never initialised through the API.
+// openManagedDB opens the vault database of a managed vault, which is never initialized through the API.
 func (m *Manager) openManagedDB() error {
 	if m.dbReady.Load() {
 		return nil

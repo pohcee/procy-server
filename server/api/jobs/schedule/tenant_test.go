@@ -163,7 +163,7 @@ type ctxRunner struct {
 	tenants chan tenant.ID
 }
 
-func (r *ctxRunner) StartMultiClientJob(ctx context.Context, req *jobs.MultiJobRequest) (*models.MultiJob, error) {
+func (r *ctxRunner) StartMultiClientJob(ctx context.Context, _ *jobs.MultiJobRequest) (*models.MultiJob, error) {
 	id, _ := tenant.FromContext(ctx)
 	select {
 	case r.tenants <- id:

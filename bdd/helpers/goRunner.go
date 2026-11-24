@@ -10,8 +10,8 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -78,14 +78,18 @@ func WaitForText(ctx context.Context, ch chan string, txt string) error {
 
 }
 
+// Run builds the main package that cmd (a path to its main.go) belongs to
+// and starts the resulting binary in pwd.
+//
+// The binary is built up front rather than started with "go run": the
+// compiler's output (e.g. cgo warnings from sqlite) would otherwise land on
+// the process' stderr, which callers treat as a daemon error, and "go run"
+// would put a wrapper process between us and the daemon that Kill would have
+// to take down as well.
 func Run(t *testing.T, pwd string, cmd string) (*exec.Cmd, chan string, chan string) {
-	rd := exec.Command("go", "run", cmd)
+	bin := build(t, filepath.Dir(cmd))
+	rd := exec.Command(bin)
 	rd.Dir = pwd
-	// "go run" execs the compiled binary as a child process. Put it in its
-	// own process group so Kill() below can take out that child too -
-	// otherwise killing rd only kills the "go run" wrapper and orphans the
-	// actual server/client binary, which keeps holding its port open.
-	rd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	outPipe, err := rd.StdoutPipe()
 	assert.Nil(t, err)
@@ -130,13 +134,33 @@ func Run(t *testing.T, pwd string, cmd string) (*exec.Cmd, chan string, chan str
 
 }
 
-// Kill stops the process group started by Run, not just the "go run"
-// wrapper process itself - see the Setpgid comment in Run.
+// Kill stops a process started by Run.
 func Kill(cmd *exec.Cmd) error {
 	if cmd == nil || cmd.Process == nil {
 		return nil
 	}
-	return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	return cmd.Process.Kill()
+}
+
+// build compiles the main package in pkgDir into a temporary directory and
+// returns the path of the binary.
+func build(t *testing.T, pkgDir string) string {
+	outDir, err := os.MkdirTemp("", "rport-bdd-")
+	if err != nil {
+		t.Fatalf("creating build dir: %v", err)
+	}
+	// best effort: on Windows a binary can't be removed while it still runs
+	t.Cleanup(func() { _ = os.RemoveAll(outDir) })
+
+	bin := filepath.Join(outDir, filepath.Base(pkgDir))
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
+	out, err := exec.Command("go", "build", "-o", bin, pkgDir).CombinedOutput()
+	if err != nil {
+		t.Fatalf("building %s: %v\n%s", pkgDir, err, out)
+	}
+	return bin
 }
 
 func LogAndIgnore(err error) {

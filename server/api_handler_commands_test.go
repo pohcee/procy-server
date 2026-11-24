@@ -65,12 +65,12 @@ func (p *JobProviderMock) GetByJID(_ context.Context, cid, jid string) (*models.
 	return p.ReturnJob, p.ReturnErr
 }
 
-func (p *JobProviderMock) List(ctx context.Context, opts *query.ListOptions) ([]*models.Job, error) {
+func (p *JobProviderMock) List(_ context.Context, opts *query.ListOptions) ([]*models.Job, error) {
 	p.InputCID = opts.Filters[0].Values[0]
 	return p.ReturnJobList, p.ReturnErr
 }
 
-func (p *JobProviderMock) Count(ctx context.Context, opts *query.ListOptions) (int, error) {
+func (p *JobProviderMock) Count(_ context.Context, _ *query.ListOptions) (int, error) {
 	return len(p.ReturnJobList), p.ReturnErr
 }
 
@@ -90,11 +90,11 @@ func (p *JobProviderMock) Close() error {
 
 func TestHandlePostCommand(t *testing.T) {
 	var testJID string
-	generateNewJobID = func() (string, error) {
+	setJobIDGenerator(t, func() (string, error) {
 		uuid, err := random.UUID4()
 		testJID = uuid
 		return uuid, err
-	}
+	})
 	testUser := "test-user"
 
 	defaultTimeout := 60

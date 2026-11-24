@@ -69,7 +69,7 @@ func TestLoadBuiltinsRejectsBadManifests(t *testing.T) {
 	for name, fsys := range map[string]fstest.MapFS{
 		"empty key":     mk("a", strings.Replace(good, `"key":"a"`, `"key":""`, 1)),
 		"key vs dir":    mk("b", good),
-		"unknown field": mk("a", strings.Replace(good, `"name"`, `"nmae":"x","name"`, 1)),
+		"unknown field": mk("a", strings.Replace(good, `"name"`, `"nmae":"x","name"`, 1)), //nolint:misspell // deliberately unknown field
 	} {
 		_, err := loadBuiltins(fsys)
 		assert.Error(t, err, name)

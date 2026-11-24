@@ -133,7 +133,7 @@ func NewInternalTunnelProxy(tunnel *Tunnel, logger *logger.Logger, config *Inter
 	return tp
 }
 
-func (tp *InternalTunnelProxy) Start(ctx context.Context) error {
+func (tp *InternalTunnelProxy) Start(_ context.Context) error {
 	router := mux.NewRouter()
 	router.Use(tp.handleACL)
 
@@ -246,7 +246,7 @@ func (tp *InternalTunnelProxy) serveTemplate(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (tp *InternalTunnelProxy) handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
+func (tp *InternalTunnelProxy) handleProxyError(w http.ResponseWriter, _ *http.Request, err error) {
 	tp.Logger.Errorf("Error during proxy request %v", err)
 	tp.sendHTML(w, http.StatusInternalServerError, err.Error())
 }

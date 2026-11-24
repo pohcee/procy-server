@@ -128,7 +128,10 @@ func startNodeWith(t *testing.T, s nodeSettings) *nodeFixture {
 	t.Cleanup(func() {
 		cancel()
 		select {
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				t.Logf("server stopped: %v", err)
+			}
 		case <-time.After(10 * time.Second):
 			t.Error("server did not stop")
 		}
@@ -247,7 +250,7 @@ func TestNodePassphraseVault(t *testing.T) {
 	h := startNode(t) // [vault] key_provider defaults to "passphrase"
 	alice, bob := h.login(t, "alice"), h.login(t, "bob")
 	code, out := h.do(t, http.MethodPost, "/vault", alice, map[string]any{"client_id": "web01", "key": "db", "value": "s3cret", "type": "secret"})
-	assert.GreaterOrEqual(t, code, 400, "not initialised yet: %s", out["_raw"])
+	assert.GreaterOrEqual(t, code, 400, "not initialized yet: %s", out["_raw"])
 
 	code, out = h.do(t, http.MethodPost, "/vault-admin/init", alice, map[string]string{"password": "abcdefghijklmnop1234"})
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
@@ -257,7 +260,7 @@ func TestNodePassphraseVault(t *testing.T) {
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Len(t, out["data"], 1)
 
-	// the vault of another tenant is its own: not initialised
+	// the vault of another tenant is its own: not initialized
 	code, out = h.do(t, http.MethodGet, "/vault-admin", bob, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Equal(t, "uninitialized", out["data"].(map[string]any)["init"], out["_raw"])

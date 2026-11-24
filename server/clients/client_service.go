@@ -439,8 +439,8 @@ func getRemotes(tunnels []*clienttunnel.Tunnel) []*models.Remote {
 }
 
 // getTunnelsToReestablish returns old tunnels that should be re-establish taking into account new tunnels.
-func getTunnelsToReestablish(old, new []*models.Remote) []*models.Remote {
-	if len(new) > len(old) {
+func getTunnelsToReestablish(old, updated []*models.Remote) []*models.Remote {
+	if len(updated) > len(old) {
 		return nil
 	}
 
@@ -451,7 +451,7 @@ func getTunnelsToReestablish(old, new []*models.Remote) []*models.Remote {
 	// at first check new with local specified. It's done at first to cover a case when a new tunnel was specified
 	// with a port that is among random ports in old tunnels.
 loop1:
-	for _, curNew := range new {
+	for _, curNew := range updated {
 		if curNew.IsLocalSpecified() {
 			for i, curOld := range old {
 				if !oldMarked[i] && curNew.String() == curOld.String() {
@@ -465,7 +465,7 @@ loop1:
 
 	// then check without local
 loop2:
-	for _, curNew := range new {
+	for _, curNew := range updated {
 		if !curNew.IsLocalSpecified() {
 			for i, curOld := range old {
 				if !oldMarked[i] && curOld.LocalPortRandom && curNew.Remote() == curOld.Remote() && curNew.EqualACL(curOld.ACL) {
@@ -804,10 +804,17 @@ func (s *ClientServiceProvider) StartTunnel(
 	s.log().Debugf("starting tunnel: %s", remote)
 
 	ctx := client.GetContext()
+	cancelAutoClose := context.CancelFunc(func() {})
 	if remote.AutoClose > 0 {
-		// no need to cancel the ctx since it will be canceled by parent ctx or after given timeout
-		ctx, _ = context.WithTimeout(ctx, remote.AutoClose) // nolint: govet
+		// ends with the client ctx or after the auto close period; on success
+		// cleanupOnAutoCloseDeadlineExceeded releases it once it is done
+		ctx, cancelAutoClose = context.WithTimeout(ctx, remote.AutoClose)
 	}
+	defer func() {
+		if err != nil {
+			cancelAutoClose()
+		}
+	}()
 
 	startTunnelProxy := s.tunnelProxyConfig.Enabled && remote.HTTPProxy
 	if startTunnelProxy {
@@ -835,7 +842,7 @@ func (s *ClientServiceProvider) StartTunnel(
 	// in case tunnel auto-closed due to auto close - run background task to remove the tunnel from the list
 	// TODO: consider to create a separate background task to terminate all inactive tunnels based on some deadline/lastActivity time
 	if tunnel.AutoClose > 0 {
-		go s.cleanupOnAutoCloseDeadlineExceeded(ctx, tunnel, client)
+		go s.cleanupOnAutoCloseDeadlineExceeded(ctx, cancelAutoClose, tunnel, client)
 	}
 
 	if tunnel.IdleTimeoutMinutes > 0 {
@@ -973,7 +980,13 @@ func (s *ClientServiceProvider) startTunnelWithProxy(
 	return t, nil
 }
 
-func (s *ClientServiceProvider) cleanupOnAutoCloseDeadlineExceeded(ctx context.Context, t *clienttunnel.Tunnel, c *clientdata.Client) {
+func (s *ClientServiceProvider) cleanupOnAutoCloseDeadlineExceeded(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	t *clienttunnel.Tunnel,
+	c *clientdata.Client,
+) {
+	defer cancel()
 	<-ctx.Done()
 	// DeadlineExceeded err is expected when tunnel AutoClose period is reached, otherwise skip cleanup
 	if ctx.Err() == context.DeadlineExceeded {

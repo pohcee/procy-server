@@ -81,7 +81,7 @@ func mustKey(t *testing.T, p *Provider, id tenant.ID) []byte {
 	return k
 }
 
-func TestProviderSatisfiesVaultKeyProvider(t *testing.T) {
+func TestProviderSatisfiesVaultKeyProvider(_ *testing.T) {
 	var _ vault.KeyProvider = (*Provider)(nil)
 }
 
@@ -193,7 +193,7 @@ func TestKeyConcurrentFirstUseAgreesOnOneDEK(t *testing.T) {
 			t.Fatalf("instance %d got another DEK", i)
 		}
 	}
-	if got := f.kms.encrypts.Load(); got != int32(len(instances)) {
+	if got := f.kms.encrypts.Load(); int(got) != len(instances) {
 		t.Fatalf("encrypts = %d, want %d", got, len(instances))
 	}
 }
@@ -448,6 +448,6 @@ func openVaultDB(path string) (vault.DbProvider, error) {
 	return vault.NewSqliteProvider(db, testLog), nil
 }
 
-func TestCloudClientSatisfiesKMS(t *testing.T) {
+func TestCloudClientSatisfiesKMS(_ *testing.T) {
 	var _ KMS = (*kms.KeyManagementClient)(nil)
 }

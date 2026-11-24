@@ -371,7 +371,7 @@ func (h *Handler) uploadRequestFromRequest(req *http.Request) (ur *UploadRequest
 		UploadedFile: &models.UploadedFile{},
 	}
 
-	err = req.ParseMultipartForm(uploadBufSize)
+	err = req.ParseMultipartForm(uploadBufSize) //nolint:gosec // G120: body limited to api.max_file_push_size by applyMaxBytes
 	if err != nil {
 		return nil, &errors2.APIError{
 			Err:        err,

@@ -32,7 +32,7 @@ const (
 // DefaultMaxConcurrentSSHConnectionHandshakes is half the usable CPUs (at least 1).
 var DefaultMaxConcurrentSSHConnectionHandshakes = calcMaxConcurrentSSHConnectionHandshakes()
 
-func calcMaxConcurrentSSHConnectionHandshakes() (max int) {
+func calcMaxConcurrentSSHConnectionHandshakes() (maxHandshakes int) {
 	maxProcs := runtime.GOMAXPROCS(0)
 	if maxProcs == 1 {
 		return maxProcs

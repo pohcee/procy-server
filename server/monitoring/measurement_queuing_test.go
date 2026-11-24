@@ -23,7 +23,7 @@ type MockSaver struct {
 	saveCalled chan struct{}
 }
 
-func (m *MockSaver) SaveMeasurement(ctx context.Context, measurement *models.Measurement) error {
+func (m *MockSaver) SaveMeasurement(_ context.Context, measurement *models.Measurement) error {
 	if m.slow.Load() {
 		time.Sleep(time.Millisecond * 10)
 	}

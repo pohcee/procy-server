@@ -83,27 +83,27 @@ type Version struct {
 
 // Changed lists what differs between two contents: name, description, tags and
 // each OS key whose implementation was added, removed or changed. Sorted.
-func Changed(old, new Content) []string {
+func Changed(old, updated Content) []string {
 	changed := []string{}
-	if old.Name != new.Name {
+	if old.Name != updated.Name {
 		changed = append(changed, "name")
 	}
-	if old.Description != new.Description {
+	if old.Description != updated.Description {
 		changed = append(changed, "description")
 	}
-	if !(len(old.Tags) == 0 && len(new.Tags) == 0) && !reflect.DeepEqual(old.Tags, new.Tags) {
+	if !(len(old.Tags) == 0 && len(updated.Tags) == 0) && !reflect.DeepEqual(old.Tags, updated.Tags) {
 		changed = append(changed, "tags")
 	}
 	keys := map[string]struct{}{}
 	for k := range old.Implementations {
 		keys[k] = struct{}{}
 	}
-	for k := range new.Implementations {
+	for k := range updated.Implementations {
 		keys[k] = struct{}{}
 	}
 	for k := range keys {
 		o, oldOK := old.Implementations[k]
-		n, newOK := new.Implementations[k]
+		n, newOK := updated.Implementations[k]
 		if oldOK != newOK || o != n {
 			changed = append(changed, k)
 		}

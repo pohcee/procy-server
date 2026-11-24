@@ -38,7 +38,7 @@ func (p *ZypperPackageManager) IsAvailable(ctx context.Context) bool {
 	return err == nil
 }
 
-func (p *ZypperPackageManager) GetUpdatesStatus(ctx context.Context, logger *logger.Logger) (*models.UpdatesStatus, error) {
+func (p *ZypperPackageManager) GetUpdatesStatus(ctx context.Context, _ *logger.Logger) (*models.UpdatesStatus, error) {
 	err := p.updatePackageCache(ctx)
 	if err != nil {
 		return nil, err

@@ -58,7 +58,7 @@ type Client struct {
 	sshConfig          *ssh.ClientConfig
 	sshConnection      ssh.Conn
 	running            bool
-	runningc           chan error
+	runningc           chan struct{}
 	connStats          chshare.ConnStats
 	cmdExec            system.CmdExecutor
 	systemInfo         system.SysInfo
@@ -101,7 +101,7 @@ func NewClient(config *ClientConfigHolder, filesAPI files.FileAPI) (*Client, err
 		Logger:             logger,
 		configHolder:       config,
 		running:            true,
-		runningc:           make(chan error, 1),
+		runningc:           make(chan struct{}),
 		cmdExec:            cmdExec,
 		systemInfo:         systemInfo,
 		updates:            updates.New(logger, config.Client.UpdatesInterval),
@@ -138,7 +138,7 @@ func (c *Client) Run(ctx context.Context) (err error) {
 	return nil
 }
 
-func (c *Client) verifyServer(hostname string, remote net.Addr, key ssh.PublicKey) error {
+func (c *Client) verifyServer(_ string, _ net.Addr, key ssh.PublicKey) error {
 	got := chshare.FingerprintKey(key)
 	if c.configHolder.Client.Fingerprint != "" && !strings.HasPrefix(got, c.configHolder.Client.Fingerprint) {
 		return fmt.Errorf("invalid fingerprint (%s)", got)
@@ -185,7 +185,7 @@ func printMemStats(c *Client) {
 		rtm.HeapObjects,
 		rtm.HeapAlloc,
 		rtm.NumGC,
-		time.UnixMilli(int64(rtm.LastGC/1_000_000)),
+		time.UnixMilli(int64(rtm.LastGC/1_000_000)), //nolint:gosec // G115: ms since the epoch fit int64
 	)
 }
 

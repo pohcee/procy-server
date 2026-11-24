@@ -48,7 +48,7 @@ func monTestData() []*models.Measurement {
 	}
 }
 
-func monCreateTestData(t *testing.T, p monitoring.DBProvider, ctx context.Context) {
+func monCreateTestData(ctx context.Context, t *testing.T, p monitoring.DBProvider) {
 	t.Helper()
 	for _, m := range monTestData() {
 		require.NoError(t, p.CreateMeasurement(ctx, m))
@@ -56,7 +56,7 @@ func monCreateTestData(t *testing.T, p monitoring.DBProvider, ctx context.Contex
 }
 
 // monCreateDownsamplingData stores 48 hours of measurements, one a minute, alternating between low and high values.
-func monCreateDownsamplingData(t *testing.T, p monitoring.DBProvider, ctx context.Context) {
+func monCreateDownsamplingData(ctx context.Context, t *testing.T, p monitoring.DBProvider) {
 	t.Helper()
 	for i := 0; i < 60*48; i++ {
 		r := float64(i % 2)
@@ -71,24 +71,24 @@ func monCreateDownsamplingData(t *testing.T, p monitoring.DBProvider, ctx contex
 	}
 }
 
-func monListOptions(fields map[string][]string, limit, offset string) *query.ListOptions {
+func monListOptions(fields map[string][]string, limit string) *query.ListOptions {
 	return &query.ListOptions{
 		Sorts:      query.ParseSortOptions(map[string][]string{"sort": {"-timestamp"}}),
 		Fields:     query.ParseFieldsOptions(fields),
-		Pagination: &query.Pagination{Limit: limit, Offset: offset},
+		Pagination: &query.Pagination{Limit: limit, Offset: "0"},
 	}
 }
 
 func monMetricsOptions() *query.ListOptions {
-	return monListOptions(monitoring.ClientMetricsFieldsDefault, "1", "0")
+	return monListOptions(monitoring.ClientMetricsFieldsDefault, "1")
 }
 
 func monProcessesOptions() *query.ListOptions {
-	return monListOptions(monitoring.ClientProcessesFieldsDefault, "1", "0")
+	return monListOptions(monitoring.ClientProcessesFieldsDefault, "1")
 }
 
 func monMountpointsOptions() *query.ListOptions {
-	return monListOptions(monitoring.ClientMountpointsFieldsDefault, "1", "0")
+	return monListOptions(monitoring.ClientMountpointsFieldsDefault, "1")
 }
 
 func monTimeFilters(lower, upper query.FilterOperatorType, start time.Time, hours float64) []query.FilterOption {
@@ -137,7 +137,7 @@ func Monitoring(t *testing.T, newProvider Factory[monitoring.DBProvider]) {
 
 	t.Run("Metrics", func(t *testing.T) {
 		p := newProvider(t)
-		monCreateTestData(t, p, a)
+		monCreateTestData(a, t, p)
 
 		count, err := p.CountByClientID(a, "test_client_1", monMetricsOptions())
 		require.NoError(t, err)
@@ -158,7 +158,7 @@ func Monitoring(t *testing.T, newProvider Factory[monitoring.DBProvider]) {
 		require.Len(t, second, 1)
 		assert.True(t, mon2.Equal(second[0].Timestamp), second[0].Timestamp)
 
-		asc := monListOptions(monitoring.ClientMetricsFieldsDefault, "10", "0")
+		asc := monListOptions(monitoring.ClientMetricsFieldsDefault, "10")
 		asc.Sorts = []query.SortOption{{Column: "timestamp", IsASC: true}}
 		all, err := p.ListMetricsByClientID(a, "test_client_1", asc)
 		require.NoError(t, err)
@@ -166,7 +166,7 @@ func Monitoring(t *testing.T, newProvider Factory[monitoring.DBProvider]) {
 		assert.Equal(t, []float64{10, 15, 20}, []float64{all[0].CPUUsagePercent, all[1].CPUUsagePercent, all[2].CPUUsagePercent})
 
 		// the API's time filters
-		since := monListOptions(monitoring.ClientMetricsFieldsDefault, "10", "0")
+		since := monListOptions(monitoring.ClientMetricsFieldsDefault, "10")
 		since.Filters = monTimeFilters(query.FilterOperatorTypeSince, query.FilterOperatorTypeUntil, mon2, 1)
 		inRange, err := p.ListMetricsByClientID(a, "test_client_1", since)
 		require.NoError(t, err)
@@ -174,7 +174,7 @@ func Monitoring(t *testing.T, newProvider Factory[monitoring.DBProvider]) {
 		count, err = p.CountByClientID(a, "test_client_1", since)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
-		gtlt := monListOptions(monitoring.ClientMetricsFieldsDefault, "10", "0")
+		gtlt := monListOptions(monitoring.ClientMetricsFieldsDefault, "10")
 		gtlt.Filters = monTimeFilters(query.FilterOperatorTypeGT, query.FilterOperatorTypeLT, mon1.Add(30*time.Second), 1.0/60)
 		between, err := p.ListMetricsByClientID(a, "test_client_1", gtlt)
 		require.NoError(t, err)
@@ -191,7 +191,7 @@ func Monitoring(t *testing.T, newProvider Factory[monitoring.DBProvider]) {
 
 	t.Run("Processes", func(t *testing.T) {
 		p := newProvider(t)
-		monCreateTestData(t, p, a)
+		monCreateTestData(a, t, p)
 
 		latest, err := p.ListProcessesByClientID(a, "test_client_1", monProcessesOptions())
 		require.NoError(t, err)
@@ -209,7 +209,7 @@ func Monitoring(t *testing.T, newProvider Factory[monitoring.DBProvider]) {
 
 	t.Run("Mountpoints", func(t *testing.T) {
 		p := newProvider(t)
-		monCreateTestData(t, p, a)
+		monCreateTestData(a, t, p)
 
 		latest, err := p.ListMountpointsByClientID(a, "test_client_1", monMountpointsOptions())
 		require.NoError(t, err)
@@ -234,7 +234,7 @@ func Monitoring(t *testing.T, newProvider Factory[monitoring.DBProvider]) {
 
 	t.Run("Graphs", func(t *testing.T) {
 		p := newProvider(t)
-		monCreateDownsamplingData(t, p, a)
+		monCreateDownsamplingData(a, t, p)
 		hours := 48.0
 
 		points, err := p.ListGraphMetricsByClientID(a, "test_client", hours, monGraphOptions(mon1, hours))
@@ -323,7 +323,7 @@ func Monitoring(t *testing.T, newProvider Factory[monitoring.DBProvider]) {
 
 	t.Run("DeleteMeasurementsBefore", func(t *testing.T) {
 		p := newProvider(t)
-		monCreateTestData(t, p, a)
+		monCreateTestData(a, t, p)
 		require.NoError(t, p.CreateMeasurement(a, monMeasurement("other_client", mon1, 1)))
 
 		// every client's measurements before the time go
