@@ -7,7 +7,7 @@ slug: postgres
 
 {{< hint type=caution title="Preview" >}}
 **Preview.** Postgres storage is new. Several servers can share one database (see
-[Running several servers](#running-several-servers)), with one of them accepting the client connections. Without a
+[Running several servers](#running-several-servers)); with peer calls several of them accept client connections. Without a
 `[storage]` section the server uses its SQLite files, as it always has.
 {{< /hint >}}
 
@@ -169,8 +169,8 @@ Give every node:
 * its own `[cluster] node_id` (the hostname by default; it must differ between nodes);
 * the same time zone (`TZ`): schedules fire at the cron time of the node's zone.
 
-In this preview **one** node accepts the client connections: run it with `[storage] role = "all"` and every other
-node with `role = "api"`. The node with role `all` holds a lease in the database while it runs; a second node with
+Without [peer calls](#peer-calls) **one** node accepts the client connections: run it with `[storage] role = "all"`
+and every other node with `role = "api"`. The node with role `all` holds a lease in the database while it runs; a second node with
 role `all` refuses to start ("node … accepts the client connections of this database") until the first has been
 stopped for a minute. API nodes answer "client is not connected" for work on clients (commands, scripts,
 tunnels); send that work to the `all` node.
@@ -186,8 +186,8 @@ What the nodes share and how:
   intervals. Built-in library entries are synced once per tenant and version when nodes start.
 * **Schedules.** Every node keeps every schedule, whichever node created it. Before a run starts, the node records
   it in `schedule_runs` with the schedule and its due time, so each run starts once however many nodes are due to
-  start it. `@every` schedules fire at multiples of their period, so all nodes agree on the due time. In this
-  preview only the node with role `all` starts runs (the others can't reach the clients).
+  start it. `@every` schedules fire at multiples of their period, so all nodes agree on the due time. Without peer
+  calls only the node with role `all` starts runs (the others can't reach the clients).
 * The change feed keeps three days of changes. A node further behind (stopped longer, or cut off from the
   database) reloads what it caches.
 * A transaction left open on the database server (an idle `psql` session that changed something, a long import)
@@ -198,6 +198,53 @@ What the nodes share and how:
   nodes: it resets the change feed, whose transaction ids come from the old server (nodes refuse to start until
   then).
 * `node_id` must be unique: two nodes with role `all` and the same `node_id` would both accept client connections.
+
+### Peer calls
+
+With peer calls on, any number of nodes accept client connections, and every node does work on every client: an
+API node finds the node holding the client's connection and passes the work (commands and scripts with their live
+output, uploads, tunnels, port checks, updates status, tags and labels) to it.
+
+* **Session registry.** A node accepting client connections records each one in the database (tables `nodes` and
+  `client_sessions`, written through the functions `rport_register_session`, `rport_renew_sessions`,
+  `rport_end_session` and `rport_node_heartbeat`). It renews the sessions every 20 seconds; a session not renewed
+  for a minute is no longer used. A client connecting to a second node replaces its session there (the newest
+  wins), and the first node closes the older connection when it next renews. The registry decides whether a client
+  is shown connected: a node that stopped without saying so has its clients marked disconnected within about a
+  minute, and clients with a live session are never purged as obsolete.
+* **Mutual TLS, bound to the role.** Nodes call each other over HTTPS (HTTP/2) with certificates of one CA. Each
+  certificate carries the node id and the roles of the process as URIs
+  `spiffe://<trust_domain>/role/<role>/node/<node_id>`: `api` for a process that makes calls (role `api`), `device`
+  for one that answers them, both for role `all`. A node answers only callers whose certificate has the `api` role,
+  so a node that only accepts devices can't make other nodes run commands; a caller checks that the answering
+  certificate has the `device` role of the node the registry names. Certificate files are read again when they
+  change, so short-lived certificates can be replaced without a restart. Issuing them is the deployment's job;
+  `rportd cluster ca` and `rportd cluster cert` make a CA and node certificates for development and tests.
+
+```toml
+[cluster]
+  node_id = "node-1"
+  region = "us-central1"            # informational
+  peer_address = "10.20.0.5:7443"   # where other nodes reach this one (nodes with a client listener)
+  # peer_listen = "0.0.0.0:7443"    # the address to bind, if not peer_address
+  trust_domain = "rport"            # default
+  ca_file = "/etc/rport/peer/ca.crt"
+  cert_file = "/etc/rport/peer/node.crt"
+  key_file = "/etc/rport/peer/node.key"
+```
+
+* For development only, `peer_secret_file` (a file with a shared secret of at least 16 characters) with
+  `insecure_dev = true` replaces the certificates: plain HTTP, and every holder of the secret can pose as any role.
+* **Tunnels** go straight to the node holding them: give each node its own public name in `[server] tunnel_host`;
+  each tunnel carries it as `tunnel_host`, which links to the tunnel use. Ports are allocated per node from its
+  `used_ports`. Tunnels with a subdomain (`<tunnel>.<node>.<domain>`) need a wildcard DNS name and certificate per
+  node and are not set up by the server yet.
+* **Uploads** are sent to the node holding the client, which keeps the file in its upload directory while the client
+  fetches it.
+* A command's live output reaches the UI through the API node that started it; the result is also saved by the node
+  holding the client, so a broken peer connection loses only the live view.
+* A node that only accepts devices and holds no other database rights (a `device` database role) needs `EXECUTE` on
+  the four registry functions.
 
 Some state stays on the node that created it, so the load balancer must send a user's requests to the same API
 node (session affinity) for:

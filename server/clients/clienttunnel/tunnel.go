@@ -72,6 +72,9 @@ type Tunnel struct {
 	TunnelProtocol      `json:"-"`
 	InternalTunnelProxy *InternalTunnelProxy `json:"-"`
 	CreatedAt           time.Time            `json:"created_at"`
+	// TunnelHost is the host name of the server holding the tunnel, set only when several servers share the
+	// clients (a cluster); links to the tunnel use it instead of the API's tunnel_host.
+	TunnelHost string `json:"tunnel_host,omitempty"`
 }
 
 func NewTunnel(logger *logger.Logger, ssh ssh.Conn, id string, remote models.Remote, acl *TunnelACL) (*Tunnel, error) {

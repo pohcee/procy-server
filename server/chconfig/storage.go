@@ -66,10 +66,36 @@ type VaultConfig struct {
 	LocalKeyFile string `mapstructure:"local_key_file"`
 }
 
-// ClusterConfig is the [cluster] section: how a node sharing a Postgres database with other nodes identifies itself.
+// ClusterConfig is the [cluster] section: how a node sharing a Postgres database with other nodes identifies itself
+// and how its processes reach each other (cluster.go). Postgres only.
+//
+// Peer calls (an api process passing work on a client to the device process holding the client) are on when the
+// certificate files (ca_file, cert_file, key_file) or, for development only, peer_secret_file are set.
 type ClusterConfig struct {
 	// NodeID names the node among those sharing the database; defaults to the hostname. Postgres only.
 	NodeID string `mapstructure:"node_id"`
+	// Region is reported with the node in the registry (informational).
+	Region string `mapstructure:"region"`
+	// PeerAddress is the host:port other processes reach this process's peer listener at. Set on processes with a
+	// client listener (storage role "all" or "device").
+	PeerAddress string `mapstructure:"peer_address"`
+	// PeerListen is the address the peer listener binds; defaults to PeerAddress.
+	PeerListen string `mapstructure:"peer_listen"`
+	// TrustDomain is the trust domain in the role URIs of the peer certificates
+	// (spiffe://<trust_domain>/role/<role>/node/<node_id>); default "rport".
+	TrustDomain string `mapstructure:"trust_domain"`
+	// CAFile is the PEM file of the CA that issues the peer certificates.
+	CAFile string `mapstructure:"ca_file"`
+	// CertFile and KeyFile are this process's peer certificate and key (PEM).
+	CertFile string `mapstructure:"cert_file"`
+	KeyFile  string `mapstructure:"key_file"`
+	// PeerSecretFile holds a shared secret that replaces the certificates in development: plain HTTP, and any
+	// process holding the secret can pose as any role. Refused unless InsecureDev is true.
+	PeerSecretFile string `mapstructure:"peer_secret_file"`
+	InsecureDev    bool   `mapstructure:"insecure_dev"`
+
+	// PeerSecret is the secret read from PeerSecretFile.
+	PeerSecret string `mapstructure:"-"`
 }
 
 var nodeIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$`)

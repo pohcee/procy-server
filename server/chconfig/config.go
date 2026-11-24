@@ -390,6 +390,9 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 	if err := c.parseAndValidateStorage(); err != nil {
 		return err
 	}
+	if err := c.parseAndValidateCluster(); err != nil {
+		return err
+	}
 	c.warnPostgresSettings(mLog)
 
 	if c.Server.MaxRequestBytes > 0 {

@@ -77,6 +77,12 @@ type nodeSettings struct {
 	vault  string // the [vault] settings; default the local key provider with a fresh key file
 	nodeID string // [cluster] node_id; default "node-1"
 	server string // extra [server] settings
+	// listen is the client listener address; default a free port
+	listen string
+	// apiOff runs without the API ([api] address = "")
+	apiOff bool
+	// cluster is extra [cluster] settings
+	cluster string
 }
 
 // nodeConf is the rportd.conf of a Postgres node with the API on apiAddr.
@@ -90,6 +96,12 @@ func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
 	}
 	if s.nodeID == "" {
 		s.nodeID = "node-1"
+	}
+	if s.listen == "" {
+		s.listen = freeAddr(t)
+	}
+	if s.apiOff {
+		apiAddr = ""
 	}
 	return fmt.Sprintf(`
 [server]
@@ -109,7 +121,8 @@ func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
 %s
 [cluster]
   node_id = %q
-`, freeAddr(t), t.TempDir(), s.server, apiAddr, testSecret, dsn, s.role, s.vault, s.nodeID)
+%s
+`, s.listen, t.TempDir(), s.server, apiAddr, testSecret, dsn, s.role, s.vault, s.nodeID, s.cluster)
 }
 
 func localKeyFile(t *testing.T) string {
@@ -183,6 +196,9 @@ func startNodeOn(t *testing.T, d *pgtest.DB, s nodeSettings) *nodeFixture {
 	}
 	t.Cleanup(stop)
 	base := "http://" + addr + "/api/v1"
+	if s.apiOff {
+		addr, base = s.listen, ""
+	}
 	// wait for the port with a plain dial: an unauthenticated request would delay the next one (user_login_wait)
 	require.Eventually(t, func() bool {
 		c, err := net.Dial("tcp", addr)
