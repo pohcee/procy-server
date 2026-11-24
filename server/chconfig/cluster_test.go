@@ -21,12 +21,12 @@ func certFiles() ClusterConfig {
 }
 
 func TestClusterNeedsPostgres(t *testing.T) {
-	err := validate(&Config{Server: defaultValidMinServerConfig, Cluster: ClusterConfig{NodeID: "n1"}})
+	err := validate(&Config{Server: defaultValidMinServerConfig, Cluster: ClusterConfig{PeerAddress: "10.0.0.1:7443"}})
 	assert.ErrorContains(t, err, `[cluster] is set but [storage] backend is not "postgres"`)
 	require.NoError(t, validate(&Config{Server: defaultValidMinServerConfig}))
 }
 
-func TestClusterNodeIDDefaultsToHostname(t *testing.T) {
+func TestClusterDefaults(t *testing.T) {
 	osHostname = func() (string, error) { return "node-7", nil }
 	t.Cleanup(func() { osHostname = os.Hostname })
 	c := clusterConfig("", ClusterConfig{})

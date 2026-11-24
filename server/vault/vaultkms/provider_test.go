@@ -451,3 +451,29 @@ func openVaultDB(path string) (vault.DbProvider, error) {
 func TestCloudClientSatisfiesKMS(_ *testing.T) {
 	var _ KMS = (*kms.KeyManagementClient)(nil)
 }
+
+func TestForgetAndForgetAll(t *testing.T) {
+	f := newFixture(t)
+	mustKey(t, f.p, "a") // creates the DEKs
+	mustKey(t, f.p, "b")
+	other := f.provider(t)
+	mustKey(t, other, "a")
+	mustKey(t, other, "b")
+	if got := f.kms.decrypts.Load(); got != 2 {
+		t.Fatalf("decrypts = %d, want 2", got)
+	}
+
+	other.Forget("a")
+	mustKey(t, other, "a")
+	mustKey(t, other, "b")
+	if got := f.kms.decrypts.Load(); got != 3 {
+		t.Fatalf("decrypts after Forget(a) = %d, want 3 (only a unwrapped again)", got)
+	}
+
+	other.ForgetAll()
+	mustKey(t, other, "a")
+	mustKey(t, other, "b")
+	if got := f.kms.decrypts.Load(); got != 5 {
+		t.Fatalf("decrypts after ForgetAll = %d, want 5", got)
+	}
+}

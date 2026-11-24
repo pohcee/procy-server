@@ -119,3 +119,104 @@ func TestLiveSessionKeepsClientFromPurge(t *testing.T) {
 	require.NoError(t, d.Owner.Select(&ids, "SELECT id FROM clients"))
 	assert.Equal(t, []string{"held"}, ids)
 }
+
+func TestGet(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA, repotest.TenantB)
+	s := New(d.App, nil)
+	var _ ossclients.ClientGetter = s
+	a, b := repotest.Ctx(repotest.TenantA), repotest.Ctx(repotest.TenantB)
+	at := time.Date(2026, 4, 5, 6, 7, 8, 0, time.UTC)
+	c := repotest.StoreClient("c1", &at)
+	c.Labels = map[string]string{"k": "v"}
+	c.AllowedUserGroups = []string{"g"}
+	require.NoError(t, s.Save(a, c))
+
+	got, err := s.Get(a, "c1", testLog)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "c1", got.GetID())
+	assert.Equal(t, c.GetName(), got.GetName())
+	assert.Equal(t, map[string]string{"k": "v"}, got.GetLabels())
+	assert.Equal(t, []string{"g"}, got.GetAllowedUserGroups())
+	require.NotNil(t, got.GetDisconnectedAt())
+	assert.True(t, at.Equal(*got.GetDisconnectedAt()))
+
+	got, err = s.Get(a, "missing", testLog)
+	require.NoError(t, err)
+	assert.Nil(t, got)
+	got, err = s.Get(b, "c1", testLog)
+	require.NoError(t, err)
+	assert.Nil(t, got, "another tenant's client is not found")
+
+	_, err = s.Get(context.Background(), "c1", testLog)
+	assert.Error(t, err)
+}
+
+func TestGetLeavesOutObsolete(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	keep := time.Hour
+	s := New(d.App, &keep)
+	a := repotest.Ctx(repotest.TenantA)
+	old := time.Now().Add(-2 * time.Hour)
+	recent := time.Now().Add(-time.Minute)
+	require.NoError(t, s.Save(a, repotest.StoreClient("old", &old)))
+	require.NoError(t, s.Save(a, repotest.StoreClient("recent", &recent)))
+
+	got, err := s.Get(a, "old", testLog)
+	require.NoError(t, err)
+	assert.Nil(t, got)
+	got, err = s.Get(a, "recent", testLog)
+	require.NoError(t, err)
+	assert.NotNil(t, got)
+}
+
+func TestSaveAdminFieldsWritesOnlyTheACL(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	s := New(d.App, nil)
+	a := repotest.Ctx(repotest.TenantA)
+	c := repotest.StoreClient("c1", nil) // connected, per the node holding it
+	c.Version = "2.0"
+	require.NoError(t, s.Save(a, c))
+
+	stale := repotest.StoreClient("c1", nil)
+	at := time.Now()
+	stale.SetDisconnectedAt(&at)
+	stale.Version = "1.0-stale"
+	stale.AllowedUserGroups = []string{"ops"}
+	require.NoError(t, s.SaveAdminFields(a, stale))
+
+	got, err := s.Get(a, "c1", testLog)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ops"}, got.GetAllowedUserGroups())
+	assert.Equal(t, "2.0", got.GetVersion(), "the reported fields stay as stored")
+	assert.True(t, got.IsConnected(), "the connection state stays as stored")
+
+	require.NoError(t, s.Delete(a, "c1", testLog))
+	assert.Error(t, s.SaveAdminFields(a, stale), "a deleted client is not brought back")
+	got, err = s.Get(a, "c1", testLog)
+	require.NoError(t, err)
+	assert.Nil(t, got)
+}
+
+func TestSaveKeepingACLKeepsTheStoredACL(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	s := New(d.App, nil)
+	a := repotest.Ctx(repotest.TenantA)
+	c := repotest.StoreClient("c1", nil)
+	c.AllowedUserGroups = []string{"old"}
+	require.NoError(t, s.Save(a, c))
+	// another node revokes: the ACL is now "new"
+	other := repotest.StoreClient("c1", nil)
+	other.AllowedUserGroups = []string{"new"}
+	require.NoError(t, s.SaveAdminFields(a, other))
+
+	c.Version = "3.0" // reported by the client
+	require.NoError(t, s.SaveKeepingACL(a, c))
+	got, err := s.Get(a, "c1", testLog)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"new"}, got.GetAllowedUserGroups(), "the revocation is not undone")
+	assert.Equal(t, "3.0", got.GetVersion())
+	assert.Equal(t, []string{"new"}, c.GetAllowedUserGroups(), "and the caller's copy takes it")
+
+	require.NoError(t, s.SaveKeepingACL(a, repotest.StoreClient("c2", nil)), "a new client is inserted")
+}

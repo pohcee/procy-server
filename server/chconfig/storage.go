@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	rportplus "github.com/openrport/openrport/plus"
+	"github.com/openrport/openrport/share/logger"
 )
 
 // Storage backends ([storage] backend).
@@ -64,6 +66,43 @@ type VaultConfig struct {
 	LocalKeyFile string `mapstructure:"local_key_file"`
 }
 
+// ClusterConfig is the [cluster] section: how a node sharing a Postgres database with other nodes identifies itself
+// and how its processes reach each other (cluster.go). Postgres only.
+//
+// Peer calls (an api process passing work on a client to the device process holding the client) are on when the
+// certificate files (ca_file, cert_file, key_file) or, for development only, peer_secret_file are set.
+type ClusterConfig struct {
+	// NodeID names the node among those sharing the database; defaults to the hostname. Postgres only.
+	NodeID string `mapstructure:"node_id"`
+	// Region is reported with the node in the registry (informational).
+	Region string `mapstructure:"region"`
+	// PeerAddress is the host:port other processes reach this process's peer listener at. Set on processes with a
+	// client listener (storage role "all" or "device").
+	PeerAddress string `mapstructure:"peer_address"`
+	// PeerListen is the address the peer listener binds; defaults to PeerAddress.
+	PeerListen string `mapstructure:"peer_listen"`
+	// TrustDomain is the trust domain in the role URIs of the peer certificates
+	// (spiffe://<trust_domain>/role/<role>/node/<node_id>); default "rport".
+	TrustDomain string `mapstructure:"trust_domain"`
+	// CAFile is the PEM file of the CA that issues the peer certificates.
+	CAFile string `mapstructure:"ca_file"`
+	// CertFile and KeyFile are this process's peer certificate and key (PEM).
+	CertFile string `mapstructure:"cert_file"`
+	KeyFile  string `mapstructure:"key_file"`
+	// PeerSecretFile holds a shared secret that replaces the certificates in development: plain HTTP, and any
+	// process holding the secret can pose as any role. Refused unless InsecureDev is true.
+	PeerSecretFile string `mapstructure:"peer_secret_file"`
+	InsecureDev    bool   `mapstructure:"insecure_dev"`
+
+	// PeerSecret is the secret read from PeerSecretFile.
+	PeerSecret string `mapstructure:"-"`
+}
+
+var nodeIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$`)
+
+// osHostname is os.Hostname, replaced in tests.
+var osHostname = os.Hostname
+
 const postgresStoresCredentials = `is not used with [storage] backend = "postgres": users and client credentials are stored in Postgres`
 
 func (c *Config) parseAndValidateStorage() error {
@@ -75,12 +114,23 @@ func (c *Config) parseAndValidateStorage() error {
 				return fmt.Errorf(`[storage] %s is set but [storage] backend is not "postgres"`, kv[0])
 			}
 		}
+		if c.Cluster.NodeID != "" {
+			return errors.New(`[cluster] node_id is set but [storage] backend is not "postgres"`)
+		}
 	case StorageBackendPostgres:
 		if err := s.parseAndValidatePostgres(); err != nil {
 			return err
 		}
 		if err := c.refuseLocalAuthSources(); err != nil {
 			return err
+		}
+		if err := c.Cluster.parseAndValidate(); err != nil {
+			return err
+		}
+		// every node must accept the tokens any other node issued: a secret generated into one node's data_dir
+		// would not be shared
+		if c.API.Address != "" && c.API.JWTSecret == "" {
+			return errors.New(`[api] jwt_secret is required with [storage] backend = "postgres": every node must sign and check API tokens with the same secret`)
 		}
 	default:
 		return fmt.Errorf(`invalid [storage] backend %q: expected "sqlite" or "postgres"`, s.Backend)
@@ -149,8 +199,43 @@ func (c *Config) refuseLocalAuthSources() error {
 	return nil
 }
 
+func (cl *ClusterConfig) parseAndValidate() error {
+	if cl.NodeID == "" {
+		host, err := osHostname()
+		if err != nil {
+			return fmt.Errorf("[cluster] node_id is empty and the hostname can't be read: %w", err)
+		}
+		if host == "" {
+			return errors.New("[cluster] node_id is empty and the hostname is empty: set node_id")
+		}
+		if !nodeIDPattern.MatchString(host) {
+			return fmt.Errorf("invalid [cluster] node_id %q (the hostname): expected up to 63 letters, digits, '.', '_' or '-', starting with a letter or digit; set node_id", host)
+		}
+		cl.NodeID = host
+		return nil
+	}
+	if !nodeIDPattern.MatchString(cl.NodeID) {
+		return fmt.Errorf("invalid [cluster] node_id %q: expected up to 63 letters, digits, '.', '_' or '-', starting with a letter or digit", cl.NodeID)
+	}
+	return nil
+}
+
+// warnPostgresSettings logs settings that work on Postgres but not as several nodes sharing the database expect.
+func (c *Config) warnPostgresSettings(mLog *logger.MemLogger) {
+	if !c.Storage.IsPostgres() {
+		return
+	}
+	if c.Storage.Role != StorageRoleAPI && c.Server.KeySeed == "" {
+		mLog.Infof("warning: [server] key_seed is empty: the node's fingerprint changes on each start; nodes sharing a database should use the same key_seed")
+	}
+}
+
 func (c *Config) parseAndValidateVault() error {
 	v := &c.Vault
+	// the passphrase unlocks the vault in one process: the other nodes sharing the database could not open it
+	if c.Storage.IsPostgres() && (v.KeyProvider == "" || v.KeyProvider == KeyProviderPassphrase) {
+		return errors.New(`[vault] key_provider = "passphrase" is not supported with [storage] backend = "postgres": several nodes can share the database and the passphrase unlocks only one; set key_provider = "kms" or "local"`)
+	}
 	switch v.KeyProvider {
 	case "":
 		v.KeyProvider = KeyProviderPassphrase

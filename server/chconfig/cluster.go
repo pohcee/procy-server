@@ -9,49 +9,10 @@ import (
 	"strings"
 )
 
-// ClusterConfig is the [cluster] section: how a node sharing a Postgres database with other nodes identifies itself
-// and how its processes reach each other. Postgres only.
-//
-// Peer calls (an api process passing work on a client to the device process holding the client) are on when the
-// certificate files (ca_file, cert_file, key_file) or, for development only, peer_secret_file are set.
-type ClusterConfig struct {
-	// NodeID names the node among those sharing the database; defaults to the hostname. Both processes of a node
-	// (api and device) use the same node_id.
-	NodeID string `mapstructure:"node_id"`
-	// Region is reported with the node in the registry (informational).
-	Region string `mapstructure:"region"`
-	// PeerAddress is the host:port other processes reach this process's peer listener at. Set on processes with a
-	// client listener (storage role "all" or "device").
-	PeerAddress string `mapstructure:"peer_address"`
-	// PeerListen is the address the peer listener binds; defaults to PeerAddress.
-	PeerListen string `mapstructure:"peer_listen"`
-	// TrustDomain is the trust domain in the role URIs of the peer certificates
-	// (spiffe://<trust_domain>/role/<role>/node/<node_id>); default "rport".
-	TrustDomain string `mapstructure:"trust_domain"`
-	// CAFile is the PEM file of the CA that issues the peer certificates.
-	CAFile string `mapstructure:"ca_file"`
-	// CertFile and KeyFile are this process's peer certificate and key (PEM).
-	CertFile string `mapstructure:"cert_file"`
-	KeyFile  string `mapstructure:"key_file"`
-	// PeerSecretFile holds a shared secret that replaces the certificates in development: plain HTTP, and any
-	// process holding the secret can pose as any role. Refused unless InsecureDev is true.
-	PeerSecretFile string `mapstructure:"peer_secret_file"`
-	InsecureDev    bool   `mapstructure:"insecure_dev"`
-
-	// PeerSecret is the secret read from PeerSecretFile.
-	PeerSecret string `mapstructure:"-"`
-}
-
 // DefaultTrustDomain is the trust domain of the peer certificates when [cluster] trust_domain is empty.
 const DefaultTrustDomain = "rport"
 
-var (
-	nodeIDPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$`)
-	trustDomainPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$`)
-)
-
-// osHostname is os.Hostname, replaced in tests.
-var osHostname = os.Hostname
+var trustDomainPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$`)
 
 // PeerEnabled reports whether this process makes or answers peer calls.
 func (cl ClusterConfig) PeerEnabled() bool {
@@ -69,13 +30,11 @@ func (cl ClusterConfig) PeerListenAddress() string {
 func (c *Config) parseAndValidateCluster() error {
 	cl := &c.Cluster
 	if !c.Storage.IsPostgres() {
-		if *cl != (ClusterConfig{}) {
+		// node_id is checked with [storage]
+		if *cl != (ClusterConfig{NodeID: cl.NodeID}) {
 			return errors.New(`[cluster] is set but [storage] backend is not "postgres"`)
 		}
 		return nil
-	}
-	if err := cl.parseAndValidateNodeID(); err != nil {
-		return err
 	}
 	if cl.TrustDomain == "" {
 		cl.TrustDomain = DefaultTrustDomain
@@ -138,27 +97,6 @@ func (c *Config) parseAndValidateCluster() error {
 		if _, _, err := net.SplitHostPort(kv[1]); err != nil {
 			return fmt.Errorf("invalid [cluster] %s %q: %w", kv[0], kv[1], err)
 		}
-	}
-	return nil
-}
-
-func (cl *ClusterConfig) parseAndValidateNodeID() error {
-	if cl.NodeID == "" {
-		host, err := osHostname()
-		if err != nil {
-			return fmt.Errorf("[cluster] node_id is empty and the hostname can't be read: %w", err)
-		}
-		if host == "" {
-			return errors.New("[cluster] node_id is empty and the hostname is empty: set node_id")
-		}
-		if !nodeIDPattern.MatchString(host) {
-			return fmt.Errorf("invalid [cluster] node_id %q (the hostname): expected up to 63 letters, digits, '.', '_' or '-', starting with a letter or digit; set node_id", host)
-		}
-		cl.NodeID = host
-		return nil
-	}
-	if !nodeIDPattern.MatchString(cl.NodeID) {
-		return fmt.Errorf("invalid [cluster] node_id %q: expected up to 63 letters, digits, '.', '_' or '-', starting with a letter or digit", cl.NodeID)
 	}
 	return nil
 }
