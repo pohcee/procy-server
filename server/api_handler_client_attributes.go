@@ -39,6 +39,7 @@ func (al *APIListener) handleGetClientAttributes(w http.ResponseWriter, req *htt
 	client, err := al.getClientFromContext(ctx)
 	if err != nil {
 		al.jsonErrorResponseWithTitle(w, http.StatusInternalServerError, "client not present in the request")
+		return
 	}
 
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(client.GetAttributes()))
@@ -51,6 +52,7 @@ func (al *APIListener) handleUpdateClientAttributes(w http.ResponseWriter, req *
 	client, err := al.getClientFromContext(ctx)
 	if err != nil {
 		al.jsonErrorResponseWithTitle(w, http.StatusInternalServerError, "client not present in the request")
+		return
 	}
 
 	attributesRaw, err := io.ReadAll(req.Body)
