@@ -125,8 +125,8 @@ func TestAuthUserStandaloneUsesTheListenerTenant(t *testing.T) {
 	assert.Error(t, err, "another tenant's credentials are not found standalone")
 }
 
-func admissionLog() *logger.DynamicLogger {
-	return logger.NewDynamicLogger("client", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug, false, false)
+func admissionLog() *logger.Logger {
+	return logger.NewLogger("client", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug)
 }
 
 func TestAdmitDevice(t *testing.T) {

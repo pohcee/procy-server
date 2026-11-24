@@ -73,7 +73,7 @@ func (a *deviceAdmission) lock(tid tenant.ID) func() {
 // carries it). It returns the error to answer the connection request with, which the client logs, and, when the
 // admission holds the tenant's lock, the function releasing it once the client is started. Without DeviceTenants
 // every device is admitted.
-func (cl *ClientListener) admitDevice(ctx context.Context, tid tenant.ID, clientID, clientAuthID string, clog *logger.DynamicLogger) (release func(), err error) {
+func (cl *ClientListener) admitDevice(ctx context.Context, tid tenant.ID, clientID, clientAuthID string, clog *logger.Logger) (release func(), err error) {
 	release = func() {}
 	dt := cl.server.deviceTenants
 	if dt == nil || tid == "" {

@@ -168,7 +168,7 @@ func TestAuthIndexAppRoleReadOnly(t *testing.T) {
 	}
 }
 
-// TestAuthIndexBackfill applies migration 0210 again on credentials stored without the index (as before the
+// TestAuthIndexBackfill applies migration 1000 again on credentials stored without the index (as before the
 // migration): the index gets them.
 func TestAuthIndexBackfill(t *testing.T) {
 	d := pgtest.New(t, repotest.TenantA, repotest.TenantB)
@@ -177,12 +177,12 @@ func TestAuthIndexBackfill(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.Add(repotest.Ctx(repotest.TenantB), &clientsauth.ClientAuth{ID: "cb", Password: "p"})
 	require.NoError(t, err)
-	_, err = d.Owner.Exec("DELETE FROM client_auth_ids; DELETE FROM schema_migrations WHERE version = 210")
+	_, err = d.Owner.Exec("DELETE FROM client_auth_ids; DELETE FROM schema_migrations WHERE version = 1000")
 	require.NoError(t, err)
 
 	applied, err := migrate.Up(context.Background(), d.Owner)
 	require.NoError(t, err)
-	assert.Equal(t, []int64{210}, applied)
+	assert.Equal(t, []int64{1000}, applied)
 	for id, want := range map[string]tenant.ID{"ca": repotest.TenantA, "cb": repotest.TenantB} {
 		got, found, err := s.TenantOf(context.Background(), id)
 		require.NoError(t, err)

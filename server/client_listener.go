@@ -500,7 +500,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	admitted, err := cl.admitDevice(ctx, tid, clientID, clientAuthID, clientLog)
+	admitted, err := cl.admitDevice(ctx, tid, clientID, clientAuthID, clientLog.GetLogger())
 	if err != nil {
 		cl.replyConnectionError(r, err)
 		return

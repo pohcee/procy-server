@@ -2,8 +2,8 @@
 //
 // Files are named NNNN_name.up.sql (NNNN is the version, unique, applied in ascending order). Each domain owns a
 // version range so independent changes don't collide: 0001–0099 core, 0100 users, tokens, sessions and client
-// auth, 0200 clients, stored tunnels and client groups (0210: the tenant of a client credential, device limits), 0300 jobs and schedules, 0400 library, notifications, audit
-// log and monitoring. Only up migrations exist; a released file never changes.
+// auth, 0200 clients, stored tunnels and client groups, 0300 jobs and schedules, 0400 library, notifications, audit
+// log and monitoring, 1000 the tenant of a client credential and device limits. Only up migrations exist; a released file never changes.
 package migrate
 
 import (
