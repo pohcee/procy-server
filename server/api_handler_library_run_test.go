@@ -3,7 +3,6 @@ package chserver
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -309,7 +308,7 @@ func TestBuiltinServedWithServerURL(t *testing.T) {
 	assert.Contains(t, v.Content.Implementations["linux"].Code, "{{server_url}}")
 
 	// the compat view path serves the concrete URL too
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r := defaultTenantRequest(http.MethodGet, "/")
 	got, found, err := e.al.libraryViewEntry(r, entry.ID, library.KindScript)
 	require.NoError(t, err)
 	if !found {
