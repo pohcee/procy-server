@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/openrport/openrport/server/api"
+	"github.com/openrport/openrport/server/capabilities"
 	chshare "github.com/openrport/openrport/share"
 )
 
@@ -46,7 +47,17 @@ func (al *APIListener) handleGetStatus(w http.ResponseWriter, req *http.Request)
 		"used_ports":                al.config.Server.UsedPortsRaw,
 		"monitoring_enabled":        al.config.Monitoring.Enabled,
 		"password_min_length":       al.config.API.PasswordMinLength,
+		"capabilities":              al.statusCapabilities(),
 	})
 
 	al.writeJSONResponse(w, http.StatusOK, response)
+}
+
+// statusCapabilities returns the capabilities reported by the status endpoint.
+func (al *APIListener) statusCapabilities() capabilities.Capabilities {
+	c := capabilities.FromConfig(al.config)
+	if al.capabilitiesOverride != nil {
+		c = al.capabilitiesOverride(c)
+	}
+	return c
 }

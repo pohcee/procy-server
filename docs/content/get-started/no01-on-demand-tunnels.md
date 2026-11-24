@@ -67,6 +67,9 @@ Example of a human-readable API status
 }
 ```
 
+The response is shortened here. Among other fields, it contains a `capabilities` object listing the features this
+server offers, for example `"browser_vnc": true` or `"http_proxy_tunnels": false`. The web UI hides what is not available.
+
 ## Connect a client without a tunnel
 
 Invoke the Procy client without specifying a tunnel but with some extra data.

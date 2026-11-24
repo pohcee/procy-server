@@ -32,6 +32,7 @@ import (
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/auditlog"
 	"github.com/openrport/openrport/server/caddy"
+	servercaps "github.com/openrport/openrport/server/capabilities"
 	"github.com/openrport/openrport/server/cgroups"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
@@ -89,11 +90,16 @@ type Server struct {
 	acme                *acme.Acme
 	alertingService     alertingcap.Service
 	monitoringQueue     monitoring.MeasurementSaver
+	// capabilitiesOverride is ServerOpts.Capabilities; nil reports the computed capabilities.
+	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
 }
 
 type ServerOpts struct {
 	FilesAPI    files.FileAPI
 	PlusManager rportplus.Manager
+	// Capabilities, when set, adjusts the capabilities reported by GET /api/v1/status.
+	// It receives the capabilities computed from the config and returns the ones to report.
+	Capabilities func(servercaps.Capabilities) servercaps.Capabilities
 }
 
 // NewServer creates and returns a new rport server
@@ -122,6 +128,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	filesAPI := opts.FilesAPI
 	s.plusManager = opts.PlusManager
+	s.capabilitiesOverride = opts.Capabilities
 
 	if rportplus.IsPlusEnabled(config.PlusConfig) {
 		licCap := s.plusManager.GetLicenseCapabilityEx()

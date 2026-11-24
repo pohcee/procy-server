@@ -84,6 +84,49 @@ get:
                     type: integer
                     description: >-
                       Minimal password length required for API user accounts
+                  capabilities:
+                    type: object
+                    description: >-
+                      Features this server build offers. A feature is available
+                      when its field is true. Clients should treat a missing
+                      field (older servers) as available.
+                    properties:
+                      vault_passphrase:
+                        type: boolean
+                        description: The vault can be initialised and unlocked with a passphrase
+                      port_tunnels:
+                        type: boolean
+                        description: Tunnels exposed on a server port
+                      http_proxy_tunnels:
+                        type: boolean
+                        description: HTTP(S) tunnels served through the built-in tunnel reverse proxy
+                      subdomain_tunnels:
+                        type: boolean
+                        description: Tunnels published on their own subdomain via the Caddy integration
+                      browser_vnc:
+                        type: boolean
+                        description: VNC sessions in the browser (noVNC)
+                      browser_rdp:
+                        type: boolean
+                        description: RDP sessions in the browser (guacd)
+                      monitoring:
+                        type: boolean
+                        description: Client monitoring (metrics, processes, mountpoints)
+                      alerting:
+                        type: boolean
+                        description: Alerting rules, templates and problems
+                      pairing:
+                        type: boolean
+                        description: Client installation with a pairing code
+                      file_upload:
+                        type: boolean
+                        description: Uploading files to clients
+                      scheduled_jobs:
+                        type: boolean
+                        description: Scheduled commands and scripts
+                      library:
+                        type: boolean
+                        description: The script and command library
               meta:
                 type: object
                 properties: {}
