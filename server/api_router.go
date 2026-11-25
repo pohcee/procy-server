@@ -64,13 +64,22 @@ func (al *APIListener) initRouter() {
 	// the platform operators' tenant gets its own account routes and the operator API only
 	systemGuard := operator.SystemTenantGuard(al.responder())
 	secureAPI.Use(systemGuard)
+	secureAPI.Use(al.billingReadOnly)
+	var operatorRouter *mux.Router
 	if al.operatorAPI != nil {
-		al.operatorAPI.Mount(secureAPI.PathPrefix(operator.RoutePrefix).Subrouter())
+		operatorRouter = secureAPI.PathPrefix(operator.RoutePrefix).Subrouter()
+		al.operatorAPI.Mount(operatorRouter)
 	}
 	secureAPI.HandleFunc("/status", al.handleGetStatus).Methods(http.MethodGet)
 	if al.usage != nil {
 		secureAPI.Handle("/usage", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetUsage))).Methods(http.MethodGet)
 	}
+	if al.billing != nil && al.billing.Org != nil {
+		secureAPI.Handle("/billing", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetBilling))).Methods(http.MethodGet)
+		secureAPI.Handle("/billing/periods", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetBillingPeriods))).Methods(http.MethodGet)
+		secureAPI.Handle("/billing/spending-limit", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handlePutSpendingLimit))).Methods(http.MethodPut)
+	}
+	al.addBillingProviderRoutes(api, secureAPI, operatorRouter)
 	secureAPI.HandleFunc("/me", al.handleGetMe).Methods(http.MethodGet)
 	secureAPI.HandleFunc("/me", al.handleChangeMe).Methods(http.MethodPut)
 	secureAPI.HandleFunc("/me/ip", al.handleGetIP).Methods(http.MethodGet)
@@ -106,7 +115,7 @@ func (al *APIListener) initRouter() {
 
 	clientTunnels := clientDetails.NewRoute().Subrouter()
 	clientTunnels.Use(al.permissionsMiddleware(users.PermissionTunnels))
-	clientTunnels.HandleFunc("/tunnels", al.handlePutClientTunnel).Methods(http.MethodPut)
+	clientTunnels.Handle("/tunnels", al.transferGuard(http.HandlerFunc(al.handlePutClientTunnel))).Methods(http.MethodPut)
 	clientTunnels.HandleFunc("/tunnels/{tunnel_id}", al.handleDeleteClientTunnel).Methods(http.MethodDelete)
 	clientTunnels.HandleFunc("/tunnels/{tunnel_id}/acl", al.handlePutClientTunnelACL).Methods(http.MethodPut)
 	clientTunnels.HandleFunc("/stored-tunnels", al.handleGetStoredTunnels).Methods(http.MethodGet)
@@ -135,7 +144,7 @@ func (al *APIListener) initRouter() {
 
 	secureAPI.Handle("/tunnels", al.permissionsMiddleware(users.PermissionTunnels)(http.HandlerFunc(al.handleGetTunnels))).Methods(http.MethodGet)
 	secureAPI.Handle("/auditlog", al.permissionsMiddleware(users.PermissionsAuditLog)(http.HandlerFunc(al.handleListAuditLog))).Methods(http.MethodGet)
-	secureAPI.Handle("/files", al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.uploads.HandleFileUploads))).Methods(http.MethodPost).Name(routes.FilesUploadRouteName)
+	secureAPI.Handle("/files", al.permissionsMiddleware(users.PermissionUploads)(al.transferGuard(http.HandlerFunc(al.uploads.HandleFileUploads)))).Methods(http.MethodPost).Name(routes.FilesUploadRouteName)
 
 	secureAPI.HandleFunc("/client-groups", al.handleGetClientGroups).Methods(http.MethodGet)
 	secureAPI.HandleFunc("/client-groups/{group_id}", al.handleGetClientGroup).Methods(http.MethodGet)
@@ -224,10 +233,10 @@ func (al *APIListener) initRouter() {
 
 	// web sockets
 	// common auth middleware is not used due to JS issue https://stackoverflow.com/questions/22383089/is-it-possible-to-use-bearer-authentication-for-websocket-upgrade-requests
-	api.HandleFunc("/ws/commands", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleCommandsWS))))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/library-entries", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleLibraryEntriesWS))))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/scripts", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleScriptsWS))))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/uploads", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.uploads.HandleUploadsWS))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/commands", al.wsAuth(systemGuard(al.billingReadOnly(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleCommandsWS)))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/library-entries", al.wsAuth(systemGuard(al.billingReadOnly(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleLibraryEntriesWS)))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/scripts", al.wsAuth(systemGuard(al.billingReadOnly(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleScriptsWS)))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/uploads", al.wsAuth(systemGuard(al.billingReadOnly(al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.uploads.HandleUploadsWS)))))).Methods(http.MethodGet)
 
 	if al.config.API.EnableWsTestEndpoints {
 		api.HandleFunc("/test/commands/ui", al.wsCommands)

@@ -200,8 +200,8 @@ BEGIN
 END
 $$;
 
--- rport_billing_claim_notice records a dunning notification; false when it was sent before.
-CREATE FUNCTION rport_billing_claim_notice(p_tenant text, p_kind text, p_episode text) RETURNS boolean
+-- rport_billing_claim_dunning_notice records a dunning notification; false when it was sent before.
+CREATE FUNCTION rport_billing_claim_dunning_notice(p_tenant text, p_kind text, p_episode text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE prev text := current_setting('rport.tenant_id', true); ok boolean;
 BEGIN
@@ -215,7 +215,68 @@ BEGIN
 END
 $$;
 
+-- rport_billing_provider_state passes what the provider learned to the organization's billing record (org_billing,
+-- migration 1450): its customer, subscription and payment method, and the plan it bought (p_plan; '' leaves the
+-- plan alone). A missing record is created on p_default_plan. An exempt organization's plan is never changed here.
+-- Returns false for an unknown or reserved organization.
+CREATE FUNCTION rport_billing_provider_state(p_id text, p_customer text, p_subscription text, p_has_pm boolean,
+        p_plan text, p_default_plan text, p_by text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE found_it boolean;
+BEGIN
+    IF NOT rport_billing_org_exists(p_id) THEN
+        RETURN false;
+    END IF;
+    PERFORM set_config('rport.billing_all', 'on', true);
+    INSERT INTO org_billing (tenant_id, plan, updated_by)
+    VALUES (p_id, coalesce(nullif(p_plan, ''), p_default_plan), p_by)
+    ON CONFLICT (tenant_id) DO NOTHING;
+    UPDATE org_billing SET provider_customer_id = coalesce(p_customer, ''),
+        provider_subscription_id = coalesce(p_subscription, ''), has_payment_method = p_has_pm,
+        plan = CASE WHEN coalesce(p_plan, '') <> '' AND status <> 'exempt' THEN p_plan ELSE plan END,
+        updated_at = now(), updated_by = p_by
+    WHERE tenant_id = p_id;
+    found_it := FOUND;
+    PERFORM set_config('rport.billing_all', '', true);
+    RETURN found_it;
+END
+$$;
+
+-- rport_billing_period_reported marks a closed period ready to be charged as reported to the provider.
+CREATE FUNCTION rport_billing_period_reported(p_id text, p_start date) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE found_it boolean;
+BEGIN
+    PERFORM set_config('rport.billing_all', 'on', true);
+    UPDATE billing_periods SET state = 'reported', reported_at = now()
+    WHERE tenant_id = p_id AND period_start = p_start AND state = 'ready';
+    found_it := FOUND;
+    PERFORM set_config('rport.billing_all', '', true);
+    RETURN found_it;
+END
+$$;
+
+-- A database upgraded with a plain "rportd migrate" gives the new tables the default privileges an earlier
+-- "--grant-to" set (writes included); they are taken back from every role but the owner (as migration 1450).
+DO $$
+DECLARE r record;
+BEGIN
+    FOR r IN SELECT DISTINCT a.grantee::regrole AS role
+             FROM pg_class c, aclexplode(c.relacl) a
+             WHERE c.oid IN ('billing_provider_accounts'::regclass, 'billing_events'::regclass,
+                             'billing_usage_reports'::regclass, 'billing_dunning_notices'::regclass)
+               AND a.grantee <> c.relowner AND a.grantee <> 0
+               AND a.privilege_type IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
+    LOOP
+        EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON billing_provider_accounts, billing_events, '
+                       'billing_usage_reports, billing_dunning_notices FROM %s', r.role);
+    END LOOP;
+END
+$$;
+
 REVOKE EXECUTE ON FUNCTION rport_billing_org_check(text), rport_billing_claim_event(text, text, text, text),
     rport_billing_customer_tenant(text, text), rport_billing_put_account(text, jsonb), rport_billing_accounts(),
     rport_billing_put_report(text, jsonb), rport_billing_reports(timestamptz),
-    rport_billing_claim_notice(text, text, text) FROM PUBLIC;
+    rport_billing_claim_dunning_notice(text, text, text),
+    rport_billing_provider_state(text, text, text, boolean, text, text, text),
+    rport_billing_period_reported(text, date) FROM PUBLIC;

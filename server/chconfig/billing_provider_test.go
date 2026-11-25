@@ -8,7 +8,7 @@ import (
 )
 
 func stripeBilling() BillingConfig {
-	return BillingConfig{Enabled: true, Provider: BillingProviderStripe, BillingProviderConfig: BillingProviderConfig{
+	return BillingConfig{Enabled: true, Provider: BillingProviderStripe, PlansFile: "p.toml", BillingProviderConfig: BillingProviderConfig{
 		StripeSecretKeyFile: "/run/secrets/stripe-key", StripeWebhookSecretFile: "/run/secrets/stripe-webhook",
 		ReturnURL: "https://procy.test/billing"}}
 }
@@ -24,6 +24,7 @@ func TestBillingProviderNeedsPostgres(t *testing.T) {
 
 func TestBillingProviderStripe(t *testing.T) {
 	c := postgresConfig()
+	c.Metering = MeteringConfig{Enabled: true}
 	c.Billing = stripeBilling()
 	require.NoError(t, validate(c))
 	assert.Equal(t, DefaultBillingGraceDays, c.Billing.GraceDays)
@@ -43,12 +44,14 @@ func TestBillingProviderStripe(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := postgresConfig()
+			c.Metering = MeteringConfig{Enabled: true}
 			c.Billing = stripeBilling()
 			change(&c.Billing)
 			assert.Error(t, validate(c))
 		})
 	}
 	c = postgresConfig()
-	c.Billing = BillingConfig{Enabled: true, Provider: "none"}
+	c.Metering = MeteringConfig{Enabled: true}
+	c.Billing = BillingConfig{Enabled: true, Provider: "none", PlansFile: "p.toml"}
 	assert.NoError(t, validate(c))
 }

@@ -7,8 +7,6 @@ import (
 
 // Errors of the payment provider integration.
 var (
-	// ErrNotFound: no such organization, record or provider object.
-	ErrNotFound = errors.New("billing: not found")
 	// ErrConflict: the request doesn't fit the organization's billing state (an exempt organization asking for
 	// checkout, a suspension that isn't proposed, a plan without provider prices).
 	ErrConflict = errors.New("billing: conflict")

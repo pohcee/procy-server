@@ -17,6 +17,7 @@ import (
 	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/billing/stripe"
 	"github.com/openrport/openrport/server/billing/stripe/stripetest"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 var ctx = context.Background()
@@ -24,7 +25,7 @@ var ctx = context.Background()
 // memStore is an in-memory billing.Store.
 type memStore struct {
 	mu       sync.Mutex
-	accounts map[string]billing.Account
+	accounts map[string]billing.ProviderAccount
 	events   map[string]bool
 	reports  map[string]billing.UsageReport
 	notices  map[string]bool
@@ -33,11 +34,11 @@ type memStore struct {
 }
 
 func newMemStore() *memStore {
-	return &memStore{accounts: map[string]billing.Account{}, events: map[string]bool{}, reports: map[string]billing.UsageReport{},
+	return &memStore{accounts: map[string]billing.ProviderAccount{}, events: map[string]bool{}, reports: map[string]billing.UsageReport{},
 		notices: map[string]bool{}, emails: map[string][]string{}}
 }
 
-func (m *memStore) Account(_ context.Context, org string) (*billing.Account, error) {
+func (m *memStore) Account(_ context.Context, org string) (*billing.ProviderAccount, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	a, ok := m.accounts[org]
@@ -47,10 +48,10 @@ func (m *memStore) Account(_ context.Context, org string) (*billing.Account, err
 	return &a, nil
 }
 
-func (m *memStore) Accounts(context.Context) ([]billing.Account, error) {
+func (m *memStore) Accounts(context.Context) ([]billing.ProviderAccount, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	var out []billing.Account
+	var out []billing.ProviderAccount
 	for _, a := range m.accounts {
 		out = append(out, a)
 	}
@@ -69,21 +70,21 @@ func (m *memStore) OrganizationOf(_ context.Context, provider, customer string) 
 	return "", nil
 }
 
-func (m *memStore) PutAccount(_ context.Context, a *billing.Account) error {
+func (m *memStore) PutAccount(_ context.Context, a *billing.ProviderAccount) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.accounts[a.Organization] = *a
 	return nil
 }
 
-func (m *memStore) ApplyEvent(ctx context.Context, provider, id, _, org string, update func(*billing.Account) (*billing.Account, error)) (bool, error) {
+func (m *memStore) ApplyEvent(ctx context.Context, provider, id, _, org string, update func(*billing.ProviderAccount) (*billing.ProviderAccount, error)) (bool, error) {
 	m.mu.Lock()
 	if m.events[provider+"/"+id] {
 		m.mu.Unlock()
 		return false, nil
 	}
 	m.mu.Unlock()
-	var cur *billing.Account
+	var cur *billing.ProviderAccount
 	if org != "" {
 		cur, _ = m.Account(ctx, org)
 	}
@@ -152,10 +153,10 @@ type recNotifier struct {
 	sent []notice
 }
 
-func (n *recNotifier) Notify(_ context.Context, org string, _ []string, subject, _ string) error {
+func (n *recNotifier) Notify(_ context.Context, org tenant.ID, _ []string, subject, _ string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.sent = append(n.sent, notice{org, subject})
+	n.sent = append(n.sent, notice{string(org), subject})
 	return nil
 }
 
@@ -188,30 +189,18 @@ type plans map[string]*billing.Plan
 
 func (p plans) Get(id string) *billing.Plan { return p[id] }
 
-func (p plans) IDs() []string {
-	var out []string
-	for id := range p {
-		out = append(out, id)
-	}
-	sort.Strings(out)
-	return out
-}
-
 type syncRec struct {
 	mu       sync.Mutex
 	reported []string
 	states   []string
 }
 
-func (s *syncRec) ProviderState(_ context.Context, org, _, sub string, pm bool, plan string, canceled bool) error {
+func (s *syncRec) ProviderState(_ context.Context, org, _, sub string, pm bool, plan string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st := org + " " + sub + " plan=" + plan
 	if pm {
 		st += " pm"
-	}
-	if canceled {
-		st += " canceled"
 	}
 	s.states = append(s.states, st)
 	return nil
@@ -255,7 +244,8 @@ func newEnv(t *testing.T) *env {
 		BackendURL: f.Server.URL, Now: func() time.Time { return *e.now }})
 	require.NoError(t, err)
 	e.svc, err = billing.NewService(billing.Options{
-		Provider: p, Store: e.store, Plans: plans{"starter": starter, "team": team, "free": free}, Records: e.records,
+		Provider: p, Store: e.store, Plans: plans{"starter": starter, "team": team, "free": free}, PlanIDs: []string{"free", "starter", "team"},
+		FreePlan: "free", Records: e.records,
 		Periods: periodsRef{e.periods}, Sync: e.sync, Notifier: e.notes, Suspender: e.susp, ReturnURL: "https://procy.test/billing",
 		Now: func() time.Time { return *e.now },
 	})
@@ -270,7 +260,7 @@ func (r periodsRef) ClosedSince(ctx context.Context, since time.Time) ([]billing
 }
 
 func (e *env) link(org, customer string) {
-	e.store.accounts[org] = billing.Account{Organization: org, Provider: "stripe", CustomerID: customer, SubscriptionID: "sub_" + org,
+	e.store.accounts[org] = billing.ProviderAccount{Organization: org, Provider: "stripe", CustomerID: customer, SubscriptionID: "sub_" + org,
 		SubscriptionStatus: billing.SubscriptionActive, Dunning: billing.Dunning{State: billing.DunningNone}}
 	e.store.emails[org] = []string{"admin@" + org + ".test"}
 }
@@ -628,7 +618,7 @@ func TestCheckoutCompletedAndCanceled(t *testing.T) {
 	e.webhook(t, "evt_del", "customer.subscription.deleted", sub)
 	a, _ = e.store.Account(ctx, "acme")
 	assert.Equal(t, billing.SubscriptionCanceled, a.SubscriptionStatus)
-	assert.Contains(t, e.sync.states, "acme sub_new plan= pm canceled", "a canceled subscription moves to the free plan")
+	assert.Contains(t, e.sync.states, "acme sub_new plan=free pm", "a canceled subscription moves to the free plan")
 	assert.Equal(t, billing.AccessFull, e.svc.Access(ctx, "acme"), "canceling never suspends")
 }
 

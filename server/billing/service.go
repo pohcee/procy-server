@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 // Intervals of the payment provider's background jobs, each run by one node at a time (a lease).
@@ -39,11 +40,6 @@ const (
 // WebhookActor is the actor of webhook-driven changes in the audit log.
 func WebhookActor(provider string) Actor { return Actor{Username: "billing:" + provider} }
 
-// Notifier sends a notification to an organization's administrators through the server's notification channels.
-type Notifier interface {
-	Notify(ctx context.Context, org string, recipients []string, subject, body string) error
-}
-
 // Suspender suspends an organization (tenants.status = suspended, through the operator service, audited there).
 type Suspender interface {
 	Suspend(ctx context.Context, by Actor, org string) error
@@ -52,9 +48,10 @@ type Suspender interface {
 // Sync passes what the provider learned to the organization's billing record (billing-plans' org_billing:
 // has_payment_method, provider ids, the plan bought, periods reported). Optional.
 type Sync interface {
-	// ProviderState records the customer, subscription, payment method and, when known, the plan of the
-	// subscription's prices ("" when its prices match no plan or it was canceled: the free plan).
-	ProviderState(ctx context.Context, org, customerID, subscriptionID string, hasPaymentMethod bool, plan string, canceled bool) error
+	// ProviderState records the customer, subscription and payment method and, when plan is set, the plan the
+	// organization bought (the plan of the subscription's prices; the free plan once it is canceled). An exempt
+	// organization's plan is never changed this way.
+	ProviderState(ctx context.Context, org, customerID, subscriptionID string, hasPaymentMethod bool, plan string) error
 	// PeriodReported marks the period starting start as reported.
 	PeriodReported(ctx context.Context, org string, start, at time.Time) error
 }
@@ -64,6 +61,10 @@ type Options struct {
 	Provider Provider
 	Store    Store
 	Plans    PlanCatalog
+	// PlanIDs lists the plans (to find the plan of a subscription's prices); FreePlan is where a canceled
+	// subscription moves the organization.
+	PlanIDs  []string
+	FreePlan string
 	// Records reads billing statuses (exempt organizations are never sent to the provider). Nil: every
 	// organization is paying.
 	Records BillingRecords
@@ -87,8 +88,9 @@ type Service struct {
 	now func() time.Time
 	log *logger.Logger
 
-	mu     sync.Mutex
-	access map[string]accessEntry
+	mu       sync.Mutex
+	access   map[string]accessEntry
+	notifier Notifier
 
 	// counters for operators
 	statsMu sync.Mutex
@@ -130,7 +132,20 @@ func NewService(o Options) (*Service, error) {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{o: o, now: func() time.Time { return now().UTC() }, log: o.Log, access: map[string]accessEntry{}}, nil
+	return &Service{o: o, now: func() time.Time { return now().UTC() }, log: o.Log, access: map[string]accessEntry{}, notifier: o.Notifier}, nil
+}
+
+// SetNotifier sets how administrators are notified (the server's notifications exist only once its API does).
+func (s *Service) SetNotifier(n Notifier) {
+	s.mu.Lock()
+	s.notifier = n
+	s.mu.Unlock()
+}
+
+func (s *Service) currentNotifier() Notifier {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.notifier
 }
 
 // ProviderName is the provider's name.
@@ -184,18 +199,6 @@ func (s *Service) planOfPrices(plans []string, ids []string) string {
 		}
 	}
 	return ""
-}
-
-// PlanIDs, when Plans implements it, lists every plan id (to map a subscription's prices back to a plan).
-type PlanIDs interface {
-	IDs() []string
-}
-
-func (s *Service) planIDs() []string {
-	if l, ok := s.o.Plans.(PlanIDs); ok {
-		return l.IDs()
-	}
-	return nil
 }
 
 // ---- webhooks ----
@@ -252,8 +255,8 @@ func (s *Service) ProcessEvent(ctx context.Context, e *Event) (applied bool, err
 		s.log.Errorf("billing: %s event %s names organization %q but customer %s is %q's: ignored", provider, e.ID, e.Organization, e.CustomerID, org)
 		org = ""
 	}
-	var before, after *Account
-	applied, err = s.o.Store.ApplyEvent(ctx, provider, e.ID, e.ProviderType, org, func(cur *Account) (*Account, error) {
+	var before, after *ProviderAccount
+	applied, err = s.o.Store.ApplyEvent(ctx, provider, e.ID, e.ProviderType, org, func(cur *ProviderAccount) (*ProviderAccount, error) {
 		if org == "" || cur == nil || e.Type == EventIgnored {
 			return nil, nil
 		}
@@ -277,7 +280,7 @@ func (s *Service) ProcessEvent(ctx context.Context, e *Event) (applied bool, err
 }
 
 // applyEvent changes a according to e; false when nothing changes.
-func applyEvent(a *Account, e *Event) bool {
+func applyEvent(a *ProviderAccount, e *Event) bool {
 	switch e.Type {
 	case EventCheckoutCompleted:
 		if e.SubscriptionID != "" {
@@ -324,7 +327,7 @@ func applyEvent(a *Account, e *Event) bool {
 	return false
 }
 
-func (s *Service) afterEvent(ctx context.Context, e *Event, before, after *Account) {
+func (s *Service) afterEvent(ctx context.Context, e *Event, before, after *ProviderAccount) {
 	org := after.Organization
 	by := WebhookActor(s.o.Provider.Name())
 	if err := s.o.Store.Audit(ctx, by, AuditWebhook, org, map[string]any{
@@ -334,12 +337,14 @@ func (s *Service) afterEvent(ctx context.Context, e *Event, before, after *Accou
 	}
 	if s.o.Sync != nil && (e.Type == EventCheckoutCompleted || e.Type == EventSubscriptionChanged || e.Type == EventSubscriptionCanceled ||
 		e.Type == EventInvoicePaid) {
-		canceled := after.SubscriptionStatus == SubscriptionCanceled
 		plan := ""
-		if !canceled {
-			plan = s.planOfPrices(s.planIDs(), after.PriceIDs)
+		switch {
+		case after.SubscriptionStatus == SubscriptionCanceled:
+			plan = s.o.FreePlan
+		case e.Type == EventSubscriptionChanged:
+			plan = s.planOfPrices(s.o.PlanIDs, after.PriceIDs)
 		}
-		if err := s.o.Sync.ProviderState(ctx, org, after.CustomerID, after.SubscriptionID, after.HasPaymentMethod, plan, canceled); err != nil {
+		if err := s.o.Sync.ProviderState(ctx, org, after.CustomerID, after.SubscriptionID, after.HasPaymentMethod, plan); err != nil {
 			s.log.Errorf("billing: sync %s: %v", org, err)
 		}
 	}
@@ -359,7 +364,7 @@ func (s *Service) afterEvent(ctx context.Context, e *Event, before, after *Accou
 }
 
 // episode names a dunning episode by its first failure.
-func episode(a *Account) string {
+func episode(a *ProviderAccount) string {
 	if a.FailedAt == nil {
 		return "none"
 	}
@@ -375,7 +380,8 @@ func (s *Service) billingLink() string {
 
 // notifyOnce notifies org's administrators once per kind and episode.
 func (s *Service) notifyOnce(ctx context.Context, org, kind, ep, subject, body string) {
-	if s.o.Notifier == nil {
+	n := s.currentNotifier()
+	if n == nil {
 		return
 	}
 	ok, err := s.o.Store.ClaimNotice(ctx, org, kind, ep)
@@ -398,7 +404,7 @@ func (s *Service) notifyOnce(ctx context.Context, org, kind, ep, subject, body s
 		s.log.Errorf("billing: no administrator email address to notify %s of %s", org, kind)
 		return
 	}
-	if err := s.o.Notifier.Notify(ctx, org, to, "Procy billing: "+subject, body); err != nil {
+	if err := n.Notify(ctx, tenant.ID(org), to, "Procy billing: "+subject, body); err != nil {
 		s.log.Errorf("billing: notify %s of %s: %v", org, kind, err)
 	}
 }
@@ -503,7 +509,7 @@ func (s *Service) returnURL(q string) string {
 
 // ensureCustomer returns org's account with a provider customer, creating it when needed. Exempt organizations
 // are refused: they are never sent to the provider.
-func (s *Service) ensureCustomer(ctx context.Context, org, name, email string) (*Account, *Billing, error) {
+func (s *Service) ensureCustomer(ctx context.Context, org, name, email string) (*ProviderAccount, *Billing, error) {
 	b, err := s.record(ctx, org)
 	if err != nil {
 		return nil, nil, err
@@ -519,7 +525,7 @@ func (s *Service) ensureCustomer(ctx context.Context, org, name, email string) (
 	if a != nil {
 		existing = a.CustomerID
 	} else {
-		a = &Account{Organization: org, Provider: s.o.Provider.Name(), Dunning: Dunning{State: DunningNone}}
+		a = &ProviderAccount{Organization: org, Provider: s.o.Provider.Name(), Dunning: Dunning{State: DunningNone}}
 	}
 	id, err := s.o.Provider.EnsureCustomer(ctx, Customer{Organization: org, Name: name, Email: email}, existing)
 	if err != nil {
@@ -535,7 +541,7 @@ func (s *Service) ensureCustomer(ctx context.Context, org, name, email string) (
 			return nil, nil, err
 		}
 		if s.o.Sync != nil {
-			if err := s.o.Sync.ProviderState(ctx, org, a.CustomerID, a.SubscriptionID, a.HasPaymentMethod, "", false); err != nil {
+			if err := s.o.Sync.ProviderState(ctx, org, a.CustomerID, a.SubscriptionID, a.HasPaymentMethod, ""); err != nil {
 				s.log.Errorf("billing: sync %s: %v", org, err)
 			}
 		}

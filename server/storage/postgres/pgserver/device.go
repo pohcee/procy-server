@@ -12,10 +12,12 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	chserver "github.com/openrport/openrport/server"
+	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/cluster"
 	"github.com/openrport/openrport/server/storage/outbox"
 	"github.com/openrport/openrport/server/storage/postgres"
+	pgbilling "github.com/openrport/openrport/server/storage/postgres/billing"
 	"github.com/openrport/openrport/server/storage/postgres/device"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/tenant"
@@ -150,6 +152,16 @@ func deviceNodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, opts
 			return nil, err
 		}
 	}
+	var plans *billing.Plans
+	if cfg.Billing.Enabled {
+		if err := postgres.CheckDeviceBilling(ctx, db); err != nil {
+			return nil, err
+		}
+		var err error
+		if plans, err = billing.LoadPlans(cfg.Billing.PlansFile); err != nil {
+			return nil, err
+		}
+	}
 	if err := os.MkdirAll(cfg.Server.DataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("device: data dir: %w", err)
 	}
@@ -171,6 +183,10 @@ func deviceNodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, opts
 	if cfg.Metering.Enabled {
 		// what this process counts is shipped with the rest of the outbox; the api processes serve the usage API
 		opts.Metering = &chserver.MeteringOpts{Writer: device.Usage{Outbox: ob}}
+	}
+	if cfg.Billing.Enabled {
+		// tunnels are throttled and refused here too (defence in depth); the api processes run the upkeep
+		opts.Billing = &chserver.BillingOpts{Plans: plans, Policies: pgbilling.PolicySource{DB: db}}
 	}
 	opts.SkipMigrations = false
 	coord := &DeviceCoordinator{db: db, nodeID: cfg.Cluster.NodeID,

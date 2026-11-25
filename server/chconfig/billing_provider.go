@@ -9,6 +9,8 @@ import (
 // BillingProviderStripe is the [billing] provider of Stripe.
 const BillingProviderStripe = "stripe"
 
+func init() { BillingProviders[BillingProviderStripe] = true }
+
 // Dunning defaults and bounds ([billing] grace_days, read_only_days).
 const (
 	DefaultBillingGraceDays    = 14
@@ -66,6 +68,6 @@ func (b *BillingProviderConfig) validateProvider(provider string) error {
 		}
 		return nil
 	default:
-		return fmt.Errorf(`[billing] provider must be "none" or "stripe", not %q`, provider)
+		return fmt.Errorf("[billing] provider %q has no settings check", provider)
 	}
 }

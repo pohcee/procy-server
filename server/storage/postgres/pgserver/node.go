@@ -9,9 +9,11 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	chserver "github.com/openrport/openrport/server"
+	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/storage/postgres"
+	pgbilling "github.com/openrport/openrport/server/storage/postgres/billing"
 	"github.com/openrport/openrport/server/storage/postgres/migrate"
 	pgusage "github.com/openrport/openrport/server/storage/postgres/usage"
 	"github.com/openrport/openrport/server/vault"
@@ -126,6 +128,16 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 		}
 		coord.KeepUsage(pgusage.Retention{Hourly: cfg.Metering.HourlyRetention, Daily: cfg.Metering.DailyRetention, Monitoring: true})
 	}
+	if cfg.Billing.Enabled {
+		if opts.Billing, err = BillingOpts(cfg, db); err != nil {
+			coord.Release()
+			return nil, nil, err
+		}
+		if opts.Billing.Provider, err = BillingProvider(cfg, db, opts.Billing.Plans, NewOperator(db, cfg)); err != nil {
+			coord.Release()
+			return nil, nil, err
+		}
+	}
 	opts.TenantResolver = NewResolver(db, cfg.API.JWTSecret)
 	opts.Operator = NewOperator(db, cfg)
 	// every repository is injected; refuse rather than create any SQLite file
@@ -187,4 +199,26 @@ func VaultKeys(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, logw io.W
 	default:
 		return nil, nil, fmt.Errorf("vault: unknown key provider %q", cfg.Vault.KeyProvider)
 	}
+}
+
+// BillingOpts returns the billing of an api (or all) node with [billing] enabled on db: the plans file, the
+// organizations' and operators' billing, the transfer policies and the upkeep.
+func BillingOpts(cfg *chconfig.Config, db *sqlx.DB) (*chserver.BillingOpts, error) {
+	plans, err := billing.LoadPlans(cfg.Billing.PlansFile)
+	if err != nil {
+		return nil, err
+	}
+	store := pgbilling.Store{DB: db, Plans: plans}
+	return &chserver.BillingOpts{
+		Plans:    plans,
+		Policies: store,
+		Org:      store,
+		Operator: &pgbilling.Operator{DB: db, Plans: plans},
+		Upkeep: &pgbilling.Upkeep{
+			DB: db, Plans: plans,
+			Log:              logger.NewLogger("billing", cfg.Logging.LogOutput, cfg.Logging.LogLevel),
+			ReviewAboveCents: billing.Cents(cfg.Billing.OverageReviewAbove),
+			Enforce:          billing.EnforceOptions{ImplausibleFactor: cfg.Billing.ImplausibleGrowthFactor},
+		},
+	}, nil
 }

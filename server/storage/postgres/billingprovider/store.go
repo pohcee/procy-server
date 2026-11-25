@@ -32,12 +32,12 @@ const accountColumns = `tenant_id, provider, customer_id, billing_email, subscri
 	payment_failed_at, failed_invoice, read_only_at, suspension_proposed_at, updated_at, updated_by`
 
 type accountRow struct {
-	billing.Account
+	billing.ProviderAccount
 	PriceIDsJSON string `db:"price_ids_json"`
 }
 
-func (r accountRow) account() (billing.Account, error) {
-	a := r.Account
+func (r accountRow) account() (billing.ProviderAccount, error) {
+	a := r.ProviderAccount
 	if err := json.Unmarshal([]byte(r.PriceIDsJSON), &a.PriceIDs); err != nil {
 		return a, err
 	}
@@ -45,8 +45,8 @@ func (r accountRow) account() (billing.Account, error) {
 }
 
 // Account implements billing.Store.
-func (s Store) Account(ctx context.Context, org string) (*billing.Account, error) {
-	var out *billing.Account
+func (s Store) Account(ctx context.Context, org string) (*billing.ProviderAccount, error) {
+	var out *billing.ProviderAccount
 	err := postgres.InTenantID(ctx, s.DB, tenant.ID(org), func(tx *sqlx.Tx) (err error) {
 		out, err = accountIn(ctx, tx, org)
 		return err
@@ -57,7 +57,7 @@ func (s Store) Account(ctx context.Context, org string) (*billing.Account, error
 	return out, nil
 }
 
-func accountIn(ctx context.Context, tx *sqlx.Tx, org string) (*billing.Account, error) {
+func accountIn(ctx context.Context, tx *sqlx.Tx, org string) (*billing.ProviderAccount, error) {
 	var r accountRow
 	err := tx.GetContext(ctx, &r, "SELECT "+accountColumns+" FROM billing_provider_accounts WHERE tenant_id = $1", org)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -71,12 +71,12 @@ func accountIn(ctx context.Context, tx *sqlx.Tx, org string) (*billing.Account, 
 }
 
 // Accounts implements billing.Store.
-func (s Store) Accounts(ctx context.Context) ([]billing.Account, error) {
+func (s Store) Accounts(ctx context.Context) ([]billing.ProviderAccount, error) {
 	var rows []accountRow
 	if err := s.DB.SelectContext(ctx, &rows, "SELECT "+accountColumns+" FROM rport_billing_accounts()"); err != nil {
 		return nil, fmt.Errorf("billing accounts: %w", err)
 	}
-	out := make([]billing.Account, 0, len(rows))
+	out := make([]billing.ProviderAccount, 0, len(rows))
 	for _, r := range rows {
 		a, err := r.account()
 		if err != nil {
@@ -113,7 +113,7 @@ type accountJSON struct {
 	UpdatedBy           string     `json:"updated_by"`
 }
 
-func putAccount(ctx context.Context, ex sqlx.ExecerContext, a *billing.Account) error {
+func putAccount(ctx context.Context, ex sqlx.ExecerContext, a *billing.ProviderAccount) error {
 	state := a.State
 	if state == "" {
 		state = billing.DunningNone
@@ -136,7 +136,7 @@ func putAccount(ctx context.Context, ex sqlx.ExecerContext, a *billing.Account) 
 }
 
 // PutAccount implements billing.Store.
-func (s Store) PutAccount(ctx context.Context, a *billing.Account) error {
+func (s Store) PutAccount(ctx context.Context, a *billing.ProviderAccount) error {
 	if err := putAccount(ctx, s.DB, a); err != nil {
 		return fmt.Errorf("billing account %q: %w", a.Organization, err)
 	}
@@ -144,7 +144,7 @@ func (s Store) PutAccount(ctx context.Context, a *billing.Account) error {
 }
 
 // ApplyEvent implements billing.Store.
-func (s Store) ApplyEvent(ctx context.Context, provider, eventID, eventType, org string, update func(*billing.Account) (*billing.Account, error)) (applied bool, err error) {
+func (s Store) ApplyEvent(ctx context.Context, provider, eventID, eventType, org string, update func(*billing.ProviderAccount) (*billing.ProviderAccount, error)) (applied bool, err error) {
 	tx, err := s.DB.BeginTxx(ctx, nil)
 	if err != nil {
 		return false, fmt.Errorf("billing event: %w", err)
@@ -164,7 +164,7 @@ func (s Store) ApplyEvent(ctx context.Context, provider, eventID, eventType, org
 	if !applied {
 		return false, nil
 	}
-	var cur *billing.Account
+	var cur *billing.ProviderAccount
 	if org != "" {
 		if _, err = tx.ExecContext(ctx, "SELECT set_config($1, $2, true)", postgres.TenantSetting, org); err != nil {
 			return false, err
@@ -223,7 +223,7 @@ func (s Store) PutReport(ctx context.Context, r *billing.UsageReport) error {
 // ClaimNotice implements billing.Store.
 func (s Store) ClaimNotice(ctx context.Context, org, kind, episode string) (bool, error) {
 	var ok bool
-	if err := s.DB.GetContext(ctx, &ok, "SELECT rport_billing_claim_notice($1, $2, $3)", org, kind, episode); err != nil {
+	if err := s.DB.GetContext(ctx, &ok, "SELECT rport_billing_claim_dunning_notice($1, $2, $3)", org, kind, episode); err != nil {
 		return false, fmt.Errorf("billing notice: %w", err)
 	}
 	return ok, nil

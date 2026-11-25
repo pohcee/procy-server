@@ -28,7 +28,7 @@ func TestAccountsAndCustomerMapping(t *testing.T) {
 	assert.Nil(t, got)
 
 	failed := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
-	acc := &billing.Account{Organization: a, Provider: "stripe", CustomerID: "cus_a", BillingEmail: "x@a.test",
+	acc := &billing.ProviderAccount{Organization: a, Provider: "stripe", CustomerID: "cus_a", BillingEmail: "x@a.test",
 		SubscriptionID: "sub_a", SubscriptionStatus: billing.SubscriptionActive, PriceIDs: []string{"p1", "p2"},
 		HasPaymentMethod: true, Dunning: billing.Dunning{State: billing.DunningPastDue, FailedAt: &failed, FailedInvoice: "in_1"}}
 	require.NoError(t, s.PutAccount(ctx, acc))
@@ -49,12 +49,12 @@ func TestAccountsAndCustomerMapping(t *testing.T) {
 	assert.Empty(t, org)
 
 	// a customer is linked to one organization only
-	err = s.PutAccount(ctx, &billing.Account{Organization: b, Provider: "stripe", CustomerID: "cus_a"})
+	err = s.PutAccount(ctx, &billing.ProviderAccount{Organization: b, Provider: "stripe", CustomerID: "cus_a"})
 	assert.Error(t, err)
-	require.NoError(t, s.PutAccount(ctx, &billing.Account{Organization: b, Provider: "stripe", CustomerID: "cus_b"}))
+	require.NoError(t, s.PutAccount(ctx, &billing.ProviderAccount{Organization: b, Provider: "stripe", CustomerID: "cus_b"}))
 
 	// reserved tenants are refused
-	assert.Error(t, s.PutAccount(ctx, &billing.Account{Organization: "_system", Provider: "stripe", CustomerID: "cus_s"}))
+	assert.Error(t, s.PutAccount(ctx, &billing.ProviderAccount{Organization: "_system", Provider: "stripe", CustomerID: "cus_s"}))
 
 	all, err := s.Accounts(ctx)
 	require.NoError(t, err)
@@ -78,17 +78,17 @@ func TestApplyEventOnceAndRollsBackOnError(t *testing.T) {
 	d := pgtest.New(t, repotest.TenantA)
 	s := Store{DB: d.App}
 	a := string(repotest.TenantA)
-	require.NoError(t, s.PutAccount(ctx, &billing.Account{Organization: a, Provider: "stripe", CustomerID: "cus_a"}))
+	require.NoError(t, s.PutAccount(ctx, &billing.ProviderAccount{Organization: a, Provider: "stripe", CustomerID: "cus_a"}))
 
 	boom := errors.New("boom")
-	applied, err := s.ApplyEvent(ctx, "stripe", "evt_1", "invoice.paid", a, func(cur *billing.Account) (*billing.Account, error) {
+	applied, err := s.ApplyEvent(ctx, "stripe", "evt_1", "invoice.paid", a, func(cur *billing.ProviderAccount) (*billing.ProviderAccount, error) {
 		return nil, boom
 	})
 	assert.ErrorIs(t, err, boom)
 	assert.False(t, applied)
 
 	calls := 0
-	update := func(cur *billing.Account) (*billing.Account, error) {
+	update := func(cur *billing.ProviderAccount) (*billing.ProviderAccount, error) {
 		calls++
 		require.NotNil(t, cur)
 		cur.HasPaymentMethod = true
@@ -106,7 +106,7 @@ func TestApplyEventOnceAndRollsBackOnError(t *testing.T) {
 	assert.True(t, got.HasPaymentMethod)
 
 	// an event of no organization is still claimed once
-	applied, err = s.ApplyEvent(ctx, "stripe", "evt_2", "customer.created", "", func(cur *billing.Account) (*billing.Account, error) {
+	applied, err = s.ApplyEvent(ctx, "stripe", "evt_2", "customer.created", "", func(cur *billing.ProviderAccount) (*billing.ProviderAccount, error) {
 		assert.Nil(t, cur)
 		return nil, nil
 	})

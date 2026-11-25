@@ -23,8 +23,8 @@ const (
 	// OrgRoutePrefix holds the organization administrators' payment routes (behind authentication and the
 	// Administrators check).
 	OrgRoutePrefix = "/billing"
-	// OperatorRoutePrefix holds the operators' payment routes, below the operator API.
-	OperatorRoutePrefix = "/billing"
+	// OperatorRoutePrefix holds the operators' payment provider routes, below the operator API (/operator).
+	OperatorRoutePrefix = "/billing/provider"
 )
 
 // maxWebhookBody bounds a webhook body (Stripe events are a few KiB, up to a few hundred with large objects).

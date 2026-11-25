@@ -19,6 +19,7 @@ import (
 	"github.com/openrport/openrport/server/api/jobs/schedule"
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/auditlog"
+	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/caddy"
 	servercaps "github.com/openrport/openrport/server/capabilities"
 	"github.com/openrport/openrport/server/cgroups"
@@ -96,6 +97,10 @@ type Server struct {
 	monitoringQueue monitoring.MeasurementSaver
 	// meter counts the usage (ServerOpts.Metering); nil: off
 	meter *metering.Meter
+	// enforcer applies the transfer policies (ServerOpts.Billing); nil: off
+	enforcer *billing.Enforcer
+	// billingOpts is ServerOpts.Billing
+	billingOpts *BillingOpts
 	// capabilitiesOverride is ServerOpts.Capabilities; nil reports the computed capabilities.
 	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
 	// vaultKeys is ServerOpts.VaultKeys; nil uses the vault passphrase.
@@ -150,6 +155,10 @@ type ServerOpts struct {
 	// Metering, when set, counts each tenant's usage (tunnel, upload and API bytes, jobs, connected devices) and
 	// serves the usage API (Postgres with [metering] enabled). nil: no metering, as on standalone servers.
 	Metering *MeteringOpts
+	// Billing, when set, applies billing plans and limits (Postgres with [billing] enabled): tunnels are throttled
+	// and new tunnels and uploads refused at an organization's hard transfer cap, and the billing API is served.
+	// nil: no billing, as on standalone servers.
+	Billing *BillingOpts
 	// DeviceTenants, when set, lets devices of every tenant connect: the client listener finds each device's tenant
 	// from its client auth id and refuses devices of tenants that are not active or have reached their client limit
 	// (#34). nil: devices belong to the default tenant.
@@ -272,8 +281,22 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 			p.SetMeter(s.meter)
 		}
 	}
+	s.billingOpts = opts.Billing
+	if opts.Billing != nil && opts.Billing.Provider != nil {
+		// schedules of organizations read-only for an overdue payment pause
+		s.cluster = billing.PauseSchedules(s.cluster, opts.Billing.Provider)
+	}
+	s.setupBilling(opts.Billing)
+	if s.enforcer != nil {
+		if p, ok := s.clientService.(*clients.ClientServiceProvider); ok {
+			p.SetTunnelRates(s.enforcer)
+		}
+	}
 	local := dispatch.NewLocal(s.clientService, s.fileGrants, s.Logger.Fork("dispatch"))
 	local.SetMeter(s.meter)
+	if s.enforcer != nil {
+		local.SetTransferGuard(s.enforcer)
+	}
 	s.localDispatcher = local
 	s.dispatcher = opts.Dispatcher
 	if s.dispatcher == nil {
@@ -378,6 +401,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		Operator:       opts.Operator,
 		Usage:          usageReader(opts.Metering),
 		Meter:          s.meter,
+		Billing:        s.billingAPI(opts.Billing),
 		// in a cluster old notifications are deleted per tenant by a leased task (Run)
 		NoNotificationsCleaner: s.cluster.Clustered(),
 	})
@@ -493,6 +517,8 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 
 	s.acme.Start()
+
+	s.runBilling(ctx, s.billingOpts)
 
 	if s.meter != nil {
 		go s.meter.Run(ctx)

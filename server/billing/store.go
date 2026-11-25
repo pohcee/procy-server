@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// Account is an organization's record at the payment provider (billing_provider_accounts): its customer and
+// ProviderAccount is an organization's record at the payment provider (billing_provider_accounts): its customer and
 // subscription and its dunning state.
-type Account struct {
+type ProviderAccount struct {
 	Organization string `json:"organization" db:"tenant_id"`
 	Provider     string `json:"provider" db:"provider"`
 	CustomerID   string `json:"customer_id" db:"customer_id"`
@@ -25,7 +25,7 @@ type Account struct {
 }
 
 // Access is the organization's access from its dunning state.
-func (a *Account) Access() Access {
+func (a *ProviderAccount) Access() Access {
 	if a == nil {
 		return AccessFull
 	}
@@ -69,18 +69,18 @@ type UsageReport struct {
 // Store keeps the provider's records (Postgres: migration 1500).
 type Store interface {
 	// Account returns org's account, or nil.
-	Account(ctx context.Context, org string) (*Account, error)
+	Account(ctx context.Context, org string) (*ProviderAccount, error)
 	// Accounts returns every organization's account.
-	Accounts(ctx context.Context) ([]Account, error)
+	Accounts(ctx context.Context) ([]ProviderAccount, error)
 	// OrganizationOf returns the organization of a provider customer, or "".
 	OrganizationOf(ctx context.Context, provider, customerID string) (string, error)
 	// PutAccount writes an account.
-	PutAccount(ctx context.Context, a *Account) error
+	PutAccount(ctx context.Context, a *ProviderAccount) error
 	// ApplyEvent claims the webhook event (provider, eventID) and, when it is new, runs update on org's account (nil
 	// when it has none; org "" for events of no organization) and writes the account it returns (nil: no change),
 	// in one transaction: a failing update leaves the event unclaimed, so the provider's retry applies it again.
 	// applied is false for an event received before.
-	ApplyEvent(ctx context.Context, provider, eventID, eventType, org string, update func(*Account) (*Account, error)) (applied bool, err error)
+	ApplyEvent(ctx context.Context, provider, eventID, eventType, org string, update func(*ProviderAccount) (*ProviderAccount, error)) (applied bool, err error)
 	// Reports returns the usage reports of the period starting periodStart, or every report when it is zero.
 	Reports(ctx context.Context, periodStart time.Time) ([]UsageReport, error)
 	// PutReport writes a usage report. Its identifier and quantity never change once written.
@@ -93,15 +93,6 @@ type Store interface {
 	// AdminEmails returns the email addresses of org's Administrators (usernames or 2FA addresses that are emails).
 	AdminEmails(ctx context.Context, org string) ([]string, error)
 }
-
-// Actor is who changed billing: an operator, or the provider's webhook ("billing:stripe").
-type Actor struct {
-	Username string
-	RemoteIP string
-}
-
-// AuditApplication is the audit log application of billing actions.
-const AuditApplication = "billing"
 
 // Audit actions.
 const (

@@ -116,7 +116,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/api v0.304.0 // indirect
 	google.golang.org/genproto v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941 // indirect
@@ -131,6 +130,7 @@ require (
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/pelletier/go-toml/v2 v2.1.0
 	go.etcd.io/bbolt v1.3.7
+	golang.org/x/time v0.16.0
 	google.golang.org/protobuf v1.36.12
 )
 

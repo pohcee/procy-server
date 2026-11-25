@@ -316,7 +316,7 @@ func (s *Service) DunningTick(ctx context.Context) error {
 
 // AccountView is an organization's provider account for operators, with its usage reports.
 type AccountView struct {
-	Account
+	ProviderAccount
 	Access             Access `json:"access"`
 	SuspensionProposed bool   `json:"suspension_proposed"`
 }
@@ -332,7 +332,7 @@ func (s *Service) Accounts(ctx context.Context) ([]AccountView, error) {
 		if a.State == "" {
 			a.State = DunningNone
 		}
-		out = append(out, AccountView{Account: a, Access: a.Access(), SuspensionProposed: a.State == DunningSuspensionProposed})
+		out = append(out, AccountView{ProviderAccount: a, Access: a.Access(), SuspensionProposed: a.State == DunningSuspensionProposed})
 	}
 	return out, nil
 }
@@ -342,7 +342,7 @@ func (s *Service) Reports(ctx context.Context, start time.Time) ([]UsageReport, 
 	return s.o.Store.Reports(ctx, start)
 }
 
-func (s *Service) operatorAccount(ctx context.Context, org string) (*Account, error) {
+func (s *Service) operatorAccount(ctx context.Context, org string) (*ProviderAccount, error) {
 	a, err := s.o.Store.Account(ctx, org)
 	if err != nil {
 		return nil, err
@@ -373,7 +373,7 @@ func (s *Service) ConfirmSuspension(ctx context.Context, by Actor, org string) e
 }
 
 // Restore moves org out of the dunning states without a payment (operator override, audited).
-func (s *Service) Restore(ctx context.Context, by Actor, org string) (*Account, error) {
+func (s *Service) Restore(ctx context.Context, by Actor, org string) (*ProviderAccount, error) {
 	a, err := s.operatorAccount(ctx, org)
 	if err != nil {
 		return nil, err
