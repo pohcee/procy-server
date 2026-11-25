@@ -657,7 +657,9 @@ func (al *APIListener) checkBearerToken(ctx context.Context, bearerToken, uri, m
 		return false, nil, nil
 	}
 
-	if al.isUserBanned(ctx, tokenCtx.AppClaims.Username) {
+	// the user ban stops password guessing; a session that signed in through OIDC isn't locked out by someone
+	// guessing the account's password
+	if !tokenCtx.AppClaims.IsOIDC() && al.isUserBanned(ctx, tokenCtx.AppClaims.Username) {
 		al.Errorf(
 			"User %s is banned",
 			tokenCtx.AppClaims.Username,

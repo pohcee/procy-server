@@ -160,7 +160,7 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 	// the organization (or the member) may require OIDC sign-in; a trusted proxy's header login is no password
 	if !skipPasswordValidation {
 		if err := al.passwordAllowed(req.Context(), username); err != nil {
-			al.jsonError(w, err)
+			al.respondSignInError(w, err)
 			return
 		}
 	}

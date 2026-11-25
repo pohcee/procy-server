@@ -167,6 +167,16 @@ func (al *APIListener) errOIDCRequired() error {
 		Message: "Password sign-in is turned off for this account: use " + label + "."}
 }
 
+// respondSignInError answers err, keeping its error code (oidc_required) in the payload.
+func (al *APIListener) respondSignInError(w http.ResponseWriter, err error) {
+	var ae errors2.APIError
+	if errors.As(err, &ae) && ae.ErrCode != "" {
+		al.jsonErrorResponseWithErrCode(w, ae.HTTPStatus, ae.ErrCode, ae.Message)
+		return
+	}
+	al.jsonError(w, err)
+}
+
 // passwordAllowed checks that username may sign in with a password in the tenant of ctx.
 func (al *APIListener) passwordAllowed(ctx context.Context, username string) error {
 	p, err := al.signInPolicy(ctx, username)

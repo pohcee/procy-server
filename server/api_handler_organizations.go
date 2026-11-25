@@ -144,7 +144,7 @@ func (al *APIListener) handleSwitchOrganization(w http.ResponseWriter, req *http
 		}
 		target = bearer.WithAuthMethod(target, bearer.AuthMethodOIDC)
 	} else if !policy.PasswordAllowed() {
-		al.jsonError(w, al.errOIDCRequired())
+		al.respondSignInError(w, al.errOIDCRequired())
 		return
 	}
 	tokenStr, err := bearer.CreateAuthToken(target, al.apiSessions, al.config.API.JWTSecret, lifetime, user.Username,
