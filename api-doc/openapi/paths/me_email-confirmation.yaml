@@ -1,0 +1,43 @@
+post:
+  tags:
+    - Signup
+  summary: Confirm my email address
+  description: >-
+    The signed-in account, when its login is an email address and not confirmed yet, gets a link to confirm it
+    (`<public_url>/auth/confirm-email?token=...`, then POST /signup/confirm-email). Answers verified true without
+    mailing when it is confirmed already. Accounts an administrator created start unconfirmed.
+  operationId: MeEmailConfirmationPost
+  responses:
+    '200':
+      description: Sent, or confirmed already
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/EmailStatus.yaml
+    '400':
+      description: The login is not an email address
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup on this server
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '429':
+      description: Too many links today
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

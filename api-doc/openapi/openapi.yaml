@@ -109,6 +109,10 @@ paths:
     $ref: paths/signup_verify.yaml
   /signup/cancel-deletion:
     $ref: paths/signup_cancel-deletion.yaml
+  /signup/confirm-email:
+    $ref: paths/signup_confirm-email.yaml
+  /me/email-confirmation:
+    $ref: paths/me_email-confirmation.yaml
   /organization/export:
     $ref: paths/organization_export.yaml
   /organization/deletion:

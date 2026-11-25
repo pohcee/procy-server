@@ -33,7 +33,7 @@ post:
     - Signup
   summary: Start a signup
   description: >-
-    Public. Checks the input, the captcha (server-side), the email domain (blocklist, allowlist, MX) and the rate limits per IP, email domain and email (per day), then emails a single-use verification link valid for `[signup] token_ttl` (24h). The link opens the web UI at `/auth/signup/verify?token=...`. The answer is the same whether or not the email already has an account; such an email gets a notice instead of a link. Audited in `_system` as `signup:<email>` with the remote IP.
+    Public. Checks the input, the captcha (server-side), the email domain (blocklist, allowlist, MX) and the rate limits per IP, email domain and email (per day), then emails a single-use verification link (the password is chosen at verify) valid for `[signup] token_ttl` (24h). The link opens the web UI at `/auth/signup/verify?token=...`. The answer is the same whether or not the email already has an account: a confirmed account gets a notice to sign in, an unconfirmed one whose password was replaced a notice to sign in and confirm its email, and an unconfirmed one that was never used (an administrator created it) a link that takes it over. Audited in `_system` as `signup:<email>` with the remote IP.
   operationId: SignupPost
   requestBody:
     required: true
@@ -44,7 +44,6 @@ post:
           required:
             - email
             - organization
-            - password
           properties:
             email:
               type: string
@@ -52,9 +51,6 @@ post:
             organization:
               type: string
               description: The organization name (1 to 200 characters); its id is generated from it
-            password:
-              type: string
-              description: The password of the first administrator ([api] password rules)
             captcha:
               type: string
               description: The response token of the captcha widget, when the server uses one

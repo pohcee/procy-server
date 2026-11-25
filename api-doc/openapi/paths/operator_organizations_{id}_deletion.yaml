@@ -3,7 +3,7 @@ post:
     - Operator
   summary: Start the deletion of an organization. Platform operators only
   description: >-
-    As POST /organization/deletion, without the confirmation.
+    As POST /organization/deletion, without the confirmation. The administrators get a notice without a cancel link: only an operator cancels it.
   operationId: OperatorOrganizationDeletionPost
   parameters:
     - name: id

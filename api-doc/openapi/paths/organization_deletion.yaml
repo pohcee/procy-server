@@ -55,7 +55,7 @@ post:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
     '409':
-      description: A deletion is pending already
+      description: A deletion is pending already, or no administrator has an email address for the cancel link
       content:
         application/json:
           schema:

@@ -1,0 +1,41 @@
+post:
+  tags:
+    - Signup
+  summary: Confirm the email of an account
+  description: >-
+    Public. Takes the token of the link POST /me/email-confirmation mailed (single use) and marks the account's
+    email address confirmed. With signup on, only confirmed accounts can be invited into further organizations.
+  operationId: SignupConfirmEmailPost
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - token
+          properties:
+            token:
+              type: string
+  responses:
+    '200':
+      description: Confirmed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/EmailStatus.yaml
+    '400':
+      description: The link is unknown, used or expired
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup on this server
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

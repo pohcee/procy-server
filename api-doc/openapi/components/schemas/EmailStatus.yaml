@@ -1,0 +1,5 @@
+type: object
+properties:
+  login: {type: string}
+  verified: {type: boolean}
+  sent: {type: boolean, description: A link was mailed}
