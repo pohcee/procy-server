@@ -46,6 +46,9 @@ type Capabilities struct {
 	// Usage: usage metering is on (Postgres with [metering] enabled): GET /api/v1/usage for administrators and the
 	// operator usage routes. Reported only when true.
 	Usage bool `json:"usage,omitempty"`
+	// Billing: billing plans and limits are on (Postgres with [billing] enabled): GET /api/v1/billing for
+	// administrators and the operator billing routes. Reported only when true.
+	Billing bool `json:"billing,omitempty"`
 }
 
 // FromConfig returns the capabilities offered by a server running with cfg.

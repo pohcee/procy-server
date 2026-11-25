@@ -1,0 +1,72 @@
+type: object
+description: >-
+  A closed billing period (a calendar month in UTC) with its frozen quantities. Closed 2 hours after the month ends;
+  usage arriving later is shown in the usage report but never billed.
+properties:
+  organization:
+    type: string
+  start:
+    type: string
+    format: date-time
+  end:
+    type: string
+    format: date-time
+  billed_from:
+    type: string
+    format: date-time
+    description: The first day billed (later than start in the first month, or after a trial or comped period)
+  proration:
+    type: number
+  plan:
+    type: string
+  status:
+    type: string
+    description: The billing status at the close
+  billable_devices:
+    type: integer
+    description: The average of the daily device counts, rounded up
+  peak_devices:
+    type: integer
+  device_days:
+    type: integer
+  extra_devices:
+    type: integer
+  tunnel_bytes_to_user:
+    type: integer
+  tunnel_bytes_to_device:
+    type: integer
+  upload_bytes_to_devices:
+    type: integer
+  transfer_bytes:
+    type: integer
+  allowance_bytes:
+    type: integer
+  overage_bytes:
+    type: integer
+  overage_gib:
+    type: integer
+  base_cents:
+    type: integer
+  device_cents:
+    type: integer
+  overage_cents:
+    type: integer
+  total_cents:
+    type: integer
+  state:
+    type: string
+    enum: [ready, held, not_charged, never_charged, reported]
+  closed_at:
+    type: string
+    format: date-time
+  approved_by:
+    type: string
+    nullable: true
+  approved_at:
+    type: string
+    format: date-time
+    nullable: true
+  reported_at:
+    type: string
+    format: date-time
+    nullable: true

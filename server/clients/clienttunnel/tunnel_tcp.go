@@ -26,6 +26,7 @@ type tunnelTCP struct {
 	sshConn ssh.Conn
 	acl     atomic.Pointer[TunnelACL] // parsed Remote.ACL field
 	bytes   *metering.TunnelBytes     // nil: not metered
+	rate    RateFunc                  // nil: not limited
 
 	stopFn                    func()
 	connectionIDAutoIncrement int
@@ -182,6 +183,8 @@ func (t *tunnelTCP) accept(ctx context.Context, src io.ReadWriteCloser) {
 	if t.bytes != nil {
 		dstRWC = &countingChannel{ReadWriteCloser: dst, bytes: t.bytes}
 	}
+	// limited around the counting: counting and limiting share the path of every byte
+	dstRWC = newThrottledChannel(ctx, dstRWC, t.rate)
 	s, r := chshare.Pipe(src, dstRWC)
 	l.Debugf("Close (sent %s received %s)", sizestr.ToString(s), sizestr.ToString(r))
 	close(done)

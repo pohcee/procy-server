@@ -1,0 +1,75 @@
+put:
+  tags:
+    - Operator
+  summary: Set the billing status of an organization. Platform operators only
+  description: >-
+    paying; trial (needs trial_ends_at; then paying with a payment method, the free plan without); exempt (needs a
+    reason; metered, never charged); comped (needs comped_until). Written to the audit logs of `_system` and of the
+    organization.
+  operationId: OperatorOrganizationBillingStatusPut
+  parameters:
+    - name: id
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - status
+          properties:
+            status:
+              type: string
+              enum: [paying, trial, exempt, comped]
+            trial_ends_at:
+              type: string
+              format: date-time
+            comped_until:
+              type: string
+              format: date-time
+              description: The last day not charged
+            reason:
+              type: string
+            exempt_limits:
+              type: string
+              enum: [plan, none]
+              description: Whether the plan's limits apply to an exempt organization (default plan)
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/BillingAccount.yaml
+    '400':
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not a platform operator
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No such organization, not the system organization, or billing is off
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

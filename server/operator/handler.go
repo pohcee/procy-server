@@ -12,6 +12,7 @@ import (
 
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/routes"
 	chshare "github.com/openrport/openrport/share"
@@ -29,6 +30,8 @@ type Options struct {
 	Service Service
 	// Usage, when set (usage metering on), serves the usage routes.
 	Usage metering.Reader
+	// Billing, when set ([billing] enabled), serves the billing routes.
+	Billing billing.OperatorService
 	// CurrentUser returns the authenticated user of the request (an errors.APIError when there is none).
 	CurrentUser func(ctx context.Context) (*users.User, error)
 	Respond     *api.Responder
@@ -38,13 +41,14 @@ type Options struct {
 type Handler struct {
 	svc         Service
 	usage       metering.Reader
+	billing     billing.OperatorService
 	currentUser func(ctx context.Context) (*users.User, error)
 	respond     *api.Responder
 }
 
 // NewHandler returns the operator API handler.
 func NewHandler(o Options) *Handler {
-	return &Handler{svc: o.Service, usage: o.Usage, currentUser: o.CurrentUser, respond: o.Respond}
+	return &Handler{svc: o.Service, usage: o.Usage, billing: o.Billing, currentUser: o.CurrentUser, respond: o.Respond}
 }
 
 // Mount registers the operator routes on r, a router for RoutePrefix behind authentication.
@@ -61,6 +65,9 @@ func (h *Handler) Mount(r *mux.Router) {
 	if h.usage != nil {
 		r.HandleFunc("/organizations/{id}/usage", h.organizationUsage).Methods(http.MethodGet)
 		r.HandleFunc("/usage", h.usageSummary).Methods(http.MethodGet)
+	}
+	if h.billing != nil {
+		h.mountBilling(r)
 	}
 }
 
@@ -213,8 +220,10 @@ func (h *Handler) decode(w http.ResponseWriter, r *http.Request, v any) bool {
 func (h *Handler) fail(w http.ResponseWriter, err error) {
 	status := 0
 	switch {
-	case errors.Is(err, metering.ErrInvalid):
+	case errors.Is(err, metering.ErrInvalid), errors.Is(err, billing.ErrInvalid):
 		status = http.StatusBadRequest
+	case errors.Is(err, billing.ErrNotFound):
+		status = http.StatusNotFound
 	case errors.Is(err, ErrNotFound):
 		status = http.StatusNotFound
 	case errors.Is(err, ErrExists):

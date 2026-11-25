@@ -230,6 +230,11 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	for _, fn := range UsageFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
 	}
+	// billing (migration 1450): the billing tables are written only through its functions
+	stmts = append(stmts, "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON org_billing, billing_periods, billing_notices FROM "+q)
+	for _, fn := range BillingFunctions {
+		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
+	}
 	// the account functions (migration 1400) change the credential and remembered organization of a login
 	for _, fn := range AccountFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
@@ -258,7 +263,8 @@ func GrantDevice(ctx context.Context, db *sqlx.DB, role string) error {
 		"REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM " + q,
 		"GRANT USAGE ON SCHEMA public TO " + q,
 	}
-	for _, f := range append(append([]string(nil), postgres.DeviceFunctions...), postgres.MeteringDeviceFunctions...) {
+	fns := append(append([]string(nil), postgres.DeviceFunctions...), postgres.MeteringDeviceFunctions...)
+	for _, f := range append(fns, postgres.BillingDeviceFunctions...) {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+f+" TO "+q)
 	}
 	for _, s := range stmts {
@@ -285,6 +291,26 @@ var UsageFunctions = []string{
 	"ingest_usage(jsonb)",
 	"rport_usage_summary(timestamptz, timestamptz)",
 	"rport_usage_device_summary(date, date)",
+}
+
+// BillingFunctions are the SECURITY DEFINER functions of billing (migration 1450) the application role may execute:
+// the operator functions (which run only in the system tenant), the upkeep's, an administrator's spending limit and
+// the transfer policies. Device roles get device_transfer_policy through postgres.BillingDeviceFunctions.
+var BillingFunctions = []string{
+	"rport_operator_set_plan(text, text, integer, text)",
+	"rport_operator_set_billing(text, text, timestamptz, date, text, text, text, text)",
+	"rport_operator_billing_override(text, timestamptz, bigint, date, boolean, text, text)",
+	"rport_operator_approve_period(text, date, text)",
+	"rport_operator_billing(text)",
+	"rport_operator_billing_periods(text, text)",
+	"rport_billing_ensure(text)",
+	"rport_billing_transition(text, text, text, integer)",
+	"rport_billing_set_policy(text, text, bigint, bigint, bigint, bigint, bigint, bigint, bigint, integer, text)",
+	"rport_billing_close_period(jsonb)",
+	"rport_billing_claim_notice(text, date, text)",
+	"rport_billing_newest_usage()",
+	"rport_billing_set_spending_limit(bigint, text)",
+	"device_transfer_policy()",
 }
 
 // AccountFunctions are the SECURITY DEFINER functions through which the application changes accounts (migration
