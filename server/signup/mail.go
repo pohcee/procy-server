@@ -144,10 +144,10 @@ func notifyMail(base string, r *Signup, freeMail bool) mail {
 		kind = " (free mail)"
 	}
 	return mail{
-		subject: "New signup waiting: " + r.OrgName,
+		subject: fmt.Sprintf("New signup waiting: %q", r.OrgName),
 		body: fmt.Sprintf(`A signup is waiting for approval.
 
-Organization: %s
+Organization: %q
 Email:        %s
 Domain:       %s%s
 Mail server:  %s

@@ -252,13 +252,17 @@ func (al *APIListener) oidcRedirect(w http.ResponseWriter, req *http.Request, pa
 
 // oidcFail ends a sign-in at the web UI with reason; who and detail go to the log and the audit log.
 func (al *APIListener) oidcFail(w http.ResponseWriter, req *http.Request, reason, description, who, detail string) {
-	al.Infof("oidc: sign-in failed (%s) for %q from %s: %s", reason, who, chshare.RemoteIP(req), detail)
+	what, action := "sign-in", "failed"
+	if v, _ := req.Context().Value(oidcSignupTarget{}).(bool); v {
+		what, action = "signup with Google", "signup_failed"
+	}
+	al.Infof("oidc: %s failed (%s) for %q from %s: %s", what, reason, who, chshare.RemoteIP(req), detail)
 	ctx := req.Context()
 	if al.memberships != nil {
 		// a failed sign-in belongs to no organization yet: the platform operators' audit log has it
 		ctx = tenant.WithID(ctx, operator.SystemTenant)
 	}
-	al.auditOIDC(req.WithContext(api.WithUser(ctx, who)), "failed", reason)
+	al.auditOIDC(req.WithContext(api.WithUser(ctx, who)), action, reason)
 	al.oidcRedirect(w, req, url.Values{"error": {reason}, "error_description": {description}})
 }
 

@@ -47,7 +47,7 @@ func TestSignupQueueNotifyAndNotice(t *testing.T) {
 
 	id := requestAndVerify(t, h, sink, op, "fay@acme.example", "Acme")
 	n := sink.last(t, "ops@example.com")
-	assert.Equal(t, "New signup waiting: Acme", n.subject)
+	assert.Equal(t, `New signup waiting: "Acme"`, n.subject)
 	for _, want := range []string{"fay@acme.example", "acme.example", "Mail server:  yes", "the emailed link", "https://ui.example/signups"} {
 		assert.Contains(t, n.body, want)
 	}

@@ -493,9 +493,13 @@ func (s *Service) RequestVerified(ctx context.Context, email, organization, meth
 	}
 	res, err := s.complete(ctx, row, by, Update{VerifiedAt: &now})
 	if err != nil {
-		if !errors.Is(err, ErrConflict) {
-			_ = s.o.Store.SetStatus(ctx, id, Update{Status: StatusExpired, Reason: "the organization could not be created", ClearPassword: true})
+		// never left in creating (Expire doesn't take it up): an account that appeared meanwhile is existing (complete
+		// may have said so already), any other failure expires the request; the person may sign up again
+		st, why := StatusExpired, "the organization could not be created"
+		if errors.Is(err, ErrConflict) {
+			st, why = StatusExisting, "the email has an account"
 		}
+		_ = s.o.Store.SetStatus(ctx, id, Update{Status: st, Reason: why, ClearPassword: true})
 		return nil, err
 	}
 	return res, nil
