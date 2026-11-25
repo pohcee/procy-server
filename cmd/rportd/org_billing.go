@@ -12,7 +12,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/spf13/cobra"
 
 	"github.com/openrport/openrport/server/billing"
@@ -97,7 +96,7 @@ func runBilling(ctx context.Context, w io.Writer, fn billingCommand, args []stri
 	if err != nil {
 		return err
 	}
-	db, err := openOwnerForOrg(ctx)
+	db, err := pgserver.OpenOwner(ctx, cfg, *orgDSN)
 	if err != nil {
 		return err
 	}
@@ -254,8 +253,4 @@ func init() {
 	orgLiftUntil = orgLiftCapCmd.Flags().String("until", "", "lift the hard cap until then (date or RFC 3339 time)")
 	orgExtra = orgLiftCapCmd.Flags().String("extra-transfer", "", "raise this month's transfer allowance, e.g. 50GiB")
 	orgBillingJSON = orgBillingCmd.Flags().Bool("json", false, "print JSON")
-}
-
-func openOwnerForOrg(ctx context.Context) (*sqlx.DB, error) {
-	return pgserver.OpenOwner(ctx, cfg, *orgDSN)
 }
