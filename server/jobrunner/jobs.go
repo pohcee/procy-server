@@ -378,7 +378,9 @@ func (r *Runner) RunMultiClientJob(
 		if err != nil {
 			if job.AbortOnErr && !errors.Is(err, ErrClientNotConnected) {
 				if uiConn != nil {
-					uiConn.Close()
+					// the failed job was written; end the stream with the closing handshake
+					_ = uiConn.Close()
+					AwaitUIClose(uiConn, r.log)
 					return
 				}
 				break
@@ -396,7 +398,8 @@ func (r *Runner) RunMultiClientJob(
 		jobResult := <-curJobDoneChannel
 		if job.AbortOnErr && jobResult.Status == models.JobStatusFailed {
 			if uiConn != nil {
-				uiConn.Close()
+				_ = uiConn.Close()
+				AwaitUIClose(uiConn, r.log)
 				return
 			}
 			break
@@ -466,20 +469,23 @@ func newJob(
 	}
 }
 
-// AwaitUIClose blocks until the UI sends a message or closes the websocket,
-// then closes it.
+// AwaitUIClose blocks until the UI closes the websocket (or sends a message, which closes it from here), then
+// closes the connection. Reading the UI's answer to the close frame lets the stream end with the closing handshake
+// (1000) instead of a dropped connection.
 func AwaitUIClose(uiConnTS *ws.ConcurrentWebSocket, log *logger.Logger) {
-	// check for Close message from client to close the connection
-	mt, message, err := uiConnTS.ReadMessage()
-	if err != nil {
-		if closeErr, ok := err.(*websocket.CloseError); ok {
-			log.Debugf("Received a closed err on WS read: %v", closeErr)
+	defer uiConnTS.CloseNow()
+	for {
+		mt, message, err := uiConnTS.ReadMessage()
+		if err != nil {
+			if closeErr, ok := err.(*websocket.CloseError); ok {
+				log.Debugf("Received a closed err on WS read: %v", closeErr)
+				return
+			}
+			log.Debugf("Error read from websocket: %v", err)
 			return
 		}
-		log.Debugf("Error read from websocket: %v", err)
-		return
+		log.Debugf("Message received: type %v, msg %s", mt, message)
+		// the UI is done: close (the close frame), then read its answer
+		_ = uiConnTS.Close()
 	}
-
-	log.Debugf("Message received: type %v, msg %s", mt, message)
-	uiConnTS.Close()
 }

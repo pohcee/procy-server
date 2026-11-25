@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/ws"
 )
@@ -49,6 +51,8 @@ func (r *relay) open(key, jid string) (sink *relaySink, closeFn func()) {
 	if e == nil {
 		e = &relayEntry{sinks: map[string]*relaySink{}}
 		e.socket = ws.NewConcurrentWebSocket(&relayConn{relay: r, key: key}, r.log)
+		// the relay carries every job of the key (a multi-client run's jobs on this node): it never closes itself
+		e.socket.SetWritesBeforeClose(0)
 		r.entries[key] = e
 		r.streams.Set(key, e.socket)
 	}
@@ -114,7 +118,10 @@ var errRelayRead = errors.New("relay websockets are write-only")
 func (c *relayConn) NextReader() (int, io.Reader, error) { return 0, nil, errRelayRead }
 func (c *relayConn) ReadMessage() (int, []byte, error)   { return 0, nil, errRelayRead }
 
-func (c *relayConn) WriteMessage(_ int, data []byte) error {
+func (c *relayConn) WriteMessage(messageType int, data []byte) error {
+	if messageType != websocket.TextMessage {
+		return nil // a close frame (the cache closing at shutdown): nothing to relay
+	}
 	c.relay.deliver(c.key, relayMsg{final: true, data: append([]byte(nil), data...)})
 	return nil
 }
@@ -128,6 +135,5 @@ func (c *relayConn) WriteJSON(v interface{}) error {
 	return nil
 }
 
-// Close does nothing: the relay ends with the jobs it relays (ConcurrentWebSocket closes its connection after a
-// number of writes meant for one UI stream).
+// Close does nothing: the relay ends with the jobs it relays.
 func (c *relayConn) Close() error { return nil }

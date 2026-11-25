@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -199,7 +200,10 @@ type capture struct {
 
 func (c *capture) NextReader() (int, io.Reader, error) { return 0, nil, io.EOF }
 func (c *capture) ReadMessage() (int, []byte, error)   { return 0, nil, io.EOF }
-func (c *capture) WriteMessage(_ int, b []byte) error {
+func (c *capture) WriteMessage(t int, b []byte) error {
+	if t == websocket.CloseMessage {
+		return nil // the end of the stream
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.writes = append(c.writes, "final:"+string(b))

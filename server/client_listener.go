@@ -130,6 +130,10 @@ type ClientListener struct {
 	// semaphore used to limit concurrent pending SSH connections
 	inprogressSSHHandshakes chan struct{}
 
+	// outputs are the jobs' open output channels a result waits for; outputWait bounds the wait (tests)
+	outputs    outputStreams
+	outputWait time.Duration
+
 	mu sync.RWMutex
 }
 
@@ -875,6 +879,8 @@ func (cl *ClientListener) saveCmdResult(ctx context.Context, respBytes []byte) (
 	}
 	ws := cl.server.uiJobWebSockets.Get(wsJID)
 	if ws != nil {
+		// the result ends the job's UI stream: its output first
+		cl.awaitOutput(resp.JID)
 		err := ws.WriteMessage(websocket.TextMessage, fwdBytes)
 		if err != nil {
 			cl.log().Errorf("%s, failed to write message to UI Web Socket: %v", resp.LogPrefix(), err)
@@ -907,8 +913,14 @@ func (cl *ClientListener) handleSSHChannels(sshConn ssh.Conn, clientLog *logger.
 	for ch := range chans {
 		ch := ch
 		extraData := string(ch.ExtraData())
+		outputEnded := func() {}
+		if typ := ch.ChannelType(); typ == models.ChannelStdout || typ == models.ChannelStderr {
+			// before the accept: the client runs the command (and later sends its result) only after it
+			outputEnded = cl.outputOpened(ch.ExtraData())
+		}
 		stream, reqs, err := ch.Accept()
 		if err != nil {
+			outputEnded()
 			clientLog.Debugf("Failed to accept stream: %s", err)
 			continue
 		}
@@ -924,6 +936,7 @@ func (cl *ClientListener) handleSSHChannels(sshConn ssh.Conn, clientLog *logger.
 			cl.handleSessionChannel(sshConn, stream, clientLog, uploaded)
 		case models.ChannelStdout, models.ChannelStderr:
 			go func() {
+				defer outputEnded()
 				err := cl.handleOutputChannel(ch.ChannelType(), ch.ExtraData(), clientLog, stream)
 				if err != nil {
 					clientLog.Errorf("Error handling output channel %s: %v", ch.ChannelType(), err)
