@@ -17,10 +17,10 @@ import (
 
 func TestSlugAndOrganizationID(t *testing.T) {
 	for in, want := range map[string]string{
-		"Dana's Widgets, Inc.": "dana-s-widgets-inc",
-		"  ---  ":              "org",
-		"Ünïcode only":         "n-code-only",
-		"日本":                   "org",
+		"Dana's Widgets, Inc.":    "dana-s-widgets-inc",
+		"  ---  ":                 "org",
+		"Ünïcode only":            "n-code-only",
+		"日本":                      "org",
 		strings.Repeat("ab ", 40): strings.Trim(strings.Repeat("ab-", 14)[:40], "-"),
 	} {
 		assert.Equal(t, want, slug(in), in)
