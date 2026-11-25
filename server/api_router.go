@@ -72,6 +72,10 @@ func (al *APIListener) initRouter() {
 		al.operatorAPI.Mount(operatorRouter)
 	}
 	secureAPI.HandleFunc("/status", al.handleGetStatus).Methods(http.MethodGet)
+	if al.signupAPI != nil {
+		al.signupAPI.MountOrganization(secureAPI, al.wrapAdminAccessMiddleware)
+		al.signupAPI.MountAccount(secureAPI)
+	}
 	if al.usage != nil {
 		secureAPI.Handle("/usage", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetUsage))).Methods(http.MethodGet)
 	}
@@ -242,6 +246,9 @@ func (al *APIListener) initRouter() {
 	api.HandleFunc("/login", al.handleGetLogin).Methods(http.MethodGet)
 	api.HandleFunc("/login", al.handlePostLogin).Methods(http.MethodPost)
 	api.HandleFunc("/logout", al.handleDeleteLogout).Methods(http.MethodDelete)
+	if al.signupAPI != nil {
+		al.signupAPI.MountPublic(api)
+	}
 	api.Handle(routes.Verify2FaRoute, al.wrapWithAuthMiddleware(true)(al.handlePostVerify2FAToken())).Methods(http.MethodPost)
 
 	// web sockets

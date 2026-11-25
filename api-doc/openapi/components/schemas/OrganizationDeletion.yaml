@@ -1,0 +1,14 @@
+type: object
+properties:
+  id: {type: integer}
+  organization_id: {type: string}
+  organization_name: {type: string}
+  state: {type: string, enum: [pending, canceled, done]}
+  requested_at: {type: string, format: date-time}
+  requested_by: {type: string}
+  reason: {type: string}
+  delete_after: {type: string, format: date-time}
+  previous_status: {type: string}
+  finished_at: {type: string, format: date-time, nullable: true}
+  finished_by: {type: string}
+  cancel_links_sent: {type: integer, description: Administrators mailed a link to cancel (on request only; none when an operator started it)}

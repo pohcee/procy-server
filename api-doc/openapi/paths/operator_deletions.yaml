@@ -1,0 +1,48 @@
+get:
+  tags:
+    - Operator
+  summary: List organization deletions. Platform operators only
+  description: >-
+    The newest first, optionally of one state (pending, canceled, done).
+  operationId: OperatorDeletionsGet
+  parameters:
+    - name: state
+      in: query
+      schema:
+        type: string
+        enum: [pending, canceled, done]
+    - name: limit
+      in: query
+      schema:
+        type: integer
+        default: 100
+  responses:
+    '200':
+      description: Deletions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/OrganizationDeletion.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup or operator API on this server, the request is not from the system organization, or no such signup or organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

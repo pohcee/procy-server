@@ -37,6 +37,9 @@ tags:
     description: >-
       Usage metering (Postgres servers with `[metering] enabled` only): what an organization used per hour, day or
       month: tunnel and upload bytes, API bytes, jobs and connected devices.
+  - name: Signup
+    description: >-
+      Self-service signup, organization export and deletion (Postgres servers with `[signup] enabled` only).
   - name: Billing
     description: >-
       Billing plans and limits (Postgres servers with `[billing] enabled` only): an organization's plan, billing
@@ -129,6 +132,34 @@ paths:
     $ref: paths/billing_spending-limit.yaml
   /usage:
     $ref: paths/usage.yaml
+  /signup:
+    $ref: paths/signup.yaml
+  /signup/verify:
+    $ref: paths/signup_verify.yaml
+  /signup/cancel-deletion:
+    $ref: paths/signup_cancel-deletion.yaml
+  /me/email-confirmation:
+    $ref: paths/me_email-confirmation.yaml
+  /me/email-confirmation/confirm:
+    $ref: paths/me_email-confirmation_confirm.yaml
+  /organization/export:
+    $ref: paths/organization_export.yaml
+  /organization/deletion:
+    $ref: paths/organization_deletion.yaml
+  /operator/signups:
+    $ref: paths/operator_signups.yaml
+  /operator/signups/{id}/approve:
+    $ref: paths/operator_signups_{id}_approve.yaml
+  /operator/signups/{id}/deny:
+    $ref: paths/operator_signups_{id}_deny.yaml
+  /operator/deletions:
+    $ref: paths/operator_deletions.yaml
+  /operator/organizations/{id}/export:
+    $ref: paths/operator_organizations_{id}_export.yaml
+  /operator/organizations/{id}/deletion:
+    $ref: paths/operator_organizations_{id}_deletion.yaml
+  /operator/organizations/{id}/deletion/expedite:
+    $ref: paths/operator_organizations_{id}_deletion_expedite.yaml
   /billing/webhook:
     $ref: paths/billing_webhook.yaml
   /billing/payment:

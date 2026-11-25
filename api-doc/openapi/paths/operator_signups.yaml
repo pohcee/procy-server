@@ -1,0 +1,49 @@
+get:
+  tags:
+    - Operator
+  summary: List recent signups. Platform operators only
+  description: >-
+    The newest first, optionally of one status. Password hashes and tokens are never returned.
+  operationId: OperatorSignupsGet
+  parameters:
+    - name: status
+      in: query
+      schema:
+        type: string
+        enum: [pending, existing, awaiting_approval, completed, denied, expired]
+    - name: limit
+      in: query
+      schema:
+        type: integer
+        default: 100
+        maximum: 500
+  responses:
+    '200':
+      description: Signups
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/Signup.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup or operator API on this server, the request is not from the system organization, or no such signup or organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

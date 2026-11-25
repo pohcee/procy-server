@@ -164,6 +164,13 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 		return nil, nil, err
 	}
 	opts.VaultKeys = keys
+	if cfg.Signup.Enabled {
+		if opts.Signup, err = NewSignup(cfg, db, opts.Operator, keys, opts.Billing); err != nil {
+			coord.Release()
+			closeFn()
+			return nil, nil, err
+		}
+	}
 	return opts, func() {
 		// the server's run released them already, unless it never ran
 		coord.Release()

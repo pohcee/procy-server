@@ -39,6 +39,7 @@ import (
 	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
 	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/routes"
+	"github.com/openrport/openrport/server/signup"
 
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/jobs/schedule"
@@ -116,6 +117,8 @@ type APIListenerOptions struct {
 	Billing *BillingAPI
 	// NoNotificationsCleaner leaves deleting old notifications to the server (per tenant, in a cluster).
 	NoNotificationsCleaner bool
+	// Signup, when set, serves the signup routes, organization export and deletion, and their operator routes.
+	Signup *signup.Service
 }
 
 // apiServices holds the options under the names the handler code uses.
@@ -151,6 +154,8 @@ type APIListener struct {
 	memberships membership.Service
 	// usage reads the usage for GET /usage; nil: metering off
 	usage metering.Reader
+	// signupAPI serves the signup routes; nil without APIListenerOptions.Signup
+	signupAPI *signup.Handler
 	// billing serves GET /billing; nil: billing off
 	billing *BillingAPI
 	// meter counts the API bytes; nil: metering off
@@ -342,12 +347,16 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
+	operatorMounts, err := a.initSignup(o)
+	if err != nil {
+		return nil, err
+	}
 	if o.Operator != nil {
 		var ob billing.OperatorService
 		if o.Billing != nil {
 			ob = o.Billing.Operator
 		}
-		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, Billing: ob, CurrentUser: a.getUserModelForAuth, Respond: a.responder()})
+		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, Billing: ob, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts})
 	}
 
 	logGroupPermissionsNotice(userService, a.Logger)
@@ -761,4 +770,16 @@ func logGroupPermissionsNotice(userService *users.APIService, log *logger.Logger
 		log.Infof("the configured user store has no group permissions (auth_group_details_table): " +
 			"only Administrators can use commands, scripts, tunnels, vault and other permission-protected features")
 	}
+}
+
+// initSignup builds the signup handler of APIListenerOptions.Signup and returns the operator routes it adds.
+func (al *APIListener) initSignup(o APIListenerOptions) ([]func(r *mux.Router), error) {
+	if o.Signup == nil {
+		return nil, nil
+	}
+	if o.Operator == nil {
+		return nil, errors.New("signup needs the operator API (a server on Postgres)")
+	}
+	al.signupAPI = signup.NewHandler(o.Signup, al.responder(), al.getUserModelForAuth)
+	return []func(r *mux.Router){al.signupAPI.MountOperator}, nil
 }

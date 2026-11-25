@@ -215,6 +215,8 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, client_auth_ids, changes, changes_horizon, migrate_deferred FROM " + q,
+		// written only by rport_signup_delete_tenant (migration 1550)
+		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON deleted_tenant_ids FROM " + q,
 		"GRANT EXECUTE ON FUNCTION rport_prune_changes(interval) TO " + q,
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON nodes, client_sessions, client_admissions FROM " + q,
 		// nodes with role "all" admit devices like device processes do (migration 1350)
@@ -237,6 +239,10 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	}
 	// the account functions (migration 1400) change the credential and remembered organization of a login
 	for _, fn := range AccountFunctions {
+		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
+	}
+	// signup (migration 1550): account status, email verification and the take-over of unproven accounts
+	for _, fn := range SignupAccountFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
 	}
 	// the operator functions (migration 1050) change tenants for the operator API
@@ -346,11 +352,20 @@ var AccountFunctions = []string{
 	"rport_invitations_of(text)",
 }
 
+// SignupAccountFunctions are the SECURITY DEFINER functions of signup on accounts (migration 1550).
+var SignupAccountFunctions = []string{
+	"rport_account_status(text)",
+	"rport_account_verify_email(text)",
+	"rport_account_take_over(text, text, text)",
+}
+
 // OperatorFunctions are the SECURITY DEFINER functions through which platform operators change tenants.
 var OperatorFunctions = []string{
 	"rport_operator_add_tenant(text, text, integer)",
 	"rport_operator_set_tenant_status(text, text)",
 	"rport_operator_set_max_clients(text, integer)",
+	// self-service signup (migration 1550): deleting an organization whose deletion is due
+	"rport_signup_delete_tenant(text)",
 }
 
 func quoteIdent(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }

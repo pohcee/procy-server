@@ -23,6 +23,9 @@ type Memberships struct {
 	twoFA bool
 	// passwordLength is the length of generated passwords: at least [api] password_min_length
 	passwordLength int
+	// db, with [signup] on, checks that an existing account proved its email (signup) before it is invited into
+	// or joins another organization; nil: no check (no way to prove it without signup's emails)
+	db *sqlx.DB
 }
 
 var _ membership.Service = (*Memberships)(nil)
@@ -31,12 +34,35 @@ var _ membership.Service = (*Memberships)(nil)
 // settings of cfg's [api] section.
 func NewMemberships(db *sqlx.DB, cfg *chconfig.Config) *Memberships {
 	store := pgusers.New(db)
-	return &Memberships{
+	m := &Memberships{
 		store:          store,
 		users:          users.NewAPIService(store, cfg.API.IsTwoFAOn(), cfg.API.PasswordMinLength, cfg.API.PasswordZxcvbnMinscore),
 		twoFA:          cfg.API.IsTwoFAOn(),
 		passwordLength: max(generatedPasswordLength, cfg.API.PasswordMinLength),
 	}
+	if cfg.Signup.Enabled {
+		m.db = db
+	}
+	return m
+}
+
+// ErrUnverified: an existing account that didn't prove its email can't be invited into more organizations.
+var ErrUnverified = fmt.Errorf("%w: the account has not confirmed its email address yet (POST /me/email-confirmation)", membership.ErrInvalid)
+
+// checkVerified refuses an unverified account when [signup] is on: an administrator could otherwise create an
+// account for someone else's address and use it in further organizations before its owner signs up.
+func (m *Memberships) checkVerified(ctx context.Context, username string) error {
+	if m.db == nil {
+		return nil
+	}
+	a, err := accountStatus(ctx, m.db, username)
+	if err != nil {
+		return err
+	}
+	if a.Exists && !a.Verified {
+		return ErrUnverified
+	}
+	return nil
 }
 
 // Organizations implements membership.Service.
@@ -77,6 +103,9 @@ func (m *Memberships) invite(ctx context.Context, id tenant.ID, in membership.In
 		return nil, err
 	}
 	if exists {
+		if err := m.checkVerified(ctx, in.Username); err != nil {
+			return nil, err
+		}
 		err := m.store.Invite(ctx, in.Username, in.Groups, invitedBy)
 		switch {
 		case errors.Is(err, pgusers.ErrAlreadyMember):
@@ -147,6 +176,9 @@ func (m *Memberships) Invitations(ctx context.Context, username string) ([]membe
 
 // Accept implements membership.Service.
 func (m *Memberships) Accept(ctx context.Context, username string) error {
+	if err := m.checkVerified(ctx, username); err != nil {
+		return err
+	}
 	err := m.store.AcceptInvitation(ctx, username)
 	switch {
 	case errors.Is(err, pgusers.ErrNoInvitation), errors.Is(err, pgusers.ErrNoAccount):

@@ -38,6 +38,7 @@ import (
 	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/ports"
 	"github.com/openrport/openrport/server/scheduler"
+	"github.com/openrport/openrport/server/signup"
 	"github.com/openrport/openrport/server/vault"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/capabilities"
@@ -111,6 +112,8 @@ type Server struct {
 	vaultKeys vault.KeyProvider
 	// cluster is ServerOpts.Cluster, or cluster.Standalone.
 	cluster cluster.Coordinator
+	// signup is ServerOpts.Signup; nil: off
+	signup *signup.Service
 }
 
 type ServerOpts struct {
@@ -171,6 +174,10 @@ type ServerOpts struct {
 	// from its client auth id and refuses devices of tenants that are not active or have reached their client limit
 	// (#34). nil: devices belong to the default tenant.
 	DeviceTenants DeviceTenants
+	// Signup, when set, serves self-service signup, organization export and deletion (Postgres with [signup]
+	// enabled) and runs its upkeep (expiring signups, deleting organizations whose hold ended) on one node at a time.
+	// nil: none of it, as on standalone servers.
+	Signup *signup.Service
 }
 
 // NewServer creates and returns a new rport server
@@ -199,6 +206,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	s.capabilitiesOverride = opts.Capabilities
 	s.vaultKeys = opts.VaultKeys
 	s.cluster = opts.Cluster
+	s.signup = opts.Signup
 	if s.cluster == nil {
 		s.cluster = cluster.Standalone{}
 	}
@@ -407,6 +415,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		Operator:       opts.Operator,
 		Memberships:    opts.Memberships,
 		Usage:          usageReader(opts.Metering),
+		Signup:         opts.Signup,
 		Meter:          s.meter,
 		Billing:        s.billingAPI(opts.Billing),
 		// in a cluster old notifications are deleted per tenant by a leased task (Run)
@@ -596,6 +605,11 @@ func (s *Server) Run(ctx context.Context) error {
 
 		s.runClusterNotificationsCleanup(ctx)
 		go followBuiltins(ctx, s.repos.Library, s.libraryLog, s.cluster, s.builtinsSynced)
+
+		if s.signup != nil {
+			go runGlobalPeriodic(ctx, s.cluster, s.Logger.Fork("signup"), "signup-upkeep", s.signup.Upkeep, signupUpkeepInterval)
+			s.Infof("self-service signup is on")
+		}
 	} else {
 		s.Infof("device process: background work (cleanups, purge of disconnected clients) runs on the api processes")
 	}

@@ -424,6 +424,105 @@ Accuracy:
   node's count, not the cluster's (device-days and `device_seconds` add up across nodes correctly).
 * Hours come from each node's clock; the count of the seconds before a sample is attributed to the sample's hour.
 
+## Self-service signup
+
+With `[signup]` on, visitors create their own organization: they give an email, an organization name and a
+password, confirm the email with a link, and become the organization's first administrator. Off by default;
+refused on SQLite. Turning it off closes signup without touching existing organizations.
+
+```toml
+[signup]
+  enabled = true
+  public_url = "https://rport.example.com"   # the web UI the links in the emails point to
+  captcha = "turnstile"                      # or "hcaptcha", or "" (none)
+  captcha_secret_file = "/run/secrets/turnstile"
+  captcha_site_key = "0x4AAAA..."            # public, given to the UI
+  blocked_domains_file = "/etc/rportd/disposable-domains.txt"
+  # allowed_domains_file = ""                # only these domains (private clusters)
+  # check_mx = false                         # refuse domains without a mail server
+  max_per_ip_per_day = 3                     # a negative value turns a limit off
+  max_per_domain_per_day = 10
+  max_per_email_per_day = 3
+  # unlimited_domains = [...]               # no per-domain limit (default: large shared mail providers)
+  # require_approval = false                 # hold verified signups for an operator
+  # token_ttl = "24h"
+  # deletion_hold = "720h"
+  # mail = "smtp"                            # "log": only log the emails and their links (development)
+```
+
+The emails go through `[smtp]`. After upgrading, run `rportd migrate --grant-to <application role>` once more:
+the application role needs `EXECUTE` on `rport_signup_delete_tenant` and the account functions
+`rport_account_status`, `rport_account_verify_email`, `rport_account_take_over` (migration 1550).
+
+The flow:
+
+1. `POST /api/v1/signup {email, organization, captcha}` (public). The input (an organization name of 1 to 100
+   characters, no control characters), the captcha (checked with the provider, server-side, before any email), the
+   domain lists and the rate limits are checked; then a single-use link valid for `token_ttl` is emailed
+   (`<public_url>/auth/signup/verify?token=...`). The token is stored only as a SHA-256 hash. The answer (202) is
+   the same whatever the address: a new one or an unconfirmed account gets the link, a confirmed account a notice
+   to sign in. The rate limits count the signups of the last
+   24 hours in the database, so they hold across nodes; refused requests count for nothing, and the per-domain
+   limit doesn't apply to the shared mail providers of `unlimited_domains` (a built-in list by default).
+2. `POST /api/v1/signup/verify {token, password}` (public) takes the password the user chooses (the `[api]`
+   password rules; a refused one leaves the link usable) and creates the organization through the operator
+   service: its id is a slug of the name with a random suffix (`acme-corp-x7k2m9`), never chosen freely; the user
+   is its administrator. With `[billing]` on it gets the trial of the plans file (`[trial]`: status `trial` until
+   `now + days`, its plan, and the trial's device and transfer ceilings while no payment method is on file), or the
+   free plan when there is no trial; without `[billing]`, no plan. The answer has the organization id, the plan
+   and `checkout_required` (false for a trial). With `require_approval` it answers 202 `awaiting_approval` (the
+   password kept as a bcrypt hash until then) and an operator approves or denies.
+3. Every step is in the audit log of `_system`, with the actor `signup:<email>` and the remote IP.
+
+Accounts and proof of email ownership: a login is one account in any number of organizations. Signup marks the
+account's email confirmed (`accounts.email_verified_at`); so does a signed-in account with `POST
+/api/v1/me/email-confirmation` (a link to `<public_url>/auth/confirm-email?token=...`, redeemed signed in). Accounts an administrator creates by inviting a new login start
+unconfirmed. With `[signup]` on:
+
+* an unconfirmed account can't be invited into further organizations, nor accept an invitation (400/403 naming
+  the confirmation);
+* a signup for the address of an unconfirmed account takes it over, in one transaction: it joins the new
+  organization, its other memberships become invitations its owner accepts or declines, its sessions and API
+  tokens end, and it gets the mailbox owner's password, no TOTP secret and 2FA codes to the email (audited
+  `take_over`). Proving the mailbox is the stronger claim to an email login;
+* a rename makes an account unconfirmed again (it names another mailbox);
+* confirming needs the link and a session of the account together (`POST /api/v1/me/email-confirmation/confirm
+  {token}`), so the mailbox owner clicking a link can't confirm an account someone else holds; only lower-case
+  email logins can be confirmed.
+
+Signups expire after `token_ttl` (verified ones waiting for approval after 30 days); the upkeep (every 5 minutes,
+one node at a time) clears their password hashes.
+
+Leaving:
+
+* `GET /api/v1/organization/export` (administrators): the organization's configuration as JSON — users (login,
+  groups, 2FA address), user groups, clients, client groups, stored tunnels, schedules and the active versions of
+  the library entries. No passwords, TOTP secrets, API tokens, client credentials or vault values; JSON members
+  named like a password, secret or token are removed.
+* `POST /api/v1/organization/deletion {confirm: "<organization id>", reason}` (administrators): the organization
+  is suspended at once (nobody signs in, devices can't connect), its administrators get an email with a link to
+  cancel (`POST /api/v1/signup/cancel-deletion {token}`, public, since they can't sign in; refused when no
+  administrator has an email address), and after
+  `deletion_hold` the upkeep deletes it: its vault key is shredded (managed vault keys), the tenant row is deleted
+  and every table cascades. The id goes to `deleted_tenant_ids` and is never given out again. An operator who
+  reactivates the organization during the hold calls the deletion off; once the deletion is under way (the vault
+  key may be gone) it can be neither canceled nor reactivated. A deletion an operator starts mails the
+  administrators a notice without a cancel link.
+
+Operators (`/api/v1/operator`, audited):
+
+| Method | Path | |
+|---|---|---|
+| `GET` | `/signups?status&limit` | recent signups, newest first |
+| `POST` | `/signups/{id}/approve`, `/signups/{id}/deny {reason}` | with `require_approval` |
+| `GET` | `/deletions?state&limit` | pending, canceled and done deletions |
+| `GET` | `/organizations/{id}/export` | any organization's export |
+| `POST`, `DELETE` | `/organizations/{id}/deletion` | start or cancel a deletion |
+| `POST` | `/organizations/{id}/deletion/expedite` | delete now (irreversible) |
+
+`GET /api/v1/status` reports `capabilities.signup: true`; `GET /api/v1/signup` (public) gives the signup page the
+captcha provider and site key, `require_approval`, the password length and the trial days (of the plans file).
+A deleted organization's `org_billing` and `billing_periods` rows stay, detached, for the accounting retention.
 ## Billing plans and limits
 
 With `[billing]` on (it needs `[metering]`), every organization has a plan and a billing status, each calendar month

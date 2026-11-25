@@ -1,0 +1,15 @@
+type: object
+properties:
+  id: {type: string}
+  email: {type: string}
+  domain: {type: string}
+  remote_ip: {type: string}
+  organization_name: {type: string}
+  status: {type: string, enum: [pending, existing, verify_email, verified, awaiting_approval, creating, completed, denied, expired]}
+  created_at: {type: string, format: date-time}
+  expires_at: {type: string, format: date-time}
+  verified_at: {type: string, format: date-time, nullable: true}
+  decided_at: {type: string, format: date-time, nullable: true}
+  decided_by: {type: string}
+  reason: {type: string}
+  organization_id: {type: string, nullable: true}

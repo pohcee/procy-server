@@ -1,0 +1,48 @@
+post:
+  tags:
+    - Signup
+  summary: Redeem my email confirmation link
+  description: >-
+    Takes the token of the link POST /me/email-confirmation mailed (single use), signed in as the account that asked
+    for it (the link proves the mailbox, the session the account), and marks its email address confirmed. With
+    signup on, only confirmed accounts can be invited into further organizations; a rename unconfirms an account.
+  operationId: MeEmailConfirmationConfirmPost
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - token
+          properties:
+            token:
+              type: string
+  responses:
+    '200':
+      description: Confirmed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/EmailStatus.yaml
+    '400':
+      description: The link is unknown, used, expired, or of another account
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup on this server
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

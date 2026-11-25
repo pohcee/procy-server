@@ -1,0 +1,14 @@
+type: object
+properties:
+  status: {type: string, enum: [completed, awaiting_approval]}
+  organization: {type: string, description: The id of the new organization (completed only)}
+  organization_name: {type: string}
+  username: {type: string}
+  plan:
+    type: object
+    properties:
+      plan: {type: string}
+      billing_status: {type: string, example: trial}
+      trial_ends_at: {type: string, format: date-time}
+      checkout_required: {type: boolean}
+  checkout_required: {type: boolean, description: Send the user to the payment checkout first (never for a trial)}
