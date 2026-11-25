@@ -263,8 +263,11 @@ func (s Store) AdminEmails(ctx context.Context, org string) ([]string, error) {
 		SendTo   string `db:"two_fa_send_to"`
 	}
 	err := postgres.InTenantID(ctx, s.DB, tenant.ID(org), func(tx *sqlx.Tx) error {
-		return tx.SelectContext(ctx, &rows, `SELECT u.username, u.two_fa_send_to FROM users u
+		// the 2FA address belongs to the login's account (migration 1400), shared by its organizations
+		return tx.SelectContext(ctx, &rows, `SELECT u.username, coalesce(nullif(a.two_fa_send_to, ''), u.two_fa_send_to) AS two_fa_send_to
+			FROM users u
 			JOIN user_groups g ON g.tenant_id = u.tenant_id AND g.username = u.username
+			LEFT JOIN accounts a ON a.username = u.username
 			WHERE u.tenant_id = $1 AND g.group_name = $2 ORDER BY u.username`, org, users.Administrators)
 	})
 	if err != nil {
