@@ -150,10 +150,14 @@ id a device logs in with tells the server its tenant; creating a credential whos
   connected at that moment stay connected until they reconnect.
 * `max_clients` in the `tenants` table limits how many clients a tenant may have (clients connected or disconnected
   within `keep_disconnected_clients`, as the client list shows them). Empty (the default) means no limit. A client
-  the tenant already has always reconnects; a new one is refused once the limit is reached.
+  the tenant already has always reconnects, to any node; a new one is refused once the limit is reached. The count
+  is the database's, across every node and device process accepting devices, and it is the device count the
+  operator API shows. Give every node the same `purge_disconnected_clients` and `keep_disconnected_clients`: each
+  node counts with its own.
 
 A refused device logs the reason, for example `connection refused: the organization's limit of 10 clients is
-reached`, and the server logs a line naming the client, its client auth id and the tenant.
+reached`, and the server logs a line naming the client, its client auth id and the tenant. A device refused by its
+organization retries after its `max_retry_interval`, but not sooner than a minute.
 
 ## Running several servers
 
@@ -283,8 +287,8 @@ rportd org activate acme -c /etc/rport/rportd.conf
   organizations) is invited and joins with its own password when it accepts (see [Members of several organizations](#members-of-several-organizations)).
 * `suspend` takes effect on the next request: the organization's users can't log in, and their sessions and API
   tokens stop working. `activate` undoes it. Organizations are not deleted.
-* The device limit is the most devices an organization may have (unlimited when not set). In this preview it is
-  stored and shown, and enforced only once devices of every organization connect (device login per organization).
+* The device limit is the most devices an organization may have (unlimited when not set), enforced when devices
+  connect (see `max_clients` above).
 
 The same actions are in the **operator API** under `/api/v1/operator` (see the API reference, tag *Operator*), for
 administrators of `_system` only: other organizations get 404, other `_system` users 403, and servers on SQLite

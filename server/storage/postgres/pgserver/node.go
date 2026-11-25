@@ -136,7 +136,7 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 		opts.Dispatcher = NotConnectedDispatcher{}
 	} else {
 		// devices of every tenant connect; their client auth id names the tenant
-		opts.DeviceTenants = NewDeviceTenants(db)
+		opts.DeviceTenants = NewDeviceTenants(db, keepDisconnectedClients(cfg))
 	}
 	// the session registry, and with peer calls the cluster dispatcher (replacing the one above) and peer listener
 	cp, err := newClusterProcess(cfg, db, coord, opts)

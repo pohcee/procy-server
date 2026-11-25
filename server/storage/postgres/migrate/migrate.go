@@ -201,7 +201,8 @@ func Check(ctx context.Context, db *sqlx.DB) error {
 // tables, USAGE on sequences, SELECT only on tenants, user_logins, accounts, api_token_logins, client_auth_ids
 // (written by triggers and the account functions), the change
 // feed (changes, changes_horizon; written by triggers and rport_prune_changes), the cluster registry (nodes,
-// client_sessions; written through RegistryFunctions) and schema_migrations, and EXECUTE on the operator and registry
+// client_sessions; written through RegistryFunctions), client_admissions (written by device_admit_client) and
+// schema_migrations, and EXECUTE on the operator, registry and admission
 // functions, which are the application's only way to change tenants and the registry. role must not own the tables
 // and must not be a superuser or have
 // BYPASSRLS, or row-level security does not hold for it (postgres.CheckAppRole).
@@ -215,7 +216,9 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, client_auth_ids, changes, changes_horizon, migrate_deferred FROM " + q,
 		"GRANT EXECUTE ON FUNCTION rport_prune_changes(interval) TO " + q,
-		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON nodes, client_sessions FROM " + q,
+		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON nodes, client_sessions, client_admissions FROM " + q,
+		// nodes with role "all" admit devices like device processes do (migration 1350)
+		"GRANT EXECUTE ON FUNCTION device_admit_client(text, text, timestamptz) TO " + q,
 		// accounts and api_token_logins (migration 1400): written by triggers and the account functions
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON accounts, api_token_logins FROM " + q,
 	}
