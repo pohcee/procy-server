@@ -394,7 +394,7 @@ func (o *Operator) Members(ctx context.Context, id string) ([]operator.Member, e
 		for _, r := range rows {
 			byName[r.Username] = len(members)
 			members = append(members, operator.Member{Username: r.Username, Groups: []string{}, Organizations: r.Organizations, SignIn: r.SignIn,
-				HasPassword: r.HasPassword, OIDCLinked: r.OIDCLinked, TwoFA: r.TOTP || o.twoFAAll, LastLoginAt: r.LastLoginAt})
+				HasPassword: r.HasPassword, OIDCLinked: r.OIDCLinked, TwoFA: r.TOTP || o.twoFAAll, LastLoginAt: utc(r.LastLoginAt)})
 		}
 		for _, g := range groups {
 			if i, ok := byName[g.Username]; ok {

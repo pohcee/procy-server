@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -180,10 +181,19 @@ func TestNodeAccountInTwoOrganizations(t *testing.T) {
 	op := h.login(t, "op")
 	code, out = h.do(t, http.MethodGet, "/operator/organizations/b/members", op, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
+	members := out["data"].([]any)
+	require.Len(t, members, 2)
+	bobLogin, _ := members[1].(map[string]any)["last_login_at"].(string)
+	assert.True(t, strings.HasSuffix(bobLogin, "Z"), "bob signed in to b, recorded in UTC: %q", bobLogin)
+	for _, m := range members {
+		for _, k := range []string{"has_password", "oidc_linked", "two_fa", "last_login_at"} {
+			delete(m.(map[string]any), k)
+		}
+	}
 	assert.Equal(t, []any{
 		map[string]any{"username": "alice", "groups": []any{"Operators", "Viewers"}, "organizations": float64(2), "sign_in": "both"},
 		map[string]any{"username": "bob", "groups": []any{"Administrators"}, "organizations": float64(1), "sign_in": "both"},
-	}, out["data"])
+	}, members)
 
 	// removing alice from b blocks b only
 	code, out = h.do(t, http.MethodDelete, "/users/alice", bob, nil)
