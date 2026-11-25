@@ -45,6 +45,8 @@ func TestNormalizeEmail(t *testing.T) {
 func TestPasswordRules(t *testing.T) {
 	p := PasswordRules{MinLength: 12, MinScore: 3}
 	assert.ErrorIs(t, p.check("short", "u@x.io"), ErrInvalid)
+	assert.ErrorIs(t, p.check("short", "u@x.io"), ErrPassword)
+	assert.NotErrorIs(t, ErrToken, ErrPassword)
 	assert.ErrorIs(t, p.check("aaaaaaaaaaaaaaaa", "u@x.io"), ErrInvalid, "guessable")
 	assert.ErrorIs(t, p.check(strings.Repeat("Zq9!", 20), "u@x.io"), ErrInvalid, "too long for bcrypt")
 	assert.NoError(t, p.check("a much longer passphrase 1984", "u@x.io"))

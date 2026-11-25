@@ -49,7 +49,7 @@ func (s *Server) billingAPI(o *BillingOpts) *BillingAPI {
 	if o == nil || o.Org == nil {
 		return nil
 	}
-	return &BillingAPI{Org: o.Org, Operator: o.Operator, Enforcer: s.enforcer, Provider: o.Provider}
+	return &BillingAPI{Org: o.Org, Operator: o.Operator, Plans: o.Plans, Enforcer: s.enforcer, Provider: o.Provider}
 }
 
 // runBilling reads the transfer policies and, with an upkeep, runs it every billing.EnforceInterval under the

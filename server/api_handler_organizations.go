@@ -51,6 +51,33 @@ func (al *APIListener) handleGetMyOrganizations(w http.ResponseWriter, req *http
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(out))
 }
 
+// handleGetMyOrganization handles GET /me/organization: the organization of the request's session.
+func (al *APIListener) handleGetMyOrganization(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	user, err := al.getUserModelForAuth(ctx)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	tid, err := tenant.FromContext(ctx)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	orgs, err := al.memberships.Organizations(ctx, user.Username)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	for _, o := range orgs {
+		if o.ID == string(tid) {
+			al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(o))
+			return
+		}
+	}
+	al.jsonErrorResponseWithTitle(w, http.StatusNotFound, "the login is not a member of an organization")
+}
+
 type switchOrganizationRequest struct {
 	Organization string `json:"organization"`
 }

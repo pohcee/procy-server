@@ -1,0 +1,39 @@
+get:
+  tags:
+    - Billing
+  summary: Return the plan catalog. Administrators only
+  description: >-
+    The plans of the plans file with prices in USD cents and sizes in bytes. It never has the payment provider's
+    price ids. `free` marks the free plan, `trial` the plan new organizations try (for `trial_days`), `purchasable`
+    the plans that can be bought through the payment provider.
+  operationId: BillingPlansGet
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/BillingPlanInfo.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not a member of the Administrators group
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Billing is off on this server
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

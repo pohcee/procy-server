@@ -377,3 +377,53 @@ func DayStart(t time.Time) time.Time {
 	t = t.UTC()
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
+
+// PlanInfo is a plan as the plan catalog API shows it (GET /billing/plans): prices in USD cents, sizes in bytes.
+// It has no provider price ids or other secrets.
+type PlanInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// MonthlyPriceCents is the monthly price including IncludedDevices.
+	MonthlyPriceCents int64 `json:"monthly_price_cents"`
+	IncludedDevices   int64 `json:"included_devices"`
+	// PricePerDeviceCents is the monthly price of each billable device above IncludedDevices (0: none).
+	PricePerDeviceCents int64 `json:"price_per_device_cents"`
+	// MaxClients is the registered devices ceiling; nil is unlimited.
+	MaxClients *int `json:"max_clients"`
+	// TransferBaseBytes and TransferPerDeviceBytes make the monthly transfer allowance: base + per device ×
+	// billable devices.
+	TransferBaseBytes      int64 `json:"transfer_base_bytes"`
+	TransferPerDeviceBytes int64 `json:"transfer_per_device_bytes"`
+	// Overage is "bill" or "cap"; OveragePricePerGiBCents is the price of each GiB past the allowance ("bill").
+	Overage                 Overage `json:"overage"`
+	OveragePricePerGiBCents int64   `json:"overage_price_per_gib_cents"`
+	SoftCapPercent          int     `json:"soft_cap_percent"`
+	HardCapPercent          int     `json:"hard_cap_percent"`
+	// Free marks the free plan; Trial the plan new organizations get a trial of (TrialDays long).
+	Free      bool `json:"free"`
+	Trial     bool `json:"trial"`
+	TrialDays int  `json:"trial_days,omitempty"`
+	// Purchasable: the plan can be bought through the payment provider (it has provider prices).
+	Purchasable bool `json:"purchasable"`
+}
+
+// Catalog returns the plans in the order of the plans file, as the API shows them.
+func (p *Plans) Catalog() []PlanInfo {
+	out := make([]PlanInfo, 0, len(p.List))
+	for i := range p.List {
+		pl := &p.List[i]
+		in := PlanInfo{
+			ID: pl.ID, Name: pl.Name, MonthlyPriceCents: Cents(pl.BasePrice), IncludedDevices: pl.IncludedDevices,
+			PricePerDeviceCents: Cents(pl.PricePerDevice), MaxClients: pl.MaxClients,
+			TransferBaseBytes: int64(pl.TransferBase), TransferPerDeviceBytes: int64(pl.TransferPerDevice),
+			Overage: pl.Overage, OveragePricePerGiBCents: Cents(pl.OveragePricePerGiB),
+			SoftCapPercent: pl.SoftCapPercent, HardCapPercent: pl.HardCapPercent,
+			Free: pl.ID == p.Free, Purchasable: len(pl.ProviderPrices) > 0,
+		}
+		if pl.ID == p.Trial.Plan && pl.ID != p.Free && p.Trial.Days > 0 {
+			in.Trial, in.TrialDays = true, p.Trial.Days
+		}
+		out = append(out, in)
+	}
+	return out
+}

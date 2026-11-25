@@ -81,6 +81,9 @@ func (al *APIListener) initRouter() {
 	}
 	if al.billing != nil && al.billing.Org != nil {
 		secureAPI.Handle("/billing", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetBilling))).Methods(http.MethodGet)
+		if al.billing.Plans != nil {
+			secureAPI.Handle("/billing/plans", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetBillingPlans))).Methods(http.MethodGet)
+		}
 		secureAPI.Handle("/billing/periods", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetBillingPeriods))).Methods(http.MethodGet)
 		secureAPI.Handle("/billing/spending-limit", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handlePutSpendingLimit))).Methods(http.MethodPut)
 	}
@@ -90,6 +93,7 @@ func (al *APIListener) initRouter() {
 	secureAPI.HandleFunc("/me/ip", al.handleGetIP).Methods(http.MethodGet)
 	if al.memberships != nil {
 		secureAPI.HandleFunc("/me/organizations", al.handleGetMyOrganizations).Methods(http.MethodGet)
+		secureAPI.HandleFunc("/me/organization", al.handleGetMyOrganization).Methods(http.MethodGet)
 		secureAPI.HandleFunc("/me/organization", al.handleSwitchOrganization).Methods(http.MethodPost)
 		secureAPI.HandleFunc("/me/invitations", al.handleGetMyInvitations).Methods(http.MethodGet)
 		secureAPI.HandleFunc("/me/invitations/{organization}", al.handleAcceptInvitation).Methods(http.MethodPost)

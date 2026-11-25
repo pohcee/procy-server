@@ -1,0 +1,47 @@
+type: object
+description: A plan of the plan catalogue (prices in USD cents, sizes in bytes).
+properties:
+  id:
+    type: string
+  name:
+    type: string
+  monthly_price_cents:
+    type: integer
+    description: The monthly price, including `included_devices`
+  included_devices:
+    type: integer
+  price_per_device_cents:
+    type: integer
+    description: The monthly price of each billable device above `included_devices` (0 for none)
+  max_clients:
+    type: integer
+    nullable: true
+    description: The most registered devices; null is unlimited
+  transfer_base_bytes:
+    type: integer
+  transfer_per_device_bytes:
+    type: integer
+    description: The monthly transfer allowance is the base plus this per billable device
+  overage:
+    type: string
+    enum: [bill, cap]
+    description: What happens past the allowance
+  overage_price_per_gib_cents:
+    type: integer
+  soft_cap_percent:
+    type: integer
+  hard_cap_percent:
+    type: integer
+    description: 0 on plans that bill overage (only a spending limit caps them)
+  free:
+    type: boolean
+    description: The free plan
+  trial:
+    type: boolean
+    description: The plan new organizations get a trial of
+  trial_days:
+    type: integer
+    description: Only on the trial plan
+  purchasable:
+    type: boolean
+    description: The plan can be bought through the payment provider

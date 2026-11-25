@@ -38,6 +38,17 @@ type Account struct {
 	// SoftCapReached is the API flag of the soft cap (and of every state past it).
 	SoftCapReached bool  `json:"soft_cap_reached"`
 	PlanDetails    *Plan `json:"plan_details"`
+	// CurrentPeriod is the billable devices of the current period so far (organization view only).
+	CurrentPeriod *CurrentPeriod `json:"current_period,omitempty"`
+}
+
+// CurrentPeriod is the devices of the current billing period so far, computed as the period close does: the average
+// of the daily device counts over the days billed so far, rounded up, and the highest daily count.
+type CurrentPeriod struct {
+	Start           time.Time `json:"start"`
+	BillableDevices int64     `json:"billable_devices"`
+	PeakDevices     int64     `json:"peak_devices"`
+	DeviceDays      int64     `json:"device_days"`
 }
 
 // Override is an operator's change of the limits of the current period. Fields left out keep their value.

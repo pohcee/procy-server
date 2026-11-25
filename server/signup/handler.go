@@ -131,6 +131,15 @@ func (h *Handler) verify(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := h.svc.Verify(r.Context(), in.Token, in.Password, chshare.RemoteIP(r))
 	if err != nil {
+		// distinct codes for the two refusals the page tells apart, with the same status as ever (400)
+		switch {
+		case errors.Is(err, ErrPassword):
+			h.respond.ErrorWithErrCode(w, http.StatusBadRequest, ErrCodeInvalidPassword, err.Error())
+			return
+		case errors.Is(err, ErrToken):
+			h.respond.ErrorWithErrCode(w, http.StatusBadRequest, ErrCodeSignupLinkInvalid, err.Error())
+			return
+		}
 		h.fail(w, err)
 		return
 	}
@@ -139,6 +148,16 @@ func (h *Handler) verify(w http.ResponseWriter, r *http.Request) {
 		code = http.StatusAccepted
 	}
 	h.respond.JSON(w, code, api.NewSuccessPayload(res))
+}
+
+// EmailVerified reports whether the owner of the mailbox named by login proved it (GET /me); ok is false when the
+// account is unknown or can't be read.
+func (h *Handler) EmailVerified(ctx context.Context, login string) (verified, ok bool) {
+	a, err := h.svc.o.Accounts.Account(ctx, login)
+	if err != nil || !a.Exists {
+		return false, false
+	}
+	return a.Verified, true
 }
 
 func (h *Handler) cancelByToken(w http.ResponseWriter, r *http.Request) {

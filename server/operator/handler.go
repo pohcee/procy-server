@@ -32,6 +32,8 @@ type Options struct {
 	Usage metering.Reader
 	// Billing, when set ([billing] enabled), serves the billing routes.
 	Billing billing.OperatorService
+	// Plans, with Billing, serves the plan catalog.
+	Plans *billing.Plans
 	// CurrentUser returns the authenticated user of the request (an errors.APIError when there is none).
 	CurrentUser func(ctx context.Context) (*users.User, error)
 	Respond     *api.Responder
@@ -44,6 +46,7 @@ type Handler struct {
 	svc         Service
 	usage       metering.Reader
 	billing     billing.OperatorService
+	plans       *billing.Plans
 	currentUser func(ctx context.Context) (*users.User, error)
 	respond     *api.Responder
 	mounts      []func(r *mux.Router)
@@ -51,7 +54,7 @@ type Handler struct {
 
 // NewHandler returns the operator API handler.
 func NewHandler(o Options) *Handler {
-	return &Handler{svc: o.Service, usage: o.Usage, billing: o.Billing, currentUser: o.CurrentUser, respond: o.Respond, mounts: o.Mounts}
+	return &Handler{svc: o.Service, usage: o.Usage, billing: o.Billing, plans: o.Plans, currentUser: o.CurrentUser, respond: o.Respond, mounts: o.Mounts}
 }
 
 // Mount registers the operator routes on r, a router for RoutePrefix behind authentication.

@@ -178,6 +178,7 @@ func TestSignupFullFlow(t *testing.T) {
 	// a weak password is refused and the link still works
 	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok, "password": "short"})
 	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
+	assert.Contains(t, out["_raw"], "ERR_CODE_INVALID_PASSWORD")
 	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok, "password": signupPassword})
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
 	res := data(t, out)
@@ -191,6 +192,8 @@ func TestSignupFullFlow(t *testing.T) {
 	// single use
 	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok, "password": signupPassword})
 	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
+	assert.Contains(t, out["_raw"], "ERR_CODE_SIGNUP_LINK_INVALID")
+	assert.NotContains(t, out["_raw"], "ERR_CODE_INVALID_PASSWORD")
 
 	// the new administrator logs in with the password they chose, in the new organization
 	code, dana := h.loginPw(t, "dana@example.com", signupPassword)
@@ -198,6 +201,7 @@ func TestSignupFullFlow(t *testing.T) {
 	code, out = h.do(t, http.MethodGet, "/me", dana, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Equal(t, []any{"Administrators"}, data(t, out)["groups"])
+	assert.Equal(t, true, data(t, out)["email_verified"], "signing up proved the mailbox")
 	code, out = h.do(t, http.MethodGet, "/operator/organizations/"+org, op, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.EqualValues(t, 25, data(t, out)["device_limit"], "constrained until a card is on file")
@@ -678,6 +682,9 @@ func TestSignupConfirmEmailAndInvitations(t *testing.T) {
 		"new_password": signupPassword})
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	pat := data(t, out)["token"].(string)
+	code, out = h.do(t, http.MethodGet, "/me", pat, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, false, data(t, out)["email_verified"], "created by an administrator: unproven")
 
 	// unproven: no invitation into b
 	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "pat@corp.example"})
@@ -695,6 +702,9 @@ func TestSignupConfirmEmailAndInvitations(t *testing.T) {
 	code, out = h.do(t, http.MethodPost, "/me/email-confirmation/confirm", pat, map[string]string{"token": tok})
 	require.Equal(t, http.StatusOK, code, "still usable by its account: %s", out["_raw"])
 	assert.Equal(t, true, data(t, out)["verified"])
+	code, out = h.do(t, http.MethodGet, "/me", pat, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, true, data(t, out)["email_verified"])
 	code, _ = h.do(t, http.MethodPost, "/me/email-confirmation/confirm", pat, map[string]string{"token": tok})
 	assert.Equal(t, http.StatusBadRequest, code, "single use")
 	code, out = h.do(t, http.MethodPost, "/me/email-confirmation", pat, nil)

@@ -110,6 +110,8 @@ paths:
     $ref: paths/operator_usage.yaml
   /operator/billing:
     $ref: paths/operator_billing.yaml
+  /operator/billing/plans:
+    $ref: paths/operator_billing_plans.yaml
   /operator/billing/periods:
     $ref: paths/operator_billing_periods.yaml
   /operator/organizations/{id}/billing:
@@ -126,6 +128,8 @@ paths:
     $ref: paths/operator_organizations_{id}_billing_periods_{month}_approve.yaml
   /billing:
     $ref: paths/billing.yaml
+  /billing/plans:
+    $ref: paths/billing_plans.yaml
   /billing/periods:
     $ref: paths/billing_periods.yaml
   /billing/spending-limit:

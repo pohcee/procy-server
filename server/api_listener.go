@@ -353,10 +353,11 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 	}
 	if o.Operator != nil {
 		var ob billing.OperatorService
+		var plans *billing.Plans
 		if o.Billing != nil {
-			ob = o.Billing.Operator
+			ob, plans = o.Billing.Operator, o.Billing.Plans
 		}
-		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, Billing: ob, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts})
+		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, Billing: ob, Plans: plans, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts})
 	}
 
 	logGroupPermissionsNotice(userService, a.Logger)

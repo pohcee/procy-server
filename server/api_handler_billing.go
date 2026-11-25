@@ -21,6 +21,8 @@ const ErrCodeTransferLimit = "ERR_CODE_TRANSFER_LIMIT"
 type BillingAPI struct {
 	Org      billing.OrgService
 	Operator billing.OperatorService
+	// Plans is the plans file (GET /billing/plans).
+	Plans    *billing.Plans
 	Enforcer *billing.Enforcer
 	// Provider is the payment provider (nil without one).
 	Provider *billing.Service
@@ -55,6 +57,11 @@ func (al *APIListener) handleGetBilling(w http.ResponseWriter, req *http.Request
 		return
 	}
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(billingResponse{a}))
+}
+
+// handleGetBillingPlans handles GET /billing/plans: the plan catalog (no provider ids).
+func (al *APIListener) handleGetBillingPlans(w http.ResponseWriter, _ *http.Request) {
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(al.billing.Plans.Catalog()))
 }
 
 // handleGetBillingPeriods handles GET /billing/periods: the closed periods, newest first.

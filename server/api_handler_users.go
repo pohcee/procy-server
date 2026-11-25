@@ -30,6 +30,8 @@ type UserPayload struct {
 	EffectiveUserPermissions     map[string]bool              `json:"effective_user_permissions"`
 	EffectiveExtendedPermissions EffectiveExtendedPermissions `json:"effective_extended_permissions"`
 	GroupPermissionsEnabled      bool                         `json:"group_permissions_enabled"`
+	// EmailVerified is set when signup is on: the login proved to own its mailbox.
+	EmailVerified *bool `json:"email_verified,omitempty"`
 }
 
 type EffectiveExtendedPermissions struct {
