@@ -22,11 +22,6 @@ const maxCloseBack = 12
 // upkeepActor is who the audit log names for the upkeep's changes.
 var upkeepActor = billing.Actor{Username: "billing:upkeep"}
 
-// Notifier sends a billing notification to an organization's administrators.
-type Notifier interface {
-	Notify(ctx context.Context, tid tenant.ID, recipients []string, subject, body string) error
-}
-
 // Upkeep keeps every organization's billing (the server runs it every billing.EnforceInterval on one node, under a
 // lease): it creates the missing records (free plan, paying), ends trials and comped periods, computes and writes
 // the transfer policy of the current period, notifies the administrators at the soft cap, at 100% and at the hard
@@ -35,7 +30,7 @@ type Upkeep struct {
 	DB    *sqlx.DB
 	Plans *billing.Plans
 	// Notifier (optional) sends the notifications.
-	Notifier Notifier
+	Notifier billing.Notifier
 	Log      *logger.Logger
 	// ReviewAboveCents holds closed periods with more overage for an operator's approval (0: none).
 	ReviewAboveCents int64
@@ -43,6 +38,9 @@ type Upkeep struct {
 	// Now is time.Now unless set (tests).
 	Now func() time.Time
 }
+
+// SetNotifier sets the Notifier (the server's notifications); call before Run.
+func (u *Upkeep) SetNotifier(n billing.Notifier) { u.Notifier = n }
 
 func (u *Upkeep) now() time.Time {
 	if u.Now != nil {

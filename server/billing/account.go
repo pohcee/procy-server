@@ -80,3 +80,11 @@ func DefaultAccount(id string, plans *Plans) *Account {
 	return &Account{Billing: Billing{Organization: id, Plan: plans.Free, Status: StatusPaying, ExemptLimits: ExemptLimitsPlan,
 		TransferState: TransferNormal}, Policy: Policy{Organization: id, Plan: plans.Free, State: TransferNormal}, PlanDetails: plans.FreePlan()}
 }
+
+// Notifier sends a billing notification (email) to an organization's administrators.
+type Notifier interface {
+	Notify(ctx context.Context, tid tenant.ID, recipients []string, subject, body string) error
+}
+
+// EnforceInterval is how often the billing upkeep computes the transfer policies (and closes periods).
+const EnforceInterval = 5 * time.Minute
