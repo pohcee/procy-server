@@ -357,6 +357,8 @@ var AccountFunctions = []string{
 	"rport_account_exists(text)",
 	"rport_invite(text, text, text)",
 	"rport_invitations_of(text)",
+	// the operator console (migration 1750): a full sign-in's time
+	"rport_record_login(text)",
 }
 
 // SignupAccountFunctions are the SECURITY DEFINER functions of signup on accounts (migration 1550).
@@ -381,6 +383,10 @@ var OperatorFunctions = []string{
 	"rport_operator_set_max_clients(text, integer)",
 	// self-service signup (migration 1550): deleting an organization whose deletion is due
 	"rport_signup_delete_tenant(text)",
+	// the operator console (migration 1750): set-based reads across organizations, in the system tenant only
+	"rport_operator_organization_counts(timestamptz)",
+	"rport_operator_invitations(text)",
+	"rport_operator_usage_days(date, date)",
 }
 
 func quoteIdent(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
