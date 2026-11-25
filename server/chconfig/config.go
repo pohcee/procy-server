@@ -224,6 +224,10 @@ func (c *SMTPConfig) Validate() error {
 		return fmt.Errorf("invalid smtp.sender_email: %v", err)
 	}
 
+	// Greet with the sender's domain, as the mailer does (rmailer WithHELO): relays such as Google's refuse the Go
+	// default "localhost" with 421, which would stop the server from starting.
+	heloName := c.SenderEmail[strings.LastIndex(c.SenderEmail, "@")+1:]
+
 	var client *smtp.Client
 	if c.Secure {
 		tlsConfig := &tls.Config{
@@ -240,12 +244,18 @@ func (c *SMTPConfig) Validate() error {
 			return fmt.Errorf("could not init smtp client to smtp.server: %v", err)
 		}
 		defer client.Close()
+		if err = client.Hello(heloName); err != nil {
+			return fmt.Errorf("smtp.server refused the greeting as %q: %v", heloName, err)
+		}
 	} else {
 		client, err = smtp.Dial(c.Server)
 		if err != nil {
 			return fmt.Errorf("could not connect to smtp.server: %v", err)
 		}
 		defer client.Close()
+		if err = client.Hello(heloName); err != nil {
+			return fmt.Errorf("smtp.server refused the greeting as %q: %v", heloName, err)
+		}
 
 		// use TLS if available
 		if ok, _ := client.Extension("STARTTLS"); ok {

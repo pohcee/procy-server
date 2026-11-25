@@ -88,6 +88,8 @@ func NewSignup(cfg *chconfig.Config, db *sqlx.DB, op operator.Service, keys vaul
 	if sc.CheckMX {
 		domains.LookupMX = signup.LookupMX
 	}
+	// the queue shows whether the domain has a mail server, whether or not check_mx refuses those without
+	lookupMX := signup.LookupMX
 	captcha, err := signup.NewCaptcha(sc)
 	if err != nil {
 		return nil, err
@@ -122,7 +124,10 @@ func NewSignup(cfg *chconfig.Config, db *sqlx.DB, op operator.Service, keys vaul
 			captcha = o.captcha
 		}
 		if o.lookupMX != nil {
-			domains.LookupMX = o.lookupMX
+			lookupMX = o.lookupMX
+			if sc.CheckMX {
+				domains.LookupMX = o.lookupMX
+			}
 		}
 		if o.plans != nil {
 			plans = o.plans
@@ -143,7 +148,10 @@ func NewSignup(cfg *chconfig.Config, db *sqlx.DB, op operator.Service, keys vaul
 		Mailer:    mailer,
 		Captcha:   captcha,
 		Domains:   domains,
-		Shredder:  shredder,
-		Log:       log,
+		LookupMX:  lookupMX,
+		// "Continue with Google" on the signup page; the server package serves its route with [oidc]
+		GoogleSignup: cfg.OIDC.Enabled,
+		Shredder:     shredder,
+		Log:          log,
 	}), nil
 }

@@ -117,10 +117,12 @@ func (rm rMailer) buildClient() (*mail.Client, error) {
 		mail.WithHELO(rm.config.Domain),
 	}
 
+	// as [smtp] documents it and its startup check (chconfig.SMTPConfig.Validate) connects: secure = true is implicit
+	// TLS (e.g. port 465); otherwise STARTTLS whenever the server offers it (e.g. a relay on port 587)
 	if rm.config.TLS {
-		options = append(options, mail.WithTLSPolicy(mail.TLSMandatory))
+		options = append(options, mail.WithSSL(), mail.WithTLSPolicy(mail.TLSMandatory))
 	} else {
-		options = append(options, mail.WithTLSPolicy(mail.NoTLS))
+		options = append(options, mail.WithTLSPolicy(mail.TLSOpportunistic))
 	}
 
 	if rm.config.NoNoop {

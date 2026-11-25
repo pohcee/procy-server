@@ -70,6 +70,10 @@ paths:
     $ref: paths/oidc_callback.yaml
   /oidc/token:
     $ref: paths/oidc_token.yaml
+  /oidc/signup:
+    $ref: paths/oidc_signup.yaml
+  /plans:
+    $ref: paths/plans.yaml
   /logout:
     $ref: paths/logout.yaml
   /verify-2fa:

@@ -1,6 +1,7 @@
 package chconfig
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -45,4 +46,21 @@ func TestSignupDefaultsAndChecks(t *testing.T) {
 		Captcha: SignupCaptchaHCaptcha, CaptchaSecretFile: "/run/secrets/hcaptcha"}
 	require.NoError(t, validate(c))
 	assert.Equal(t, -1, c.Signup.MaxPerIPPerDay, "negative: off")
+}
+
+func TestSignupNotifyEmailAndNotice(t *testing.T) {
+	c := postgresConfig()
+	c.Signup = SignupConfig{Enabled: true, PublicURL: "https://x", Mail: SignupMailLog, NotifyEmail: " Support@Example.com ",
+		EmailNotice: "  Preview: features may change.\n"}
+	require.NoError(t, validate(c))
+	assert.Equal(t, "support@example.com", c.Signup.NotifyEmail)
+	assert.Equal(t, "Preview: features may change.", c.Signup.EmailNotice)
+
+	c = postgresConfig()
+	c.Signup = SignupConfig{Enabled: true, PublicURL: "https://x", Mail: SignupMailLog, NotifyEmail: "not an address"}
+	assert.ErrorContains(t, validate(c), "notify_email")
+
+	c = postgresConfig()
+	c.Signup = SignupConfig{Enabled: true, PublicURL: "https://x", Mail: SignupMailLog, EmailNotice: strings.Repeat("x", 1001)}
+	assert.ErrorContains(t, validate(c), "email_notice")
 }

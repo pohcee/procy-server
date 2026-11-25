@@ -466,6 +466,8 @@ refused on SQLite. Turning it off closes signup without touching existing organi
   # token_ttl = "24h"
   # deletion_hold = "720h"
   # mail = "smtp"                            # "log": only log the emails and their links (development)
+  # notify_email = "support@example.com"     # told "New signup waiting" when a signup awaits approval
+  # email_notice = "Preview: features and plans may change."  # added to every signup email
 ```
 
 The emails go through `[smtp]`. After upgrading, run `rportd migrate --grant-to <application role>` once more:
@@ -491,6 +493,21 @@ The flow:
    and `checkout_required` (false for a trial). With `require_approval` it answers 202 `awaiting_approval` (the
    password kept as a bcrypt hash until then) and an operator approves or denies.
 3. Every step is in the audit log of `_system`, with the actor `signup:<email>` and the remote IP.
+
+With `[oidc]` enabled the signup page also offers **Continue with Google** (`GET /api/v1/oidc/signup?organization=`,
+a browser navigation): the Google account's verified email replaces the emailed link (Google Workspace and Gmail
+addresses only, as for a first Google sign-in; no captcha, the same domain lists and rate limits). With
+`require_approval` the signup waits for an operator at once; nothing is created before the approval, and the
+account then signs in with Google (it has no password). Without approval the organization is created right away.
+
+The operators' queue (`GET /api/v1/operator/signups`) shows, per signup, how the email was proven (`method`:
+`email` or `google`), whether its domain had a mail server when it was requested (`mx_found`; looked up for every
+request, whether or not `check_mx` refuses domains without one), whether the domain is a large free mail provider
+(`free_mail`), and duplicate checks from earlier signups: completed signups of the same domain
+(`domain_customers`) and denied ones of the same email or domain (`email_denied_before`, `domain_denied_before`;
+domain counts are 0 for free mail). With `notify_email` set, that address gets a "New signup waiting" email for
+each signup that reaches `awaiting_approval`. Approving mails the requester a "you're in" email with the sign-in
+link; denying mails the refusal with the operator's reason, when given.
 
 Accounts and proof of email ownership: a login is one account in any number of organizations. Signup marks the
 account's email confirmed (`accounts.email_verified_at`); so does a signed-in account with `POST
@@ -539,7 +556,9 @@ Operators (`/api/v1/operator`, audited):
 | `POST` | `/organizations/{id}/deletion/expedite` | delete now (irreversible) |
 
 `GET /api/v1/status` reports `capabilities.signup: true`; `GET /api/v1/signup` (public) gives the signup page the
-captcha provider and site key, `require_approval`, the password length and the trial days (of the plans file).
+captcha provider and site key, `require_approval`, the password length, the trial days (of the plans file) and
+`google_signup`. With `[billing]` on, `GET /api/v1/plans` (public) is the plan catalog for a home page (the same as
+`GET /api/v1/billing/plans`, no provider ids).
 A deleted organization's `org_billing` and `billing_periods` rows stay, detached, for the accounting retention.
 
 ## Billing plans and limits
