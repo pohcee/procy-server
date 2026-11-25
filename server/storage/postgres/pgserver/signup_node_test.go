@@ -504,7 +504,7 @@ func TestOrganizationDeletionUpkeep(t *testing.T) {
 	shred := &fakeShredder{}
 	cfg := loadConfig(t, nodeConf(t, h.db.AppURL, freeAddr(t), nodeSettings{extra: "[signup]\nenabled = true\npublic_url = \"https://ui.example\"\nmail = \"log\"\n"}))
 	svc := signup.New(signup.Options{
-		Config: cfg.Signup, Store: signupStore(h), Orgs: NewOperator(h.db.App, cfg), Credentials: credentials{db: h.db.App},
+		Config: cfg.Signup, Store: signupStore(h), Orgs: NewOperator(h.db.App, cfg), Accounts: accounts{db: h.db.App},
 		Plans: signup.StandInPlans{}, Mailer: sink, Shredder: shred,
 	})
 	require.NoError(t, svc.Upkeep(context.Background()))
@@ -599,4 +599,93 @@ func TestSignupConcurrentApprovals(t *testing.T) {
 	var n int
 	require.NoError(t, h.db.Owner.Get(&n, "SELECT count(*) FROM deleted_tenant_ids"))
 	assert.Zero(t, n, "no organization made and thrown away")
+}
+
+// An organization's administrator creates an account for someone else's address before its owner signs up: the
+// owner, proving the mailbox, takes the account over (it was never used), and the administrator's password stops
+// working.
+func TestSignupTakesOverUnprovenAccount(t *testing.T) {
+	h, sink := startSignupNode(t, "")
+	alice := h.login(t, "alice")
+	code, out := h.do(t, http.MethodPost, "/organization/members", alice, map[string]any{"username": "ceo@corp.example", "groups": []string{"Administrators"}})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	generated := data(t, out)["password"].(string)
+	// the generated password is expired: it can't be used without replacing it, which would make the account
+	// someone's (no take-over then, TestSignupUnprovenAccountConfirmsEmail)
+	code, _ = h.loginPw(t, "ceo@corp.example", generated)
+	require.Equal(t, http.StatusUnauthorized, code)
+
+	code, out = h.do(t, http.MethodPost, "/signup", "", signupBody("ceo@corp.example", "Corp"))
+	require.Equal(t, http.StatusAccepted, code, out["_raw"])
+	m := sink.last(t, "ceo@corp.example")
+	assert.Contains(t, m.body, "never used")
+	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": m.token(t), "password": signupPassword})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	org := data(t, out)["organization"].(string)
+
+	code, out = h.do(t, http.MethodPost, "/login", "", map[string]string{"username": "ceo@corp.example", "password": generated, "new_password": "the admin's choice 1234"})
+	assert.Equal(t, http.StatusUnauthorized, code, "the generated password is gone: %s", out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/login", "", map[string]string{"username": "ceo@corp.example", "password": signupPassword, "organization": org})
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	ceo := data(t, out)["token"].(string)
+	code, out = h.do(t, http.MethodGet, "/me", ceo, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, []any{"Administrators"}, data(t, out)["groups"])
+	var n int
+	require.NoError(t, h.db.Owner.Get(&n, "SELECT count(*) FROM user_logins WHERE username = 'ceo@corp.example'"))
+	assert.Equal(t, 2, n, "a member of a (as before) and of the new organization")
+	require.NoError(t, h.db.Owner.Get(&n, "SELECT count(*) FROM accounts WHERE username = 'ceo@corp.example' AND email_verified_at IS NOT NULL AND two_fa_send_to = username"))
+	assert.Equal(t, 1, n)
+	require.NoError(t, h.db.Owner.Get(&n, "SELECT count(*) FROM auditlog WHERE tenant_id = '_system' AND action = 'take_over' AND affected_id = 'ceo@corp.example'"))
+	assert.Equal(t, 1, n)
+}
+
+// An unproven account whose password was replaced can't be taken over: the signup gets a notice; the owner confirms
+// the email signed in, and only a confirmed account can be invited into more organizations.
+func TestSignupUnprovenAccountConfirmsEmail(t *testing.T) {
+	h, sink := startSignupNode(t, "")
+	alice, bob := h.login(t, "alice"), h.login(t, "bob")
+	code, out := h.do(t, http.MethodPost, "/organization/members", alice, map[string]any{"username": "pat@corp.example", "groups": []string{"Administrators"}})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/login", "", map[string]string{"username": "pat@corp.example", "password": data(t, out)["password"].(string),
+		"new_password": signupPassword})
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	pat := data(t, out)["token"].(string)
+
+	code, out = h.do(t, http.MethodPost, "/signup", "", signupBody("pat@corp.example", "Pat's"))
+	require.Equal(t, http.StatusAccepted, code, out["_raw"])
+	m := sink.last(t, "pat@corp.example")
+	assert.Equal(t, "An account already uses this address", m.subject)
+	assert.NotContains(t, m.body, "token=")
+
+	// unproven: no invitation into b
+	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "pat@corp.example"})
+	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
+	assert.Contains(t, out["_raw"], "confirmed its email")
+
+	code, out = h.do(t, http.MethodPost, "/me/email-confirmation", pat, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, true, data(t, out)["sent"])
+	tok := sink.last(t, "pat@corp.example").token(t)
+	code, out = h.do(t, http.MethodPost, "/signup/confirm-email", "", map[string]string{"token": tok})
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, true, data(t, out)["verified"])
+	code, _ = h.do(t, http.MethodPost, "/signup/confirm-email", "", map[string]string{"token": tok})
+	assert.Equal(t, http.StatusBadRequest, code, "single use")
+	code, out = h.do(t, http.MethodPost, "/me/email-confirmation", pat, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, true, data(t, out)["verified"], "nothing more to do")
+
+	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "pat@corp.example"})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	assert.Equal(t, true, data(t, out)["pending"])
+
+	// verified now: a signup with it gets the "already have an account" notice
+	code, _ = h.do(t, http.MethodPost, "/signup", "", signupBody("pat@corp.example", "Pat's"))
+	require.Equal(t, http.StatusAccepted, code)
+	assert.Equal(t, "You already have an account", sink.last(t, "pat@corp.example").subject)
+
+	// a login that is not an email can't be confirmed
+	code, _ = h.do(t, http.MethodPost, "/me/email-confirmation", alice, nil)
+	assert.Equal(t, http.StatusBadRequest, code)
 }

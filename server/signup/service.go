@@ -25,18 +25,18 @@ const approvalWait = 30 * 24 * time.Hour
 
 // Options are the dependencies of a Service. Captcha, Domains and Shredder may be nil.
 type Options struct {
-	Config      chconfig.SignupConfig
-	Passwords   PasswordRules
-	Store       Store
-	Orgs        operator.Service
-	Credentials Credentials
-	Plans       Plans
-	Mailer      Mailer
-	Captcha     Captcha
-	Domains     *Domains
-	Shredder    Shredder
-	Log         *logger.Logger
-	Now         func() time.Time
+	Config    chconfig.SignupConfig
+	Passwords PasswordRules
+	Store     Store
+	Orgs      operator.Service
+	Accounts  Accounts
+	Plans     Plans
+	Mailer    Mailer
+	Captcha   Captcha
+	Domains   *Domains
+	Shredder  Shredder
+	Log       *logger.Logger
+	Now       func() time.Time
 }
 
 // Service runs signups and deletions.
@@ -141,7 +141,7 @@ func (s *Service) Request(ctx context.Context, in Request, remoteIP string) erro
 		return ErrRateLimited
 	}
 
-	exists, err := s.o.Store.UserExists(ctx, addr)
+	acct, err := s.o.Accounts.Account(ctx, addr)
 	if err != nil {
 		return err
 	}
@@ -155,10 +155,19 @@ func (s *Service) Request(ctx context.Context, in Request, remoteIP string) erro
 	}
 	row := Signup{ID: id, Email: addr, Domain: domain, RemoteIP: remoteIP, OrgName: org, CreatedAt: now, ExpiresAt: now.Add(c.TokenTTL),
 		Status: StatusPending, TokenHash: &hash}
-	m := verifyMail(c.PublicURL, token, org, c.TokenTTL)
-	if exists {
+	var m mail
+	switch {
+	case !acct.Exists:
+		m = verifyMail(c.PublicURL, token, org, c.TokenTTL, false)
+	case acct.TakeOver():
+		// an administrator made an account of this address that nobody proved to own: the mailbox owner may take it
+		m = verifyMail(c.PublicURL, token, org, c.TokenTTL, true)
+	case acct.Verified:
 		row.Status, row.TokenHash = StatusExisting, nil
 		m = existingMail(c.PublicURL)
+	default:
+		row.Status, row.TokenHash = StatusExisting, nil
+		m = unprovenMail(c.PublicURL)
 	}
 	if err := s.o.Store.Insert(ctx, row); err != nil {
 		return err
@@ -204,7 +213,7 @@ func (s *Service) Verify(ctx context.Context, token, password, remoteIP string) 
 	}
 	hash := hashToken(token)
 	now := s.now()
-	row, err := s.o.Store.ClaimToken(ctx, hash, now)
+	row, err := s.o.Store.ClaimToken(ctx, hash, StatusPending, now)
 	if err != nil {
 		return nil, err
 	}
@@ -244,14 +253,27 @@ func (s *Service) Verify(ctx context.Context, token, password, remoteIP string) 
 // complete creates the organization of a verified signup (row.PasswordHash set) with its first administrator and
 // its plan.
 func (s *Service) complete(ctx context.Context, row *Signup, by operator.Actor, u Update) (*Result, error) {
-	exists, err := s.o.Store.UserExists(ctx, row.Email)
+	acct, err := s.o.Accounts.Account(ctx, row.Email)
 	if err != nil {
 		return nil, err
 	}
-	if exists {
+	if acct.Exists && !acct.TakeOver() {
 		now := s.now()
-		_ = s.o.Store.SetStatus(ctx, row.ID, Update{Status: StatusExisting, VerifiedAt: u.VerifiedAt, DecidedAt: &now, Reason: "the email became a user meanwhile", ClearPassword: true})
-		return nil, fmt.Errorf("%w: %s already has an account; sign in instead", ErrConflict, row.Email)
+		_ = s.o.Store.SetStatus(ctx, row.ID, Update{Status: StatusExisting, VerifiedAt: u.VerifiedAt, DecidedAt: &now, Reason: "the email has an account", ClearPassword: true})
+		return nil, fmt.Errorf("%w: %s has an account; sign in instead", ErrConflict, row.Email)
+	}
+	if acct.Exists {
+		ok, err := s.o.Accounts.TakeOver(ctx, row.Email, row.PasswordHash)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("%w: %s has an account; sign in instead", ErrConflict, row.Email)
+		}
+		s.o.Log.Infof("signup %s: the owner of %s took over its unproven account", row.ID, row.Email)
+		if err := s.audit(ctx, by, AuditApplicationSignup, AuditActionTakeOver, row.Email, map[string]string{"signup": row.ID}); err != nil {
+			s.o.Log.Errorf("signup %s: audit: %v", row.ID, err)
+		}
 	}
 	var org *operator.Organization
 	for range 3 {
@@ -277,7 +299,7 @@ func (s *Service) complete(ctx context.Context, row *Signup, by operator.Actor, 
 	if org == nil {
 		return nil, errors.New("signup: no free organization id")
 	}
-	if err := s.setupOrganization(ctx, row, by, org.ID); err != nil {
+	if err := s.setupOrganization(ctx, row, by, org.ID, acct.Exists); err != nil {
 		s.o.Log.Errorf("signup %s: organization %s created but not set up, deleting it: %v", row.ID, org.ID, err)
 		if derr := s.discard(ctx, by, org.ID); derr != nil {
 			s.o.Log.Errorf("signup %s: delete the organization %s: %v", row.ID, org.ID, derr)
@@ -307,11 +329,20 @@ func (s *Service) complete(ctx context.Context, row *Signup, by operator.Actor, 
 	return res, nil
 }
 
-func (s *Service) setupOrganization(ctx context.Context, row *Signup, by operator.Actor, org string) error {
-	if _, err := s.o.Orgs.AddAdmin(ctx, by, org, operator.NewAdmin{Username: row.Email, TwoFASendTo: row.Email}); err != nil {
+// setupOrganization makes the signup's email the administrator of org: a new account with the chosen password, or
+// the account taken over (AddAdmin invites it; its verified owner accepts).
+func (s *Service) setupOrganization(ctx context.Context, row *Signup, by operator.Actor, org string, existing bool) error {
+	a, err := s.o.Orgs.AddAdmin(ctx, by, org, operator.NewAdmin{Username: row.Email, TwoFASendTo: row.Email})
+	if err != nil {
 		return err
 	}
-	return s.o.Credentials.SetPasswordHash(ctx, org, row.Email, row.PasswordHash)
+	if existing || a.Pending {
+		return s.o.Accounts.Join(ctx, org, row.Email)
+	}
+	if err := s.o.Accounts.SetPasswordHash(ctx, org, row.Email, row.PasswordHash); err != nil {
+		return err
+	}
+	return s.o.Accounts.MarkVerified(ctx, row.Email)
 }
 
 // discard deletes an organization created by a signup that could not be finished.

@@ -82,12 +82,12 @@ func (s Store) List(ctx context.Context, status string, limit int) ([]signup.Sig
 }
 
 // ClaimToken implements signup.Store.
-func (s Store) ClaimToken(ctx context.Context, tokenHash string, now time.Time) (*signup.Signup, error) {
+func (s Store) ClaimToken(ctx context.Context, tokenHash, status string, now time.Time) (*signup.Signup, error) {
 	r := &signup.Signup{}
 	err := s.inSystem(ctx, func(tx *sqlx.Tx) error {
 		return tx.GetContext(ctx, r, `UPDATE signups SET token_hash = NULL
-			WHERE tenant_id = '_system' AND token_hash = $1 AND status = 'pending' AND expires_at > $2
-			RETURNING `+signupColumns, tokenHash, now)
+			WHERE tenant_id = '_system' AND token_hash = $1 AND status = $3 AND expires_at > $2
+			RETURNING `+signupColumns, tokenHash, now, status)
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, signup.ErrToken
@@ -148,7 +148,7 @@ func (s Store) Transition(ctx context.Context, id, from, to string) (*signup.Sig
 func (s Store) Expire(ctx context.Context, now time.Time) (n int, err error) {
 	err = s.inSystem(ctx, func(tx *sqlx.Tx) error {
 		res, err := tx.ExecContext(ctx, `UPDATE signups SET status = 'expired', password_hash = '', token_hash = NULL
-			WHERE tenant_id = '_system' AND status IN ('pending', 'awaiting_approval') AND expires_at <= $1`, now)
+			WHERE tenant_id = '_system' AND status IN ('pending', 'verify_email', 'awaiting_approval') AND expires_at <= $1`, now)
 		if err != nil {
 			return err
 		}
@@ -157,13 +157,6 @@ func (s Store) Expire(ctx context.Context, now time.Time) (n int, err error) {
 		return nil
 	})
 	return n, err
-}
-
-// UserExists implements signup.Store: logins are unique across tenants (user_logins).
-func (s Store) UserExists(ctx context.Context, username string) (bool, error) {
-	var ok bool
-	err := s.DB.GetContext(ctx, &ok, "SELECT EXISTS (SELECT 1 FROM user_logins WHERE lower(username) = lower($1))", username)
-	return ok, err
 }
 
 // AdminEmails implements signup.Store: the 2FA address of each administrator, or the login, when it is an email.

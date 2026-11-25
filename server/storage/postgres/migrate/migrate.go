@@ -236,6 +236,10 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	for _, fn := range AccountFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
 	}
+	// signup (migration 1550): account status, email verification and the take-over of unproven accounts
+	for _, fn := range SignupAccountFunctions {
+		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
+	}
 	// the operator functions (migration 1050) change tenants for the operator API
 	for _, fn := range OperatorFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
@@ -296,6 +300,13 @@ var AccountFunctions = []string{
 	"rport_account_exists(text)",
 	"rport_invite(text, text, text)",
 	"rport_invitations_of(text)",
+}
+
+// SignupAccountFunctions are the SECURITY DEFINER functions of signup on accounts (migration 1550).
+var SignupAccountFunctions = []string{
+	"rport_account_status(text)",
+	"rport_account_verify_email(text)",
+	"rport_account_take_over(text, text)",
 }
 
 // OperatorFunctions are the SECURITY DEFINER functions through which platform operators change tenants.

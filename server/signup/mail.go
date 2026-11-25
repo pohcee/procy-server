@@ -15,6 +15,7 @@ import (
 const (
 	VerifyPath         = "/auth/signup/verify"
 	CancelDeletionPath = "/auth/signup/cancel-deletion"
+	ConfirmEmailPath   = "/auth/confirm-email"
 )
 
 // SMTPMailer sends through the server's [smtp] settings, the mailer of the email notifications.
@@ -40,18 +41,54 @@ func link(base, path, token string) string {
 
 type mail struct{ subject, body string }
 
-func verifyMail(base, token, org string, ttl time.Duration) mail {
+func verifyMail(base, token, org string, ttl time.Duration, takeOver bool) mail {
+	extra := ""
+	if takeOver {
+		extra = `
+An administrator of an organization created an account with this address, and it was never used. Continuing
+makes it yours: you choose its password, its sessions end, and you stay a member of the organizations it was
+added to.
+`
+	}
 	return mail{
 		subject: "Confirm your email address",
 		body: fmt.Sprintf(`Hello,
 
 someone (hopefully you) asked to create the organization %q with this email address.
-To confirm and create it, open this link within %s:
+To confirm, choose your password and create it, open this link within %s:
+
+%s
+%s
+If you didn't ask for this, ignore this email: nothing is created without the link.
+`, org, ttl.Round(time.Minute), link(base, VerifyPath, token), extra),
+	}
+}
+
+func unprovenMail(base string) mail {
+	return mail{
+		subject: "An account already uses this address",
+		body: fmt.Sprintf(`Hello,
+
+someone (hopefully you) asked to sign up with this email address. An account with this address exists already,
+but nobody has confirmed the address yet. If it is yours, sign in at %s and confirm your email address from your
+profile; then you can create organizations. If you can't sign in, ask the operators of this service.
+
+If you didn't ask for this, ignore this email.
+`, base),
+	}
+}
+
+func confirmEmailMail(base, token string, ttl time.Duration) mail {
+	return mail{
+		subject: "Confirm your email address",
+		body: fmt.Sprintf(`Hello,
+
+to confirm that this address is yours, open this link within %s:
 
 %s
 
-If you didn't ask for this, ignore this email: nothing is created without the link.
-`, org, ttl.Round(time.Minute), link(base, VerifyPath, token)),
+If you didn't ask for this, ignore this email.
+`, ttl.Round(time.Minute), link(base, ConfirmEmailPath, token)),
 	}
 }
 

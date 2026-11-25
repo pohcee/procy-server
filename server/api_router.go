@@ -70,6 +70,7 @@ func (al *APIListener) initRouter() {
 	secureAPI.HandleFunc("/status", al.handleGetStatus).Methods(http.MethodGet)
 	if al.signupAPI != nil {
 		al.signupAPI.MountOrganization(secureAPI, al.wrapAdminAccessMiddleware)
+		al.signupAPI.MountAccount(secureAPI)
 	}
 	if al.usage != nil {
 		secureAPI.Handle("/usage", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetUsage))).Methods(http.MethodGet)

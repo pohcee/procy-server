@@ -234,6 +234,8 @@ func (al *APIListener) handleAcceptInvitation(w http.ResponseWriter, req *http.R
 		return
 	case errors.Is(err, membership.ErrAlreadyMember):
 		al.jsonErrorResponseWithTitle(w, http.StatusConflict, err.Error())
+	case errors.Is(err, membership.ErrInvalid):
+		al.jsonErrorResponseWithTitle(w, http.StatusForbidden, err.Error())
 		return
 	case err != nil:
 		al.jsonError(w, err)

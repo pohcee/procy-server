@@ -37,6 +37,39 @@ func (h *Handler) MountPublic(r *mux.Router) {
 	r.HandleFunc("/signup", h.request).Methods(http.MethodPost)
 	r.HandleFunc("/signup/verify", h.verify).Methods(http.MethodPost)
 	r.HandleFunc("/signup/cancel-deletion", h.cancelByToken).Methods(http.MethodPost)
+	r.HandleFunc("/signup/confirm-email", h.confirmEmail).Methods(http.MethodPost)
+}
+
+// MountAccount registers the routes of a signed-in account on r, a router behind authentication.
+func (h *Handler) MountAccount(r *mux.Router) {
+	r.HandleFunc("/me/email-confirmation", h.requestEmailConfirmation).Methods(http.MethodPost)
+}
+
+func (h *Handler) requestEmailConfirmation(w http.ResponseWriter, r *http.Request) {
+	u, err := h.currentUser(r.Context())
+	if err != nil {
+		h.respond.Error(w, err)
+		return
+	}
+	st, err := h.svc.RequestEmailConfirmation(r.Context(), u.Username, chshare.RemoteIP(r))
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	h.respond.JSON(w, http.StatusOK, api.NewSuccessPayload(st))
+}
+
+func (h *Handler) confirmEmail(w http.ResponseWriter, r *http.Request) {
+	var in tokenRequest
+	if !h.decode(w, r, &in) {
+		return
+	}
+	st, err := h.svc.ConfirmEmail(r.Context(), in.Token, chshare.RemoteIP(r))
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	h.respond.JSON(w, http.StatusOK, api.NewSuccessPayload(st))
 }
 
 // MountOrganization registers the routes of an organization's administrators on r, a router behind authentication;
