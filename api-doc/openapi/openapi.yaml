@@ -33,6 +33,10 @@ tags:
     description: For more details https://procy.sh/docs/get-started/command-execution/
   - name: Users
     description: For more details https://procy.sh/docs/get-started/users/
+  - name: Usage
+    description: >-
+      Usage metering (Postgres servers with `[metering] enabled` only): what an organization used per hour, day or
+      month: tunnel and upload bytes, API bytes, jobs and connected devices.
   - name: Operator
     description: >-
       Platform operator API (Postgres servers only): manage the organizations of the server. Available to
@@ -74,6 +78,12 @@ paths:
     $ref: paths/operator_organizations_{id}_device-limit.yaml
   /operator/organizations/{id}/admins:
     $ref: paths/operator_organizations_{id}_admins.yaml
+  /operator/organizations/{id}/usage:
+    $ref: paths/operator_organizations_{id}_usage.yaml
+  /operator/usage:
+    $ref: paths/operator_usage.yaml
+  /usage:
+    $ref: paths/usage.yaml
   /clients:
     $ref: paths/clients.yaml
   /tunnels:

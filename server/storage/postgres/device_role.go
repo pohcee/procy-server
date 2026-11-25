@@ -21,6 +21,8 @@ var DeviceFunctions = []string{
 	"ingest_connection_events(jsonb)",
 	"ingest_audit(jsonb)",
 	"report_client_state(jsonb)",
+	// usage metering (migration 1300)
+	"ingest_usage(jsonb)",
 	// the session registry (migration 1200, migrate.RegistryFunctions)
 	"rport_node_heartbeat(text, text, text)",
 	"rport_register_session(text, text, text, text, integer)",

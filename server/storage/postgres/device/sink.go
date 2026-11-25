@@ -23,6 +23,7 @@ var ingestFunctions = map[outbox.Kind]string{
 	outbox.KindConnectionEvent: "ingest_connection_events",
 	outbox.KindAudit:           "ingest_audit",
 	outbox.KindClientState:     "report_client_state",
+	outbox.KindUsage:           "ingest_usage",
 }
 
 // Sink ships outbox items to Postgres through the ingest functions, one call per batch.

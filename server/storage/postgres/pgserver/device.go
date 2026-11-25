@@ -163,6 +163,10 @@ func deviceNodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, opts
 		Users:         device.NoUsers{},
 		ClientAuth:    device.ClientAuth{DB: db},
 	}
+	if cfg.Metering.Enabled {
+		// what this process counts is shipped with the rest of the outbox; the api processes serve the usage API
+		opts.Metering = &chserver.MeteringOpts{Writer: device.Usage{Outbox: ob}}
+	}
 	opts.SkipMigrations = false
 	coord := &DeviceCoordinator{db: db, nodeID: cfg.Cluster.NodeID,
 		shipper: &outbox.Shipper{Outbox: ob, Sink: device.Sink{DB: db}, Log: log}}

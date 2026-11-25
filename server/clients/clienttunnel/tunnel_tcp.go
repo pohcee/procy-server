@@ -12,6 +12,7 @@ import (
 	"github.com/jpillora/sizestr"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/openrport/openrport/server/metering"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
@@ -24,6 +25,7 @@ type tunnelTCP struct {
 	models.Remote
 	sshConn ssh.Conn
 	acl     atomic.Pointer[TunnelACL] // parsed Remote.ACL field
+	bytes   *metering.TunnelBytes     // nil: not metered
 
 	stopFn                    func()
 	connectionIDAutoIncrement int
@@ -175,12 +177,35 @@ func (t *tunnelTCP) accept(ctx context.Context, src io.ReadWriteCloser) {
 	l.Debugf("from %+v", t.sshConn.RemoteAddr())
 
 	go ssh.DiscardRequests(reqs)
-	//then pipe
-	s, r := chshare.Pipe(src, dst)
+	//then pipe; reads from the channel go toward the user, writes toward the device
+	var dstRWC io.ReadWriteCloser = dst
+	if t.bytes != nil {
+		dstRWC = &countingChannel{ReadWriteCloser: dst, bytes: t.bytes}
+	}
+	s, r := chshare.Pipe(src, dstRWC)
 	l.Debugf("Close (sent %s received %s)", sizestr.ToString(s), sizestr.ToString(r))
 	close(done)
 }
 
 func (t *tunnelTCP) SetACL(acl *TunnelACL) {
 	t.acl.Store(acl)
+}
+
+// countingChannel counts the bytes read from the device's channel (toward the user) and written to it (toward the
+// device) as they move, so a long session is counted while it runs.
+type countingChannel struct {
+	io.ReadWriteCloser
+	bytes *metering.TunnelBytes
+}
+
+func (c *countingChannel) Read(p []byte) (int, error) {
+	n, err := c.ReadWriteCloser.Read(p)
+	c.bytes.ToUser(int64(n))
+	return n, err
+}
+
+func (c *countingChannel) Write(p []byte) (int, error) {
+	n, err := c.ReadWriteCloser.Write(p)
+	c.bytes.ToDevice(int64(n))
+	return n, err
 }

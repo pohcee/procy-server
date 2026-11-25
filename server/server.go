@@ -30,6 +30,7 @@ import (
 	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/operator"
@@ -93,6 +94,8 @@ type Server struct {
 	acme            *acme.Acme
 	alertingService alertingcap.Service
 	monitoringQueue monitoring.MeasurementSaver
+	// meter counts the usage (ServerOpts.Metering); nil: off
+	meter *metering.Meter
 	// capabilitiesOverride is ServerOpts.Capabilities; nil reports the computed capabilities.
 	capabilitiesOverride func(servercaps.Capabilities) servercaps.Capabilities
 	// vaultKeys is ServerOpts.VaultKeys; nil uses the vault passphrase.
@@ -144,6 +147,9 @@ type ServerOpts struct {
 	// TunnelHostInTunnels sets [server] tunnel_host on each tunnel this server opens (tunnel_host), so that links
 	// to a tunnel name the node holding it.
 	TunnelHostInTunnels bool
+	// Metering, when set, counts each tenant's usage (tunnel, upload and API bytes, jobs, connected devices) and
+	// serves the usage API (Postgres with [metering] enabled). nil: no metering, as on standalone servers.
+	Metering *MeteringOpts
 	// DeviceTenants, when set, lets devices of every tenant connect: the client listener finds each device's tenant
 	// from its client auth id and refuses devices of tenants that are not active or have reached their client limit
 	// (#34). nil: devices belong to the default tenant.
@@ -260,7 +266,15 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		return nil, err
 	}
 
-	s.localDispatcher = dispatch.NewLocal(s.clientService, s.fileGrants, s.Logger.Fork("dispatch"))
+	if opts.Metering != nil {
+		s.meter = s.newMeter(opts.Metering, !opts.DisableClientListener)
+		if p, ok := s.clientService.(*clients.ClientServiceProvider); ok {
+			p.SetMeter(s.meter)
+		}
+	}
+	local := dispatch.NewLocal(s.clientService, s.fileGrants, s.Logger.Fork("dispatch"))
+	local.SetMeter(s.meter)
+	s.localDispatcher = local
 	s.dispatcher = opts.Dispatcher
 	if s.dispatcher == nil {
 		s.dispatcher = s.localDispatcher
@@ -301,6 +315,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 			Capabilities:  s.capabilities,
 			Sessions:      opts.ClientSessions,
 			DeviceTenants: opts.DeviceTenants,
+			Meter:         s.meter,
 		})
 		if err != nil {
 			return nil, err
@@ -361,6 +376,8 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		TenantResolver: opts.TenantResolver,
 		VaultKeys:      s.vaultKeys,
 		Operator:       opts.Operator,
+		Usage:          usageReader(opts.Metering),
+		Meter:          s.meter,
 		// in a cluster old notifications are deleted per tenant by a leased task (Run)
 		NoNotificationsCleaner: s.cluster.Clustered(),
 	})
@@ -477,6 +494,11 @@ func (s *Server) Run(ctx context.Context) error {
 
 	s.acme.Start()
 
+	if s.meter != nil {
+		go s.meter.Run(ctx)
+		s.Infof("usage metering is on: counts are written every %s", s.config.Metering.FlushInterval)
+	}
+
 	// TODO(m-terel): add graceful shutdown of background task
 	if s.config.Server.PurgeDisconnectedClients {
 		s.Infof("Period to keep disconnected clients is set to %v", s.config.Server.KeepDisconnectedClients)
@@ -556,6 +578,13 @@ func (s *Server) Run(ctx context.Context) error {
 	return err
 }
 
+func usageReader(o *MeteringOpts) metering.Reader {
+	if o == nil {
+		return nil
+	}
+	return o.Reader
+}
+
 // Start is responsible for kicking off the http server
 func (s *Server) Start(ctx context.Context) error {
 	var err error
@@ -626,6 +655,8 @@ func (s *Server) Close() error {
 	}
 
 	wg.Go(s.monitoringQueue.Close)
+	// the last counts; a device process's outbox is closed only after the server stopped
+	wg.Go(s.meter.Close)
 
 	// the SQLite files (and the [database] connection) that no repository closes
 	for _, closeFn := range s.storageClosers {

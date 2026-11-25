@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/share/comm"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
@@ -23,6 +24,7 @@ type tunnelUDP struct {
 	sshConn     ssh.Conn
 	acl         atomic.Pointer[TunnelACL] // parsed Remote.ACL field
 	idleTimeout time.Duration
+	bytes       *metering.TunnelBytes // nil: not metered
 
 	conn    *net.UDPConn
 	channel *comm.UDPChannel
@@ -128,6 +130,7 @@ func (t *tunnelUDP) runInbound(ctx context.Context) error {
 			}
 		}
 
+		t.bytes.ToDevice(int64(n))
 		err = t.channel.Encode(sourceAddr, buff[:n])
 		if err != nil {
 			return err
@@ -153,6 +156,7 @@ func (t *tunnelUDP) runOutbound(ctx context.Context) error {
 
 		t.setLastActive()
 
+		t.bytes.ToUser(int64(len(data)))
 		_, err = t.conn.WriteToUDP(data, addr)
 		if err != nil {
 			return err

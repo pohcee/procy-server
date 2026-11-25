@@ -83,6 +83,8 @@ type nodeSettings struct {
 	apiOff bool
 	// cluster is extra [cluster] settings
 	cluster string
+	// extra is appended to the config (more sections)
+	extra string
 }
 
 // nodeConf is the rportd.conf of a Postgres node with the API on apiAddr.
@@ -122,7 +124,8 @@ func nodeConf(t *testing.T, dsn, apiAddr string, s nodeSettings) string {
 [cluster]
   node_id = %q
 %s
-`, s.listen, t.TempDir(), s.server, apiAddr, testSecret, dsn, s.role, s.vault, s.nodeID, s.cluster)
+%s
+`, s.listen, t.TempDir(), s.server, apiAddr, testSecret, dsn, s.role, s.vault, s.nodeID, s.cluster, s.extra)
 }
 
 func localKeyFile(t *testing.T) string {

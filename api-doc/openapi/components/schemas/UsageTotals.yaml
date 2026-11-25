@@ -1,0 +1,66 @@
+type: object
+description: >-
+  The usage of a period or of a whole range. Bytes are payload bytes (TLS, websocket and SSH framing are not
+  counted). Times and days are UTC.
+properties:
+  tunnel_bytes_to_user:
+    type: integer
+    format: int64
+    description: Bytes tunnels carried from the devices toward the users
+  tunnel_bytes_to_device:
+    type: integer
+    format: int64
+    description: Bytes tunnels carried from the users toward the devices
+  upload_bytes_to_devices:
+    type: integer
+    format: int64
+    description: Bytes of uploaded files the devices read (each device's copy counts)
+  transfer_bytes:
+    type: integer
+    format: int64
+    description: The sum of the three above (what plans count as transfer)
+  api_bytes_out:
+    type: integer
+    format: int64
+    description: Bytes of API and UI responses, websockets included
+  jobs_run:
+    type: integer
+    format: int64
+    description: Jobs started on devices (a job for several devices counts once per device)
+  jobs_command:
+    type: integer
+    format: int64
+  jobs_script:
+    type: integer
+    format: int64
+  jobs_library:
+    type: integer
+    format: int64
+  device_hours:
+    type: number
+    description: Connected devices integrated over the period, in hours
+  devices_avg:
+    type: number
+    description: Average number of connected devices over the part of the period that has passed
+  devices_peak:
+    type: integer
+    format: int64
+    description: The most devices connected at once (sampled)
+  device_days:
+    type: integer
+    format: int64
+    description: >-
+      Sum over the days of the devices that had a session that day (a device counts once a day). Not filled in
+      hourly periods.
+  devices_billable:
+    type: integer
+    format: int64
+    description: Average of the daily device counts over the days passed, rounded up. Not filled in hourly periods.
+  devices_peak_day:
+    type: integer
+    format: int64
+    description: The highest daily device count. Not filled in hourly periods.
+  monitoring_rows:
+    type: integer
+    format: int64
+    description: Monitoring measurements stored (counted once a day)

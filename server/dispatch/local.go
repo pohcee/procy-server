@@ -7,6 +7,7 @@ import (
 
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/clients/clienttunnel"
+	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/share/comm"
 	errors3 "github.com/openrport/openrport/share/errors"
 	"github.com/openrport/openrport/share/logger"
@@ -29,6 +30,8 @@ type Local struct {
 	clients LocalClients
 	grants  *FileGrants
 	log     *logger.Logger
+	// meter counts the jobs started (usage metering); nil: off
+	meter *metering.Meter
 }
 
 var _ Dispatcher = (*Local)(nil)
@@ -38,6 +41,9 @@ var _ Dispatcher = (*Local)(nil)
 func NewLocal(clients LocalClients, grants *FileGrants, log *logger.Logger) *Local {
 	return &Local{clients: clients, grants: grants, log: log}
 }
+
+// SetMeter counts the jobs d starts in m (usage metering). Set during initialization.
+func (d *Local) SetMeter(m *metering.Meter) { d.meter = m }
 
 // client returns the client and its connection; ErrClientNotConnected when either is missing.
 func (d *Local) client(ctx context.Context, clientID string) (*clientdata.Client, ssh.Conn, error) {
@@ -81,6 +87,7 @@ func (d *Local) RunJob(ctx context.Context, clientID string, job *models.Job) (*
 	if err := comm.SendRequestAndGetResponse(conn, comm.RequestTypeRunCmd, job, resp, d.log); err != nil {
 		return nil, err
 	}
+	d.meter.Job(ctx, job)
 	return resp, nil
 }
 

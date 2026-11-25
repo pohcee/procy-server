@@ -19,7 +19,7 @@ import (
 func startSFTP(t *testing.T, allowed func(path string) bool) *sftp.Client {
 	t.Helper()
 	serverSide, clientSide := net.Pipe()
-	srv := newDeviceFileServer(serverSide, allowed)
+	srv := newDeviceFileServer(serverSide, allowed, nil)
 	go func() { _ = srv.Serve() }()
 	cl, err := sftp.NewClientPipe(clientSide, clientSide)
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestClientListenerSessionChannelServesOnlyGrantedFiles(t *testing.T) {
 	cl := &ClientListener{server: &listenerServices{fileGrants: grants}}
 
 	serverSide, clientSide := net.Pipe()
-	go cl.handleSessionChannel(conn, serverSide, testLog)
+	go cl.handleSessionChannel(conn, serverSide, testLog, nil)
 	sc, err := sftp.NewClientPipe(clientSide, clientSide)
 	require.NoError(t, err)
 	defer sc.Close()

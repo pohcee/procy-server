@@ -65,6 +65,8 @@ func (al *APIListener) statusCapabilities() capabilities.Capabilities {
 	c := capabilities.FromConfig(al.config)
 	// a vault key provider that is not the passphrase needs no passphrase screens
 	c.VaultPassphrase = al.vaultManager == nil || al.vaultManager.UsesPassphrase()
+	// usage metering (Postgres with [metering] enabled)
+	c.Usage = al.usage != nil
 	if al.capabilitiesOverride != nil {
 		c = al.capabilitiesOverride(c)
 	}

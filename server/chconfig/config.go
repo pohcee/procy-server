@@ -347,6 +347,7 @@ type Config struct {
 	Storage       StorageConfig        `mapstructure:"storage"`
 	Vault         VaultConfig          `mapstructure:"vault"`
 	Cluster       ClusterConfig        `mapstructure:"cluster"`
+	Metering      MeteringConfig       `mapstructure:"metering"`
 }
 
 var (
@@ -391,6 +392,9 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 		return err
 	}
 	if err := c.parseAndValidateCluster(); err != nil {
+		return err
+	}
+	if err := c.parseAndValidateMetering(); err != nil {
 		return err
 	}
 	c.warnPostgresSettings(mLog)

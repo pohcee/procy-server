@@ -1,0 +1,69 @@
+get:
+  tags:
+    - Operator
+    - Usage
+  summary: Return an organization's usage. Platform operators only
+  description: The report its administrators get at `GET /usage`, for any organization. Usage metering only.
+  operationId: OperatorOrganizationUsageGet
+  parameters:
+    - name: id
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+    - name: from
+      in: query
+      description: Start of the range, an RFC 3339 time or a date (YYYY-MM-DD, UTC). Default the start of the month of `to`
+      schema:
+        type: string
+    - name: to
+      in: query
+      description: End of the range (excluded), an RFC 3339 time or a date. Default now
+      schema:
+        type: string
+    - name: granularity
+      in: query
+      schema:
+        type: string
+        enum:
+          - hour
+          - day
+          - month
+        default: day
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/UsageReport.yaml
+    '400':
+      description: Invalid range or granularity
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: >-
+        No operator API or no usage metering on this server, the request is not from the system organization, or
+        the organization does not exist
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

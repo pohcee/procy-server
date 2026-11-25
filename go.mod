@@ -10,7 +10,7 @@ require (
 	github.com/cloudradar-monitoring/cagent v0.0.0-20200615130556-4797f9fb8b50
 	github.com/deckarep/golang-set v1.7.1
 	github.com/denisbrodbeck/machineid v1.0.1
-	github.com/felixge/httpsnoop v1.1.0 // indirect
+	github.com/felixge/httpsnoop v1.1.0
 	github.com/go-ole/go-ole v1.2.6
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/golang-jwt/jwt/v4 v4.5.2
