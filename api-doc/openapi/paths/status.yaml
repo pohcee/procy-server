@@ -134,6 +134,11 @@ get:
                         description: >-
                           The operator API is available to the requesting user (a platform operator on a Postgres
                           server). Present only when true.
+                      organizations:
+                        type: boolean
+                        description: >-
+                          A login may belong to several organizations (Postgres servers): `GET /me/organizations`,
+                          `POST /me/organization` and `POST /organization/members` exist. Present only when true.
                       usage:
                         type: boolean
                         description: >-

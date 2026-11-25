@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,8 +13,10 @@ import (
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/bearer"
+	"github.com/openrport/openrport/server/membership"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/logger"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type twoFAResponse struct {
@@ -25,6 +28,48 @@ type twoFAResponse struct {
 type loginResponse struct {
 	Token *string        `json:"token"`  // null if 2fa is on
 	TwoFA *twoFAResponse `json:"two_fa"` // null if 2fa is off
+	// Organization and Organizations are set only for a login that belongs to several organizations (Postgres):
+	// the organization the token is for, and every organization the login may switch to (POST /me/organization) or
+	// name at the next login ("organization").
+	Organization  *string                   `json:"organization,omitempty"`
+	Organizations []membership.Organization `json:"organizations,omitempty"`
+}
+
+// withOrganizations adds the organizations of username to resp when it belongs to several, and remembers the
+// organization of the request as the one its next login that names none goes to. Standalone: resp unchanged.
+func (al *APIListener) withOrganizations(ctx context.Context, username string, resp loginResponse) (loginResponse, error) {
+	if al.memberships == nil {
+		return resp, nil
+	}
+	orgs, err := al.memberships.Organizations(ctx, username)
+	if err != nil {
+		return resp, err
+	}
+	if len(orgs) < 2 {
+		return resp, nil
+	}
+	tid, err := tenant.FromContext(ctx)
+	if err != nil {
+		return resp, err
+	}
+	if err := al.memberships.Remember(ctx, username); err != nil {
+		// the login works without it: the next one goes to the organization remembered before
+		al.Errorf("remember the organization of %s: %v", username, err)
+	}
+	current := string(tid)
+	resp.Organization = &current
+	resp.Organizations = orgs
+	return resp, nil
+}
+
+// writeLoginResponse answers a login with resp and the organizations of username.
+func (al *APIListener) writeLoginResponse(w http.ResponseWriter, req *http.Request, username string, resp loginResponse) {
+	resp, err := al.withOrganizations(req.Context(), username, resp)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(resp))
 }
 
 func (al *APIListener) handleGetLogin(w http.ResponseWriter, req *http.Request) {
@@ -131,13 +176,13 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 			return
 		}
 
-		al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(loginResponse{
+		al.writeLoginResponse(w, req, username, loginResponse{
 			Token: &tokenStr,
 			TwoFA: &twoFAResponse{
 				SendTo:         sendTo,
 				DeliveryMethod: al.twoFASrv.MsgSrv.DeliveryMethod(),
 			},
-		}))
+		})
 		return
 	}
 
@@ -186,7 +231,7 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 		}
 
 		loginResp.Token = &tokenStr
-		al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(loginResp))
+		al.writeLoginResponse(w, req, username, loginResp)
 		return
 	}
 
@@ -206,10 +251,7 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 		return
 	}
 
-	response := api.NewSuccessPayload(loginResponse{
-		Token: &tokenStr,
-	})
-	al.writeJSONResponse(w, http.StatusOK, response)
+	al.writeLoginResponse(w, req, username, loginResponse{Token: &tokenStr})
 }
 
 func (al *APIListener) sendJWTToken(username string, w http.ResponseWriter, req *http.Request) {
@@ -235,10 +277,7 @@ func (al *APIListener) sendJWTToken(username string, w http.ResponseWriter, req 
 		return
 	}
 
-	response := api.NewSuccessPayload(loginResponse{
-		Token: &tokenStr,
-	})
-	al.writeJSONResponse(w, http.StatusOK, response)
+	al.writeLoginResponse(w, req, username, loginResponse{Token: &tokenStr})
 }
 
 func (al *APIListener) handlePostLogin(w http.ResponseWriter, req *http.Request) {
@@ -279,6 +318,9 @@ func parseLoginRequestBody(req *http.Request) (string, string, string, error) {
 			Username    string `json:"username"`
 			Password    string `json:"password"`
 			NewPassword string `json:"new_password"`
+			// Organization picks the organization of a login in several (Postgres); the tenant resolver reads it
+			// before the request gets here, so it is only accepted, not used, by the handler
+			Organization string `json:"organization"`
 		}
 		var params loginReq
 		err := parseRequestBody(req.Body, &params)

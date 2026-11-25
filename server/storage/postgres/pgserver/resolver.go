@@ -13,6 +13,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
+	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/bearer"
 	"github.com/openrport/openrport/server/routes"
 	"github.com/openrport/openrport/share/tenant"
@@ -34,8 +35,12 @@ var loginPath = routes.AllRoutesPrefix + "/login"
 // sessions authentication runs against; it never authenticates anything itself:
 //   - a session token (websocket access_token parameter or Authorization: Bearer) names its tenant in the tid claim,
 //     read only from a token signed with the server's JWT secret;
-//   - basic auth (password or API token) and the username of a login request are looked up in the global login
-//     index (logins are unique across tenants);
+//   - basic auth with an API token goes to the tenant the token belongs to (api_token_logins; a token is bound to
+//     one organization);
+//   - basic auth with a password and the username of a login request are looked up in the global membership index:
+//     a login request may name the organization ("organization"), which must be one the login is a member of;
+//     otherwise the login goes to the organization it last picked (accounts.last_tenant_id), or else to its first
+//     membership by id. A login of one organization goes there, as before;
 //   - a tenant that isn't active, and everything else, resolves to Unresolved.
 //
 // The order follows the server's own authentication: the websocket token first, then basic auth, then the bearer
@@ -57,18 +62,24 @@ func (r *Resolver) Resolve(req *http.Request) (tenant.ID, error) {
 	if tok := req.URL.Query().Get(webSocketAccessTokenParam); tok != "" {
 		return r.fromToken(req, tok)
 	}
-	if user, _, ok := req.BasicAuth(); ok {
-		return r.fromUsername(req, user)
+	if user, pass, ok := req.BasicAuth(); ok {
+		if prefix, _, err := authorization.Extract(pass); err == nil {
+			id, found, err := r.fromAPIToken(req, user, prefix)
+			if err != nil || found {
+				return id, err
+			}
+		}
+		return r.fromUsername(req, user, "")
 	}
 	if tok, ok := bearer.GetBearerToken(req); ok {
 		return r.fromToken(req, tok)
 	}
 	if req.Method == http.MethodPost && strings.TrimSuffix(req.URL.Path, "/") == loginPath {
-		user, err := loginUsername(req)
+		user, org, err := loginUsername(req)
 		if err != nil || user == "" {
 			return Unresolved, nil
 		}
-		return r.fromUsername(req, user)
+		return r.fromUsername(req, user, org)
 	}
 	return Unresolved, nil
 }
@@ -81,14 +92,33 @@ func (r *Resolver) fromToken(req *http.Request, tok string) (tenant.ID, error) {
 	return r.active(req, tc.AppClaims.TenantID)
 }
 
-func (r *Resolver) fromUsername(req *http.Request, username string) (tenant.ID, error) {
+// fromAPIToken finds the active tenant of the API token prefix of username; found is false when there is none.
+func (r *Resolver) fromAPIToken(req *http.Request, username, prefix string) (_ tenant.ID, found bool, _ error) {
+	var id string
+	err := r.db.GetContext(req.Context(), &id,
+		`SELECT k.tenant_id FROM api_token_logins k JOIN tenants t ON t.id = k.tenant_id
+		 WHERE k.username = $1 AND k.prefix = $2 AND t.status = 'active' ORDER BY k.tenant_id LIMIT 1`, username, prefix)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("pgserver: resolve tenant: %w", err)
+	}
+	return tenant.ID(id), true, nil
+}
+
+// fromUsername finds the active tenant username logs in to: org if it names one (and the login is a member there),
+// else the one it last picked, else its first by id.
+func (r *Resolver) fromUsername(req *http.Request, username, org string) (tenant.ID, error) {
 	if username == "" {
 		return Unresolved, nil
 	}
 	var id string
 	err := r.db.GetContext(req.Context(), &id,
 		`SELECT l.tenant_id FROM user_logins l JOIN tenants t ON t.id = l.tenant_id
-		 WHERE l.username = $1 AND t.status = 'active'`, username)
+		 LEFT JOIN accounts a ON a.username = l.username
+		 WHERE l.username = $1 AND t.status = 'active' AND ($2 = '' OR l.tenant_id = $2)
+		 ORDER BY l.tenant_id = a.last_tenant_id DESC NULLS LAST, l.tenant_id LIMIT 1`, username, org)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unresolved, nil
 	}
@@ -113,34 +143,35 @@ func (r *Resolver) active(req *http.Request, id tenant.ID) (tenant.ID, error) {
 	return id, nil
 }
 
-// loginUsername reads the username of a login request the way the login handler does (form or JSON body) and puts
-// the body back unchanged for it.
-func loginUsername(req *http.Request) (string, error) {
+// loginUsername reads the username and organization of a login request the way the login handler does (form or
+// JSON body) and puts the body back unchanged for it.
+func loginUsername(req *http.Request) (username, org string, _ error) {
 	if req.Body == nil {
-		return "", nil
+		return "", "", nil
 	}
 	head, err := io.ReadAll(io.LimitReader(req.Body, maxLoginBody))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Body = readCloser{Reader: io.MultiReader(bytes.NewReader(head), req.Body), Closer: req.Body}
 	switch req.Header.Get("Content-Type") {
 	case "application/x-www-form-urlencoded":
 		v, err := url.ParseQuery(string(head))
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		return v.Get("username"), nil
+		return v.Get("username"), v.Get("organization"), nil
 	case "application/json":
 		var body struct {
-			Username string `json:"username"`
+			Username     string `json:"username"`
+			Organization string `json:"organization"`
 		}
 		if err := json.Unmarshal(head, &body); err != nil {
-			return "", err
+			return "", "", err
 		}
-		return body.Username, nil
+		return body.Username, body.Organization, nil
 	}
-	return "", nil
+	return "", "", nil
 }
 
 type readCloser struct {

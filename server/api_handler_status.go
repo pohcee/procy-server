@@ -67,6 +67,7 @@ func (al *APIListener) statusCapabilities() capabilities.Capabilities {
 	c.VaultPassphrase = al.vaultManager == nil || al.vaultManager.UsesPassphrase()
 	// usage metering (Postgres with [metering] enabled)
 	c.Usage = al.usage != nil
+	c.Organizations = al.memberships != nil
 	if al.capabilitiesOverride != nil {
 		c = al.capabilitiesOverride(c)
 	}

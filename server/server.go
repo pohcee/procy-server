@@ -33,6 +33,7 @@ import (
 	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
+	"github.com/openrport/openrport/server/membership"
 	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/ports"
 	"github.com/openrport/openrport/server/scheduler"
@@ -136,6 +137,10 @@ type ServerOpts struct {
 	// Operator, when set, serves the platform operator API (/api/v1/operator) to the administrators of the system
 	// tenant (Postgres nodes). Nil: no operator API, as on standalone servers.
 	Operator operator.Service
+	// Memberships, when set, lets a login belong to several organizations (Postgres nodes): the login response
+	// lists them, GET /me/organizations and POST /me/organization (switch) and POST /organization/members
+	// (invite) exist. Nil: one organization per login and none of these routes, as on standalone servers.
+	Memberships membership.Service
 	// Cluster, when set, is how the server shares its database with other nodes: background work runs for every
 	// active tenant on one node at a time, scheduled runs are claimed, and what the server caches follows the
 	// changes other nodes make. nil means cluster.Standalone (the default tenant, everything runs here).
@@ -376,6 +381,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		TenantResolver: opts.TenantResolver,
 		VaultKeys:      s.vaultKeys,
 		Operator:       opts.Operator,
+		Memberships:    opts.Memberships,
 		Usage:          usageReader(opts.Metering),
 		Meter:          s.meter,
 		// in a cluster old notifications are deleted per tenant by a leased task (Run)

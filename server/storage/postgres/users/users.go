@@ -1,8 +1,10 @@
 // Package users stores API users and groups in Postgres: the users.Provider of the OSS API (the same behavior as
 // the OSS [database] user provider, with group details), scoped to the tenant of each call.
 //
-// Logins are unique across tenants: a trigger keeps the global table user_logins in step with users, so Add or a
-// rename to a username another tenant uses fails, and TenantOf finds the tenant of a login without knowing it first.
+// A login is one account (table accounts: password hash, password expiry, TOTP secret) and a member of one or more
+// tenants (a users row per tenant: its groups and 2FA delivery address). Triggers keep accounts and the global
+// membership index user_logins in step with users: Add of a username another tenant uses fails unless it is a
+// membership added by AddMember, and the tenants of a login are found without knowing one first.
 package users
 
 import (
@@ -44,11 +46,11 @@ func (s *Store) Type() enums.ProviderSource { return enums.ProviderSourceDB }
 // SupportsGroupPermissions is true: groups and their permissions are stored.
 func (s *Store) SupportsGroupPermissions() bool { return true }
 
-// TenantOf returns the tenant the login username belongs to, and false if no tenant has it. It needs no tenant in
-// ctx: it reads the global user_logins table, which has no row-level security.
+// TenantOf returns a tenant the login username is a member of (the first by id), and false if no tenant has it. It
+// needs no tenant in ctx: it reads the global user_logins table, which has no row-level security.
 func (s *Store) TenantOf(ctx context.Context, username string) (tenant.ID, bool, error) {
 	var id string
-	err := s.db.GetContext(ctx, &id, "SELECT tenant_id FROM user_logins WHERE username = $1", username)
+	err := s.db.GetContext(ctx, &id, "SELECT tenant_id FROM user_logins WHERE username = $1 ORDER BY tenant_id LIMIT 1", username)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
@@ -58,7 +60,11 @@ func (s *Store) TenantOf(ctx context.Context, username string) (tenant.ID, bool,
 	return tenant.ID(id), true, nil
 }
 
-const userColumns = "username, password, password_expired, two_fa_send_to, totp_secret"
+// userColumns are read from users u joined with its account a (userFrom): the credential is the account's.
+const (
+	userColumns = "u.username, a.password, a.password_expired, u.two_fa_send_to, a.totp_secret"
+	userFrom    = " FROM users u JOIN accounts a ON a.username = u.username"
+)
 
 func (s *Store) GetByUsername(ctx context.Context, username string) (*users.User, error) {
 	tid, err := postgres.TenantOf(ctx)
@@ -68,7 +74,7 @@ func (s *Store) GetByUsername(ctx context.Context, username string) (*users.User
 	var u *users.User
 	err = postgres.InTenant(ctx, s.db, func(tx *sqlx.Tx) error {
 		found := &users.User{}
-		err := tx.GetContext(ctx, found, "SELECT "+userColumns+" FROM users WHERE tenant_id = $1 AND username = $2", string(tid), username)
+		err := tx.GetContext(ctx, found, "SELECT "+userColumns+userFrom+" WHERE u.tenant_id = $1 AND u.username = $2", string(tid), username)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
@@ -97,7 +103,7 @@ func (s *Store) GetAll(ctx context.Context) ([]*users.User, error) {
 	var all []*users.User
 	err = postgres.InTenant(ctx, s.db, func(tx *sqlx.Tx) error {
 		if err := tx.SelectContext(ctx, &all,
-			"SELECT "+userColumns+` FROM users WHERE tenant_id = $1 ORDER BY username COLLATE "C"`, string(tid)); err != nil {
+			"SELECT "+userColumns+userFrom+` WHERE u.tenant_id = $1 ORDER BY u.username COLLATE "C"`, string(tid)); err != nil {
 			return err
 		}
 		var memberships []struct {
@@ -323,17 +329,21 @@ func (s *Store) Update(ctx context.Context, usr *users.User, usernameToUpdate st
 		args = append(args, v)
 		sets = append(sets, fmt.Sprintf("%s = $%d", col, len(args)))
 	}
+	// the credential is the account's (rport_set_account; NULL leaves a field as it is)
+	var password, totp any
+	var expired any
+	credential := false
 	if usr.Password != "" {
-		set("password", usr.Password)
+		password, credential = usr.Password, true
 	}
 	if usr.PasswordExpired != nil {
-		set("password_expired", *usr.PasswordExpired)
+		expired, credential = *usr.PasswordExpired, true
+	}
+	if usr.TotP != "" {
+		totp, credential = usr.TotP, true
 	}
 	if usr.TwoFASendTo != "" {
 		set("two_fa_send_to", usr.TwoFASendTo)
-	}
-	if usr.TotP != "" {
-		set("totp_secret", usr.TotP)
 	}
 	newName := usernameToUpdate
 	if usr.Username != "" && usr.Username != usernameToUpdate {
@@ -351,10 +361,15 @@ func (s *Store) Update(ctx context.Context, usr *users.User, usernameToUpdate st
 			return nil
 		}
 		if len(sets) > 0 {
-			// a rename cascades to user_groups (foreign key) and user_logins (trigger)
+			// a rename cascades to user_groups (foreign key), user_logins and accounts (triggers)
 			if _, err := tx.ExecContext(ctx, "UPDATE users SET "+strings.Join(sets, ", ")+" WHERE tenant_id = $1 AND username = $2",
 				args...); err != nil {
 				return err
+			}
+		}
+		if credential {
+			if _, err := tx.ExecContext(ctx, "SELECT rport_set_account($1, $2, $3, $4)", newName, password, expired, totp); err != nil {
+				return grantHint(err)
 			}
 		}
 		if usr.Groups == nil {
@@ -387,14 +402,21 @@ func (s *Store) Delete(ctx context.Context, usernameToDelete string) error {
 	return nil
 }
 
-// wrapUserError turns a unique violation of the username (in this tenant: users_pkey; in another: user_logins_pkey)
-// into a 400 API error that names the username.
+// wrapUserError turns a unique violation of the username (in this tenant: users_pkey; an account of another
+// tenant: accounts_pkey) into a 400 API error that names the username, and a rename of a login other tenants share
+// into a 400 that says so.
 func wrapUserError(op, username string, err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" &&
-		(pgErr.ConstraintName == "users_pkey" || pgErr.ConstraintName == "user_logins_pkey") {
+		(pgErr.ConstraintName == "users_pkey" || pgErr.ConstraintName == "user_logins_pkey" || pgErr.ConstraintName == "accounts_pkey") {
 		return apierrors.APIError{
 			Message:    fmt.Sprintf("username %q is already taken", username),
+			HTTPStatus: http.StatusBadRequest,
+		}
+	}
+	if errors.As(err, &pgErr) && pgErr.ConstraintName == "accounts_shared" {
+		return apierrors.APIError{
+			Message:    "the login belongs to other organizations too: it can't be renamed here",
 			HTTPStatus: http.StatusBadRequest,
 		}
 	}

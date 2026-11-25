@@ -1,0 +1,12 @@
+type: object
+description: A member of an organization
+properties:
+  username:
+    type: string
+  groups:
+    type: array
+    items:
+      type: string
+  organizations:
+    type: integer
+    description: How many organizations the login is a member of, this one included

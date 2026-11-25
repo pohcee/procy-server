@@ -198,7 +198,8 @@ func Check(ctx context.Context, db *sqlx.DB) error {
 
 // GrantApp gives role what the application needs, now and for tables later migrations add (default privileges
 // of the role running it, which must be the schema owner): SELECT, INSERT, UPDATE and DELETE on the tenant-scoped
-// tables, USAGE on sequences, SELECT only on tenants, user_logins, client_auth_ids (written by triggers), the change
+// tables, USAGE on sequences, SELECT only on tenants, user_logins, accounts, api_token_logins, client_auth_ids
+// (written by triggers and the account functions), the change
 // feed (changes, changes_horizon; written by triggers and rport_prune_changes), the cluster registry (nodes,
 // client_sessions; written through RegistryFunctions) and schema_migrations, and EXECUTE on the operator and registry
 // functions, which are the application's only way to change tenants and the registry. role must not own the tables
@@ -215,6 +216,8 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, client_auth_ids, changes, changes_horizon, migrate_deferred FROM " + q,
 		"GRANT EXECUTE ON FUNCTION rport_prune_changes(interval) TO " + q,
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON nodes, client_sessions FROM " + q,
+		// accounts and api_token_logins (migration 1400): written by triggers and the account functions
+		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON accounts, api_token_logins FROM " + q,
 	}
 	for _, f := range RegistryFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+f+" TO "+q)
@@ -222,6 +225,10 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	// usage metering (migration 1300): nodes without a device process write their usage through ingest_usage,
 	// and the operator API reads every tenant's usage through the summary functions
 	for _, fn := range UsageFunctions {
+		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
+	}
+	// the account functions (migration 1400) change the credential and remembered organization of a login
+	for _, fn := range AccountFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
 	}
 	// the operator functions (migration 1050) change tenants for the operator API
@@ -275,6 +282,13 @@ var UsageFunctions = []string{
 	"ingest_usage(jsonb)",
 	"rport_usage_summary(timestamptz, timestamptz)",
 	"rport_usage_device_summary(date, date)",
+}
+
+// AccountFunctions are the SECURITY DEFINER functions through which the application changes accounts (migration
+// 1400): the credential of a login and the organization its next login goes to.
+var AccountFunctions = []string{
+	"rport_set_account(text, text, boolean, text)",
+	"rport_remember_tenant(text)",
 }
 
 // OperatorFunctions are the SECURITY DEFINER functions through which platform operators change tenants.

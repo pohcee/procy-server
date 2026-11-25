@@ -33,4 +33,16 @@ properties:
           - pending
           - exists
     description: 2FA information. It's null when 2fa is disabled
+  organization:
+    type: string
+    description: >-
+      The organization the token is for. Present only for a login that belongs to several organizations (Postgres
+      servers).
+  organizations:
+    type: array
+    description: >-
+      The active organizations of the login, by name. Present only for a login that belongs to several
+      organizations (Postgres servers).
+    items:
+      $ref: ./MembershipOrganization.yaml
 description: Response returned by `/login` endpoints

@@ -278,8 +278,9 @@ rportd org suspend acme -c /etc/rport/rportd.conf
 rportd org activate acme -c /etc/rport/rportd.conf
 ```
 
-* `add-admin` creates a user in the organization's Administrators group with a generated password, printed once.
-  The password must be changed at the first login. Logins are unique across organizations.
+* `add-admin` adds a login to the organization's Administrators group. A new login gets a generated password,
+  printed once, that must be changed at the first login; a login that already has an account (a member of other
+  organizations) joins with its own password (see [Members of several organizations](#members-of-several-organizations)).
 * `suspend` takes effect on the next request: the organization's users can't log in, and their sessions and API
   tokens stop working. `activate` undoes it. Organizations are not deleted.
 * The device limit is the most devices an organization may have (unlimited when not set). In this preview it is
@@ -297,12 +298,47 @@ have no operator API.
 | `POST` | `/operator/organizations/{id}/suspend` | suspend |
 | `POST` | `/operator/organizations/{id}/activate` | reactivate |
 | `PUT` | `/operator/organizations/{id}/device-limit` | `{"device_limit": 100}` (`null`: unlimited) |
-| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; returns the generated password once |
+| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; returns the generated password of a new login once |
+| `GET` | `/operator/organizations/{id}/members` | the members, their groups there and how many organizations each belongs to |
 
 Every change, from the API or the CLI, is written to the audit log of `_system` (application
 `operator.organization` or `operator.organization.admin`; the CLI as user `cli:<system user>`), whether or not
 the audit log is enabled in the configuration. `GET /api/v1/status` reports `capabilities.operator: true` to
 operators.
+
+### Members of several organizations
+
+A login (normally an email address) is one **account** with one password, password expiry and two-factor (TOTP)
+secret, and can be a **member** of several organizations. Each membership has its own permission groups and 2FA
+delivery address; an organization's administrators are the members of its Administrators group, as before.
+
+* **Login.** A login of one organization sees no change. A login of several goes to the organization it last picked
+  (else its first by id) unless the request names one: `POST /api/v1/login` with
+  `{"username": ..., "password": ..., "organization": "acme"}`. Its login response adds `organization` (the one the
+  token is for) and `organizations` (id and name of each). A login naming an organization it isn't a member of is
+  refused like a wrong password. Basic auth with the password goes to the last-picked organization.
+* **Switching.** `GET /api/v1/me/organizations` lists the login's active organizations (`current` marks the one of
+  the request); `POST /api/v1/me/organization` with `{"organization": "acme"}` returns a session token for that
+  organization and remembers it. The old token keeps working in its own organization. Only session tokens switch.
+* **API tokens** belong to the organization they were created in: a request authenticating with one goes there,
+  whichever organization the login last picked.
+* **Inviting.** An administrator adds a login with `POST /api/v1/organization/members`
+  (`{"username": "carol@example.com", "groups": ["Viewers"]}`). An existing account becomes a member at once (there
+  is no acceptance step yet) and keeps its password; a new login gets an account with a generated password, returned
+  once, that must be changed at the first login. `DELETE /api/v1/users/{user_id}` removes the membership: its
+  sessions and API tokens in this organization stop working, its other memberships stay, and the account goes with
+  its last membership.
+* **What an administrator can change.** The groups and 2FA address of any member. The password, its expiry, the TOTP
+  secret and the login name of a member of other organizations too belong to its owner (`PUT /api/v1/me`, the
+  login's `new_password`, the TOTP routes): an administrator gets 403. For a member of one organization alone
+  nothing changes.
+* A suspended organization drops out of its members' lists and logins.
+
+`GET /api/v1/status` reports `capabilities.organizations: true` on Postgres servers. None of this exists on SQLite.
+`rportd migrate` turns the existing users into accounts (each login was in one organization so far). After
+upgrading, run `rportd migrate --grant-to <application role>` once more: the application role needs `EXECUTE` on
+the functions that change an account's password and remembered organization (it can only read `accounts`). Until
+then, password changes fail with a message naming the fix.
 
 ## Usage metering
 

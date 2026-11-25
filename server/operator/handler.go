@@ -57,6 +57,7 @@ func (h *Handler) Mount(r *mux.Router) {
 	r.HandleFunc("/organizations/{id}/activate", h.setStatus(StatusActive)).Methods(http.MethodPost)
 	r.HandleFunc("/organizations/{id}/device-limit", h.setDeviceLimit).Methods(http.MethodPut)
 	r.HandleFunc("/organizations/{id}/admins", h.addAdmin).Methods(http.MethodPost)
+	r.HandleFunc("/organizations/{id}/members", h.members).Methods(http.MethodGet)
 	if h.usage != nil {
 		r.HandleFunc("/organizations/{id}/usage", h.organizationUsage).Methods(http.MethodGet)
 		r.HandleFunc("/usage", h.usageSummary).Methods(http.MethodGet)
@@ -184,6 +185,18 @@ func (h *Handler) addAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.respond.JSON(w, http.StatusCreated, api.NewSuccessPayload(a))
+}
+
+func (h *Handler) members(w http.ResponseWriter, r *http.Request) {
+	ms, err := h.svc.Members(r.Context(), mux.Vars(r)["id"])
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if ms == nil {
+		ms = []Member{}
+	}
+	h.respond.JSON(w, http.StatusOK, api.NewSuccessPayload(ms))
 }
 
 func (h *Handler) decode(w http.ResponseWriter, r *http.Request, v any) bool {

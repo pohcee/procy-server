@@ -243,9 +243,24 @@ func TestOperatorAddAdmin(t *testing.T) {
 	assert.NotEqual(t, a.Password, a2.Password)
 
 	_, err = o.AddAdmin(ctx, ops, "acme", operator.NewAdmin{Username: "alice@example.com"})
-	assert.ErrorContains(t, err, "already")
-	_, err = o.AddAdmin(ctx, ops, "default", operator.NewAdmin{Username: "alice@example.com"})
-	assert.ErrorContains(t, err, "already taken", "logins are unique across organizations")
+	assert.ErrorIs(t, err, operator.ErrExists)
+	// an existing account joins another organization with its own password
+	joined, err := o.AddAdmin(ctx, ops, "default", operator.NewAdmin{Username: "alice@example.com"})
+	require.NoError(t, err)
+	assert.Equal(t, operator.Admin{Organization: "default", Username: "alice@example.com"}, *joined)
+	ud, err := pgusers.New(d.App).GetByUsername(tenant.WithID(ctx, "default"), "alice@example.com")
+	require.NoError(t, err)
+	require.NotNil(t, ud)
+	assert.Equal(t, u.Password, ud.Password, "one credential")
+	assert.Equal(t, []string{users.Administrators}, ud.Groups)
+	members, err := o.Members(ctx, "acme")
+	require.NoError(t, err)
+	assert.Equal(t, []operator.Member{
+		{Username: "alice@example.com", Groups: []string{users.Administrators}, Organizations: 2},
+		{Username: "dave", Groups: []string{users.Administrators}, Organizations: 1},
+	}, members)
+	_, err = o.Members(ctx, "nope")
+	assert.ErrorIs(t, err, operator.ErrNotFound)
 	_, err = o.AddAdmin(ctx, ops, "acme", operator.NewAdmin{Username: ""})
 	assert.Error(t, err)
 

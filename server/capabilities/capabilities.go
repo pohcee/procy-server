@@ -39,6 +39,10 @@ type Capabilities struct {
 	// Operator: the operator API (/api/v1/operator) is available to the requesting user, a platform operator.
 	// Reported only when true, so servers without operators report nothing new.
 	Operator bool `json:"operator,omitempty"`
+	// Organizations: a login may belong to several organizations (Postgres): GET /api/v1/me/organizations and
+	// POST /api/v1/me/organization (switch) exist, and administrators invite members with
+	// POST /api/v1/organization/members.
+	Organizations bool `json:"organizations,omitempty"`
 	// Usage: usage metering is on (Postgres with [metering] enabled): GET /api/v1/usage for administrators and the
 	// operator usage routes. Reported only when true.
 	Usage bool `json:"usage,omitempty"`
