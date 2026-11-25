@@ -133,6 +133,11 @@ The import runs in one transaction and prints, for each kind of data, how many r
 present and skipped, with the reasons. Running it again adds nothing new. Client IDs, credentials, passwords,
 API tokens and job IDs are kept, so clients and users carry on without changes.
 
+Every tenant has its own copies of the built-in library entries (such as `client-update` and `os-updates`), each under
+its own ID. The import doesn't copy a built-in the tenant already has. It points the schedules and jobs that run that
+built-in at the tenant's entry instead, and the report lists the IDs it maps. Your own library entries keep their
+IDs. If an earlier import left schedules pointing at the old IDs, running the import again repairs them.
+
 The vault values are decrypted with the old vault passphrase and encrypted again with the tenant's new key
 (`key_provider = "kms"` or `"local"`). Pass the passphrase in `RPORT_VAULT_PASSPHRASE`, or with
 `--vault-passphrase-stdin` on the first line of stdin.
