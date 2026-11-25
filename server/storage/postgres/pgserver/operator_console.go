@@ -325,6 +325,11 @@ func activityFilter(kind operator.ActivityKind) (string, error) {
 	return "", fmt.Errorf("%w: kind must be all, sign_in or admin", operator.ErrInvalid)
 }
 
+// operatorActions are the system tenant's audit entries about organizations: the operator API's, billing's and
+// signup's. Other system entries (operators' sign-ins, their user changes) name logins in affected_id, which may
+// equal an organization id.
+const operatorActions = `(application LIKE 'operator.%' OR application IN ('billing', 'signup', 'organization.deletion', 'organization.export'))`
+
 // Activity implements operator.Service: the organization's audit log (in its tenant) and the system tenant's
 // entries about it, each read up to the limit, merged newest first. request and response are never read.
 func (o *Operator) Activity(ctx context.Context, id string, q operator.ActivityQuery) ([]operator.ActivityEntry, error) {
@@ -350,7 +355,7 @@ func (o *Operator) Activity(ctx context.Context, id string, q operator.ActivityQ
 			return err
 		}
 		var system []operator.ActivityEntry
-		if err := tx.SelectContext(ctx, &system, "SELECT "+columns+" FROM auditlog WHERE tenant_id = $5 AND affected_id = $1 AND "+page,
+		if err := tx.SelectContext(ctx, &system, "SELECT "+columns+" FROM auditlog WHERE tenant_id = $5 AND affected_id = $1 AND "+operatorActions+" AND "+page,
 			id, before, beforeID, q.Limit, string(operator.SystemTenant)); err != nil {
 			return err
 		}

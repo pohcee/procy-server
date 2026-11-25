@@ -340,6 +340,10 @@ func TestConsoleActivity(t *testing.T) {
 	insert("_system", 6, "operator.organization", "update", "acme")
 	insert("_system", 7, "operator.organization", "update", "beta")
 	insert("beta", 8, "auth.login", "success", "bob")
+	// an operator whose login equals the organization id: its own sign-ins and user changes aren't the
+	// organization's activity
+	insert("_system", 9, "auth.login", "success", "acme")
+	insert("_system", 10, "auth.user", "update", "acme")
 
 	page := func(kind operator.ActivityKind, limit int, before *operator.ActivityCursor) []string {
 		es, err := o.Activity(ctx, "acme", operator.ActivityQuery{Kind: kind, Limit: limit, Before: before})
