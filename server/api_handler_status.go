@@ -48,6 +48,7 @@ func (al *APIListener) handleGetStatus(w http.ResponseWriter, req *http.Request)
 		"monitoring_enabled":        al.config.Monitoring.Enabled,
 		"password_min_length":       al.config.API.PasswordMinLength,
 		"capabilities":              al.requestCapabilities(req),
+		"oidc_enabled":              al.oidcLogin != nil,
 	})
 
 	al.writeJSONResponse(w, http.StatusOK, response)

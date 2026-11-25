@@ -103,7 +103,6 @@ require (
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
-	github.com/stripe/stripe-go/v87 v87.1.0 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.67.0 // indirect
@@ -115,7 +114,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
-	golang.org/x/oauth2 v0.37.0 // indirect
 	google.golang.org/api v0.304.0 // indirect
 	google.golang.org/genproto v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941 // indirect
@@ -125,11 +123,15 @@ require (
 
 require (
 	cloud.google.com/go/kms v1.37.0
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/fergusstrange/embedded-postgres v1.34.0
+	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/googleapis/gax-go/v2 v2.27.0
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/pelletier/go-toml/v2 v2.1.0
+	github.com/stripe/stripe-go/v87 v87.1.0
 	go.etcd.io/bbolt v1.3.7
+	golang.org/x/oauth2 v0.37.0
 	golang.org/x/time v0.16.0
 	google.golang.org/protobuf v1.36.12
 )

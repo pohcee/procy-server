@@ -18,6 +18,25 @@ properties:
     description: >-
       Whether the login proved it owns the mailbox its username names (Postgres servers with `[signup] enabled`
       only; left out otherwise).
+  sign_in:
+    type: string
+    enum:
+      - both
+      - password
+      - oidc
+    description: >-
+      How the member may sign in to this organization (Postgres servers only; left out otherwise): with a password,
+      through OIDC ("Sign in with Google"), or both (default).
+  oidc_linked:
+    type: boolean
+    description: >-
+      An OIDC identity is pinned to the account (it signed in through OIDC at least once); with `[oidc]` enabled only.
+  auth_method:
+    type: string
+    enum:
+      - password
+      - oidc
+    description: How the current session signed in (GET /me with `[oidc]` enabled only)
   group_permissions_enabled:
     type: boolean
     description: | 

@@ -181,7 +181,7 @@ func (as *APIService) ExistGroups(ctx context.Context, groups []string) error {
 }
 
 func (as *APIService) Change(ctx context.Context, usr *User, username string) error {
-	err := as.validate(ctx, usr, username)
+	err := as.validate(ctx, usr, username, true)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,19 @@ func (as *APIService) Change(ctx context.Context, usr *User, username string) er
 	return as.addUser(ctx, usr)
 }
 
-func (as *APIService) validate(ctx context.Context, dataToChange *User, usernameToFind string) error {
+// AddWithoutPassword adds usr without a password: an account that signs in through OIDC only. An empty password
+// hash never verifies.
+func (as *APIService) AddWithoutPassword(ctx context.Context, usr *User) error {
+	if usr.Password != "" {
+		return errors2.APIError{Message: "a user without a password must not have one", HTTPStatus: http.StatusBadRequest}
+	}
+	if err := as.validate(ctx, usr, "", false); err != nil {
+		return err
+	}
+	return as.addUser(ctx, usr)
+}
+
+func (as *APIService) validate(ctx context.Context, dataToChange *User, usernameToFind string, requirePassword bool) error {
 	errs := errors2.APIErrors{}
 	var zxcvbnUserInputs []string
 
@@ -210,13 +222,13 @@ func (as *APIService) validate(ctx context.Context, dataToChange *User, username
 				HTTPStatus: http.StatusBadRequest,
 			})
 		}
-		if dataToChange.Password == "" {
+		if requirePassword && dataToChange.Password == "" {
 			errs = append(errs, errors2.APIError{
 				Message:    "password is required",
 				HTTPStatus: http.StatusBadRequest,
 			})
 		}
-		if as.TwoFAOn && dataToChange.TwoFASendTo == "" {
+		if requirePassword && as.TwoFAOn && dataToChange.TwoFASendTo == "" {
 			errs = append(errs, errors2.APIError{
 				Message:    "two_fa_send_to is required",
 				HTTPStatus: http.StatusBadRequest,

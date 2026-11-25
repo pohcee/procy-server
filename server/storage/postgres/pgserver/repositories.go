@@ -16,6 +16,7 @@ import (
 	pglibrary "github.com/openrport/openrport/server/storage/postgres/library"
 	pgmonitoring "github.com/openrport/openrport/server/storage/postgres/monitoring"
 	pgnotifications "github.com/openrport/openrport/server/storage/postgres/notifications"
+	pgoidc "github.com/openrport/openrport/server/storage/postgres/oidc"
 	"github.com/openrport/openrport/server/storage/postgres/sessions"
 	pgstoredtunnels "github.com/openrport/openrport/server/storage/postgres/storedtunnels"
 	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
@@ -40,6 +41,7 @@ func Repositories(db *sqlx.DB, cfg *chconfig.Config) *chserver.Repositories {
 		AuditLog:      pgauditlog.New(db),
 		Users:         pgusers.New(db),
 		ClientAuth:    clientauth.New(db),
+		OIDC:          pgoidc.New(db),
 	}
 }
 

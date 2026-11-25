@@ -57,7 +57,10 @@ get:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
     "403":
-      description: Forbidden
+      description: >-
+        Forbidden. With `[oidc]` enabled, error code `oidc_required`: password sign-in is turned off for the account
+        in this organization (platform operators, organizations that require OIDC, members set to OIDC only); sign in
+        through `GET /oidc/login`
       content:
         application/json:
           schema:
@@ -130,7 +133,10 @@ post:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
     "403":
-      description: Forbidden
+      description: >-
+        Forbidden. With `[oidc]` enabled, error code `oidc_required`: password sign-in is turned off for the account
+        in this organization (platform operators, organizations that require OIDC, members set to OIDC only); sign in
+        through `GET /oidc/login`
       content:
         application/json:
           schema:

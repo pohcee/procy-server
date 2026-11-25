@@ -118,6 +118,13 @@ func (m *Memberships) invite(ctx context.Context, id tenant.ID, in membership.In
 			return &membership.Invited{Organization: string(id), Username: in.Username, Pending: true}, nil
 		}
 	}
+	if in.NoPassword {
+		u := &users.User{Username: in.Username, Groups: in.Groups, TwoFASendTo: in.TwoFASendTo}
+		if err := m.users.AddWithoutPassword(ctx, u); err != nil {
+			return nil, err
+		}
+		return &membership.Invited{Organization: string(id), Username: in.Username, NewAccount: true}, nil
+	}
 	if m.twoFA && in.TwoFASendTo == "" {
 		return nil, fmt.Errorf("%w: two_fa_send_to is required", membership.ErrInvalid)
 	}

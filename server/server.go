@@ -35,6 +35,7 @@ import (
 	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
+	"github.com/openrport/openrport/server/oidc"
 	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/ports"
 	"github.com/openrport/openrport/server/scheduler"
@@ -178,6 +179,8 @@ type ServerOpts struct {
 	// enabled) and runs its upkeep (expiring signups, deleting organizations whose hold ended) on one node at a time.
 	// nil: none of it, as on standalone servers.
 	Signup *signup.Service
+	// SignInPolicies, when set (Postgres), stores the sign-in policy of memberships and organizations ([oidc]).
+	SignInPolicies oidc.Policies
 }
 
 // NewServer creates and returns a new rport server
@@ -416,6 +419,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		Memberships:    opts.Memberships,
 		Usage:          usageReader(opts.Metering),
 		Signup:         opts.Signup,
+		SignInPolicies: opts.SignInPolicies,
 		Meter:          s.meter,
 		Billing:        s.billingAPI(opts.Billing),
 		// in a cluster old notifications are deleted per tenant by a leased task (Run)

@@ -29,7 +29,34 @@ type AppTokenClaims struct {
 	// TenantID is the tenant the session belongs to (#34). Tokens issued before it was added have
 	// none; they are valid in the default tenant only.
 	TenantID tenant.ID `json:"tid,omitempty"`
+	// AMR is how the session signed in (RFC 8176 style): ["oidc"] for an OpenID Connect sign-in. Password
+	// sessions (and tokens issued before it was added) have none.
+	AMR []string `json:"amr,omitempty"`
 	jwt.StandardClaims
+}
+
+// AuthMethodOIDC is the AMR value of a session that signed in through OpenID Connect.
+const AuthMethodOIDC = "oidc"
+
+type authMethodKey struct{}
+
+// WithAuthMethod returns ctx carrying how the session about to be created signed in (AuthMethodOIDC); a session
+// created without it is a password session.
+func WithAuthMethod(ctx context.Context, method string) context.Context {
+	return context.WithValue(ctx, authMethodKey{}, method)
+}
+
+// IsOIDC reports whether the token's session signed in through OpenID Connect.
+func (c *AppTokenClaims) IsOIDC() bool {
+	if c == nil {
+		return false
+	}
+	for _, m := range c.AMR {
+		if m == AuthMethodOIDC {
+			return true
+		}
+	}
+	return false
 }
 
 type Scope struct {
@@ -118,6 +145,9 @@ func CreateAuthToken(
 		},
 		Scopes:   scopes,
 		TenantID: tid,
+	}
+	if m, _ := ctx.Value(authMethodKey{}).(string); m != "" {
+		claims.AMR = []string{m}
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString([]byte(JWTSecret))

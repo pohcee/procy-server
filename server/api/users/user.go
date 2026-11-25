@@ -30,3 +30,8 @@ func (u User) IsAdmin() bool {
 func PasswordExpired(f bool) *bool {
 	return &f
 }
+
+// IsEmptyChange reports whether u, the body of a user update, changes nothing.
+func (u User) IsEmptyChange() bool {
+	return u.Username == "" && u.Password == "" && u.PasswordExpired == nil && u.Groups == nil && u.TwoFASendTo == "" && u.TotP == ""
+}

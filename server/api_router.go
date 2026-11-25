@@ -183,6 +183,14 @@ func (al *APIListener) initRouter() {
 		al.wrapTotPEnabledMiddleware(al.handleDeleteUsersTotP),
 	)).Methods(http.MethodDelete)
 
+	if al.signInPolicies != nil {
+		adminOnly.HandleFunc("/organization/sign-in", al.handleGetOrganizationSignIn).Methods(http.MethodGet)
+		adminOnly.HandleFunc("/organization/sign-in", al.handlePutOrganizationSignIn).Methods(http.MethodPut)
+		secureAPI.HandleFunc("/me/sign-in", al.handlePutMeSignIn).Methods(http.MethodPut)
+	}
+	if al.oidcLogin != nil {
+		adminOnly.HandleFunc("/users/{user_id}/oidc-identity", al.handleDeleteUserOIDCIdentity).Methods(http.MethodDelete)
+	}
 	adminOnly.HandleFunc("/users/{user_id}/sessions", al.handleGetUserAPISessions).Methods(http.MethodGet)
 	adminOnly.HandleFunc("/users/{user_id}/sessions", al.handleDeleteAllUserAPISessions).Methods(http.MethodDelete)
 	adminOnly.HandleFunc("/users/{user_id}/sessions/{session_id}", al.handleDeleteUserAPISession).Methods(http.MethodDelete)
@@ -250,6 +258,11 @@ func (al *APIListener) initRouter() {
 	api.HandleFunc("/login", al.handleGetLogin).Methods(http.MethodGet)
 	api.HandleFunc("/login", al.handlePostLogin).Methods(http.MethodPost)
 	api.HandleFunc("/logout", al.handleDeleteLogout).Methods(http.MethodDelete)
+	if al.oidcLogin != nil {
+		api.HandleFunc(oidcRoutePrefix+"/login", al.handleOIDCLogin).Methods(http.MethodGet)
+		api.HandleFunc(oidcRoutePrefix+"/callback", al.handleOIDCCallback).Methods(http.MethodGet)
+		api.HandleFunc(oidcRoutePrefix+"/token", al.handleOIDCToken).Methods(http.MethodPost)
+	}
 	if al.signupAPI != nil {
 		al.signupAPI.MountPublic(api)
 	}

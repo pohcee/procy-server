@@ -29,6 +29,9 @@ const (
 	AuditActionSuspend                = "suspend"
 	AuditActionActivate               = "activate"
 	AuditActionUpdate                 = "update"
+	AuditActionDelete                 = "delete"
+	// AuditApplicationOrganizationSignIn is an operator's change of an organization's sign-in policy.
+	AuditApplicationOrganizationSignIn = "operator.organization.signin"
 )
 
 var (
@@ -40,6 +43,10 @@ var (
 	ErrInvalid = errors.New("invalid input")
 	// ErrNotActive: the organization is suspended.
 	ErrNotActive = errors.New("organization is not active")
+	// ErrNotMember: the login is not a member of the organization.
+	ErrNotMember = errors.New("not a member of the organization")
+	// ErrLastAdmin: removing the login would leave the organization without an administrator.
+	ErrLastAdmin = errors.New("the last administrator of an organization can't be removed")
 )
 
 // Organization is a tenant as operators see it.
@@ -53,6 +60,8 @@ type Organization struct {
 	// DeviceLimit is the most devices it may have; nil is unlimited.
 	DeviceLimit *int `json:"device_limit" db:"max_clients"`
 	UserCount   int  `json:"user_count" db:"-"`
+	// RequireOIDC: the organization's members sign in through OIDC only.
+	RequireOIDC bool `json:"require_oidc" db:"require_oidc"`
 }
 
 // NewOrganization is what an operator gives to create an organization.
@@ -79,6 +88,9 @@ type Admin struct {
 	Password        string `json:"password,omitempty"`
 	PasswordExpired bool   `json:"password_expired"`
 	Pending         bool   `json:"pending"`
+	// NoPassword: the new login has no password; it signs in through OIDC only (operators, and organizations that
+	// require OIDC, with [oidc] enabled).
+	NoPassword bool `json:"no_password,omitempty"`
 }
 
 // Member is a member of an organization as operators see it.
@@ -87,6 +99,8 @@ type Member struct {
 	Groups   []string `json:"groups"`
 	// Organizations is how many organizations the login is a member of, this one included.
 	Organizations int `json:"organizations"`
+	// SignIn is the member's sign-in method: both, password or oidc.
+	SignIn string `json:"sign_in"`
 }
 
 // Actor is who does an operator action, for the audit log.
@@ -115,4 +129,10 @@ type Service interface {
 	AddAdmin(ctx context.Context, by Actor, id string, a NewAdmin) (*Admin, error)
 	// Members lists the members of the organization id with their groups, by login.
 	Members(ctx context.Context, id string) ([]Member, error)
+	// SetRequireOIDC sets whether the organization's members sign in through OIDC only.
+	SetRequireOIDC(ctx context.Context, by Actor, id string, require bool) (*Organization, error)
+	// RemoveAdmin removes the administrator username from the organization id (SystemTenant: an operator): its
+	// membership, sessions and API tokens there. ErrNotMember, ErrInvalid (not an administrator); ErrLastAdmin
+	// unless force.
+	RemoveAdmin(ctx context.Context, by Actor, id, username string, force bool) error
 }

@@ -245,6 +245,11 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	for _, fn := range SignupAccountFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
 	}
+	// OIDC sign-in (migration 1700): identities pinned to accounts change only through OIDCFunctions
+	stmts = append(stmts, "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON account_identities FROM "+q)
+	for _, fn := range OIDCFunctions {
+		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
+	}
 	// the operator functions (migration 1050) change tenants for the operator API
 	for _, fn := range OperatorFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
@@ -359,6 +364,14 @@ var SignupAccountFunctions = []string{
 	"rport_account_status(text)",
 	"rport_account_verify_email(text)",
 	"rport_account_take_over(text, text, text)",
+}
+
+// OIDCFunctions are the SECURITY DEFINER functions of OpenID Connect sign-in (migration 1700): the identities
+// pinned to accounts and the organizations' sign-in requirement.
+var OIDCFunctions = []string{
+	"rport_oidc_resolve(text, text, text, boolean)",
+	"rport_oidc_unlink(text)",
+	"rport_set_require_oidc(text, boolean)",
 }
 
 // OperatorFunctions are the SECURITY DEFINER functions through which platform operators change tenants.

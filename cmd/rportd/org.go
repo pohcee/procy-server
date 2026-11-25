@@ -63,17 +63,30 @@ var (
 	}
 	orgAddAdminCmd = &cobra.Command{
 		Use:   "add-admin ID USERNAME",
-		Short: "add an administrator to an organization; prints a generated password once",
+		Short: "add an administrator to an organization; prints a generated password once (none with [oidc])",
 		Long: "Add a user to the organization's Administrators group. A new login gets a generated password, printed " +
 			"once, that must be changed at the first login; a login that already has an account (a member of other " +
 			"organizations) is invited and becomes an administrator, with its own password, when it accepts. With the ID \"" + string(operator.SystemTenant) + "\" it " +
-			"adds a platform operator.",
+			"adds a platform operator. With [oidc] enabled, operators (and administrators of organizations that require " +
+			"OIDC sign-in) get no password at all: they sign in with the OIDC provider (Google) using the email USERNAME.",
 		Example: "rportd org add-admin acme alice@example.com\nrportd org add-admin " + string(operator.SystemTenant) + " ops@example.com",
 		Args:    cobra.ExactArgs(2),
 		Run:     orgRun(runOrgAddAdmin),
 	}
 
+	orgRemoveAdminCmd = &cobra.Command{
+		Use:   "remove-admin ID USERNAME",
+		Short: "remove an administrator from an organization (with the ID \"" + string(operator.SystemTenant) + "\": a platform operator)",
+		Long: "Remove an administrator's membership of the organization, with its sessions and API tokens there. The " +
+			"account goes too when this was its last organization. The last administrator of an organization is kept " +
+			"unless --force is given.",
+		Example: "rportd org remove-admin acme alice@example.com\nrportd org remove-admin " + string(operator.SystemTenant) + " ops@example.com",
+		Args:    cobra.ExactArgs(2),
+		Run:     orgRun(runOrgRemoveAdmin),
+	}
+
 	orgDSN         *string
+	orgForce       *bool
 	orgDeviceLimit *string
 	orgTwoFASendTo *string
 	orgJSON        *bool
@@ -218,19 +231,33 @@ func runOrgAddAdmin(ctx context.Context, w io.Writer, svc operator.Service, by o
 			a.Username, a.Organization, a.Organization)
 		return nil
 	}
+	if a.NoPassword {
+		fmt.Fprintf(w, "added administrator %q to %q without a password: they sign in with the OIDC provider (Google) as %s\n",
+			a.Username, a.Organization, a.Username)
+		return nil
+	}
 	fmt.Fprintf(w, "added administrator %q to %q\npassword (shown once; it must be changed at the first login): %s\n",
 		a.Username, a.Organization, a.Password)
 	return nil
 }
 
+func runOrgRemoveAdmin(ctx context.Context, w io.Writer, svc operator.Service, by operator.Actor, args []string) error {
+	if err := svc.RemoveAdmin(ctx, by, args[0], args[1], *orgForce); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "removed administrator %q from %q (its sessions and API tokens there are revoked)\n", args[1], args[0])
+	return nil
+}
+
 func init() {
 	RootCmd.AddCommand(orgCmd)
-	orgCmd.AddCommand(orgListCmd, orgAddCmd, orgSuspendCmd, orgActivateCmd, orgSetLimitCmd, orgAddAdminCmd)
+	orgCmd.AddCommand(orgListCmd, orgAddCmd, orgSuspendCmd, orgActivateCmd, orgSetLimitCmd, orgAddAdminCmd, orgRemoveAdminCmd)
 
 	orgDSN = orgCmd.PersistentFlags().String("dsn", "", "connection URL (schema owner or application role; default [storage] dsn)")
 	orgDeviceLimit = orgAddCmd.Flags().String("device-limit", "", "the most devices the organization may have (default unlimited)")
 	orgTwoFASendTo = orgAddAdminCmd.Flags().String("two-fa-send-to", "", "where 2FA tokens are sent (required when 2FA is on)")
 	orgJSON = orgListCmd.Flags().Bool("json", false, "print JSON")
+	orgForce = orgRemoveAdminCmd.Flags().Bool("force", false, "remove the last administrator too")
 
 	// reset default usage func
 	orgCmd.SetUsageFunc((&cobra.Command{}).UsageFunc())

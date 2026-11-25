@@ -10,3 +10,10 @@ properties:
   organizations:
     type: integer
     description: How many organizations the login is a member of, this one included
+  sign_in:
+    type: string
+    enum:
+      - both
+      - password
+      - oidc
+    description: How the member may sign in to the organization

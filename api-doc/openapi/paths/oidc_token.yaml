@@ -1,0 +1,54 @@
+post:
+  tags:
+    - Login
+  summary: Trade the sign-in code of an OpenID Connect sign-in for a session
+  description: >-
+    Public; with `[oidc]` enabled only. Answers as `POST /login` does. No 2FA step follows: the provider enforces
+    its own second factor. A login of several organizations (Postgres) that names none gets the organizations it may
+    sign in to through OIDC and no token; the code stays valid for the call that names one. A code that never
+    existed counts for the IP ban; a used or expired one doesn't.
+  operationId: OIDCTokenPost
+  security: []
+  parameters:
+    - name: token-lifetime
+      in: query
+      description: initial lifetime of the JWT token in seconds. Max value is 90 days. Default 10 min
+      schema:
+        type: integer
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - code
+          properties:
+            code:
+              type: string
+              description: The code from the fragment of the redirect to the web UI
+            organization:
+              type: string
+              description: The organization to sign in to (a login of several organizations)
+  responses:
+    '200':
+      description: A session token, or the organizations to pick from
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/LoginResponse.yaml
+    '401':
+      description: The code is unknown, used or expired
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: The account may not sign in through OIDC to the organization (or is no longer a member)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

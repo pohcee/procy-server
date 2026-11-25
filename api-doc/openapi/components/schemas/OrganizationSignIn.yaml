@@ -1,0 +1,9 @@
+type: object
+description: The sign-in policy of an organization
+properties:
+  require_oidc:
+    type: boolean
+    description: Members sign in through OIDC only (always true for the platform operators' organization)
+  oidc_enabled:
+    type: boolean
+    description: OIDC sign-in (`[oidc]`) is enabled on the server

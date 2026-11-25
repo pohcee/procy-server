@@ -1,0 +1,22 @@
+get:
+  tags:
+    - Login
+  summary: Start an OpenID Connect sign-in ("Sign in with Google")
+  description: >-
+    Public; with `[oidc]` enabled only. A browser navigation, not an API call: stores a pending sign-in (state, nonce
+    and PKCE verifier; 10 minutes, used once), sets the HttpOnly cookie `procy_oidc` that binds it to this browser,
+    and redirects to the provider. The provider returns the browser to `GET /oidc/callback`.
+  operationId: OIDCLoginGet
+  security: []
+  parameters:
+    - name: return_to
+      in: query
+      description: A path of the web UI to return to after the sign-in (absolute path on the same site; others are dropped)
+      schema:
+        type: string
+        example: /dashboard
+  responses:
+    '302':
+      description: To the provider's authorization endpoint (or, when the provider can't be reached, to the web UI with an error)
+    '404':
+      description: OIDC sign-in is not enabled

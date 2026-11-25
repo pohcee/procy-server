@@ -34,6 +34,9 @@ type Invitation struct {
 	// TwoFASendTo is where the 2FA tokens of a new login go (required when the server sends 2FA tokens). It is the
 	// account's, so it is ignored for an existing account.
 	TwoFASendTo string `json:"two_fa_send_to,omitempty"`
+	// NoPassword creates a new login without a password (it signs in through OIDC only). Set by the server, not
+	// by clients.
+	NoPassword bool `json:"-"`
 }
 
 // Invited is the result of an invitation.

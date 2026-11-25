@@ -1,0 +1,23 @@
+delete:
+  tags:
+    - Users
+  summary: Unpin the OIDC identity of a member's account (administrators; with `[oidc]` enabled)
+  description: >-
+    The account's next OIDC sign-in pins the identity it signs in with (matched by email). Use it when a member
+    changed their Google account. Refused (403) for an account that is a member of other organizations too.
+  operationId: UserOIDCIdentityDelete
+  parameters:
+    - name: user_id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    '204':
+      description: Unpinned
+    '404':
+      description: No such user
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

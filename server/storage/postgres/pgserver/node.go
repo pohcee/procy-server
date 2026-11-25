@@ -15,6 +15,7 @@ import (
 	"github.com/openrport/openrport/server/storage/postgres"
 	pgbilling "github.com/openrport/openrport/server/storage/postgres/billing"
 	"github.com/openrport/openrport/server/storage/postgres/migrate"
+	pgoidc "github.com/openrport/openrport/server/storage/postgres/oidc"
 	pgusage "github.com/openrport/openrport/server/storage/postgres/usage"
 	"github.com/openrport/openrport/server/vault"
 	"github.com/openrport/openrport/server/vault/vaultkms"
@@ -141,6 +142,7 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 	opts.TenantResolver = NewResolver(db, cfg.API.JWTSecret)
 	opts.Operator = NewOperator(db, cfg)
 	opts.Memberships = NewMemberships(db, cfg)
+	opts.SignInPolicies = pgoidc.New(db)
 	// every repository is injected; refuse rather than create any SQLite file
 	opts.SkipMigrations = true
 	if cfg.Storage.Role == chconfig.StorageRoleAPI {
