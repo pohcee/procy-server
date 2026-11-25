@@ -2,6 +2,7 @@ package chserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,7 +11,9 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/openrport/openrport/server/api"
+	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/jobs"
+	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/auditlog"
 	"github.com/openrport/openrport/server/routes"
 	"github.com/openrport/openrport/server/validation"
@@ -239,7 +242,7 @@ func (al *APIListener) handleGetMultiClientCommandJobs(w http.ResponseWriter, re
 		return
 	}
 
-	// Same rule as GET /commands/{job_id}: only an admin or the user who created the multi-client job sees its jobs.
+	// Same rule as GET /commands/{job_id} (see canSeeMultiJob).
 	multiJob, err := al.jobProvider.GetMultiJob(req.Context(), multiJobID)
 	if err != nil {
 		al.jsonErrorResponseWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to find a multi-client job[id=%q].", multiJobID), err)
@@ -251,7 +254,12 @@ func (al *APIListener) handleGetMultiClientCommandJobs(w http.ResponseWriter, re
 			al.jsonError(w, err)
 			return
 		}
-		if !curUser.IsAdmin() && multiJob.CreatedBy != curUser.Username {
+		ok, err := al.canSeeMultiJob(req.Context(), curUser, multiJob)
+		if err != nil {
+			al.jsonError(w, err)
+			return
+		}
+		if !ok {
 			al.jsonErrorResponseWithError(w, http.StatusForbidden, "forbidden", fmt.Errorf("you are not allowed to access items created by another user"))
 			return
 		}
@@ -512,11 +520,54 @@ func (al *APIListener) handleGetMultiClientCommand(w http.ResponseWriter, req *h
 		al.jsonError(w, err)
 		return
 	}
-	if curUser.IsAdmin() || job.CreatedBy == curUser.Username {
+	ok, err := al.canSeeMultiJob(req.Context(), curUser, job)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	if ok {
 		al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(job))
 		return
 	}
 	al.jsonErrorResponseWithError(w, http.StatusForbidden, "forbidden", fmt.Errorf("you are not allowed to access items created by another user"))
+}
+
+// canSeeMultiJob reports whether user may see the multi-client job mj and its clients' jobs: an admin, its creator,
+// or, for a run of a schedule that still exists, a user who may see that schedule (GET /schedules/{id} needs only the
+// scheduler permission).
+func (al *APIListener) canSeeMultiJob(ctx context.Context, user *users.User, mj *models.MultiJob) (bool, error) {
+	if user.IsAdmin() || mj.CreatedBy == user.Username {
+		return true, nil
+	}
+	if mj.ScheduleID == nil || *mj.ScheduleID == "" || al.scheduleManager == nil {
+		return false, nil
+	}
+	ok, err := al.hasPermission(ctx, user, users.PermissionScheduler)
+	if err != nil || !ok {
+		return false, err
+	}
+	s, err := al.scheduleManager.Get(ctx, *mj.ScheduleID)
+	if err != nil {
+		return false, err
+	}
+	return s != nil, nil
+}
+
+// hasPermission reports whether user holds permission the way permissionsMiddleware decides it: when the user store
+// cannot evaluate group permissions only administrators do, otherwise one of the user's groups must grant it.
+func (al *APIListener) hasPermission(ctx context.Context, user *users.User, permission string) (bool, error) {
+	if !al.userService.SupportsGroupPermissions() {
+		return user.IsAdmin(), nil
+	}
+	err := al.userService.CheckPermission(ctx, user, permission)
+	if err == nil {
+		return true, nil
+	}
+	var apiErr errors2.APIError
+	if errors.As(err, &apiErr) && apiErr.HTTPStatus == http.StatusForbidden {
+		return false, nil
+	}
+	return false, err
 }
 
 // handleGetMultiClientCommands handles GET /commands
@@ -532,14 +583,24 @@ func (al *APIListener) handleGetMultiClientCommands(w http.ResponseWriter, req *
 		return
 	}
 
-	// Non-admins see only the multi-client jobs they created, as GET /commands/{job_id} allows.
+	// Non-admins see the multi-client jobs GET /commands/{job_id} shows them: the ones they created and, with the
+	// scheduler permission, the runs of every existing schedule.
 	curUser, err := al.getUserModelForAuth(req.Context())
 	if err != nil {
 		al.jsonError(w, err)
 		return
 	}
 	if !curUser.IsAdmin() {
-		listOptions.Filters = append(listOptions.Filters, query.FilterOption{Column: []string{"created_by"}, Values: []string{curUser.Username}})
+		scheduler, err := al.hasPermission(req.Context(), curUser, users.PermissionScheduler)
+		if err != nil {
+			al.jsonError(w, err)
+			return
+		}
+		if scheduler && al.scheduleManager != nil {
+			listOptions.Filters = append(listOptions.Filters, jobs.CreatedByOrScheduled(curUser.Username))
+		} else {
+			listOptions.Filters = append(listOptions.Filters, query.FilterOption{Column: []string{"created_by"}, Values: []string{curUser.Username}})
+		}
 	}
 
 	result, err := al.jobProvider.GetMultiJobSummaries(req.Context(), listOptions)

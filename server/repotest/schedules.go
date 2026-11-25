@@ -438,4 +438,62 @@ func Schedules(t *testing.T, newRepos Factory[SchedulesRepos]) {
 		require.NoError(t, err)
 		assert.NotNil(t, got)
 	})
+
+	t.Run("MultiJobsCreatedByOrScheduled", func(t *testing.T) {
+		r := newRepos(t)
+		a, b := Ctx(TenantA), Ctx(TenantB)
+		s1, s2 := testSchedules()[0], testSchedules()[1]
+		s1.ID, s2.ID = "s1", "s2"
+		require.NoError(t, r.Schedules.Insert(a, s1))
+		require.NoError(t, r.Schedules.Insert(b, s2))
+		start := time.Now().UTC().Truncate(time.Second)
+		for i, m := range []struct{ jid, createdBy, scheduleID string }{
+			{"mj-own", "bob", ""},
+			{"mj-other", "alice", ""},
+			{"mj-run", "alice", "s1"},
+			{"mj-gone", "alice", "s-deleted"}, // its schedule no longer exists
+			{"mj-cross", "alice", "s2"},       // s2 exists in tenant b only
+		} {
+			bld := jb.NewMulti(t).JID(m.jid).StartedAt(start.Add(time.Duration(i) * time.Minute))
+			if m.scheduleID != "" {
+				bld = bld.ScheduleID(m.scheduleID)
+			}
+			mj := bld.Build()
+			mj.CreatedBy = m.createdBy
+			require.NoError(t, r.Jobs.SaveMultiJob(a, mj))
+		}
+
+		jids := func(o *query.ListOptions) ([]string, int) {
+			t.Helper()
+			list, err := r.Jobs.GetMultiJobSummaries(a, o)
+			require.NoError(t, err)
+			n, err := r.Jobs.CountMultiJobs(a, o)
+			require.NoError(t, err)
+			out := make([]string, 0, len(list))
+			for _, s := range list {
+				out = append(out, s.JID)
+			}
+			return out, n
+		}
+		filter := jobs.CreatedByOrScheduled("bob")
+		o := &query.ListOptions{Filters: []query.FilterOption{filter}}
+		got, n := jids(o)
+		assert.Equal(t, []string{"mj-run", "mj-own"}, got, "newest first")
+		assert.Equal(t, 2, n)
+		assert.Equal(t, []query.FilterOption{filter}, o.Filters, "the caller's options are left alone")
+
+		got, n = jids(&query.ListOptions{Filters: []query.FilterOption{filter}, Pagination: query.NewPagination(1, 0)})
+		assert.Equal(t, []string{"mj-run"}, got)
+		assert.Equal(t, 2, n, "the count ignores pagination")
+
+		got, n = jids(&query.ListOptions{Filters: []query.FilterOption{
+			{Column: []string{"created_by"}, Values: []string{"alice"}}, filter,
+		}})
+		assert.Equal(t, []string{"mj-run"}, got, "other filters still apply")
+		assert.Equal(t, 1, n)
+
+		list, err := r.Jobs.GetMultiJobSummaries(b, &query.ListOptions{Filters: []query.FilterOption{filter}})
+		require.NoError(t, err)
+		assert.Empty(t, list, "tenant b has no multi-jobs")
+	})
 }
