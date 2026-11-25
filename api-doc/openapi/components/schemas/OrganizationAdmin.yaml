@@ -1,8 +1,8 @@
 type: object
 description: >-
   An added administrator. For a new login the password is generated, returned only once, and must be changed at
-  the first login. An existing account (a member of other organizations) joins with its own password; `password` is
-  then left out.
+  the first login. An existing account (a member of other organizations) gets a pending invitation (`pending`) and
+  becomes an administrator, with its own password, when its owner accepts it; `password` is then left out.
 properties:
   organization:
     type: string
@@ -17,3 +17,6 @@ properties:
   password_expired:
     type: boolean
     description: True for a new account; the first login sets a new password (login with `new_password`)
+  pending:
+    type: boolean
+    description: True for an existing account, invited to accept

@@ -5,7 +5,8 @@ post:
   description: >-
     Add a login to the organization's Administrators group. A new login gets an account with a generated password,
     returned once, that must be changed at the first login. A login that already has an account (a member of other
-    organizations) becomes a member with its own password. With the id `_system` it adds another platform operator.
+    organizations) gets an invitation and becomes an administrator, with its own password, when its owner accepts it
+    (`POST /me/invitations/{organization}`). With the id `_system` it adds another platform operator.
     Written to the audit log of `_system` (without the password).
   operationId: OperatorOrganizationAdminsPost
   parameters:

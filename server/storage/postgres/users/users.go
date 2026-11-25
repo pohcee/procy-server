@@ -1,8 +1,8 @@
 // Package users stores API users and groups in Postgres: the users.Provider of the OSS API (the same behavior as
 // the OSS [database] user provider, with group details), scoped to the tenant of each call.
 //
-// A login is one account (table accounts: password hash, password expiry, TOTP secret) and a member of one or more
-// tenants (a users row per tenant: its groups and 2FA delivery address). Triggers keep accounts and the global
+// A login is one account (table accounts: password hash, password expiry, TOTP secret, 2FA delivery address) and a
+// member of one or more tenants (a users row per tenant: its groups). Triggers keep accounts and the global
 // membership index user_logins in step with users: Add of a username another tenant uses fails unless it is a
 // membership added by AddMember, and the tenants of a login are found without knowing one first.
 package users
@@ -62,7 +62,7 @@ func (s *Store) TenantOf(ctx context.Context, username string) (tenant.ID, bool,
 
 // userColumns are read from users u joined with its account a (userFrom): the credential is the account's.
 const (
-	userColumns = "u.username, a.password, a.password_expired, u.two_fa_send_to, a.totp_secret"
+	userColumns = "u.username, a.password, a.password_expired, a.two_fa_send_to, a.totp_secret"
 	userFrom    = " FROM users u JOIN accounts a ON a.username = u.username"
 )
 
@@ -330,7 +330,7 @@ func (s *Store) Update(ctx context.Context, usr *users.User, usernameToUpdate st
 		sets = append(sets, fmt.Sprintf("%s = $%d", col, len(args)))
 	}
 	// the credential is the account's (rport_set_account; NULL leaves a field as it is)
-	var password, totp any
+	var password, totp, sendTo any
 	var expired any
 	credential := false
 	if usr.Password != "" {
@@ -343,7 +343,7 @@ func (s *Store) Update(ctx context.Context, usr *users.User, usernameToUpdate st
 		totp, credential = usr.TotP, true
 	}
 	if usr.TwoFASendTo != "" {
-		set("two_fa_send_to", usr.TwoFASendTo)
+		sendTo, credential = usr.TwoFASendTo, true
 	}
 	newName := usernameToUpdate
 	if usr.Username != "" && usr.Username != usernameToUpdate {
@@ -368,7 +368,7 @@ func (s *Store) Update(ctx context.Context, usr *users.User, usernameToUpdate st
 			}
 		}
 		if credential {
-			if _, err := tx.ExecContext(ctx, "SELECT rport_set_account($1, $2, $3, $4)", newName, password, expired, totp); err != nil {
+			if _, err := tx.ExecContext(ctx, "SELECT rport_set_account($1, $2, $3, $4, $5)", newName, password, expired, totp, sendTo); err != nil {
 				return grantHint(err)
 			}
 		}

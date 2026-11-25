@@ -50,9 +50,8 @@ func TestNoOrganizationRoutesWithoutMemberships(t *testing.T) {
 
 type fakeMemberships struct {
 	membership.Service
-	orgs       []membership.Organization
-	elsewhere  bool
-	remembered []tenant.ID
+	orgs      []membership.Organization
+	elsewhere bool
 }
 
 func (f *fakeMemberships) Organizations(context.Context, string) ([]membership.Organization, error) {
@@ -63,12 +62,6 @@ func (f *fakeMemberships) MemberElsewhere(context.Context, string) (bool, error)
 	return f.elsewhere, nil
 }
 
-func (f *fakeMemberships) Remember(ctx context.Context, _ string) error {
-	id, _ := tenant.FromContext(ctx)
-	f.remembered = append(f.remembered, id)
-	return nil
-}
-
 func TestLoginResponseListsOrganizationsOfSeveral(t *testing.T) {
 	ctx := tenant.WithID(context.Background(), "b")
 	tok := "t"
@@ -77,7 +70,6 @@ func TestLoginResponseListsOrganizationsOfSeveral(t *testing.T) {
 	resp, err := al.withOrganizations(ctx, "alice", loginResponse{Token: &tok})
 	require.NoError(t, err)
 	assert.Nil(t, resp.Organizations, "one organization: as before")
-	assert.Empty(t, f.remembered)
 
 	f.orgs = append(f.orgs, membership.Organization{ID: "b", Name: "B"})
 	resp, err = al.withOrganizations(ctx, "alice", loginResponse{Token: &tok})
@@ -85,7 +77,6 @@ func TestLoginResponseListsOrganizationsOfSeveral(t *testing.T) {
 	b, err := json.Marshal(resp)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"token":"t","two_fa":null,"organization":"b","organizations":[{"id":"a","name":"A"},{"id":"b","name":"B"}]}`, string(b))
-	assert.Equal(t, []tenant.ID{"b"}, f.remembered)
 }
 
 func TestAdminsDontChangeSharedAccounts(t *testing.T) {
@@ -100,6 +91,7 @@ func TestAdminsDontChangeSharedAccounts(t *testing.T) {
 		{"expiry of a shared account", true, &users.User{PasswordExpired: &expired}, true},
 		{"name of a shared account", true, &users.User{Username: "other"}, true},
 		{"TOTP reset of a shared account", true, nil, true},
+		{"2FA address of a shared account", true, &users.User{TwoFASendTo: "attacker@example.com"}, true},
 		{"groups of a shared account", true, &users.User{Groups: []string{"g"}}, false},
 		{"same name, groups", true, &users.User{Username: "alice", Groups: []string{"g"}}, false},
 		{"password of this organization's login", false, &users.User{Password: "new password"}, false},

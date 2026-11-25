@@ -35,8 +35,8 @@ type loginResponse struct {
 	Organizations []membership.Organization `json:"organizations,omitempty"`
 }
 
-// withOrganizations adds the organizations of username to resp when it belongs to several, and remembers the
-// organization of the request as the one its next login that names none goes to. Standalone: resp unchanged.
+// withOrganizations adds the organizations of username to resp when it belongs to several. Standalone: resp
+// unchanged.
 func (al *APIListener) withOrganizations(ctx context.Context, username string, resp loginResponse) (loginResponse, error) {
 	if al.memberships == nil {
 		return resp, nil
@@ -51,10 +51,6 @@ func (al *APIListener) withOrganizations(ctx context.Context, username string, r
 	tid, err := tenant.FromContext(ctx)
 	if err != nil {
 		return resp, err
-	}
-	if err := al.memberships.Remember(ctx, username); err != nil {
-		// the login works without it: the next one goes to the organization remembered before
-		al.Errorf("remember the organization of %s: %v", username, err)
 	}
 	current := string(tid)
 	resp.Organization = &current

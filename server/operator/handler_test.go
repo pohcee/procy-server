@@ -176,7 +176,7 @@ func TestOperatorRoutes(t *testing.T) {
 
 	code, out = do(t, r, http.MethodPost, "/operator/organizations/acme/admins", `{"username":"carol"}`)
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
-	assert.Equal(t, map[string]any{"organization": "acme", "username": "carol", "new_account": true, "password": "pw", "password_expired": true}, out["data"])
+	assert.Equal(t, map[string]any{"organization": "acme", "username": "carol", "new_account": true, "password": "pw", "password_expired": true, "pending": false}, out["data"])
 
 	code, out = do(t, r, http.MethodGet, "/operator/organizations/acme/members", "")
 	require.Equal(t, http.StatusOK, code, out["_raw"])

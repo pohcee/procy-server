@@ -66,7 +66,7 @@ var (
 		Short: "add an administrator to an organization; prints a generated password once",
 		Long: "Add a user to the organization's Administrators group. A new login gets a generated password, printed " +
 			"once, that must be changed at the first login; a login that already has an account (a member of other " +
-			"organizations) joins with its own password. With the ID \"" + string(operator.SystemTenant) + "\" it " +
+			"organizations) is invited and becomes an administrator, with its own password, when it accepts. With the ID \"" + string(operator.SystemTenant) + "\" it " +
 			"adds a platform operator.",
 		Example: "rportd org add-admin acme alice@example.com\nrportd org add-admin " + string(operator.SystemTenant) + " ops@example.com",
 		Args:    cobra.ExactArgs(2),
@@ -213,8 +213,9 @@ func runOrgAddAdmin(ctx context.Context, w io.Writer, svc operator.Service, by o
 	if err != nil {
 		return err
 	}
-	if !a.NewAccount {
-		fmt.Fprintf(w, "added administrator %q to %q (an existing account: it keeps its own password)\n", a.Username, a.Organization)
+	if a.Pending {
+		fmt.Fprintf(w, "invited %q to %q as an administrator: the login has an account already, and becomes an administrator when it accepts (POST /api/v1/me/invitations/%s)\n",
+			a.Username, a.Organization, a.Organization)
 		return nil
 	}
 	fmt.Fprintf(w, "added administrator %q to %q\npassword (shown once; it must be changed at the first login): %s\n",

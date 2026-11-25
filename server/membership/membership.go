@@ -8,6 +8,7 @@ package membership
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 var (
@@ -15,6 +16,8 @@ var (
 	ErrAlreadyMember = errors.New("the login is a member of this organization already")
 	// ErrInvalid: the invitation is not valid.
 	ErrInvalid = errors.New("invalid invitation")
+	// ErrNoInvitation: there is no pending invitation.
+	ErrNoInvitation = errors.New("no pending invitation")
 )
 
 // Organization is an organization a login is a member of.
@@ -28,8 +31,8 @@ type Invitation struct {
 	// Username is the login, normally an email address.
 	Username string   `json:"username"`
 	Groups   []string `json:"groups"`
-	// TwoFASendTo is where 2FA tokens of this membership go (required when the server sends 2FA tokens and the
-	// login has no account yet).
+	// TwoFASendTo is where the 2FA tokens of a new login go (required when the server sends 2FA tokens). It is the
+	// account's, so it is ignored for an existing account.
 	TwoFASendTo string `json:"two_fa_send_to,omitempty"`
 }
 
@@ -37,23 +40,50 @@ type Invitation struct {
 type Invited struct {
 	Organization string `json:"organization"`
 	Username     string `json:"username"`
-	// NewAccount is true when the login had no account: it was created with Password, shown only once, which must
-	// be changed at the first login. An existing account became a member with its own password.
+	// NewAccount is true when the login had no account: it was created as a member with Password, shown only
+	// once, which must be changed at the first login.
 	NewAccount      bool   `json:"new_account"`
 	Password        string `json:"password,omitempty"`
 	PasswordExpired bool   `json:"password_expired"`
+	// Pending is true for an existing account: it becomes a member when its owner accepts the invitation
+	// (POST /me/invitations/{organization}).
+	Pending bool `json:"pending"`
+}
+
+// MyInvitation is a pending invitation of the current login into an organization.
+type MyInvitation struct {
+	Organization
+	InvitedBy string    `json:"invited_by"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// PendingInvitation is an organization's pending invitation of an existing account.
+type PendingInvitation struct {
+	Username  string    `json:"username"`
+	Groups    []string  `json:"groups"`
+	InvitedBy string    `json:"invited_by"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // Service is the storage behind the membership routes.
 type Service interface {
 	// Organizations returns the active organizations the login is a member of, by name.
 	Organizations(ctx context.Context, username string) ([]Organization, error)
-	// Remember makes the organization of ctx the one the next login of username that names none goes to.
-	Remember(ctx context.Context, username string) error
 	// MemberElsewhere reports whether the login is a member of an organization other than the one of ctx (of any
-	// status): its password, TOTP secret and name are then its own, not one organization's.
+	// status): its password, 2FA address, TOTP secret and name are then its own, not one organization's.
 	MemberElsewhere(ctx context.Context, username string) (bool, error)
-	// Invite adds a login to the organization of ctx: an existing account becomes a member at once, a new login
-	// gets an account with a generated one-time password. ErrAlreadyMember when it is a member already.
-	Invite(ctx context.Context, in Invitation) (*Invited, error)
+	// Invite adds a login to the organization of ctx, invited by invitedBy: a new login gets an account with a
+	// generated one-time password and is a member at once; an existing account gets a pending invitation its owner
+	// accepts. ErrAlreadyMember when it is a member already.
+	Invite(ctx context.Context, in Invitation, invitedBy string) (*Invited, error)
+	// PendingInvitations lists the organization of ctx's pending invitations.
+	PendingInvitations(ctx context.Context) ([]PendingInvitation, error)
+	// Withdraw removes the organization of ctx's pending invitation of username (also a decline by its owner).
+	// ErrNoInvitation when there is none.
+	Withdraw(ctx context.Context, username string) error
+	// Invitations lists the pending invitations of the login username from active organizations.
+	Invitations(ctx context.Context, username string) ([]MyInvitation, error)
+	// Accept makes username a member of the organization of ctx with the groups of its pending invitation there.
+	// Only for the login's own owner. ErrNoInvitation, ErrAlreadyMember.
+	Accept(ctx context.Context, username string) error
 }

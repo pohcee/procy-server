@@ -52,40 +52,32 @@ func (m *Memberships) Organizations(ctx context.Context, username string) ([]mem
 	return out, nil
 }
 
-// Remember implements membership.Service.
-func (m *Memberships) Remember(ctx context.Context, username string) error {
-	return m.store.Remember(ctx, username)
-}
-
 // MemberElsewhere implements membership.Service.
 func (m *Memberships) MemberElsewhere(ctx context.Context, username string) (bool, error) {
 	return m.store.MemberElsewhere(ctx, username)
 }
 
 // Invite implements membership.Service.
-func (m *Memberships) Invite(ctx context.Context, in membership.Invitation) (*membership.Invited, error) {
+func (m *Memberships) Invite(ctx context.Context, in membership.Invitation, invitedBy string) (*membership.Invited, error) {
 	tid, err := tenant.FromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return m.invite(tenant.WithID(ctx, tid), tid, in)
+	return m.invite(tenant.WithID(ctx, tid), tid, in, invitedBy)
 }
 
-// invite adds in.Username to the tenant id (ctx is in it): an existing account joins, a new login gets an account
-// with a generated password that must be changed at the first login.
-func (m *Memberships) invite(ctx context.Context, id tenant.ID, in membership.Invitation) (*membership.Invited, error) {
+// invite adds in.Username to the tenant id (ctx is in it): an existing account gets a pending invitation its owner
+// accepts, a new login gets an account with a generated password that must be changed at the first login.
+func (m *Memberships) invite(ctx context.Context, id tenant.ID, in membership.Invitation, invitedBy string) (*membership.Invited, error) {
 	if in.Username == "" || strings.TrimSpace(in.Username) != in.Username {
 		return nil, fmt.Errorf("%w: username is required and must not start or end with whitespace", membership.ErrInvalid)
-	}
-	if m.twoFA && in.TwoFASendTo == "" {
-		return nil, fmt.Errorf("%w: two_fa_send_to is required", membership.ErrInvalid)
 	}
 	exists, err := m.store.AccountExists(ctx, in.Username)
 	if err != nil {
 		return nil, err
 	}
 	if exists {
-		err := m.store.AddMember(ctx, &users.User{Username: in.Username, Groups: in.Groups, TwoFASendTo: in.TwoFASendTo})
+		err := m.store.Invite(ctx, in.Username, in.Groups, invitedBy)
 		switch {
 		case errors.Is(err, pgusers.ErrAlreadyMember):
 			return nil, membership.ErrAlreadyMember
@@ -94,8 +86,11 @@ func (m *Memberships) invite(ctx context.Context, id tenant.ID, in membership.In
 		case err != nil:
 			return nil, err
 		default:
-			return &membership.Invited{Organization: string(id), Username: in.Username}, nil
+			return &membership.Invited{Organization: string(id), Username: in.Username, Pending: true}, nil
 		}
+	}
+	if m.twoFA && in.TwoFASendTo == "" {
+		return nil, fmt.Errorf("%w: two_fa_send_to is required", membership.ErrInvalid)
 	}
 	password, err := generatePassword(m.passwordLength)
 	if err != nil {
@@ -112,4 +107,52 @@ func (m *Memberships) invite(ctx context.Context, id tenant.ID, in membership.In
 		return nil, err
 	}
 	return &membership.Invited{Organization: string(id), Username: in.Username, NewAccount: true, Password: password, PasswordExpired: true}, nil
+}
+
+// PendingInvitations implements membership.Service.
+func (m *Memberships) PendingInvitations(ctx context.Context) ([]membership.PendingInvitation, error) {
+	invs, err := m.store.PendingInvitations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]membership.PendingInvitation, 0, len(invs))
+	for _, i := range invs {
+		out = append(out, membership.PendingInvitation{Username: i.Username, Groups: i.Groups, InvitedBy: i.InvitedBy, CreatedAt: i.CreatedAt})
+	}
+	return out, nil
+}
+
+// Withdraw implements membership.Service.
+func (m *Memberships) Withdraw(ctx context.Context, username string) error {
+	err := m.store.DeleteInvitation(ctx, username)
+	if errors.Is(err, pgusers.ErrNoInvitation) {
+		return membership.ErrNoInvitation
+	}
+	return err
+}
+
+// Invitations implements membership.Service.
+func (m *Memberships) Invitations(ctx context.Context, username string) ([]membership.MyInvitation, error) {
+	invs, err := m.store.Invitations(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]membership.MyInvitation, 0, len(invs))
+	for _, i := range invs {
+		out = append(out, membership.MyInvitation{Organization: membership.Organization{ID: i.TenantID, Name: i.Name},
+			InvitedBy: i.InvitedBy, CreatedAt: i.CreatedAt})
+	}
+	return out, nil
+}
+
+// Accept implements membership.Service.
+func (m *Memberships) Accept(ctx context.Context, username string) error {
+	err := m.store.AcceptInvitation(ctx, username)
+	switch {
+	case errors.Is(err, pgusers.ErrNoInvitation), errors.Is(err, pgusers.ErrNoAccount):
+		return membership.ErrNoInvitation
+	case errors.Is(err, pgusers.ErrAlreadyMember):
+		return membership.ErrAlreadyMember
+	}
+	return err
 }

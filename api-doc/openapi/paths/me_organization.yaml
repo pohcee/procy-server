@@ -3,8 +3,9 @@ post:
     - Profile & Info
   summary: Switch to another organization of the current login (Postgres servers only)
   description: >-
-    Returns a new session token for another organization the current login is a member of, and makes it the one
-    the next login that names none goes to. The token of the request stays valid in its own organization. Needs a
+    Returns a new session token for another active organization the current login is a member of.
+    The token of the request stays valid in its own organization. No new 2FA: the 2FA address and TOTP secret are
+    the account's, the same in every organization. Needs a
     session token (Bearer): API tokens and passwords sent with basic auth are bound to one organization (403). Not
     available on standalone servers (404).
   operationId: MeOrganizationPost

@@ -252,7 +252,7 @@ func (o *Operator) AddAdmin(ctx context.Context, by operator.Actor, id string, i
 		Username:    in.Username,
 		Groups:      []string{users.Administrators},
 		TwoFASendTo: in.TwoFASendTo,
-	})
+	}, "operator:"+by.Username)
 	switch {
 	case errors.Is(err, membership.ErrAlreadyMember):
 		return nil, fmt.Errorf("%q is a member of %q already: %w", in.Username, id, operator.ErrExists)
@@ -268,7 +268,7 @@ func (o *Operator) AddAdmin(ctx context.Context, by operator.Actor, id string, i
 		return nil, fmt.Errorf("admin %q added to %q, but the audit log entry failed: %w", in.Username, id, err)
 	}
 	return &operator.Admin{Organization: id, Username: in.Username, NewAccount: inv.NewAccount, Password: inv.Password,
-		PasswordExpired: inv.PasswordExpired}, nil
+		PasswordExpired: inv.PasswordExpired, Pending: inv.Pending}, nil
 }
 
 // Members implements operator.Service.

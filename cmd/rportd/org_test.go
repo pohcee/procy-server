@@ -73,19 +73,19 @@ func TestOrgCommands(t *testing.T) {
 	require.NoError(t, err, "the first platform operator")
 	assert.Contains(t, out, `added administrator "ops" to "_system"`)
 
-	// an existing account joins another organization with its own password
+	// an existing account is invited: it joins when its owner accepts
 	out, err = org(t, runOrgAddAdmin, "beta", "alice")
 	require.NoError(t, err)
-	assert.Contains(t, out, `added administrator "alice" to "beta" (an existing account: it keeps its own password)`)
+	assert.Contains(t, out, `invited "alice" to "beta" as an administrator`)
 	assert.NotContains(t, out, "password (shown once")
-	_, err = org(t, runOrgAddAdmin, "beta", "alice")
-	assert.ErrorIs(t, err, operator.ErrExists)
+	_, err = org(t, runOrgAddAdmin, "acme", "alice")
+	assert.ErrorIs(t, err, operator.ErrExists, "a member already")
 
 	out, err = org(t, runOrgList)
 	require.NoError(t, err)
 	assert.Regexp(t, `(?m)^ID\s+NAME\s+STATUS\s+DEVICES\s+LIMIT\s+USERS\s+CREATED$`, out)
 	assert.Regexp(t, `(?m)^acme\s+Acme Corp\s+active\s+0\s+10\s+1\s+`, out)
-	assert.Regexp(t, `(?m)^beta\s+beta\s+active\s+0\s+unlimited\s+1\s+`, out)
+	assert.Regexp(t, `(?m)^beta\s+beta\s+active\s+0\s+unlimited\s+0\s+`, out)
 	assert.NotContains(t, out, "_system")
 
 	*orgJSON = true

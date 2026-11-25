@@ -1,9 +1,12 @@
 package chserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/gorilla/mux"
 
 	"github.com/openrport/openrport/server/api"
 	errors2 "github.com/openrport/openrport/server/api/errors"
@@ -59,7 +62,8 @@ type switchOrganizationResponse struct {
 
 // handleSwitchOrganization handles POST /me/organization: a new session token for another organization of the
 // current login. The token of the request stays valid in its own organization. Only a session token may switch:
-// API tokens (basic auth) are bound to their organization.
+// API tokens (basic auth) are bound to their organization. No new 2FA: the account's 2FA address and TOTP secret
+// are the same in every organization, and the session passed them.
 func (al *APIListener) handleSwitchOrganization(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	if _, _, basic := req.BasicAuth(); basic {
@@ -106,16 +110,12 @@ func (al *APIListener) handleSwitchOrganization(w http.ResponseWriter, req *http
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
 	}
-	if err := al.memberships.Remember(target, user.Username); err != nil {
-		al.jsonError(w, err)
-		return
-	}
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(switchOrganizationResponse{Token: tokenStr, Organization: in.Organization}))
 }
 
 // handleInviteMember handles POST /organization/members (administrators): adds a login to the organization of the
-// request. An existing account becomes a member at once (no acceptance step yet); a new login gets an account with
-// a generated password, returned once, that must be changed at the first login.
+// request. An existing account gets a pending invitation that its owner accepts (POST /me/invitations/{org}); a
+// new login gets an account with a generated password, returned once, that must be changed at the first login.
 func (al *APIListener) handleInviteMember(w http.ResponseWriter, req *http.Request) {
 	var in membership.Invitation
 	if err := parseRequestBody(req.Body, &in); err != nil {
@@ -126,7 +126,12 @@ func (al *APIListener) handleInviteMember(w http.ResponseWriter, req *http.Reque
 		al.jsonError(w, err)
 		return
 	}
-	invited, err := al.memberships.Invite(req.Context(), in)
+	by, err := al.getUserModelForAuth(req.Context())
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	invited, err := al.memberships.Invite(req.Context(), in, by.Username)
 	switch {
 	case errors.Is(err, membership.ErrAlreadyMember):
 		al.jsonErrorResponseWithTitle(w, http.StatusConflict, err.Error())
@@ -147,14 +152,14 @@ func (al *APIListener) handleInviteMember(w http.ResponseWriter, req *http.Reque
 
 // refuseSharedAccountChange answers 403 and returns true when an administrator's change of the user username
 // would change what belongs to its account rather than to this organization's membership (password, its expiry,
-// TOTP secret, name) and the login is a member of other organizations too: only its owner changes those (PUT /me,
+// 2FA address, TOTP secret, name) and the login is a member of other organizations too: only its owner changes those (PUT /me,
 // the login's new_password, the TOTP routes). Standalone, and for logins of this organization alone, nothing
 // changes.
 func (al *APIListener) refuseSharedAccountChange(w http.ResponseWriter, req *http.Request, username string, change *users.User) bool {
 	if al.memberships == nil {
 		return false
 	}
-	if change != nil && change.Password == "" && change.PasswordExpired == nil && change.TotP == "" &&
+	if change != nil && change.Password == "" && change.PasswordExpired == nil && change.TotP == "" && change.TwoFASendTo == "" &&
 		(change.Username == "" || change.Username == username) {
 		return false
 	}
@@ -167,8 +172,114 @@ func (al *APIListener) refuseSharedAccountChange(w http.ResponseWriter, req *htt
 		return false
 	}
 	al.jsonError(w, errors2.APIError{
-		Message:    fmt.Sprintf("%q is a member of other organizations too: only its owner can change its password, two-factor secret or login name", username),
+		Message:    fmt.Sprintf("%q is a member of other organizations too: only its owner can change its password, two-factor settings or login name", username),
 		HTTPStatus: http.StatusForbidden,
 	})
 	return true
+}
+
+// handleGetMyInvitations handles GET /me/invitations: the pending invitations of the current login.
+func (al *APIListener) handleGetMyInvitations(w http.ResponseWriter, req *http.Request) {
+	user, err := al.getUserModelForAuth(req.Context())
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	invs, err := al.memberships.Invitations(req.Context(), user.Username)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(invs))
+}
+
+// myInvitationTarget returns the context of the organization of the current login's pending invitation named in
+// the route, or answers and returns false. accept needs a session token (a membership of another organization
+// must not be made with a token bound to one).
+func (al *APIListener) myInvitationTarget(w http.ResponseWriter, req *http.Request, accept bool) (context.Context, *users.User, bool) {
+	if _, _, basic := req.BasicAuth(); basic && accept {
+		al.jsonErrorResponseWithTitle(w, http.StatusForbidden, "accepting an invitation needs a session token: API tokens and passwords sent with each request are bound to one organization")
+		return nil, nil, false
+	}
+	user, err := al.getUserModelForAuth(req.Context())
+	if err != nil {
+		al.jsonError(w, err)
+		return nil, nil, false
+	}
+	org := mux.Vars(req)["organization"]
+	invs, err := al.memberships.Invitations(req.Context(), user.Username)
+	if err != nil {
+		al.jsonError(w, err)
+		return nil, nil, false
+	}
+	for _, i := range invs {
+		if i.ID == org {
+			return tenant.WithID(req.Context(), tenant.ID(org)), user, true
+		}
+	}
+	al.jsonErrorResponseWithTitle(w, http.StatusNotFound, fmt.Sprintf("no pending invitation from an active organization %q", org))
+	return nil, nil, false
+}
+
+// handleAcceptInvitation handles POST /me/invitations/{organization}: the current login becomes a member of the
+// organization with the groups of the invitation. Switch to it with POST /me/organization.
+func (al *APIListener) handleAcceptInvitation(w http.ResponseWriter, req *http.Request) {
+	target, user, ok := al.myInvitationTarget(w, req, true)
+	if !ok {
+		return
+	}
+	switch err := al.memberships.Accept(target, user.Username); {
+	case errors.Is(err, membership.ErrNoInvitation):
+		al.jsonErrorResponseWithTitle(w, http.StatusNotFound, err.Error())
+		return
+	case errors.Is(err, membership.ErrAlreadyMember):
+		al.jsonErrorResponseWithTitle(w, http.StatusConflict, err.Error())
+		return
+	case err != nil:
+		al.jsonError(w, err)
+		return
+	}
+	org, _ := tenant.FromContext(target)
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(membership.Organization{ID: string(org)}))
+}
+
+// handleDeclineInvitation handles DELETE /me/invitations/{organization}.
+func (al *APIListener) handleDeclineInvitation(w http.ResponseWriter, req *http.Request) {
+	target, user, ok := al.myInvitationTarget(w, req, false)
+	if !ok {
+		return
+	}
+	if err := al.memberships.Withdraw(target, user.Username); err != nil && !errors.Is(err, membership.ErrNoInvitation) {
+		al.jsonError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleGetPendingInvitations handles GET /organization/invitations (administrators).
+func (al *APIListener) handleGetPendingInvitations(w http.ResponseWriter, req *http.Request) {
+	invs, err := al.memberships.PendingInvitations(req.Context())
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(invs))
+}
+
+// handleWithdrawInvitation handles DELETE /organization/invitations/{username} (administrators).
+func (al *APIListener) handleWithdrawInvitation(w http.ResponseWriter, req *http.Request) {
+	username := mux.Vars(req)["username"]
+	switch err := al.memberships.Withdraw(req.Context(), username); {
+	case errors.Is(err, membership.ErrNoInvitation):
+		al.jsonErrorResponseWithTitle(w, http.StatusNotFound, err.Error())
+		return
+	case err != nil:
+		al.jsonError(w, err)
+		return
+	}
+	al.auditLog.Entry(auditlog.ApplicationAuthUser, auditlog.ActionDelete).
+		WithHTTPRequest(req).
+		WithID(username).
+		Save()
+	w.WriteHeader(http.StatusNoContent)
 }

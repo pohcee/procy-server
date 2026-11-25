@@ -37,11 +37,12 @@ var loginPath = routes.AllRoutesPrefix + "/login"
 //     read only from a token signed with the server's JWT secret;
 //   - basic auth with an API token goes to the tenant the token belongs to (api_token_logins; a token is bound to
 //     one organization);
-//   - basic auth with a password and the username of a login request are looked up in the global membership index:
-//     a login request may name the organization ("organization", query parameter or body field), which must be one
-//     the login is a member of;
-//     otherwise the login goes to the organization it last picked (accounts.last_tenant_id), or else to its first
-//     membership by id. A login of one organization goes there, as before;
+//   - the username of a login request (body or basic auth) is looked up in the global membership index: a login
+//     request may name the organization ("organization", query parameter or body field), which must be one the
+//     login is a member of; otherwise it goes to its first membership by id (where a login of several gets the list
+//     of its organizations). A login of one organization goes there, as before;
+//   - basic auth with a password on other requests resolves only for a login of exactly one active organization (a
+//     password names no organization; logins of several use session or API tokens);
 //   - a tenant that isn't active, and everything else, resolves to Unresolved.
 //
 // The order follows the server's own authentication: the websocket token first, then basic auth, then the bearer
@@ -69,6 +70,10 @@ func (r *Resolver) Resolve(req *http.Request) (tenant.ID, error) {
 			if err != nil || found {
 				return id, err
 			}
+		}
+		if !isLogin(req) {
+			// a password sent with each request names no organization: only a login of one organization may use it
+			return r.fromSoleMembership(req, user)
 		}
 		return r.fromUsername(req, user, loginOrganization(req, ""))
 	}
@@ -108,8 +113,26 @@ func (r *Resolver) fromAPIToken(req *http.Request, username, prefix string) (_ t
 	return tenant.ID(id), true, nil
 }
 
+// fromSoleMembership finds the active tenant of username when it is a member of exactly one active tenant.
+func (r *Resolver) fromSoleMembership(req *http.Request, username string) (tenant.ID, error) {
+	if username == "" {
+		return Unresolved, nil
+	}
+	var ids []string
+	err := r.db.SelectContext(req.Context(), &ids,
+		`SELECT l.tenant_id FROM user_logins l JOIN tenants t ON t.id = l.tenant_id
+		 WHERE l.username = $1 AND t.status = 'active' ORDER BY l.tenant_id LIMIT 2`, username)
+	if err != nil {
+		return "", fmt.Errorf("pgserver: resolve tenant: %w", err)
+	}
+	if len(ids) != 1 {
+		return Unresolved, nil
+	}
+	return tenant.ID(ids[0]), nil
+}
+
 // fromUsername finds the active tenant username logs in to: org if it names one (and the login is a member there),
-// else the one it last picked, else its first by id.
+// else its first by id (a login of several naming none gets the list of its organizations there).
 func (r *Resolver) fromUsername(req *http.Request, username, org string) (tenant.ID, error) {
 	if username == "" {
 		return Unresolved, nil
@@ -117,9 +140,8 @@ func (r *Resolver) fromUsername(req *http.Request, username, org string) (tenant
 	var id string
 	err := r.db.GetContext(req.Context(), &id,
 		`SELECT l.tenant_id FROM user_logins l JOIN tenants t ON t.id = l.tenant_id
-		 LEFT JOIN accounts a ON a.username = l.username
 		 WHERE l.username = $1 AND t.status = 'active' AND ($2 = '' OR l.tenant_id = $2)
-		 ORDER BY l.tenant_id = a.last_tenant_id DESC NULLS LAST, l.tenant_id LIMIT 1`, username, org)
+		 ORDER BY l.tenant_id LIMIT 1`, username, org)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Unresolved, nil
 	}
@@ -144,10 +166,12 @@ func (r *Resolver) active(req *http.Request, id tenant.ID) (tenant.ID, error) {
 	return id, nil
 }
 
+func isLogin(req *http.Request) bool { return strings.TrimSuffix(req.URL.Path, "/") == loginPath }
+
 // loginOrganization is the organization a login request names: the "organization" query parameter, else the
 // body's (fromBody). Other requests name none.
 func loginOrganization(req *http.Request, fromBody string) string {
-	if strings.TrimSuffix(req.URL.Path, "/") != loginPath {
+	if !isLogin(req) {
 		return ""
 	}
 	if org := req.URL.Query().Get("organization"); org != "" {

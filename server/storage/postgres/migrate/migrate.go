@@ -285,10 +285,12 @@ var UsageFunctions = []string{
 }
 
 // AccountFunctions are the SECURITY DEFINER functions through which the application changes accounts (migration
-// 1400): the credential of a login and the organization its next login goes to.
+// 1400): the account of a login and the invitations of existing accounts.
 var AccountFunctions = []string{
-	"rport_set_account(text, text, boolean, text)",
-	"rport_remember_tenant(text)",
+	"rport_set_account(text, text, boolean, text, text)",
+	"rport_account_exists(text)",
+	"rport_invite(text, text, text)",
+	"rport_invitations_of(text)",
 }
 
 // OperatorFunctions are the SECURITY DEFINER functions through which platform operators change tenants.

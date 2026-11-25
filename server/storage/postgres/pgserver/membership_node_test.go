@@ -66,10 +66,34 @@ func TestNodeAccountInTwoOrganizations(t *testing.T) {
 	assert.NotContains(t, data, "organizations")
 	assert.NotContains(t, data, "organization")
 
-	// bob invites alice (an account of a) into b: she joins at once with her own password, as a Viewer
-	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "alice", "groups": []string{"Viewers"}})
+	// bob invites alice (an account of a) into b as a Viewer; the 2FA address he names is ignored (it is hers)
+	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "alice", "groups": []string{"Viewers"},
+		"two_fa_send_to": "attacker@example.com"})
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
-	assert.Equal(t, map[string]any{"organization": "b", "username": "alice", "new_account": false, "password_expired": false}, out["data"])
+	assert.Equal(t, map[string]any{"organization": "b", "username": "alice", "new_account": false, "password_expired": false, "pending": true}, out["data"])
+	code, out = h.do(t, http.MethodGet, "/organization/invitations", bob, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	require.Len(t, out["data"], 1)
+	assert.Equal(t, []any{"Viewers"}, out["data"].([]any)[0].(map[string]any)["groups"])
+
+	// she is not a member until she accepts
+	code, data = h.loginAs(t, map[string]string{"username": "alice", "password": testPassword})
+	require.Equal(t, http.StatusOK, code, data)
+	assert.NotContains(t, data, "organizations")
+	tok := data["token"].(string)
+	code, out = h.do(t, http.MethodGet, "/me/invitations", tok, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	require.Len(t, out["data"], 1)
+	inv := out["data"].([]any)[0].(map[string]any)
+	assert.Equal(t, "b", inv["id"])
+	assert.Equal(t, "bob", inv["invited_by"])
+	code, out = h.do(t, http.MethodPost, "/me/invitations/nowhere", tok, nil)
+	assert.Equal(t, http.StatusNotFound, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/me/invitations/b", tok, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	code, out = h.do(t, http.MethodGet, "/me/invitations", tok, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, []any{}, out["data"])
 	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "alice"})
 	assert.Equal(t, http.StatusConflict, code, out["_raw"])
 
@@ -132,20 +156,16 @@ func TestNodeAccountInTwoOrganizations(t *testing.T) {
 	code, out = h.do(t, http.MethodPost, "/me/tokens", tokB, map[string]string{"scope": "read+write", "name": "ci"})
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	apiTokenB := out["data"].(map[string]any)["token"].(string)
-	code, data = h.loginAs(t, map[string]string{"username": "alice", "password": testPassword, "organization": "a"})
-	require.Equal(t, http.StatusOK, code, data)
-	assert.Equal(t, "a", data["organization"], "a is remembered now")
-	code, out = h.basic(t, http.MethodGet, "/me", "alice", testPassword)
-	require.Equal(t, http.StatusOK, code, out["_raw"])
-	assert.Equal(t, []any{"Administrators"}, out["data"].(map[string]any)["groups"], "basic auth with the password: the remembered organization")
 	code, out = h.basic(t, http.MethodGet, "/me", "alice", apiTokenB)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
-	assert.Equal(t, []any{"Viewers"}, out["data"].(map[string]any)["groups"], "the token's organization, not the remembered one")
+	assert.Equal(t, []any{"Viewers"}, out["data"].(map[string]any)["groups"], "the token's organization, not the first")
 	code, out = h.basic(t, http.MethodPost, "/me/organization", "alice", apiTokenB)
 	assert.Equal(t, http.StatusForbidden, code, out["_raw"])
 
-	// bob can't change the shared account's password, only its membership in b
+	// bob can't change the shared account's password or 2FA address, only its membership in b
 	code, out = h.do(t, http.MethodPut, "/users/alice", bob, map[string]any{"password": "a whole new password here"})
+	assert.Equal(t, http.StatusForbidden, code, out["_raw"])
+	code, out = h.do(t, http.MethodPut, "/users/alice", bob, map[string]any{"two_fa_send_to": "attacker@example.com"})
 	assert.Equal(t, http.StatusForbidden, code, out["_raw"])
 	code, out = h.do(t, http.MethodPut, "/users/alice", bob, map[string]any{"groups": []string{"Viewers", "Operators"}})
 	assert.Equal(t, http.StatusNoContent, code, out["_raw"])
@@ -173,6 +193,12 @@ func TestNodeAccountInTwoOrganizations(t *testing.T) {
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Equal(t, []string{"a-web"}, clientNames(t, out))
 
+	// b's sessions and API tokens are gone
+	var left int
+	require.NoError(t, h.db.Owner.Get(&left, `SELECT (SELECT count(*) FROM api_sessions WHERE tenant_id = 'b' AND username = 'alice')
+		+ (SELECT count(*) FROM api_tokens WHERE tenant_id = 'b' AND username = 'alice')`))
+	assert.Zero(t, left)
+
 	// b's session tokens, API token and login fail; after the first failure the login is held back for a while
 	// (user_login_wait), so later ones may answer 429
 	refused := []int{http.StatusUnauthorized, http.StatusTooManyRequests}
@@ -184,6 +210,51 @@ func TestNodeAccountInTwoOrganizations(t *testing.T) {
 	assert.Contains(t, refused, code, out["_raw"])
 	code, data = h.loginAs(t, map[string]string{"username": "alice", "password": testPassword, "organization": "b"})
 	assert.Contains(t, refused, code, data)
+}
+
+// Basic auth with a password names no organization: it works for a login of one organization only.
+func TestNodePasswordBasicAuthNeedsOneOrganization(t *testing.T) {
+	h := startNode(t)
+	code, out := h.basic(t, http.MethodGet, "/me", "alice", testPassword)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+
+	alice, bob := h.login(t, "alice"), h.login(t, "bob")
+	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "alice"})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/me/invitations/b", alice, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	code, out = h.basic(t, http.MethodGet, "/me", "alice", testPassword)
+	assert.Equal(t, http.StatusUnauthorized, code, out["_raw"])
+}
+
+// Accepting needs a session token; an invitation can be declined or withdrawn; the account's last membership takes
+// its pending invitations with it.
+func TestNodeInvitationLifecycle(t *testing.T) {
+	h := startNode(t)
+	alice, bob := h.login(t, "alice"), h.login(t, "bob")
+	code, out := h.do(t, http.MethodPost, "/me/tokens", alice, map[string]string{"scope": "read+write", "name": "ci"})
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	apiToken := out["data"].(map[string]any)["token"].(string)
+
+	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "alice"})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	code, out = h.basic(t, http.MethodPost, "/me/invitations/b", "alice", apiToken)
+	assert.Equal(t, http.StatusForbidden, code, "an API token of a can't join b: %s", out["_raw"])
+
+	code, out = h.do(t, http.MethodDelete, "/me/invitations/b", alice, nil)
+	require.Equal(t, http.StatusNoContent, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/me/invitations/b", alice, nil)
+	assert.Equal(t, http.StatusNotFound, code, "declined: %s", out["_raw"])
+
+	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "alice"})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	code, out = h.do(t, http.MethodDelete, "/organization/invitations/alice", bob, nil)
+	require.Equal(t, http.StatusNoContent, code, out["_raw"])
+	code, out = h.do(t, http.MethodDelete, "/organization/invitations/alice", bob, nil)
+	assert.Equal(t, http.StatusNotFound, code, out["_raw"])
+	code, out = h.do(t, http.MethodGet, "/me/invitations", alice, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, []any{}, out["data"], "withdrawn")
 }
 
 // Inviting a login that has no account creates one with a one-time password; a suspended organization drops out of
@@ -206,10 +277,12 @@ func TestNodeInviteNewLoginAndSuspendedOrganization(t *testing.T) {
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Equal(t, []string{"b-web"}, clientNames(t, out))
 
-	// alice (admin of a) adds dave to a: a's admins invite by login; dave picks between a and b
+	// alice (admin of a) invites dave to a; he accepts and then picks between a and b
 	alice := h.login(t, "alice")
 	code, out = h.do(t, http.MethodPost, "/organization/members", alice, map[string]any{"username": "dave@example.com", "groups": []string{"Administrators"}})
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/me/invitations/a", dave, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
 	code, data = h.loginAs(t, map[string]string{"username": "dave@example.com", "password": "dave's own long password"})
 	require.Equal(t, http.StatusOK, code, data)
 	assert.Equal(t, []string{"a", "b"}, orgIDs(t, data["organizations"]))
@@ -221,14 +294,18 @@ func TestNodeInviteNewLoginAndSuspendedOrganization(t *testing.T) {
 	code, data = h.loginAs(t, map[string]string{"username": "dave@example.com", "password": "dave's own long password"})
 	require.Equal(t, http.StatusOK, code, data)
 	assert.NotContains(t, data, "organizations")
-	code, out = h.do(t, http.MethodGet, "/clients", data["token"].(string), nil)
+	daveB := data["token"].(string)
+	code, out = h.do(t, http.MethodGet, "/clients", daveB, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Equal(t, []string{"b-web"}, clientNames(t, out))
+	// he can't switch into the suspended organization
+	code, out = h.do(t, http.MethodPost, "/me/organization", daveB, map[string]string{"organization": "a"})
+	assert.Equal(t, http.StatusForbidden, code, out["_raw"])
 
-	// the operator adds an existing account as an admin: no password, it keeps its own
+	// the operator adds an existing account as an admin: an invitation, no password; it keeps its own
 	code, out = h.do(t, http.MethodPost, "/operator/organizations/b/admins", op, map[string]any{"username": "alice"})
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
-	assert.Equal(t, map[string]any{"organization": "b", "username": "alice", "new_account": false, "password_expired": false}, out["data"])
-	code, out = h.do(t, http.MethodPost, "/operator/organizations/b/admins", op, map[string]any{"username": "alice"})
-	assert.Equal(t, http.StatusConflict, code, out["_raw"])
+	assert.Equal(t, map[string]any{"organization": "b", "username": "alice", "new_account": false, "password_expired": false, "pending": true}, out["data"])
+	code, out = h.do(t, http.MethodPost, "/operator/organizations/b/admins", op, map[string]any{"username": "dave@example.com"})
+	assert.Equal(t, http.StatusConflict, code, "a member already: %s", out["_raw"])
 }

@@ -14,3 +14,6 @@ properties:
   password_expired:
     type: boolean
     description: True for a new account; the first login sets a new password
+  pending:
+    type: boolean
+    description: True for an existing account; it becomes a member when its owner accepts the invitation

@@ -23,30 +23,53 @@ func TestAccountSharedByMemberships(t *testing.T) {
 	a, b := repotest.Ctx(repotest.TenantA), repotest.Ctx(repotest.TenantB)
 	require.NoError(t, s.Add(a, &users.User{Username: "carol", Password: "p1", TwoFASendTo: "a@x", Groups: []string{"Administrators"}}))
 
-	// joining needs the existing account
-	assert.ErrorIs(t, s.AddMember(b, &users.User{Username: "nobody"}), ErrNoAccount)
-	require.NoError(t, s.AddMember(b, &users.User{Username: "carol", Password: "ignored", TwoFASendTo: "b@x", Groups: []string{"Viewers"}}))
-	assert.ErrorIs(t, s.AddMember(b, &users.User{Username: "carol"}), ErrAlreadyMember)
+	// b invites the existing account; it joins only when its owner accepts
+	assert.ErrorIs(t, s.Invite(b, "nobody", nil, "bob"), ErrNoAccount)
+	assert.ErrorIs(t, s.Invite(a, "carol", nil, "alice"), ErrAlreadyMember)
+	require.NoError(t, s.Invite(b, "carol", []string{"Operators"}, "bob"))
+	require.NoError(t, s.Invite(b, "carol", []string{"Viewers"}, "bob"), "a new invitation replaces the old one")
+	ub, err := s.GetByUsername(b, "carol")
+	require.NoError(t, err)
+	assert.Nil(t, ub, "not a member before accepting")
+	invs, err := s.Invitations(context.Background(), "carol")
+	require.NoError(t, err)
+	require.Len(t, invs, 1)
+	assert.Equal(t, "b", invs[0].TenantID)
+	assert.Equal(t, "bob", invs[0].InvitedBy)
+	pending, err := s.PendingInvitations(b)
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
+	assert.Equal(t, []string{"Viewers"}, pending[0].Groups)
+	pending, err = s.PendingInvitations(a)
+	require.NoError(t, err)
+	assert.Empty(t, pending, "invitations are the inviting tenant's")
+	assert.ErrorIs(t, s.AcceptInvitation(a, "carol"), ErrNoInvitation)
+	require.NoError(t, s.AcceptInvitation(b, "carol"))
+	assert.ErrorIs(t, s.AcceptInvitation(b, "carol"), ErrNoInvitation, "accepted once")
+	invs, err = s.Invitations(context.Background(), "carol")
+	require.NoError(t, err)
+	assert.Empty(t, invs)
 
-	// one credential, groups and 2FA address per organization
+	// one credential and 2FA address, groups per organization
 	ua, err := s.GetByUsername(a, "carol")
 	require.NoError(t, err)
-	ub, err := s.GetByUsername(b, "carol")
+	ub, err = s.GetByUsername(b, "carol")
 	require.NoError(t, err)
 	require.NotNil(t, ub)
 	assert.Equal(t, "p1", ub.Password)
 	assert.Equal(t, []string{"Administrators"}, ua.Groups)
 	assert.Equal(t, []string{"Viewers"}, ub.Groups)
 	assert.Equal(t, "a@x", ua.TwoFASendTo)
-	assert.Equal(t, "b@x", ub.TwoFASendTo)
+	assert.Equal(t, "a@x", ub.TwoFASendTo)
 
 	// a credential change in one organization is the account's
-	require.NoError(t, s.Update(b, &users.User{Password: "p2", PasswordExpired: users.PasswordExpired(true), TotP: "secret"}, "carol"))
+	require.NoError(t, s.Update(b, &users.User{Password: "p2", PasswordExpired: users.PasswordExpired(true), TotP: "secret", TwoFASendTo: "new@x"}, "carol"))
 	ua, err = s.GetByUsername(a, "carol")
 	require.NoError(t, err)
 	assert.Equal(t, "p2", ua.Password)
 	assert.True(t, *ua.PasswordExpired)
 	assert.Equal(t, "secret", ua.TotP)
+	assert.Equal(t, "new@x", ua.TwoFASendTo)
 	require.NoError(t, s.Update(a, &users.User{PasswordExpired: users.PasswordExpired(false)}, "carol"))
 	ub, err = s.GetByUsername(b, "carol")
 	require.NoError(t, err)
@@ -104,28 +127,39 @@ func TestAccountSharedByMemberships(t *testing.T) {
 	require.NoError(t, s.Add(b, &users.User{Username: "caroline", Password: "fresh"}))
 }
 
-func TestRememberOrganization(t *testing.T) {
+// The application role sees the accounts of the transaction's tenant's members only.
+func TestAccountsVisibleToTheirTenantsOnly(t *testing.T) {
 	s, d := newStore(t)
-	a, b := repotest.Ctx(repotest.TenantA), repotest.Ctx(repotest.TenantB)
+	a := repotest.Ctx(repotest.TenantA)
 	require.NoError(t, s.Add(a, &users.User{Username: "carol", Password: "p"}))
-	require.NoError(t, s.Remember(b, "carol"), "not a member of b: nothing happens")
-	last := func() *string {
-		var v *string
-		require.NoError(t, d.Owner.Get(&v, "SELECT last_tenant_id FROM accounts WHERE username = 'carol'"))
-		return v
+	count := func(id tenant.ID) int {
+		var n int
+		require.NoError(t, postgres.InTenantID(context.Background(), d.App, id, func(tx *sqlx.Tx) error {
+			return tx.Get(&n, "SELECT count(*) FROM accounts")
+		}))
+		return n
 	}
-	assert.Nil(t, last())
-	require.NoError(t, s.AddMember(b, &users.User{Username: "carol"}))
-	require.NoError(t, s.Remember(b, "carol"))
-	require.NotNil(t, last())
-	assert.Equal(t, "b", *last())
+	assert.Equal(t, 1, count(repotest.TenantA))
+	assert.Equal(t, 0, count(repotest.TenantB))
+	exists, err := s.AccountExists(context.Background(), "carol")
+	require.NoError(t, err)
+	assert.True(t, exists, "through rport_account_exists")
+
+	// the last membership takes its pending invitations with it: the next owner of the name doesn't inherit them
+	require.NoError(t, s.Invite(repotest.Ctx(repotest.TenantB), "carol", []string{"Administrators"}, "bob"))
+	require.NoError(t, s.Delete(a, "carol"))
+	require.NoError(t, s.Add(a, &users.User{Username: "carol", Password: "someone else"}))
+	invs, err := s.Invitations(context.Background(), "carol")
+	require.NoError(t, err)
+	assert.Empty(t, invs)
 }
 
 func TestAccountFunctionsRefuseDeviceRole(t *testing.T) {
 	s, d := newStore(t)
 	a := repotest.Ctx(repotest.TenantA)
 	require.NoError(t, s.Add(a, &users.User{Username: "carol", Password: "p"}))
-	for _, q := range []string{"SELECT rport_set_account('carol', 'x', NULL, NULL)", "SELECT rport_remember_tenant('carol')"} {
+	for _, q := range []string{"SELECT rport_set_account('carol', 'x', NULL, NULL, NULL)", "SELECT rport_account_exists('carol')",
+		"SELECT rport_invite('carol', '[]', 'x')", "SELECT * FROM rport_invitations_of('carol')"} {
 		err := postgres.InTenantID(context.Background(), d.Device, repotest.TenantA, func(tx *sqlx.Tx) error {
 			_, err := tx.Exec(q)
 			return err
@@ -202,7 +236,7 @@ func TestAccountsMigrationBackfill(t *testing.T) {
 	assert.Equal(t, "old@x", u.TwoFASendTo)
 	assert.Equal(t, []string{"Administrators"}, u.Groups)
 	var stale int
-	require.NoError(t, d.Owner.Get(&stale, "SELECT count(*) FROM users WHERE password <> '' OR totp_secret <> '' OR password_expired"))
+	require.NoError(t, d.Owner.Get(&stale, "SELECT count(*) FROM users WHERE password <> '' OR totp_secret <> '' OR password_expired OR two_fa_send_to <> ''"))
 	assert.Zero(t, stale, "one copy of the credential: the account's")
 	var token string
 	require.NoError(t, d.Owner.Get(&token, "SELECT tenant_id FROM api_token_logins WHERE username = 'old' AND prefix = 'pfx1'"))

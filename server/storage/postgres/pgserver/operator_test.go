@@ -244,11 +244,15 @@ func TestOperatorAddAdmin(t *testing.T) {
 
 	_, err = o.AddAdmin(ctx, ops, "acme", operator.NewAdmin{Username: "alice@example.com"})
 	assert.ErrorIs(t, err, operator.ErrExists)
-	// an existing account joins another organization with its own password
+	// an existing account is invited, and joins with its own password when its owner accepts
 	joined, err := o.AddAdmin(ctx, ops, "default", operator.NewAdmin{Username: "alice@example.com"})
 	require.NoError(t, err)
-	assert.Equal(t, operator.Admin{Organization: "default", Username: "alice@example.com"}, *joined)
+	assert.Equal(t, operator.Admin{Organization: "default", Username: "alice@example.com", Pending: true}, *joined)
 	ud, err := pgusers.New(d.App).GetByUsername(tenant.WithID(ctx, "default"), "alice@example.com")
+	require.NoError(t, err)
+	assert.Nil(t, ud, "not a member before accepting")
+	require.NoError(t, pgusers.New(d.App).AcceptInvitation(tenant.WithID(ctx, "default"), "alice@example.com"))
+	ud, err = pgusers.New(d.App).GetByUsername(tenant.WithID(ctx, "default"), "alice@example.com")
 	require.NoError(t, err)
 	require.NotNil(t, ud)
 	assert.Equal(t, u.Password, ud.Password, "one credential")
