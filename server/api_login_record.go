@@ -32,8 +32,12 @@ func (al *APIListener) loginSucceeded(ctx context.Context, username string) {
 }
 
 // auditLogin writes a password sign-in of username to the audit log (action success or failed). Only metadata: the
-// login, the address and the outcome.
+// login, the address and the outcome. Only where sign-ins are recorded (Postgres): standalone audit logs stay as
+// they were.
 func (al *APIListener) auditLogin(req *http.Request, username, action string) {
+	if al.loginRecorder == nil {
+		return
+	}
 	al.auditLog.Entry(auditApplicationLogin, action).WithHTTPRequest(req.WithContext(api.WithUser(req.Context(), username))).WithID(username).Save()
 }
 
