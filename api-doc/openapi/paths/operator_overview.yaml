@@ -1,0 +1,36 @@
+get:
+  tags:
+    - Operator
+  summary: Return the platform overview. Platform operators only
+  description: >-
+    Tiles, what needs attention and the last 30 days of the console's home page, computed in a fixed number of
+    queries. Metadata only.
+  operationId: OperatorOverviewGet
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/OperatorOverview.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization, or the organization does not exist
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

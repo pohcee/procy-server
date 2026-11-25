@@ -105,6 +105,8 @@ func oidcCallWith(t *testing.T, c *http.Client, method, u, token string, body an
 func TestOIDCStandaloneHappyPath(t *testing.T) {
 	f := startOIDCServer(t)
 	f.fake.SignInAs(oidcfake.User{Subject: "google-ann", Email: "Ann@Example.com", EmailVerified: true})
+	rec := &fakeLoginRecorder{}
+	f.srv.apiListener.loginRecorder = rec
 
 	// the login page learns about the button; no secrets
 	code, out := oidcCall(t, http.MethodGet, f.base+"/api/v1/auth/provider", "", nil)
@@ -131,6 +133,9 @@ func TestOIDCStandaloneHappyPath(t *testing.T) {
 	token, _ := data["token"].(string)
 	require.NotEmpty(t, token)
 	assert.Nil(t, data["two_fa"], "no TOTP after an OIDC sign-in")
+	rec.mu.Lock()
+	assert.Equal(t, []string{"default/" + oidcTestUser}, rec.logins, "the OIDC sign-in is recorded")
+	rec.mu.Unlock()
 
 	code, out = oidcCall(t, http.MethodGet, f.base+"/api/v1/me", token, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])

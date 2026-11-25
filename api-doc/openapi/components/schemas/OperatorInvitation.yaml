@@ -1,0 +1,11 @@
+type: object
+description: An organization's pending invitation of an existing account
+properties:
+  organization: {type: string}
+  organization_name: {type: string}
+  username: {type: string}
+  groups:
+    type: array
+    items: {type: string}
+  invited_by: {type: string, description: "The inviting login, or operator:<login>"}
+  created_at: {type: string, format: date-time}

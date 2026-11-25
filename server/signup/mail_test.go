@@ -22,6 +22,7 @@ func TestApprovalMails(t *testing.T) {
 	assert.Equal(t, `New signup waiting: "Acme"`, n.subject)
 	assert.Contains(t, n.body, "Mail server:  NO")
 	assert.Contains(t, n.body, "Google sign-in")
+	assert.Contains(t, n.body, "https://ui.example/operator/signups\n")
 	assert.Contains(t, notifyMail("https://ui.example", &Signup{Domain: "gmail.com"}, true).body, "gmail.com (free mail)")
 	assert.Contains(t, notifyMail("https://ui.example", &Signup{}, false).body, "not checked")
 }

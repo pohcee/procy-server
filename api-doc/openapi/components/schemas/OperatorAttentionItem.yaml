@@ -1,0 +1,31 @@
+type: object
+description: Something a platform operator should look at
+properties:
+  kind:
+    type: string
+    enum: [device_limit, transfer_cap, trial_ending, devices_drop, signup_waiting]
+    description: >-
+      device_limit: at least 90 % of the device limit (critical at or over it); transfer_cap: billing transfer state soft
+      (warning), over or capped (critical); trial_ending: a trial ends within 3 days (warning) or ended without a payment
+      method (critical); devices_drop: online now at most half of yesterday's daily device count (yesterday at least 2);
+      signup_waiting: signups waiting for approval for more than 24 h
+  severity:
+    type: string
+    enum: [critical, warning]
+  organization:
+    type: object
+    description: Absent for platform-wide items
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+  message:
+    type: string
+    example: 9 of 10 devices
+  value:
+    type: integer
+    description: device_limit, devices_drop (online now), signup_waiting (how many)
+  limit:
+    type: integer
+    description: device_limit (the limit), devices_drop (yesterday's count)

@@ -1,0 +1,39 @@
+type: object
+description: >-
+  An organization's usage report with every period of the range present (zero-filled), and in, out and devices
+  added to each period and to the totals. Without usage metering only `{"metering": false, "periods": []}`.
+properties:
+  metering:
+    type: boolean
+  from: {type: string, format: date-time}
+  to: {type: string, format: date-time}
+  granularity: {type: string, enum: [hour, day]}
+  periods:
+    type: array
+    items:
+      allOf:
+        - type: object
+          properties:
+            start: {type: string, format: date-time}
+            in: {type: integer, format: int64}
+            out: {type: integer, format: int64}
+            devices: {type: integer, description: The daily device count (day) or devices_peak (hour)}
+        - $ref: ./UsageTotals.yaml
+  totals:
+    allOf:
+      - type: object
+        properties:
+          in: {type: integer, format: int64}
+          out: {type: integer, format: int64}
+          devices: {type: integer, description: The highest of the periods}
+      - $ref: ./UsageTotals.yaml
+  top_devices:
+    type: array
+    items:
+      type: object
+      properties:
+        client_id: {type: string}
+        tunnel_bytes_to_user: {type: integer}
+        tunnel_bytes_to_device: {type: integer}
+        upload_bytes_to_devices: {type: integer}
+        transfer_bytes: {type: integer}

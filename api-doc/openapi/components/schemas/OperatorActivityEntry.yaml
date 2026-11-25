@@ -1,0 +1,14 @@
+type: object
+description: The metadata of an audit log entry (never its request or response)
+properties:
+  id: {type: integer, format: int64}
+  timestamp: {type: string, format: date-time}
+  source:
+    type: string
+    enum: [organization, operator]
+    description: The organization's own audit log, or an operator's entry about it
+  application: {type: string}
+  action: {type: string}
+  username: {type: string}
+  remote_ip: {type: string}
+  affected_id: {type: string}

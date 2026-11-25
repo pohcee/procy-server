@@ -19,8 +19,8 @@ const (
 	ConfirmEmailPath   = "/auth/confirm-email"
 	// SignInPath is the web UI's sign-in page.
 	SignInPath = "/auth"
-	// OperatorQueuePath is the operators' signup queue (the "New signup waiting" email links it).
-	OperatorQueuePath = "/signups"
+	// OperatorQueuePath is the operator console's signup queue (the "New signup waiting" email links it).
+	OperatorQueuePath = "/operator/signups"
 )
 
 // SMTPMailer sends through the server's [smtp] settings, the mailer of the email notifications.

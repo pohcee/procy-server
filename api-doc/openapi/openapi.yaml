@@ -124,6 +124,20 @@ paths:
     $ref: paths/operator_organizations_{id}_sign-in.yaml
   /operator/organizations/{id}/usage:
     $ref: paths/operator_organizations_{id}_usage.yaml
+  /operator/overview:
+    $ref: paths/operator_overview.yaml
+  /operator/organizations/{id}/stats:
+    $ref: paths/operator_organizations_{id}_stats.yaml
+  /operator/organizations/{id}/devices:
+    $ref: paths/operator_organizations_{id}_devices.yaml
+  /operator/organizations/{id}/activity:
+    $ref: paths/operator_organizations_{id}_activity.yaml
+  /operator/invitations:
+    $ref: paths/operator_invitations.yaml
+  /operator/organizations/{id}/invitations/{username}:
+    $ref: paths/operator_organizations_{id}_invitations_{username}.yaml
+  /operator/organizations/{id}/invitations/{username}/resend:
+    $ref: paths/operator_organizations_{id}_invitations_{username}_resend.yaml
   /operator/usage:
     $ref: paths/operator_usage.yaml
   /operator/billing:

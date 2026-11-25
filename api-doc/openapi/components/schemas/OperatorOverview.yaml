@@ -1,0 +1,60 @@
+type: object
+description: The platform overview of the operator console
+properties:
+  generated_at:
+    type: string
+    format: date-time
+  organizations:
+    type: object
+    properties:
+      total: {type: integer}
+      active: {type: integer}
+      suspended: {type: integer}
+      trial: {type: integer, description: On billing status trial (0 without billing)}
+  devices:
+    type: object
+    properties:
+      online:
+        type: integer
+        description: A live session, or a client record that is connected
+      total:
+        type: integer
+        description: As the device limits count them
+  metering:
+    type: boolean
+    description: Usage metering is on; without it transfer and series are null
+  transfer:
+    type: object
+    nullable: true
+    properties:
+      last_24h:
+        $ref: ./OperatorTransfer.yaml
+      last_30d:
+        $ref: ./OperatorTransfer.yaml
+  signups_awaiting:
+    type: integer
+    nullable: true
+    description: Signups awaiting approval; null without signup
+  oldest_signup_waiting_since:
+    type: string
+    format: date-time
+    nullable: true
+  invitations_pending:
+    type: integer
+    description: Pending invitations of organizations
+  attention:
+    type: array
+    description: Most severe first
+    items:
+      $ref: ./OperatorAttentionItem.yaml
+  series:
+    type: array
+    nullable: true
+    description: The last 30 UTC days, oldest first, every day present (zero-filled)
+    items:
+      type: object
+      properties:
+        day: {type: string, format: date}
+        in: {type: integer, format: int64}
+        out: {type: integer, format: int64}
+        devices: {type: integer, description: Devices that had a session that day}

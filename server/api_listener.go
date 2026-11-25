@@ -125,6 +125,8 @@ type APIListenerOptions struct {
 	SignInPolicies oidc.Policies
 	// OIDCClient, when set, is the HTTP client OIDC sign-in reaches the provider with (tests).
 	OIDCClient *http.Client
+	// LoginRecorder, when set (Postgres), records when members last signed in.
+	LoginRecorder LoginRecorder
 }
 
 // apiServices holds the options under the names the handler code uses.
@@ -172,7 +174,9 @@ type APIListener struct {
 	oidcLogin *oidcLogin
 	// signInPolicies stores the sign-in policy; nil: standalone
 	signInPolicies oidc.Policies
-	policyCache    signInPolicyCache
+	// loginRecorder records full sign-ins; nil: standalone
+	loginRecorder LoginRecorder
+	policyCache   signInPolicyCache
 
 	fingerprint       string
 	apiSessions       *session.Cache
@@ -346,6 +350,7 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		meter:                  o.Meter,
 		billing:                o.Billing,
 		signInPolicies:         o.SignInPolicies,
+		loginRecorder:          o.LoginRecorder,
 	}
 	if err := a.initOIDC(repos, o.OIDCClient); err != nil {
 		return nil, err
@@ -363,7 +368,7 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 			ob, plans = o.Billing.Operator, o.Billing.Plans
 		}
 		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, Billing: ob, Plans: plans, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts,
-			OIDCEnabled: a.oidcLogin != nil})
+			OIDCEnabled: a.oidcLogin != nil, Signup: o.Signup != nil})
 	}
 
 	logGroupPermissionsNotice(userService, a.Logger)

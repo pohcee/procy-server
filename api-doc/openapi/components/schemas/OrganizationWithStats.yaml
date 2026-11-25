@@ -1,0 +1,24 @@
+description: An organization of the list with stats (GET /operator/organizations?stats=)
+allOf:
+  - $ref: ./Organization.yaml
+  - type: object
+    properties:
+      stats:
+        type: object
+        properties:
+          devices_online: {type: integer}
+          transfer_in: {type: integer, format: int64, nullable: true, description: Over the range; null without usage metering}
+          transfer_out: {type: integer, format: int64, nullable: true}
+          jobs: {type: integer, format: int64, nullable: true}
+          last_device_at: {type: string, format: date-time, nullable: true, description: The newest device connect or disconnect}
+          last_login_at: {type: string, format: date-time, nullable: true, description: The newest member sign-in}
+          last_activity_at: {type: string, format: date-time, nullable: true, description: The later of the two}
+          source: {type: string, enum: [signup, operator]}
+      billing:
+        type: object
+        description: With billing only
+        properties:
+          plan: {type: string}
+          status: {type: string}
+          transfer_state: {type: string, enum: [normal, soft, over, capped]}
+          trial_ends_at: {type: string, format: date-time, nullable: true}

@@ -6,6 +6,15 @@ get:
     Every organization of the server, oldest first, with its device and user counts. Available on Postgres
     servers to administrators of the system organization `_system`.
   operationId: OperatorOrganizationsGet
+  parameters:
+    - name: stats
+      in: query
+      description: >-
+        Add each organization's stats over the range ending now (and its billing summary with billing); the items are
+        then OrganizationWithStats
+      schema:
+        type: string
+        enum: [7d, 30d, 90d]
   responses:
     '200':
       description: Successful Operation
@@ -17,7 +26,9 @@ get:
               data:
                 type: array
                 items:
-                  $ref: ../components/schemas/Organization.yaml
+                  oneOf:
+                    - $ref: ../components/schemas/Organization.yaml
+                    - $ref: ../components/schemas/OrganizationWithStats.yaml
     '401':
       description: Not authenticated
       content:

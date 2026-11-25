@@ -181,6 +181,8 @@ type ServerOpts struct {
 	Signup *signup.Service
 	// SignInPolicies, when set (Postgres), stores the sign-in policy of memberships and organizations ([oidc]).
 	SignInPolicies oidc.Policies
+	// LoginRecorder, when set (Postgres), records when members last signed in (the operator console).
+	LoginRecorder LoginRecorder
 }
 
 // NewServer creates and returns a new rport server
@@ -420,6 +422,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		Usage:          usageReader(opts.Metering),
 		Signup:         opts.Signup,
 		SignInPolicies: opts.SignInPolicies,
+		LoginRecorder:  opts.LoginRecorder,
 		Meter:          s.meter,
 		Billing:        s.billingAPI(opts.Billing),
 		// in a cluster old notifications are deleted per tenant by a leased task (Run)

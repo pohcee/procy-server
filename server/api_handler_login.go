@@ -12,6 +12,7 @@ import (
 	"github.com/openrport/openrport/server/api"
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/server/auditlog"
 	"github.com/openrport/openrport/server/bearer"
 	"github.com/openrport/openrport/server/membership"
 	chshare "github.com/openrport/openrport/share"
@@ -140,6 +141,10 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 	}
 
 	if !authorized {
+		if user != nil {
+			// a wrong password of a login of this tenant; unknown logins are not audited
+			al.auditLogin(req, username, auditlog.ActionFailed)
+		}
 		al.banUser(req.Context(), username)
 		al.jsonErrorResponseWithTitle(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -281,6 +286,7 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
 	}
+	al.passwordLoginSucceeded(req, username)
 
 	al.writeLoginResponse(w, req, username, loginResponse{Token: &tokenStr})
 }
@@ -307,6 +313,7 @@ func (al *APIListener) sendJWTToken(username string, w http.ResponseWriter, req 
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return
 	}
+	al.passwordLoginSucceeded(req, username)
 
 	al.writeLoginResponse(w, req, username, loginResponse{Token: &tokenStr})
 }

@@ -1,0 +1,75 @@
+get:
+  tags:
+    - Operator
+  summary: List an organization's activity. Platform operators only
+  description: >-
+    The organization's audit log and the operators' entries about it, newest first, metadata only (never the request
+    or response). `next` is the cursor of the next page (`before`), null on the last page.
+  operationId: OperatorOrganizationActivityGet
+  parameters:
+    - name: id
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+    - name: kind
+      in: query
+      description: >-
+        sign_in: auth.login and auth.oidc; admin: everything but sign-ins and work on devices (client.command,
+        client.script, client.tunnel, library.*, schedule, uploads)
+      schema:
+        type: string
+        enum: [all, sign_in, admin]
+        default: all
+    - name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    - name: before
+      in: query
+      description: The `next` cursor of the previous page
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/OperatorActivityEntry.yaml
+              next:
+                type: string
+                nullable: true
+    '400':
+      description: Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization, or the organization does not exist
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

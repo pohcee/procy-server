@@ -143,6 +143,7 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 	opts.Operator = NewOperator(db, cfg)
 	opts.Memberships = NewMemberships(db, cfg)
 	opts.SignInPolicies = pgoidc.New(db)
+	opts.LoginRecorder = NewLoginRecorder(db)
 	// every repository is injected; refuse rather than create any SQLite file
 	opts.SkipMigrations = true
 	if cfg.Storage.Role == chconfig.StorageRoleAPI {

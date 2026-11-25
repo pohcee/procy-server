@@ -1,0 +1,11 @@
+type: object
+description: >-
+  Bytes to the devices (`in`: tunnel_bytes_to_device + upload_bytes_to_devices) and from them (`out`:
+  tunnel_bytes_to_user + api_bytes_out)
+properties:
+  in:
+    type: integer
+    format: int64
+  out:
+    type: integer
+    format: int64

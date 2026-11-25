@@ -25,7 +25,7 @@ const RoutePrefix = "/operator"
 // maxBody bounds the JSON bodies of the operator API.
 const maxBody = 64 << 10
 
-// Options are the handler's dependencies; every field is required except Usage.
+// Options are the handler's dependencies; Usage, Billing, Plans, Mounts, OIDCEnabled and Signup are optional.
 type Options struct {
 	Service Service
 	// Usage, when set (usage metering on), serves the usage routes.
@@ -41,6 +41,8 @@ type Options struct {
 	Mounts []func(r *mux.Router)
 	// OIDCEnabled: [oidc] sign-in is enabled (an organization may require it only then).
 	OIDCEnabled bool
+	// Signup: [signup] is enabled (the overview counts the signups awaiting approval).
+	Signup bool
 }
 
 // Handler serves the operator API.
@@ -53,12 +55,13 @@ type Handler struct {
 	respond     *api.Responder
 	mounts      []func(r *mux.Router)
 	oidcEnabled bool
+	signup      bool
 }
 
 // NewHandler returns the operator API handler.
 func NewHandler(o Options) *Handler {
 	return &Handler{svc: o.Service, usage: o.Usage, billing: o.Billing, plans: o.Plans, currentUser: o.CurrentUser, respond: o.Respond, mounts: o.Mounts,
-		oidcEnabled: o.OIDCEnabled}
+		oidcEnabled: o.OIDCEnabled, signup: o.Signup}
 }
 
 // Mount registers the operator routes on r, a router for RoutePrefix behind authentication.
@@ -73,6 +76,7 @@ func (h *Handler) Mount(r *mux.Router) {
 	r.HandleFunc("/organizations/{id}/admins", h.addAdmin).Methods(http.MethodPost)
 	r.HandleFunc("/organizations/{id}/members", h.members).Methods(http.MethodGet)
 	r.HandleFunc("/organizations/{id}/sign-in", h.setSignIn).Methods(http.MethodPut)
+	h.mountConsole(r)
 	if h.usage != nil {
 		r.HandleFunc("/organizations/{id}/usage", h.organizationUsage).Methods(http.MethodGet)
 		r.HandleFunc("/usage", h.usageSummary).Methods(http.MethodGet)
@@ -127,6 +131,10 @@ func actor(r *http.Request) Actor {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+	if rng := r.URL.Query().Get("stats"); rng != "" {
+		h.listWithStats(w, r, rng)
+		return
+	}
 	orgs, err := h.svc.List(r.Context())
 	if err != nil {
 		h.fail(w, err)
@@ -247,7 +255,7 @@ func (h *Handler) fail(w http.ResponseWriter, err error) {
 		status = http.StatusConflict
 	case errors.Is(err, ErrNotActive), errors.Is(err, ErrLastAdmin):
 		status = http.StatusConflict
-	case errors.Is(err, ErrNotMember):
+	case errors.Is(err, ErrNotMember), errors.Is(err, ErrNoInvitation):
 		status = http.StatusNotFound
 	case errors.Is(err, ErrInvalid):
 		status = http.StatusBadRequest

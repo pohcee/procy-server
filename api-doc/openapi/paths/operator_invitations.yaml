@@ -1,0 +1,42 @@
+get:
+  tags:
+    - Operator
+  summary: List the pending invitations of organizations. Platform operators only
+  description: Newest first. Invitations of the system organization are not listed.
+  operationId: OperatorInvitationsGet
+  parameters:
+    - name: organization
+      in: query
+      description: Only this organization's
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/OperatorInvitation.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization, or the organization does not exist
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

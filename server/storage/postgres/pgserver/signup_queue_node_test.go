@@ -48,7 +48,7 @@ func TestSignupQueueNotifyAndNotice(t *testing.T) {
 	id := requestAndVerify(t, h, sink, op, "fay@acme.example", "Acme")
 	n := sink.last(t, "ops@example.com")
 	assert.Equal(t, `New signup waiting: "Acme"`, n.subject)
-	for _, want := range []string{"fay@acme.example", "acme.example", "Mail server:  yes", "the emailed link", "https://ui.example/signups"} {
+	for _, want := range []string{"fay@acme.example", "acme.example", "Mail server:  yes", "the emailed link", "https://ui.example/operator/signups"} {
 		assert.Contains(t, n.body, want)
 	}
 	assert.NotContains(t, n.body, signupNotice, "the operators' email has no notice")

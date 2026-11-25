@@ -1,0 +1,31 @@
+type: object
+description: >-
+  An organization's devices as its device limit counts them. Metadata only: name, version and OS from the stored
+  document, the node and session times from the session registry; no addresses, tags, labels or attributes.
+properties:
+  total: {type: integer}
+  online: {type: integer}
+  devices:
+    type: array
+    description: Online first, then by name
+    items:
+      type: object
+      properties:
+        id: {type: string}
+        name: {type: string}
+        online: {type: boolean}
+        node_id: {type: string, nullable: true, description: The node of the live session}
+        version: {type: string}
+        os: {type: string, example: Ubuntu 24.04}
+        os_family: {type: string}
+        connected_at: {type: string, format: date-time, nullable: true}
+        last_seen_at: {type: string, format: date-time, nullable: true, description: "Now when online, else when it disconnected"}
+        first_seen_at: {type: string, format: date-time, nullable: true}
+  by_version:
+    type: array
+    items:
+      $ref: ./OperatorValueCount.yaml
+  by_os:
+    type: array
+    items:
+      $ref: ./OperatorValueCount.yaml
