@@ -57,7 +57,7 @@ func BillingProvider(cfg *chconfig.Config, db *sqlx.DB, plans *billing.Plans, op
 		FreePlan:    plans.Free,
 		Records:     billingprovider.Records{Store: store},
 		Periods:     billingprovider.Periods{Operator: &pgbilling.Operator{DB: db, Plans: plans}},
-		Sync:        billingprovider.Sync{DB: db, FreePlan: plans.Free, By: "billing:" + p.Name()},
+		Sync:        billingprovider.Sync{DB: db, FreePlan: plans.Free, Plans: plans, By: "billing:" + p.Name()},
 		Suspender:   susp,
 		Dunning: billing.DunningPolicy{
 			Grace:    time.Duration(cfg.Billing.GraceDays) * 24 * time.Hour,

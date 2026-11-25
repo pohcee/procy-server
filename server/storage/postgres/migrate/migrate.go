@@ -319,7 +319,9 @@ var BillingProviderFunctions = []string{
 	"rport_billing_put_report(text, jsonb)",
 	"rport_billing_reports(timestamptz)",
 	"rport_billing_claim_dunning_notice(text, text, text)",
+	// the 7-argument form (migration 1500) is kept for processes of the previous release during an upgrade
 	"rport_billing_provider_state(text, text, text, boolean, text, text, text)",
+	"rport_billing_provider_state(text, text, text, boolean, text, integer, text, text)",
 	"rport_billing_period_reported(text, date)",
 }
 
