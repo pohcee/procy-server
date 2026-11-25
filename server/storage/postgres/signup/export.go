@@ -22,7 +22,7 @@ var exportQueries = []struct {
 	name string
 	sql  string
 }{
-	{"users", `SELECT u.username, u.two_fa_send_to,
+	{"users", `SELECT u.username, coalesce((SELECT a.two_fa_send_to FROM accounts a WHERE a.username = u.username), '') AS two_fa_send_to,
 		coalesce((SELECT json_agg(g.group_name ORDER BY g.group_name) FROM user_groups g WHERE g.tenant_id = u.tenant_id AND g.username = u.username), '[]') AS groups
 		FROM users u WHERE u.tenant_id = $1 ORDER BY u.username`},
 	{"user_groups", `SELECT name, permissions::json AS permissions, tunnels_restricted::json AS tunnels_restricted,

@@ -114,7 +114,7 @@ func signupBody(email, org string) map[string]string {
 	return map[string]string{"email": email, "organization": org, "captcha": "solved"}
 }
 
-func (h *nodeFixture) loginAs(t *testing.T, user, password string) (int, string) {
+func (h *nodeFixture) loginPw(t *testing.T, user, password string) (int, string) {
 	t.Helper()
 	code, out := h.do(t, http.MethodPost, "/login", "", map[string]string{"username": user, "password": password})
 	if code != http.StatusOK {
@@ -178,7 +178,7 @@ func TestSignupFullFlow(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
 
 	// the new administrator logs in with the password they chose, in the new organization
-	code, dana := h.loginAs(t, "dana@example.com", signupPassword)
+	code, dana := h.loginPw(t, "dana@example.com", signupPassword)
 	require.Equal(t, http.StatusOK, code)
 	code, out = h.do(t, http.MethodGet, "/me", dana, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
@@ -231,7 +231,7 @@ func TestSignupTokenExpiry(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
 	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": "made-up", "password": signupPassword})
 	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
-	code, _ = h.loginAs(t, "erin@example.com", signupPassword)
+	code, _ = h.loginPw(t, "erin@example.com", signupPassword)
 	assert.Equal(t, http.StatusUnauthorized, code)
 }
 
@@ -294,7 +294,7 @@ func TestSignupRequireApproval(t *testing.T) {
 		require.Equal(t, http.StatusAccepted, code, out["_raw"])
 		assert.Equal(t, "awaiting_approval", data(t, out)["status"])
 	}
-	code, _ := h.loginAs(t, "fay@example.com", signupPassword)
+	code, _ := h.loginPw(t, "fay@example.com", signupPassword)
 	assert.Equal(t, http.StatusUnauthorized, code, "nothing is created before the approval")
 
 	code, out := h.do(t, http.MethodGet, "/operator/signups?status=awaiting_approval", op, nil)
@@ -309,14 +309,14 @@ func TestSignupRequireApproval(t *testing.T) {
 	code, out = h.do(t, http.MethodPost, "/operator/signups/"+ids["fay@example.com"]+"/approve", op, nil)
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
 	assert.Contains(t, sink.last(t, "fay@example.com").subject, "is ready")
-	code, _ = h.loginAs(t, "fay@example.com", signupPassword)
+	code, _ = h.loginPw(t, "fay@example.com", signupPassword)
 	assert.Equal(t, http.StatusOK, code)
 	code, _ = h.do(t, http.MethodPost, "/operator/signups/"+ids["fay@example.com"]+"/approve", op, nil)
 	assert.Equal(t, http.StatusConflict, code, "approved already")
 
 	code, out = h.do(t, http.MethodPost, "/operator/signups/"+ids["gus@example.com"]+"/deny", op, map[string]string{"reason": "spam"})
 	require.Equal(t, http.StatusNoContent, code, out["_raw"])
-	code, _ = h.loginAs(t, "gus@example.com", signupPassword)
+	code, _ = h.loginPw(t, "gus@example.com", signupPassword)
 	assert.Equal(t, http.StatusUnauthorized, code)
 	code, _ = h.do(t, http.MethodPost, "/operator/signups/nope/approve", op, nil)
 	assert.Equal(t, http.StatusNotFound, code)
@@ -330,7 +330,7 @@ func signUp(t *testing.T, h *nodeFixture, sink *mailSink, email string) (string,
 	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": sink.last(t, email).token(t), "password": signupPassword})
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
 	org := data(t, out)["organization"].(string)
-	code, tok := h.loginAs(t, email, signupPassword)
+	code, tok := h.loginPw(t, email, signupPassword)
 	require.Equal(t, http.StatusOK, code)
 	return org, tok
 }
@@ -408,7 +408,7 @@ func TestOrganizationDeletionHoldCancelAndExpedite(t *testing.T) {
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	code, out = h.do(t, http.MethodPost, "/signup/cancel-deletion", "", map[string]string{"token": m.token(t)})
 	assert.Equal(t, http.StatusBadRequest, code, "used: %s", out["_raw"])
-	code, admin = h.loginAs(t, "hal@example.com", signupPassword)
+	code, admin = h.loginPw(t, "hal@example.com", signupPassword)
 	require.Equal(t, http.StatusOK, code, "active again")
 
 	// an operator starts it (the administrators get a notice without a link), cancels it, starts it again and
