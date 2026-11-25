@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -199,7 +200,10 @@ type capture struct {
 
 func (c *capture) NextReader() (int, io.Reader, error) { return 0, nil, io.EOF }
 func (c *capture) ReadMessage() (int, []byte, error)   { return 0, nil, io.EOF }
-func (c *capture) WriteMessage(_ int, b []byte) error {
+func (c *capture) WriteMessage(t int, b []byte) error {
+	if t == websocket.CloseMessage {
+		return nil // the end of the stream
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.writes = append(c.writes, "final:"+string(b))
@@ -299,6 +303,14 @@ func TestPeerErrorsKeepTheirMeaning(t *testing.T) {
 	var ae errors2.APIError
 	require.ErrorAs(t, err, &ae)
 	assert.Equal(t, http.StatusConflict, ae.HTTPStatus)
+
+	// the device process's refusal at the transfer limit keeps its 403 and code
+	pr.local.err = errors2.APIError{Message: "transfer limit reached", HTTPStatus: http.StatusForbidden, ErrCode: "ERR_CODE_TRANSFER_LIMIT"}
+	_, err = pr.dispatcher.StartTunnels(ctxA(), "c1", []*models.Remote{{RemoteHost: "127.0.0.1", RemotePort: "22"}})
+	require.ErrorAs(t, err, &ae)
+	assert.Equal(t, http.StatusForbidden, ae.HTTPStatus)
+	assert.Equal(t, "ERR_CODE_TRANSFER_LIMIT", ae.ErrCode)
+	assert.Equal(t, "transfer limit reached", ae.Message)
 
 	pr.local.err = nil
 	tunnels, err := pr.dispatcher.StartTunnels(ctxA(), "c1", []*models.Remote{{RemoteHost: "127.0.0.1", RemotePort: "22"}})
@@ -546,4 +558,51 @@ func TestSequentialRunGetsStoredResultWhenStreamBreaks(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the sequential run was not signaled")
 	}
+}
+
+// A burst of output larger than the relay's buffer waits for the reader instead of being dropped.
+func TestRelayKeepsBurstsOfOutput(t *testing.T) {
+	streams := ws.NewWebSocketCache()
+	r := newRelay(&streams, testLog)
+	sink, closeRelay := r.open("multi", "j1")
+	defer closeRelay()
+	const n = 1000
+	go func() {
+		s := streams.Get("multi")
+		for i := 0; i < n; i++ {
+			_ = s.WriteNonFinalJSON(map[string]any{"jid": "j1", "i": i})
+		}
+	}()
+	for i := 0; i < n; i++ {
+		select {
+		case m := <-sink.ch:
+			var got struct{ I int }
+			require.NoError(t, json.Unmarshal(m.data, &got))
+			require.Equal(t, i, got.I)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("output %d was dropped", i)
+		}
+		if i%100 == 0 {
+			time.Sleep(10 * time.Millisecond) // a slow reader
+		}
+	}
+}
+
+// When the stream breaks without a result, the UI stream still gets the job (the stored result, or a failed job)
+// as its final write, so it ends.
+func TestUIStreamGetsTheStoredResultWhenStreamBreaks(t *testing.T) {
+	p := newPKI(t)
+	pr := startPair(t, p.auth(t, "node-b", false, RoleDevice), p.auth(t, "node-a", false, RoleAPI))
+	pr.local.noResult = true
+	stored := &models.Job{JID: "job-7", ClientID: "c1", Status: models.JobStatusSuccessful}
+	pr.dispatcher.Bind(Binding{UIJobStreams: pr.streams, JobsDone: pr.done, Jobs: storedJobs{stored}})
+	ui := &capture{}
+	pr.streams.Set("job-7", ws.NewConcurrentWebSocket(ui, testLog))
+
+	_, err := pr.dispatcher.RunJob(ctxA(), "c1", &models.Job{JID: "job-7", ClientID: "c1", TimeoutSec: 10})
+	require.NoError(t, err)
+	require.NoError(t, pr.srv.Close())
+	require.Eventually(t, func() bool { return len(ui.all()) == 1 }, 10*time.Second, 20*time.Millisecond)
+	assert.Contains(t, ui.all()[0], "final:")
+	assert.Contains(t, ui.all()[0], models.JobStatusSuccessful)
 }

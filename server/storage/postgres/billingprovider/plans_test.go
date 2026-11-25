@@ -27,6 +27,7 @@ free_plan = "free"
   included_devices = 10
   price_per_device = 1.0
   transfer_base = "25GiB"
+  max_clients = 25
   overage = "bill"
   overage_price_per_gib = 0.25
   provider_prices = { base = "price_base", devices = "price_devices", overage = "price_overage" }
@@ -126,4 +127,56 @@ func TestProviderStateNeverChangesAnExemptPlan(t *testing.T) {
 	assert.Equal(t, "free", acc.Plan)
 	// unknown or reserved organizations change nothing
 	require.NoError(t, sync.ProviderState(ctx, "_system", "cus_s", "", false, "starter"))
+}
+
+func maxClients(t *testing.T, d *pgtest.DB, org string) *int {
+	t.Helper()
+	var n *int
+	require.NoError(t, d.Owner.Get(&n, "SELECT max_clients FROM tenants WHERE id = $1", org))
+	return n
+}
+
+// A plan bought through the provider applies exactly like an operator's: the record is no longer unassigned, the
+// previous plan and the time of the change are kept and the device limit follows the plan.
+func TestProviderStateAppliesThePlanLikeAnOperator(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	a := string(repotest.TenantA)
+	plans, err := billing.ParsePlans([]byte(plansFile))
+	require.NoError(t, err)
+	// billing turned on: the upkeep gives the organization a record without a plan chosen
+	tx, err := d.Owner.Beginx()
+	require.NoError(t, err)
+	_, err = tx.Exec("SELECT set_config('rport.tenant_id', '_system', true)")
+	require.NoError(t, err)
+	_, err = tx.Exec("SELECT rport_billing_ensure('free')")
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	op := &pgbilling.Operator{DB: d.App, Plans: plans}
+	acc, err := op.Account(ctx, a)
+	require.NoError(t, err)
+	require.True(t, acc.PlanUnassigned)
+
+	sync := Sync{DB: d.App, FreePlan: "free", Plans: plans, By: "billing:stripe"}
+	require.NoError(t, sync.ProviderState(ctx, a, "cus_a", "sub_a", true, "starter"))
+	acc, err = op.Account(ctx, a)
+	require.NoError(t, err)
+	assert.Equal(t, "starter", acc.Plan)
+	assert.False(t, acc.PlanUnassigned)
+	require.NotNil(t, acc.PreviousPlan)
+	assert.Equal(t, "free", *acc.PreviousPlan)
+	assert.NotNil(t, acc.PlanSince)
+	require.NotNil(t, maxClients(t, d, a))
+	assert.Equal(t, 25, *maxClients(t, d, a))
+	require.NotNil(t, acc.Policy.MaxClients)
+
+	// a later event for the same plan leaves a device limit an operator set by hand alone
+	_, err = d.Owner.Exec("UPDATE tenants SET max_clients = 3 WHERE id = $1", a)
+	require.NoError(t, err)
+	require.NoError(t, sync.ProviderState(ctx, a, "cus_a", "sub_a", true, "starter"))
+	assert.Equal(t, 3, *maxClients(t, d, a))
+
+	// back to the free plan (no device limit): the limit follows again
+	require.NoError(t, sync.ProviderState(ctx, a, "cus_a", "", false, "free"))
+	assert.Nil(t, maxClients(t, d, a))
 }

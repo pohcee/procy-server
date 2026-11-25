@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/openrport/openrport/server/api"
+	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/tenant"
 )
 
@@ -66,7 +67,7 @@ func (h *HTTP) Webhook(w http.ResponseWriter, r *http.Request) {
 	case WebhookApplied, WebhookDuplicate:
 		w.WriteHeader(http.StatusOK)
 	case WebhookUnverified:
-		h.o.Service.log.Infof("billing: webhook from %s refused: %v", r.RemoteAddr, err)
+		h.o.Service.log.Infof("billing: webhook from %s refused: %v", remoteIP(r), err)
 		http.Error(w, "bad request", http.StatusBadRequest)
 	case WebhookUnreadable:
 		h.o.Service.log.Errorf("billing: webhook: a verified event can't be read (check the endpoint's API version): %v", err)
@@ -114,12 +115,9 @@ func (h *HTTP) actor(w http.ResponseWriter, r *http.Request) (Actor, bool) {
 	return Actor{Username: name, RemoteIP: remoteIP(r)}, true
 }
 
+// remoteIP is the client's address: X-Forwarded-For from a trusted proxy ([api] trusted_proxies), else the peer.
 func remoteIP(r *http.Request) string {
-	host := r.RemoteAddr
-	if i := strings.LastIndexByte(host, ':'); i > 0 {
-		host = host[:i]
-	}
-	return strings.Trim(host, "[]")
+	return chshare.RemoteIP(r)
 }
 
 func (h *HTTP) orgName(ctx context.Context, org string) string {

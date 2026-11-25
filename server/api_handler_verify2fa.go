@@ -1,6 +1,7 @@
 package chserver
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/openrport/openrport/server/api"
@@ -12,7 +13,10 @@ func (al *APIListener) handlePostVerify2FAToken() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		username, err := al.parseAndValidate2FATokenRequest(req)
 		if err != nil {
-			if !al.handleBannedIPs(req, false) {
+			// a login session that expired is not a failed login
+			var ae errors2.APIError
+			stale := errors.As(err, &ae) && bearer.IsStale(ae.Err)
+			if !stale && !al.handleBannedIPs(req, false) {
 				return
 			}
 			al.Errorf(err.Error())
@@ -73,6 +77,9 @@ func (al *APIListener) parseAndValidate2FATokenRequest(req *http.Request) (usern
 		}
 
 		isAuthorized, token, err := al.checkBearerToken(req.Context(), bearerToken, req.URL.Path, req.Method)
+		if bearer.IsStale(err) {
+			return reqBody.Username, errors2.APIError{HTTPStatus: http.StatusUnauthorized, Message: "login session expired", Err: err}
+		}
 		if err != nil {
 			return reqBody.Username, err
 		}

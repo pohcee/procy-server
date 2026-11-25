@@ -112,6 +112,24 @@ func (o *Operator) change(ctx context.Context, id string, fn func(tx *sqlx.Tx) (
 	return o.Account(ctx, id)
 }
 
+// PlanMaxClients is the device limit organization id gets on plan (billing.MaxClients of its record with plan and
+// the payment method hasPM), read in tx, a transaction of the system tenant. A plan the catalog doesn't know has
+// the free plan's limit (billing.EffectivePlan).
+func PlanMaxClients(ctx context.Context, tx *sqlx.Tx, plans *billing.Plans, id, plan string, hasPM bool) (*int, error) {
+	var rows []row
+	if err := tx.SelectContext(ctx, &rows, "SELECT "+accountColumns+" FROM rport_operator_billing($1)", id); err != nil {
+		return nil, err
+	}
+	next := billing.DefaultAccount(id, plans).Billing
+	if len(rows) > 0 {
+		next = rows[0].Billing
+	}
+	next.Plan = plan
+	next.HasPaymentMethod = hasPM
+	next.PlanUnassigned = false
+	return billing.MaxClients(&next, plans), nil
+}
+
 // SetPlan implements billing.OperatorService. The device limit (tenants.max_clients) becomes the plan's, or the
 // trial's for a trial without a payment method.
 func (o *Operator) SetPlan(ctx context.Context, by billing.Actor, id, plan string) (*billing.Account, error) {

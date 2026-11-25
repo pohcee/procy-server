@@ -3,12 +3,16 @@ package dispatch
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	errors2 "github.com/openrport/openrport/server/api/errors"
+	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/share/clientconfig"
@@ -183,4 +187,30 @@ func TestLocalCheckPortAndTunnelAllowed(t *testing.T) {
 		comm.RequestTypeRefreshUpdatesStatus,
 		comm.RequestTypeUpdateClientAttributes,
 	}, conn.types)
+}
+
+type capGuard struct{}
+
+func (capGuard) Allow(tenant.ID) error {
+	return fmt.Errorf("%w: plan %q", billing.ErrTransferLimit, "free")
+}
+
+// A refusal at the transfer limit is the API's 403 ERR_CODE_TRANSFER_LIMIT (as the api's own guard), here and
+// across a peer call, not a 500.
+func TestLocalTransferLimitIsA403(t *testing.T) {
+	conn := &recordingConn{ConnMock: test.NewConnMock(), reply: []byte(`{}`)}
+	cl := clients.New(t).ID("c1").Logger(testLog).Connection(conn).Build()
+	d, _ := newLocal(t, cl)
+	d.SetTransferGuard(capGuard{})
+
+	_, err := d.StartTunnels(defaultCtx(), "c1", []*models.Remote{{RemoteHost: "127.0.0.1", RemotePort: "22"}})
+	var ae errors2.APIError
+	require.ErrorAs(t, err, &ae)
+	assert.Equal(t, http.StatusForbidden, ae.HTTPStatus)
+	assert.Equal(t, billing.ErrCodeTransferLimit, ae.ErrCode)
+	assert.Contains(t, ae.Message, "transfer limit reached")
+
+	_, err = d.Upload(defaultCtx(), "c1", &models.UploadedFile{ID: "f"})
+	require.ErrorAs(t, err, &ae)
+	assert.Equal(t, http.StatusForbidden, ae.HTTPStatus)
 }

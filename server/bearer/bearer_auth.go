@@ -185,6 +185,23 @@ func ParseToken(tokenStr string, JWTSecret string) (tokCtx *TokenContext, err er
 	}, nil
 }
 
+// ErrStaleSession: a token this server signed whose login session expired or no longer exists. It is not a
+// failed login (a UI left open sends several): callers answer 401 without feeding the brute-force bans.
+var ErrStaleSession = errors.New("login session expired")
+
+// IsStale reports whether err (of ParseToken or ValidateBearerToken) is a stale session: ErrStaleSession, or a
+// token correctly signed with the secret whose only fault is that it expired (a forged token that also expired has
+// the signature flag set too).
+func IsStale(err error) bool {
+	if errors.Is(err, ErrStaleSession) {
+		return true
+	}
+	var ve *jwt.ValidationError
+	return errors.As(err, &ve) && ve.Errors == jwt.ValidationErrorExpired
+}
+
+// ValidateBearerToken checks tokCtx against the request and its login session. A session that expired or is gone
+// is ErrStaleSession.
 func ValidateBearerToken(
 	ctx context.Context,
 	tokCtx *TokenContext,
@@ -228,12 +245,13 @@ func ValidateBearerToken(
 	}
 
 	found, sessionInfo, err := apiSessionGetter.Get(ctx, tokCtx.AppClaims.SessionID)
-	if err != nil || !found {
-		l.Errorf(
-			"Login session not found for %s",
-			tokCtx.AppClaims.Username,
-		)
+	if err != nil {
+		l.Errorf("Login session of %s could not be read: %v", tokCtx.AppClaims.Username, err)
 		return false, session.APISession{}, err
+	}
+	if !found {
+		l.Debugf("Login session not found for %s", tokCtx.AppClaims.Username)
+		return false, session.APISession{}, ErrStaleSession
 	}
 
 	// The session must belong to the user named in the token; session IDs are sequential.
@@ -248,11 +266,8 @@ func ValidateBearerToken(
 
 	isValidByExpirationTime := sessionInfo.ExpiresAt.After(time.Now())
 	if !isValidByExpirationTime {
-		l.Errorf(
-			"api session time %v is expired",
-			sessionInfo.ExpiresAt,
-		)
-		return false, sessionInfo, err
+		l.Debugf("api session time %v is expired", sessionInfo.ExpiresAt)
+		return false, sessionInfo, ErrStaleSession
 	}
 	return true, sessionInfo, nil
 }

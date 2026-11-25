@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,13 +31,19 @@ type fakeUIConn struct {
 	mu     sync.Mutex
 	writes [][]byte
 	closed bool
+	// closeFrames counts the close frames sent (the stream ended)
+	closeFrames int
 }
 
 func (c *fakeUIConn) NextReader() (int, io.Reader, error) { return 0, nil, errors.New("no reads") }
 func (c *fakeUIConn) ReadMessage() (int, []byte, error)   { return 0, nil, errors.New("closed") }
-func (c *fakeUIConn) WriteMessage(_ int, data []byte) error {
+func (c *fakeUIConn) WriteMessage(t int, data []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if t == websocket.CloseMessage {
+		c.closeFrames++
+		return nil
+	}
 	c.writes = append(c.writes, data)
 	return nil
 }
@@ -447,7 +454,7 @@ func TestExecutorSkipWritesToWebSocket(t *testing.T) {
 			assert.Equal(t, map[string]interface{}{"stdout": "", "stderr": "", "summary": "no Windows implementation"}, msgs[0]["result"])
 			assert.Equal(t, "entry-1", msgs[0]["library_entry_id"])
 			assert.Equal(t, "windows", msgs[0]["os"])
-			assert.False(t, uiConn.closed, "skip counts as one of the expected writes, not the last")
+			assert.Zero(t, uiConn.closeFrames, "skip counts as one of the expected writes, not the last")
 		})
 	}
 }

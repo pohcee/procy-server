@@ -57,6 +57,8 @@ type Sync struct {
 	DB *sqlx.DB
 	// FreePlan is the plan of an organization without a billing record yet.
 	FreePlan string
+	// Plans is the catalog: a plan bought gets its device limit from it (as an operator's SetPlan).
+	Plans *billing.Plans
 	// By names the writer in org_billing.updated_by.
 	By string
 }
@@ -66,8 +68,15 @@ var _ billing.Sync = Sync{}
 // ProviderState implements billing.Sync.
 func (s Sync) ProviderState(ctx context.Context, org, customerID, subscriptionID string, hasPaymentMethod bool, plan string) error {
 	if err := (Store{DB: s.DB}).inCtx(ctx, func(tx *sqlx.Tx) error {
-		_, err := tx.ExecContext(ctx, "SELECT rport_billing_provider_state($1, $2, $3, $4, $5, $6, $7)",
-			org, customerID, subscriptionID, hasPaymentMethod, plan, s.FreePlan, s.By)
+		var maxClients *int
+		if plan != "" && s.Plans != nil {
+			var err error
+			if maxClients, err = pgbilling.PlanMaxClients(ctx, tx, s.Plans, org, plan, hasPaymentMethod); err != nil {
+				return err
+			}
+		}
+		_, err := tx.ExecContext(ctx, "SELECT rport_billing_provider_state($1, $2, $3, $4, $5, $6, $7, $8)",
+			org, customerID, subscriptionID, hasPaymentMethod, plan, maxClients, s.FreePlan, s.By)
 		return err
 	}); err != nil {
 		return fmt.Errorf("billing: provider state of %s: %w", org, err)

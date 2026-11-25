@@ -282,7 +282,7 @@ func (h *Handler) sendFileToClients(ctx context.Context, uploadRequest *UploadRe
 		close(resChan)
 	}()
 
-	h.consumeUploadResults(resChan, uploadRequest)
+	h.consumeUploadResults(ctx, resChan, uploadRequest)
 
 	err := h.files.Remove(uploadRequest.SourceFilePath)
 	if err != nil {
@@ -290,7 +290,9 @@ func (h *Handler) sendFileToClients(ctx context.Context, uploadRequest *UploadRe
 	}
 }
 
-func (h *Handler) consumeUploadResults(resChan chan *uploadResult, uploadRequest *UploadRequest) {
+// consumeUploadResults audits and announces each client's result. The entries keep the tenant of ctx (the upload
+// request's): a client connected to another node has no connection context on this one.
+func (h *Handler) consumeUploadResults(ctx context.Context, resChan chan *uploadResult, uploadRequest *UploadRequest) {
 	for res := range resChan {
 		clientID := res.client.GetID()
 		output := &UploadOutput{
@@ -321,7 +323,7 @@ func (h *Handler) consumeUploadResults(resChan chan *uploadResult, uploadRequest
 				WithResponse(output).
 				WithID(uploadRequest.UploadedFile.ID).
 				WithClient(res.client).
-				WithContext(res.client.GetContext()).
+				WithContext(ctx).
 				Save()
 		} else {
 			h.log.Infof(
@@ -335,7 +337,7 @@ func (h *Handler) consumeUploadResults(resChan chan *uploadResult, uploadRequest
 				WithResponse(output).
 				WithID(uploadRequest.UploadedFile.ID).
 				WithClient(res.client).
-				WithContext(res.client.GetContext()).
+				WithContext(ctx).
 				Save()
 		}
 

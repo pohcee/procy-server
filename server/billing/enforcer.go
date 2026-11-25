@@ -27,6 +27,9 @@ const (
 // ErrTransferLimit is wrapped by the error refusing a new tunnel or upload at the hard cap.
 var ErrTransferLimit = errors.New("transfer limit reached")
 
+// ErrCodeTransferLimit is the API error code (with 403) of a refusal at the hard cap.
+const ErrCodeTransferLimit = "ERR_CODE_TRANSFER_LIMIT"
+
 // TenantPolicy is an organization's transfer policy as processes read it (device_transfer_policy()).
 type TenantPolicy struct {
 	Organization string        `db:"tenant_id"`

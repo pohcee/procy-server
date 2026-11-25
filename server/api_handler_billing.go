@@ -14,7 +14,7 @@ import (
 )
 
 // ErrCodeTransferLimit is the error code of a tunnel or upload refused at the hard transfer cap.
-const ErrCodeTransferLimit = "ERR_CODE_TRANSFER_LIMIT"
+const ErrCodeTransferLimit = billing.ErrCodeTransferLimit
 
 // BillingAPI is the billing of the API ([billing] enabled): an organization's administrators read their account
 // and periods and set their spending limit; Enforcer refuses new tunnels and uploads at the hard cap.

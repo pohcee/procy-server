@@ -3,6 +3,7 @@ package rmailer
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -174,33 +175,36 @@ type Config struct {
 	NoNoop       bool
 }
 
-func ConfigFromSMTPConfig(config chconfig.SMTPConfig) (Config, error) {
-	u, err := url.Parse(config.Server)
-	if err != nil {
-		return Config{}, fmt.Errorf("can't parse host from SMTP config: %v", err)
-	}
-	sPort := u.Port()
-
-	var host string
-	if u.Hostname() == "" {
-		parts := strings.Split(config.Server, ":")
-		host = parts[0]
-
-		if len(parts) == 2 {
-			sPort = parts[1]
-		}
-	} else {
-		host = u.Hostname()
-	}
-
-	var port int
-	if sPort == "" {
-		port = -1
-	} else {
-		port, err = strconv.Atoi(sPort)
+// smtpHostPort splits an SMTP server address: host, host:port, [ipv6]:port, a bare IPv6 address or a URL
+// (scheme://host[:port]). The port is -1 when not given.
+func smtpHostPort(server string) (string, int, error) {
+	hostport := server
+	if strings.Contains(server, "://") {
+		u, err := url.Parse(server)
 		if err != nil {
-			return Config{}, fmt.Errorf("can't parse port number: %v", err)
+			return "", 0, fmt.Errorf("can't parse host from SMTP config: %v", err)
 		}
+		hostport = u.Host
+	}
+	host, sPort, err := net.SplitHostPort(hostport)
+	if err != nil {
+		// no port (or a bare IPv6 address)
+		return strings.TrimSuffix(strings.TrimPrefix(hostport, "["), "]"), -1, nil
+	}
+	if sPort == "" {
+		return host, -1, nil
+	}
+	port, err := strconv.Atoi(sPort)
+	if err != nil {
+		return "", 0, fmt.Errorf("can't parse port number: %v", err)
+	}
+	return host, port, nil
+}
+
+func ConfigFromSMTPConfig(config chconfig.SMTPConfig) (Config, error) {
+	host, port, err := smtpHostPort(config.Server)
+	if err != nil {
+		return Config{}, err
 	}
 
 	emailSplit := strings.Split(config.SenderEmail, "@")

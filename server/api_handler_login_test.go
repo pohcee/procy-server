@@ -803,3 +803,47 @@ func TestHandleGetLogin(t *testing.T) {
 		})
 	}
 }
+
+// A request with a token of ours whose login session expired or is gone is not a guess: it must not feed the
+// brute-force bans (a UI left open sends several). Wrong passwords still do.
+func TestStaleSessionIsNotAFailedLogin(t *testing.T) {
+	ctx := tenant.WithID(context.Background(), tenant.Default)
+	user := &users.User{Username: "user1", Password: "$2y$05$ep2DdPDeLDDhwRrED9q/vuVEzRpZtB5WHCFT7YbcmH9r9oNmlsZOm"}
+	al := APIListener{
+		Logger:      testLog,
+		apiSessions: newEmptyAPISessionCache(t),
+		bannedUsers: security.NewBanList(time.Hour),
+		bannedIPs:   security.NewMaxBadAttemptsBanList(3, time.Hour, testLog),
+		apiServices: &apiServices{config: &chconfig.Config{API: chconfig.APIConfig{MaxRequestBytes: 1024 * 1024}}},
+		userService: users.NewAPIService(users.NewStaticProvider([]*users.User{user}), false, 0, -1),
+	}
+	al.initRouter()
+
+	gone, err := bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, time.Hour, user.Username, []bearer.Scope{}, "", "")
+	require.NoError(t, err)
+	tokCtx, err := bearer.ParseToken(gone, al.config.API.JWTSecret)
+	require.NoError(t, err)
+	require.NoError(t, al.apiSessions.Delete(ctx, tokCtx.AppClaims.SessionID))
+	expired, err := bearer.CreateAuthToken(ctx, al.apiSessions, al.config.API.JWTSecret, -time.Hour, user.Username, []bearer.Scope{}, "", "")
+	require.NoError(t, err)
+
+	handler := al.wrapWithAuthMiddleware(false)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	do := func(set func(r *http.Request)) int {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/some-endpoint", nil).WithContext(ctx)
+		set(req)
+		handler.ServeHTTP(w, req)
+		return w.Code
+	}
+	for i := 0; i < 5; i++ {
+		for _, tok := range []string{gone, expired} {
+			assert.Equal(t, http.StatusUnauthorized, do(func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+tok) }))
+		}
+	}
+	assert.False(t, al.bannedIPs.IsBanned("192.0.2.1"), "stale sessions banned the address")
+	assert.Equal(t, http.StatusOK, do(func(r *http.Request) { r.SetBasicAuth(user.Username, "pwd") }), "stale sessions banned the user")
+
+	// a wrong password still bans
+	assert.Equal(t, http.StatusUnauthorized, do(func(r *http.Request) { r.SetBasicAuth(user.Username, "wrong") }))
+	assert.Equal(t, http.StatusTooManyRequests, do(func(r *http.Request) { r.SetBasicAuth(user.Username, "pwd") }))
+}

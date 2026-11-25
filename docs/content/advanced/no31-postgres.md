@@ -295,14 +295,14 @@ administrators of `_system` only: other organizations get 404, other `_system` u
 have no operator API.
 
 | Method | Path | Does |
-|---|---|---|
+| --- | --- | --- |
 | `GET` | `/operator/organizations` | list organizations (id, name, status, created, device count, device limit, user count) |
 | `POST` | `/operator/organizations` | create: `{"id": "acme", "name": "Acme Corp", "device_limit": 50}` |
 | `GET` | `/operator/organizations/{id}` | one organization |
 | `POST` | `/operator/organizations/{id}/suspend` | suspend |
 | `POST` | `/operator/organizations/{id}/activate` | reactivate |
 | `PUT` | `/operator/organizations/{id}/device-limit` | `{"device_limit": 100}` (`null`: unlimited) |
-| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; returns the generated password of a new login once, or invites an existing account |
+| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; a new login's generated password (once), or invites an account |
 | `GET` | `/operator/organizations/{id}/members` | the members, their groups there and how many organizations each belongs to |
 
 Every change, from the API or the CLI, is written to the audit log of `_system` (application
@@ -375,12 +375,12 @@ the cluster upkeep, metering on or not.
 What is counted:
 
 | Metric | Counted where |
-|---|---|
-| `tunnel_bytes_to_user`, `tunnel_bytes_to_device` | the tunnel's copy loop on the node holding the tunnel, both directions, while the connection runs (port tunnels, tunnels behind the built-in HTTP proxy, browser RDP/VNC through it, UDP datagrams) |
-| `upload_bytes_to_devices` | the bytes each device reads of an uploaded file (a file sent to 100 devices counts 100 times; a transfer that stops half way counts half) |
-| `api_bytes_out` | the bytes of API responses, websockets included, of requests resolved to the organization (failed logins included; not the UI's static files, not `_system`) |
+| --- | --- |
+| `tunnel_bytes_to_user`, `tunnel_bytes_to_device` | the tunnel's copy loop on its node, both ways, while it runs (port, HTTP proxy, RDP/VNC, UDP) |
+| `upload_bytes_to_devices` | the bytes each device reads of an upload (sent to 100 devices: 100 times; stopped half way: half) |
+| `api_bytes_out` | API responses (websockets and failed logins included) of the organization's requests; not static files, not `_system` |
 | `jobs_command`, `jobs_script`, `jobs_library` | jobs a device started (a job for several devices counts once per device) |
-| `device_seconds`, `devices_peak` | the devices connected to each node, sampled every 15 seconds: device-seconds per hour (the hour's average is device-seconds / 3600) and the most at once |
+| `device_seconds`, `devices_peak` | devices connected per node, sampled every 15 s: device-seconds per hour (average: / 3600) and the most at once |
 | device-days | the devices that had a session on each UTC day (`usage_device_days`): a device counts once a day, however many nodes saw it |
 | `monitoring_rows` | the measurements stored, counted once a day by the cluster upkeep |
 
@@ -401,10 +401,10 @@ retention) runs with the cluster upkeep, on one node at a time.
 Reading it:
 
 | Method | Path | For |
-|---|---|---|
-| `GET` | `/usage?from&to&granularity=hour\|day\|month` | administrators of an organization, their own organization: periods, totals and the 10 devices with the most transfer |
+| --- | --- | --- |
+| `GET` | `/usage?from&to&granularity=hour\|day\|month` | an organization's administrators: periods, totals, the 10 devices with the most transfer |
 | `GET` | `/operator/organizations/{id}/usage?from&to&granularity` | operators, one organization's report |
-| `GET` | `/operator/usage?month=YYYY-MM` (or `from&to`, `organization`, `metric`) | operators, every organization's totals, heaviest first (by `transfer_bytes` unless `metric` names another) |
+| `GET` | `/operator/usage?month=YYYY-MM` (or `from&to`, `organization`, `metric`) | operators: every organization's totals, heaviest first |
 
 `from` and `to` are RFC 3339 times or dates (UTC); the default is the current month. Hourly reports cover at most
 31 days and only the hourly retention; day and month reports use whole UTC days. Each period has the counters, the
@@ -476,8 +476,8 @@ The flow:
 
 Accounts and proof of email ownership: a login is one account in any number of organizations. Signup marks the
 account's email confirmed (`accounts.email_verified_at`); so does a signed-in account with `POST
-/api/v1/me/email-confirmation` (a link to `<public_url>/auth/confirm-email?token=...`, redeemed signed in). Accounts an administrator creates by inviting a new login start
-unconfirmed. With `[signup]` on:
+/api/v1/me/email-confirmation` (a link to `<public_url>/auth/confirm-email?token=...`, redeemed signed in).
+Accounts an administrator creates by inviting a new login start unconfirmed. With `[signup]` on:
 
 * an unconfirmed account can't be invited into further organizations, nor accept an invitation (400/403 naming
   the confirmation);
@@ -512,7 +512,7 @@ Leaving:
 Operators (`/api/v1/operator`, audited):
 
 | Method | Path | |
-|---|---|---|
+| --- | --- | --- |
 | `GET` | `/signups?status&limit` | recent signups, newest first |
 | `POST` | `/signups/{id}/approve`, `/signups/{id}/deny {reason}` | with `require_approval` |
 | `GET` | `/deletions?state&limit` | pending, canceled and done deletions |
@@ -523,6 +523,7 @@ Operators (`/api/v1/operator`, audited):
 `GET /api/v1/status` reports `capabilities.signup: true`; `GET /api/v1/signup` (public) gives the signup page the
 captcha provider and site key, `require_approval`, the password length and the trial days (of the plans file).
 A deleted organization's `org_billing` and `billing_periods` rows stay, detached, for the accounting retention.
+
 ## Billing plans and limits
 
 With `[billing]` on (it needs `[metering]`), every organization has a plan and a billing status, each calendar month
@@ -589,9 +590,9 @@ free_plan = "free"            # organizations without a record are on it; it has
 ### Billing status
 
 | Status | Charged | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `paying` | yes | the default; on the free plan that is nothing |
-| `trial` | no, until `trial_ends_at` | then `paying` on the same plan with a payment method on file, otherwise `paying` on the free plan; a trial without a payment method is capped at the `[trial]` devices and transfer |
+| `trial` | no, until `trial_ends_at` | then `paying`: same plan with a payment method, else free plan; without one capped at `[trial]` limits |
 | `exempt` | never | needs a reason; `exempt_limits = "plan"` (default) keeps the plan's limits, `"none"` lifts them; never sent to a payment provider |
 | `comped` | no, until `comped_until` (the last free day) | then as a trial that ends |
 
@@ -614,11 +615,14 @@ Every 5 minutes one node (lease `billing-upkeep`) computes each organization's t
 both ways and upload bytes delivered) against its allowance and writes the state:
 
 | State | When | Effect |
-|---|---|---|
+| --- | --- | --- |
 | `normal` | below the soft cap | none |
 | `soft` | at `soft_cap` percent | a notification to the administrators, `soft_cap_reached` in `GET /billing` |
 | `over` | past 100% on a plan that bills overage | a notification; overage accrues |
-| `capped` | the hard cap: `cap` plans (Free, trials without a payment method) at `hard_cap` percent, or a plan that bills overage once the organization's spending limit is reached | a notification; tunnels are throttled to `throttle_rate`, new tunnels and uploads are refused with `403 ERR_CODE_TRANSFER_LIMIT` |
+| `capped` | the hard cap (below) | a notification; tunnels throttled to `throttle_rate`; new tunnels and uploads get `403 ERR_CODE_TRANSFER_LIMIT` |
+
+The hard cap is `hard_cap` percent on `cap` plans (Free, trials without a payment method) and the organization's
+spending limit on a plan that bills overage.
 
 Device sessions are never closed and existing tunnels never cut: commands, scripts, schedules, monitoring and
 updates keep working. Every process reads the states once a minute through `device_transfer_policy()` and applies
@@ -632,9 +636,9 @@ It fails open: the hard cap is not applied while the newest usage of any organiz
 average hour (at least 10 GiB); the state is `over` and `fail_open` says why. Once a month failed open it stays open
 for the rest of the month (the spike would otherwise become part of the average) until an operator checked it and
 clears it (`rportd org lift-cap ID --clear-fail-open`); it is logged as an error and the administrators of
-`_system` with an email address are notified once per organization and month. A process that can't read the states keeps the last ones for an hour, then applies only the per-tunnel
-rates; a cap the upkeep wrote more than an hour ago is ignored. An operator can lift the cap until a time or raise
-the month's allowance; an organization's administrators can set a spending limit (`PUT /billing/spending-limit`).
+`_system` with an email address are notified once per organization and month. A process that can't read the
+states keeps the last ones for an hour, then applies only the per-tunnel rates; a cap the upkeep wrote more than an
+hour ago is ignored. An operator can lift the cap until a time or raise the month's allowance; an organization's administrators can set a spending limit (`PUT /billing/spending-limit`).
 
 ### Billing periods
 
@@ -651,7 +655,7 @@ exempt and became paying during the month is billed from that day; one that beca
 month is not charged for it. Setting a trial or comped organization to paying ends its free time at once.
 
 | Method | Path | For |
-|---|---|---|
+| --- | --- | --- |
 | `GET` | `/billing` | administrators: plan, status, allowance, used, transfer state, soft-cap flag |
 | `GET` | `/billing/periods` | administrators: the closed periods |
 | `PUT` | `/billing/spending-limit` | administrators: `{"spending_limit": 50.00}` (USD per month, `null` removes it) |

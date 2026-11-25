@@ -77,6 +77,11 @@ func (al *APIListener) wrapWithAuthMiddleware(isBearerOnly bool) mux.MiddlewareF
 	return func(f http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authorized, username, err := al.lookupUser(r, isBearerOnly)
+			if bearer.IsStale(err) {
+				// a token of ours whose session expired: not a failed login, no ban
+				al.jsonErrorResponse(w, http.StatusUnauthorized, errors.New("unauthorized"))
+				return
+			}
 			if err != nil {
 				al.Logf(logger.LogLevelError, err.Error())
 				if errors.Is(err, ErrTooManyRequests) {

@@ -2,9 +2,12 @@ package dispatch
 
 import (
 	"context"
+	"net/http"
 
 	"golang.org/x/crypto/ssh"
 
+	errors2 "github.com/openrport/openrport/server/api/errors"
+	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/clients/clienttunnel"
 	"github.com/openrport/openrport/server/metering"
@@ -45,7 +48,8 @@ type TransferGuard interface {
 // SetTransferGuard refuses tunnels and uploads g doesn't allow (billing limits). Set during initialization.
 func (d *Local) SetTransferGuard(g TransferGuard) { d.transfer = g }
 
-// allowTransfer checks the transfer limit of ctx's tenant.
+// allowTransfer checks the transfer limit of ctx's tenant. A refusal is the API's 403 ERR_CODE_TRANSFER_LIMIT
+// (as the api process's own guard answers), also when it comes back through a peer call.
 func (d *Local) allowTransfer(ctx context.Context) error {
 	if d.transfer == nil {
 		return nil
@@ -54,7 +58,10 @@ func (d *Local) allowTransfer(ctx context.Context) error {
 	if err != nil {
 		return nil
 	}
-	return d.transfer.Allow(tid)
+	if err := d.transfer.Allow(tid); err != nil {
+		return errors2.APIError{HTTPStatus: http.StatusForbidden, ErrCode: billing.ErrCodeTransferLimit, Message: err.Error(), Err: err}
+	}
+	return nil
 }
 
 var _ Dispatcher = (*Local)(nil)
