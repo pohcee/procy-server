@@ -31,6 +31,7 @@ import (
 //   - alice and bob are in Schedulers (commands + scheduler); alice created every job and the schedule
 //   - carol is in Operators (commands only, no scheduler)
 //   - dave is in Outsiders (commands only, no device access)
+//   - erin is in Planners (commands + scheduler, but no access to c1 or c2)
 //   - root is an administrator
 //
 // Devices: c1 and c2 are open to Schedulers and Operators; c3 to Outsiders only.
@@ -119,10 +120,10 @@ func runsUserDatabase(t *testing.T) *users.UserDatabase {
 		`CREATE TABLE "groups" ("username" TEXT, "group" TEXT)`,
 		`CREATE TABLE "group_details" ("name" TEXT, "permissions" TEXT)`,
 		`CREATE UNIQUE INDEX "main"."username_group_name" ON "group_details" ("name" ASC)`,
-		`INSERT INTO "users" VALUES ('alice','alice',false), ('bob','bob',false), ('carol','carol',false), ('dave','dave',false), ('root','root',false)`,
-		`INSERT INTO "groups" VALUES ('alice','Schedulers'), ('bob','Schedulers'), ('carol','Operators'), ('dave','Outsiders'), ('root','` + users.Administrators + `')`,
+		`INSERT INTO "users" VALUES ('alice','alice',false), ('bob','bob',false), ('carol','carol',false), ('dave','dave',false), ('erin','erin',false), ('root','root',false)`,
+		`INSERT INTO "groups" VALUES ('alice','Schedulers'), ('bob','Schedulers'), ('carol','Operators'), ('dave','Outsiders'), ('erin','Planners'), ('root','` + users.Administrators + `')`,
 		`INSERT INTO "group_details" VALUES ('Schedulers','{"commands":true,"scheduler":true}'), ('Operators','{"commands":true}'),
-			('Outsiders','{"commands":true}'), ('` + users.Administrators + `','{"commands":true,"scheduler":true}')`,
+			('Outsiders','{"commands":true}'), ('Planners','{"commands":true,"scheduler":true}'), ('` + users.Administrators + `','{"commands":true,"scheduler":true}')`,
 	} {
 		_, err := db.Exec(q)
 		require.NoError(t, err, q)
@@ -175,6 +176,7 @@ func TestScheduledRunVisibleToUsersWhoMaySeeTheSchedule(t *testing.T) {
 		{"scheduler user does not see another user's ad-hoc multi-job", "bob", "mj-adhoc", http.StatusForbidden},
 		{"scheduler user does not see a run of a schedule that no longer exists", "bob", "mj-gone", http.StatusForbidden},
 		{"user without the scheduler permission still does not see ad-hoc multi-jobs", "carol", "mj-adhoc", http.StatusForbidden},
+		{"scheduler user without access to the run's devices does not see their results", "erin", "mj-sched", http.StatusForbidden},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := runsGet(t, al, tc.viewer, "/api/v1/commands/"+tc.jid)

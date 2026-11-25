@@ -534,7 +534,7 @@ func (al *APIListener) handleGetMultiClientCommand(w http.ResponseWriter, req *h
 
 // canSeeMultiJob reports whether user may see the multi-client job mj and its clients' jobs: an admin, its creator,
 // or, for a run of a schedule that still exists, a user who may see that schedule (GET /schedules/{id} needs only the
-// scheduler permission).
+// scheduler permission) and who has access to every device of the run (its results are those devices' output).
 func (al *APIListener) canSeeMultiJob(ctx context.Context, user *users.User, mj *models.MultiJob) (bool, error) {
 	if user.IsAdmin() || mj.CreatedBy == user.Username {
 		return true, nil
@@ -547,10 +547,41 @@ func (al *APIListener) canSeeMultiJob(ctx context.Context, user *users.User, mj 
 		return false, err
 	}
 	s, err := al.scheduleManager.Get(ctx, *mj.ScheduleID)
+	if err != nil || s == nil {
+		return false, err
+	}
+	return al.canAccessClients(ctx, user, mj)
+}
+
+// canAccessClients reports whether user has access (client access rules) to every device of mj: its client ids and
+// those of its jobs. A device that no longer exists counts as no access.
+func (al *APIListener) canAccessClients(ctx context.Context, user *users.User, mj *models.MultiJob) (bool, error) {
+	ids := map[string]bool{}
+	for _, id := range mj.ClientIDs {
+		ids[id] = true
+	}
+	for _, j := range mj.Jobs {
+		ids[j.ClientID] = true
+	}
+	if len(ids) == 0 {
+		return true, nil
+	}
+	clientGroups, err := al.clientGroupProvider.GetAll(ctx)
 	if err != nil {
 		return false, err
 	}
-	return s != nil, nil
+	for id := range ids {
+		err := al.clientService.CheckClientAccess(ctx, id, user, clientGroups)
+		if err == nil {
+			continue
+		}
+		var apiErr errors2.APIError
+		if errors.As(err, &apiErr) && (apiErr.HTTPStatus == http.StatusForbidden || apiErr.HTTPStatus == http.StatusNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // hasPermission reports whether user holds permission the way permissionsMiddleware decides it: when the user store
