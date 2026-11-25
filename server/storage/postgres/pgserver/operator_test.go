@@ -325,3 +325,35 @@ func TestOperatorWithoutGrantSaysHowToFix(t *testing.T) {
 	_, err = o.Create(context.Background(), ops, operator.NewOrganization{ID: "acme"})
 	assert.ErrorContains(t, err, "rportd migrate --grant-to")
 }
+
+// The device count of an organization follows the rule of its client limit: clients saved by a node with role all
+// (clients) and clients only a device process reported (client_state) count, a client disconnected for longer than
+// keep_disconnected_clients doesn't.
+func TestOperatorDeviceCountCountsDeviceProcessClients(t *testing.T) {
+	d := pgtest.New(t)
+	cfg := &chconfig.Config{API: chconfig.APIConfig{PasswordMinLength: 14}}
+	cfg.Server.PurgeDisconnectedClients = true
+	cfg.Server.KeepDisconnectedClients = time.Hour
+	o := NewOperator(d.App, cfg)
+	ctx := context.Background()
+	_, err := o.Create(ctx, ops, operator.NewOrganization{ID: "acme", DeviceLimit: intp(5)})
+	require.NoError(t, err)
+	_, err = d.Owner.Exec(`INSERT INTO clients (tenant_id, id, client_auth_id, details) VALUES ('acme', 'on-all-node', 'auth', '{}')`)
+	require.NoError(t, err)
+	reportState(t, d.Owner, "acme", "on-device-process", nil)
+	old := time.Now().Add(-2 * time.Hour)
+	reportState(t, d.Owner, "acme", "long-gone", &old)
+
+	got, err := o.Get(ctx, "acme")
+	require.NoError(t, err)
+	assert.Equal(t, 2, got.DeviceCount)
+	orgs, err := o.List(ctx)
+	require.NoError(t, err)
+	for _, org := range orgs {
+		if org.ID == "acme" {
+			assert.Equal(t, 2, org.DeviceCount)
+		}
+	}
+	_, _, all := twoDeviceProcesses(t, d, &cfg.Server.KeepDisconnectedClients)
+	assert.Equal(t, 3, admit(t, all, "acme", "a-new-one").Clients, "the admission counts the same (and the new one)")
+}

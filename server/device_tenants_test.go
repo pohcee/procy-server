@@ -20,11 +20,13 @@ import (
 	"github.com/openrport/openrport/share/tenant"
 )
 
-// fakeDeviceTenants holds the tenant of each client auth id and the policy of each tenant.
+// fakeDeviceTenants holds the tenant of each client auth id and the admission of each tenant; it records the
+// admissions asked for.
 type fakeDeviceTenants struct {
-	ids       map[string]tenant.ID
-	policies  map[tenant.ID]DevicePolicy
-	policyErr error
+	ids        map[string]tenant.ID
+	admissions map[tenant.ID]Admission
+	admitErr   error
+	asked      []string
 }
 
 func (f *fakeDeviceTenants) TenantOfClientAuth(_ context.Context, id string) (tenant.ID, bool, error) {
@@ -34,21 +36,23 @@ func (f *fakeDeviceTenants) TenantOfClientAuth(_ context.Context, id string) (te
 
 func (f *fakeDeviceTenants) Tenants(context.Context) ([]tenant.ID, error) {
 	out := []tenant.ID{}
-	for tid := range f.policies {
+	for tid := range f.admissions {
 		out = append(out, tid)
 	}
 	return out, nil
 }
 
-func (f *fakeDeviceTenants) DevicePolicy(_ context.Context, tid tenant.ID) (DevicePolicy, error) {
-	if f.policyErr != nil {
-		return DevicePolicy{}, f.policyErr
+func (f *fakeDeviceTenants) AdmitClient(ctx context.Context, tid tenant.ID, clientID string) (Admission, error) {
+	inCtx, _ := tenant.FromContext(ctx)
+	f.asked = append(f.asked, fmt.Sprintf("%s/%s ctx=%s", tid, clientID, inCtx))
+	if f.admitErr != nil {
+		return Admission{}, f.admitErr
 	}
-	p, ok := f.policies[tid]
+	a, ok := f.admissions[tid]
 	if !ok {
-		return DevicePolicy{Status: TenantStatusActive}, nil
+		return Admission{Status: TenantStatusActive}, nil
 	}
-	return p, nil
+	return a, nil
 }
 
 // tenantAuth is a client auth provider holding credentials per tenant; it records the tenant of each Get.
@@ -138,44 +142,33 @@ func admissionLog() *logger.Logger {
 }
 
 func TestAdmitDevice(t *testing.T) {
-	dt := &fakeDeviceTenants{policies: map[tenant.ID]DevicePolicy{
-		"limited":   {Status: TenantStatusActive, Limited: true, MaxClients: 1},
-		"none":      {Status: TenantStatusActive, Limited: true, MaxClients: 0},
-		"suspended": {Status: "suspended"},
+	dt := &fakeDeviceTenants{admissions: map[tenant.ID]Admission{
+		"full":      {Refused: RefusedLimit, Status: TenantStatusActive, Clients: 2, MaxClients: 1},
+		"suspended": {Refused: RefusedStatus, Status: "suspended"},
+		"gone":      {Refused: RefusedStatus, Status: "deleted"},
 	}}
 	cl := deviceTestListener(t, dt, twoTenantAuth())
-	repo := cl.getClientService().GetRepo()
 	in := func(tid tenant.ID) context.Context { return tenant.WithID(context.Background(), tid) }
-	require.NoError(t, repo.Save(in("limited"), clients.New(t).ID("known").Logger(testLog).Build()))
-	require.NoError(t, repo.Save(in("open"), clients.New(t).ID("other").Logger(testLog).Build()))
-
+	// a client this process holds doesn't change the tenant's answer
+	require.NoError(t, cl.getClientService().GetRepo().Save(in("full"), clients.New(t).ID("here").Logger(testLog).Build()))
 	admit := func(tid tenant.ID, clientID string) error {
-		release, err := cl.admitDevice(in(tid), tid, clientID, "auth", admissionLog())
-		require.NotNil(t, release)
-		release()
-		return err
+		return cl.admitDevice(in(tid), tid, clientID, "auth", admissionLog())
 	}
 
-	assert.NoError(t, admit("limited", "known"), "a client the tenant has is never refused")
-	err := admit("limited", "new")
-	assert.EqualError(t, err, "connection refused: the organization's limit of 1 clients is reached")
-	assert.Error(t, admit("none", "new"), "a limit of 0 takes no client")
-	assert.NoError(t, admit("open", "new"), "no limit")
-	assert.NoError(t, admit("open", "new2"))
-	assert.EqualError(t, admit("suspended", "known"), "connection refused: the organization of this client is suspended")
+	assert.NoError(t, admit("open", "c1"))
+	assert.Equal(t, []string{"open/c1 ctx=open"}, dt.asked, "asked in the device's tenant")
+	assert.EqualError(t, admit("full", "here"), "connection refused: the organization's limit of 1 clients is reached")
+	assert.EqualError(t, admit("suspended", "c1"), "connection refused: the organization of this client is suspended")
+	assert.EqualError(t, admit("gone", "c1"), "connection refused: the organization of this client is deleted")
 
-	// deleting a client frees its place
-	known, err := repo.GetByID(in("limited"), "known")
-	require.NoError(t, err)
-	require.NoError(t, repo.Delete(in("limited"), known))
-	assert.NoError(t, admit("limited", "new"))
-
-	dt.policyErr = errors.New("database down")
-	assert.ErrorContains(t, admit("open", "new"), "could not check the organization")
+	dt.admitErr = errors.New("database down")
+	assert.EqualError(t, admit("open", "c1"), "connection refused: the server could not check the organization of this client; try again later")
 
 	// a device without a tenant on a listener serving several is refused, never run in the listener's tenant
-	dt.policyErr = nil
+	dt.admitErr = nil
+	dt.asked = nil
 	assert.EqualError(t, admit("", "anything"), "connection refused: the organization of this client is unknown")
+	assert.Empty(t, dt.asked)
 }
 
 // tenantStore is a ClientStore keeping clients per tenant; GetAll fails while failing is set.
@@ -228,62 +221,13 @@ func storeListener(t *testing.T, dt DeviceTenants, store *tenantStore) *ClientLi
 	return cl
 }
 
-// A failed load of the tenant's clients refuses a new device of a limited tenant instead of counting 0 clients.
-func TestAdmitDeviceRefusesWhenTheClientsCantBeLoaded(t *testing.T) {
-	store := &tenantStore{clients: map[tenant.ID]map[string]*clientdata.Client{}, failing: true}
-	dt := &fakeDeviceTenants{policies: map[tenant.ID]DevicePolicy{"limited": {Status: TenantStatusActive, Limited: true, MaxClients: 5}}}
-	cl := storeListener(t, dt, store)
-	release, err := cl.admitDevice(tenant.WithID(context.Background(), "limited"), "limited", "new", "auth", admissionLog())
-	release()
-	assert.ErrorContains(t, err, "try again later")
-
-	store.failing = false
-	release, err = cl.admitDevice(tenant.WithID(context.Background(), "limited"), "limited", "new", "auth", admissionLog())
-	release()
-	assert.NoError(t, err)
-}
-
-// Two new devices of a tenant with one place left: exactly one is admitted.
-func TestAdmitDeviceConcurrentNewClients(t *testing.T) {
-	dt := &fakeDeviceTenants{policies: map[tenant.ID]DevicePolicy{"limited": {Status: TenantStatusActive, Limited: true, MaxClients: 1}}}
-	cl := deviceTestListener(t, dt, twoTenantAuth())
-	ctx := tenant.WithID(context.Background(), "limited")
-	const n = 8
-	errs := make(chan error, n)
-	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			id := fmt.Sprintf("new-%d", i)
-			release, err := cl.admitDevice(ctx, "limited", id, "auth", admissionLog())
-			if err == nil {
-				// what StartClient does before the admission is released
-				err = cl.getClientService().GetRepo().Save(ctx, clients.New(t).ID(id).Logger(testLog).Build())
-			}
-			release()
-			errs <- err
-		}(i)
-	}
-	wg.Wait()
-	close(errs)
-	admitted := 0
-	for err := range errs {
-		if err == nil {
-			admitted++
-		}
-	}
-	assert.Equal(t, 1, admitted)
-	assert.Equal(t, 1, cl.getClientService().Count(ctx))
-}
-
 // When the listener starts it loads every tenant's clients, so clients an earlier run left stored as connected are
 // marked disconnected, not only the server's own tenant's.
 func TestListenerStartLoadsEveryTenant(t *testing.T) {
 	connected := clients.New(t).ID("b1").Logger(testLog).Build()
 	require.True(t, connected.IsConnected())
 	store := &tenantStore{clients: map[tenant.ID]map[string]*clientdata.Client{"b": {"b1": connected}}}
-	dt := &fakeDeviceTenants{policies: map[tenant.ID]DevicePolicy{"b": {Status: TenantStatusActive}}}
+	dt := &fakeDeviceTenants{admissions: map[tenant.ID]Admission{"b": {Status: TenantStatusActive}}}
 	cl := storeListener(t, dt, store)
 
 	ctx, cancel := context.WithCancel(tenant.WithID(context.Background(), tenant.Default))
@@ -297,7 +241,5 @@ func TestListenerStartLoadsEveryTenant(t *testing.T) {
 
 func TestAdmitDeviceWithoutDeviceTenants(t *testing.T) {
 	cl := deviceTestListener(t, nil, twoTenantAuth())
-	release, err := cl.admitDevice(tenant.WithID(context.Background(), tenant.Default), "", "c1", "auth", admissionLog())
-	require.NoError(t, err)
-	release()
+	require.NoError(t, cl.admitDevice(tenant.WithID(context.Background(), tenant.Default), "", "c1", "auth", admissionLog()))
 }
