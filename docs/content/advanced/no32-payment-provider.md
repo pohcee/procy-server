@@ -94,7 +94,7 @@ The background jobs run on one node at a time (cluster leases `billing-report` e
 ## API
 
 | Method | Path | For |
-|---|---|---|
+| --- | --- | --- |
 | `POST` | `/billing/webhook` | Stripe (signature-verified, no session) |
 | `GET` | `/billing/payment` | an organization's administrators: subscription, payment method, overdue state |
 | `GET` | `/billing/invoices?limit` | an organization's administrators: the latest invoices, with links to Stripe's pages |
