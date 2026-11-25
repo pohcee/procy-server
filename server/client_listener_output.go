@@ -52,15 +52,15 @@ func (o *outputStreams) open(jid string) func() {
 	}
 }
 
-// wait blocks until the open output channels of jid end, at most max.
-func (o *outputStreams) wait(jid string, max time.Duration) bool {
+// wait blocks until the open output channels of jid end, at most limit.
+func (o *outputStreams) wait(jid string, limit time.Duration) bool {
 	o.mu.Lock()
 	e := o.jobs[jid]
 	o.mu.Unlock()
 	if e == nil {
 		return true
 	}
-	t := time.NewTimer(max)
+	t := time.NewTimer(limit)
 	defer t.Stop()
 	select {
 	case <-e.done:
@@ -84,11 +84,11 @@ func (cl *ClientListener) outputOpened(jobData []byte) func() {
 
 // awaitOutput waits for the output channels of job jid to end (bounded).
 func (cl *ClientListener) awaitOutput(jid string) {
-	max := cl.outputWait
-	if max <= 0 {
-		max = defaultOutputWait
+	limit := cl.outputWait
+	if limit <= 0 {
+		limit = defaultOutputWait
 	}
-	if !cl.outputs.wait(jid, max) {
-		cl.log().Debugf("job %s: output still open %s after its result; the result is sent", jid, max)
+	if !cl.outputs.wait(jid, limit) {
+		cl.log().Debugf("job %s: output still open %s after its result; the result is sent", jid, limit)
 	}
 }

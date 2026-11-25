@@ -264,24 +264,7 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 	store := repos.Notifications
 	scriptConsumer := scriptRunner.NewConsumer(notificationsLogger.Fork("scriptrunner"), config.Notifications.NotificationScriptDir)
 
-	notificationConsumers := []notifications.Consumer{scriptConsumer}
-
-	smtpConfig, err := rmailer.ConfigFromSMTPConfig(config.SMTP)
-	if err == nil {
-		smtpLogger := notificationsLogger.Fork("smtp")
-		smtpLogger.Debugf("using smtp config: %v", smtpConfig)
-		mailConsumer := rmailer.NewConsumer(rmailer.NewRMailer(smtpConfig, smtpLogger), smtpLogger)
-		notificationConsumers = append(notificationConsumers, mailConsumer)
-	} else {
-		if config.SMTP.Server == "" {
-			// no [smtp] (device processes, or a server without email): nothing failed
-			notificationsLogger.Debugf("no [smtp] server: mail notifications are only logged")
-		} else {
-			notificationsLogger.Errorf("failed to bootstrap smtp notifications: %v", err)
-		}
-		logConsumer := toLog.NewLogConsumer(notificationsLogger.Fork("smtp undeliverable"), notifications.TargetMail) // consume mail notifications even if mailer is not available
-		notificationConsumers = append(notificationConsumers, logConsumer)
-	}
+	notificationConsumers := []notifications.Consumer{scriptConsumer, mailConsumer(config, notificationsLogger)}
 
 	notificationProcessor := notifications.NewProcessor(notificationsLogger, store, notificationConsumers...)
 	var notificationsCleaner notificationsSQLite.Closeable
@@ -502,6 +485,24 @@ var ErrCantLoadThatToken = errors.New("there was a problem accessing that token 
 var ErrPrefixNotFound = errors.New("there is no token with that prefix")
 var ErrInvalidScopeOfThatToken = errors.New("the scope of the provided token is not authorized for this operation")
 var ErrThatTokenHasExpired = errors.New("the provided token has expired")
+
+// mailConsumer sends mail notifications through [smtp], or only logs them without a usable [smtp] (an error when
+// one is configured but can't be used; device processes and servers without email have none).
+func mailConsumer(config *chconfig.Config, notificationsLogger *logger.Logger) notifications.Consumer {
+	smtpConfig, err := rmailer.ConfigFromSMTPConfig(config.SMTP)
+	if err == nil {
+		smtpLogger := notificationsLogger.Fork("smtp")
+		smtpLogger.Debugf("using smtp config: %v", smtpConfig)
+		return rmailer.NewConsumer(rmailer.NewRMailer(smtpConfig, smtpLogger), smtpLogger)
+	}
+	if config.SMTP.Server == "" {
+		notificationsLogger.Debugf("no [smtp] server: mail notifications are only logged")
+	} else {
+		notificationsLogger.Errorf("failed to bootstrap smtp notifications: %v", err)
+	}
+	// consume mail notifications even if mailer is not available
+	return toLog.NewLogConsumer(notificationsLogger.Fork("smtp undeliverable"), notifications.TargetMail)
+}
 
 // lookupUser is used to get the user on every request in auth middleware
 func (al *APIListener) lookupUser(r *http.Request, isBearerOnly bool) (authorized bool, username string, err error) {
