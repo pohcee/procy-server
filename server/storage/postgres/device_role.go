@@ -33,6 +33,16 @@ var DeviceFunctions = []string{
 // DeviceFunctions so a device process without metering starts on a role granted before migration 1300.
 var MeteringDeviceFunctions = []string{"ingest_usage(jsonb)"}
 
+// BillingDeviceFunctions are the functions a device process with [billing] on also executes (migration 1450): the
+// transfer policies it throttles tunnels with. Granted by migrate.GrantDevice, allowed by CheckDeviceRole, required
+// by CheckDeviceBilling.
+var BillingDeviceFunctions = []string{"device_transfer_policy()"}
+
+// CheckDeviceBilling returns an error unless the role db connects as may execute BillingDeviceFunctions.
+func CheckDeviceBilling(ctx context.Context, db *sqlx.DB) error {
+	return requireExecute(ctx, db, BillingDeviceFunctions)
+}
+
 // CheckDeviceMetering returns an error unless the role db connects as may execute MeteringDeviceFunctions.
 func CheckDeviceMetering(ctx context.Context, db *sqlx.DB) error {
 	return requireExecute(ctx, db, MeteringDeviceFunctions)
@@ -113,6 +123,7 @@ func CheckDeviceRole(ctx context.Context, db *sqlx.DB) error {
 		return err
 	}
 	allowed := append(append([]string(nil), DeviceFunctions...), existingFunctions(ctx, db, MeteringDeviceFunctions)...)
+	allowed = append(allowed, existingFunctions(ctx, db, BillingDeviceFunctions)...)
 	var extra []string
 	if err := db.SelectContext(ctx, &extra, `SELECT p.oid::regprocedure::text
 		FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
