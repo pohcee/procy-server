@@ -145,6 +145,30 @@ func (ts *MailTestSuite) TestMailSMTPConfigCompatibility() {
 	}, config)
 }
 
+func (ts *MailTestSuite) TestMailSMTPConfigHostPort() {
+	for server, want := range map[string]struct {
+		host string
+		port int
+	}{
+		"127.0.0.1:2525":          {"127.0.0.1", 2525},
+		"[::1]:25":                {"::1", 25},
+		"::1":                     {"::1", -1},
+		"smtp.example.com:587":    {"smtp.example.com", 587},
+		"smtp.example.com":        {"smtp.example.com", -1},
+		"127.0.0.1":               {"127.0.0.1", -1},
+		"smtp://mail.example.com": {"mail.example.com", -1},
+		"smtp://[::1]:2525":       {"::1", 2525},
+	} {
+		config, err := rmailer.ConfigFromSMTPConfig(chconfig.SMTPConfig{Server: server, SenderEmail: "test@somedomain.com"})
+		if ts.NoError(err, server) {
+			ts.Equal(want.host, config.Host, server)
+			ts.Equal(want.port, config.Port, server)
+		}
+	}
+	_, err := rmailer.ConfigFromSMTPConfig(chconfig.SMTPConfig{Server: "127.0.0.1:smtp", SenderEmail: "test@somedomain.com"})
+	ts.Error(err)
+}
+
 func (ts *MailTestSuite) TestMailContentTypeValidation() {
 	ts.Error(ts.mailer.Send(context.Background(), []string{"tina.recipient@example.com", "just+fff@some.mail.com"}, "test subject!", rmailer.ContentType("test"), "test\r\n\r\n<b>content</b>"))
 }

@@ -273,7 +273,12 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		mailConsumer := rmailer.NewConsumer(rmailer.NewRMailer(smtpConfig, smtpLogger), smtpLogger)
 		notificationConsumers = append(notificationConsumers, mailConsumer)
 	} else {
-		notificationsLogger.Errorf("failed to bootstrap smtp notifications: %v", err)
+		if config.SMTP.Server == "" {
+			// no [smtp] (device processes, or a server without email): nothing failed
+			notificationsLogger.Debugf("no [smtp] server: mail notifications are only logged")
+		} else {
+			notificationsLogger.Errorf("failed to bootstrap smtp notifications: %v", err)
+		}
 		logConsumer := toLog.NewLogConsumer(notificationsLogger.Fork("smtp undeliverable"), notifications.TargetMail) // consume mail notifications even if mailer is not available
 		notificationConsumers = append(notificationConsumers, logConsumer)
 	}
