@@ -56,6 +56,15 @@ func (al *APIListener) handleGetMe(w http.ResponseWriter, req *http.Request) {
 			me.EmailVerified = &v
 		}
 	}
+	details, err := al.signInDetailsOf(req.Context(), []string{user.Username})
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	me.SignIn, me.OIDCLinked = details[user.Username].SignIn, details[user.Username].OIDCLinked
+	if al.oidcLogin != nil {
+		me.AuthMethod = sessionAuthMethod(req, al.config.API.JWTSecret)
+	}
 	response := api.NewSuccessPayload(me)
 	al.writeJSONResponse(w, http.StatusOK, response)
 }
@@ -190,6 +199,10 @@ func (al *APIListener) handleChangeMe(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	if r.Password != "" && al.oidcLogin != nil && al.inSystemTenant(req.Context()) {
+		al.jsonErrorResponseWithTitle(w, http.StatusBadRequest, "platform operators sign in with OIDC only: they have no password")
+		return
+	}
 	if r.Password != "" {
 		if r.OldPassword == "" {
 			al.jsonErrorResponseWithTitle(w, http.StatusForbidden, "Missing old password.")

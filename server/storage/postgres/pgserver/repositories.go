@@ -1,6 +1,7 @@
 package pgserver
 
 import (
+	pgoidc "github.com/openrport/openrport/server/storage/postgres/oidc"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -40,6 +41,7 @@ func Repositories(db *sqlx.DB, cfg *chconfig.Config) *chserver.Repositories {
 		AuditLog:      pgauditlog.New(db),
 		Users:         pgusers.New(db),
 		ClientAuth:    clientauth.New(db),
+		OIDC:          pgoidc.New(db),
 	}
 }
 

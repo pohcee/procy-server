@@ -18,6 +18,8 @@ type AuthProviderInfo struct {
 	SettingsURI       string `json:"settings_uri"`
 	DeviceSettingsURI string `json:"device_settings_uri"`
 	MaxTokenLifetime  int    `json:"max_token_lifetime"`
+	// OIDC is set when [oidc] sign-in is enabled: what the login page shows (no secrets).
+	OIDC *oidcProviderInfo `json:"oidc,omitempty"`
 }
 
 // AuthSettings contains the auth info to be used by a regular web app
@@ -52,6 +54,7 @@ func (al *APIListener) handleGetAuthProvider(w http.ResponseWriter, _ *http.Requ
 			AuthProvider:     BuiltInAuthProviderName,
 			SettingsURI:      "",
 			MaxTokenLifetime: maxTokenLifetime,
+			OIDC:             al.oidcInfo(),
 		}
 		response = api.NewSuccessPayload(builtInAuthProvider)
 	}

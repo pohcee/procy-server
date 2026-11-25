@@ -61,6 +61,17 @@ func (f *fakeService) AddAdmin(_ context.Context, by Actor, id string, a NewAdmi
 	return &Admin{Organization: id, Username: a.Username, NewAccount: true, Password: "pw", PasswordExpired: true}, f.err
 }
 
+func (f *fakeService) SetRequireOIDC(_ context.Context, by Actor, id string, require bool) (*Organization, error) {
+	f.calls = append(f.calls, fmt.Sprintf("signin %s %v", id, require))
+	f.by = by
+	return &Organization{ID: id, RequireOIDC: require}, f.err
+}
+
+func (f *fakeService) RemoveAdmin(_ context.Context, _ Actor, id, username string, _ bool) error {
+	f.calls = append(f.calls, "remove "+id+" "+username)
+	return f.err
+}
+
 func (f *fakeService) Members(_ context.Context, id string) ([]Member, error) {
 	f.calls = append(f.calls, "members "+id)
 	return nil, f.err
@@ -126,6 +137,7 @@ func TestOperatorRoutesOnlyForSystemAdmins(t *testing.T) {
 		{http.MethodPut, "/operator/organizations/x/device-limit", `{"device_limit":1}`},
 		{http.MethodPost, "/operator/organizations/x/admins", `{"username":"u"}`},
 		{http.MethodGet, "/operator/organizations/x/members", ""},
+		{http.MethodPut, "/operator/organizations/x/sign-in", `{"require_oidc":false}`},
 	}
 	for _, tc := range []struct {
 		who  testUser
@@ -183,6 +195,33 @@ func TestOperatorRoutes(t *testing.T) {
 	assert.Equal(t, []any{}, out["data"], "an empty list, not null")
 
 	assert.Equal(t, []string{"list", "create acme", "suspended acme", "active acme", "limit acme", "limit acme", "admin acme carol", "members acme"}, svc.calls)
+}
+
+func TestOperatorSignIn(t *testing.T) {
+	svc := &fakeService{}
+	r := newRouter(svc, operatorUser)
+	code, out := do(t, r, http.MethodPut, "/operator/organizations/acme/sign-in", `{"require_oidc":true}`)
+	assert.Equal(t, http.StatusConflict, code, "[oidc] is not enabled: %s", out["_raw"])
+	code, out = do(t, r, http.MethodPut, "/operator/organizations/acme/sign-in", `{"require_oidc":false}`)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, false, out["data"].(map[string]any)["require_oidc"])
+	code, _ = do(t, r, http.MethodPut, "/operator/organizations/acme/sign-in", `{}`)
+	assert.Equal(t, http.StatusBadRequest, code)
+
+	log := logger.NewLogger("test", logger.LogOutput{File: nil}, logger.LogLevelError)
+	h := NewHandler(Options{Service: svc, OIDCEnabled: true, Respond: &api.Responder{Log: log},
+		CurrentUser: func(context.Context) (*users.User, error) { return operatorUser.user, nil }})
+	m := mux.NewRouter()
+	m.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(tenant.WithID(req.Context(), SystemTenant)))
+		})
+	})
+	h.Mount(m.PathPrefix(routes.AllRoutesPrefix + RoutePrefix).Subrouter())
+	code, out = do(t, m, http.MethodPut, "/operator/organizations/acme/sign-in", `{"require_oidc":true}`)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, true, out["data"].(map[string]any)["require_oidc"])
+	assert.Equal(t, []string{"signin acme false", "signin acme true"}, svc.calls)
 }
 
 func TestOperatorErrors(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
+	"github.com/openrport/openrport/server/oidc"
 	"github.com/openrport/openrport/server/vault"
 )
 
@@ -64,4 +65,7 @@ type Repositories struct {
 	// ClientAuth is the client credential source. nil: chosen from the config as without injection (auth, auth
 	// file or the [database] auth table).
 	ClientAuth clientsauth.Provider
+	// OIDC stores pending OIDC sign-ins and the identities pinned to accounts (api_sessions.db). It shares the
+	// file with APISessions; nil with APISessions injected: OIDC sign-in can't be enabled.
+	OIDC oidc.Store
 }

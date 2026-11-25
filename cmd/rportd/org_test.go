@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -131,4 +133,61 @@ func TestParseLimit(t *testing.T) {
 		_, err := parseLimit(bad)
 		assert.Error(t, err, bad)
 	}
+}
+
+func TestOrgAdminsWithOIDC(t *testing.T) {
+	d := pgtest.New(t)
+	keyFile := filepath.Join(t.TempDir(), "vault.key")
+	require.NoError(t, os.WriteFile(keyFile, []byte(strings.Repeat("ab", 32)+"\n"), 0600))
+	secret := filepath.Join(t.TempDir(), "oidc-secret")
+	require.NoError(t, os.WriteFile(secret, []byte("s3cret\n"), 0600))
+	writeConfig(t, "[server]\n  data_dir = \""+t.TempDir()+"\"\n"+
+		"[storage]\n  backend = \"postgres\"\n  dsn = \""+d.AppURL+"\"\n"+
+		"[vault]\n  key_provider = \"local\"\n  local_key_file = \""+keyFile+"\"\n"+
+		"[oidc]\n  enabled = true\n  client_id = \"cid\"\n  client_secret_file = \""+secret+"\"\n"+
+		"  redirect_url = \"https://procy.example/api/v1/oidc/callback\"\n")
+
+	// an operator gets no password at all
+	out, err := org(t, runOrgAddAdmin, string(operator.SystemTenant), "ops@example.com")
+	require.NoError(t, err)
+	assert.Contains(t, out, `added administrator "ops@example.com" to "_system" without a password`)
+	assert.NotContains(t, out, "password (shown once")
+	var hash string
+	require.NoError(t, d.Owner.Get(&hash, "SELECT password FROM accounts WHERE username = 'ops@example.com'"))
+	assert.Empty(t, hash)
+
+	// organizations that don't require OIDC still give a password
+	_, err = org(t, runOrgAdd, "acme")
+	require.NoError(t, err)
+	out, err = org(t, runOrgAddAdmin, "acme", "alice@example.com")
+	require.NoError(t, err)
+	assert.Contains(t, out, "password (shown once")
+	out, err = org(t, runOrgAddAdmin, "acme", "bob@example.com")
+	require.NoError(t, err)
+
+	// remove-admin: the last administrator stays unless forced
+	_, err = org(t, runOrgRemoveAdmin, string(operator.SystemTenant), "ops@example.com")
+	assert.ErrorIs(t, err, operator.ErrLastAdmin)
+	_, err = org(t, runOrgRemoveAdmin, "acme", "nobody@example.com")
+	assert.ErrorIs(t, err, operator.ErrNotMember)
+	out, err = org(t, runOrgRemoveAdmin, "acme", "bob@example.com")
+	require.NoError(t, err)
+	assert.Contains(t, out, `removed administrator "bob@example.com" from "acme"`)
+	var n int
+	require.NoError(t, d.Owner.Get(&n, "SELECT count(*) FROM accounts WHERE username = 'bob@example.com'"))
+	assert.Zero(t, n, "its last membership: the account is gone")
+	_, err = org(t, runOrgRemoveAdmin, "acme", "alice@example.com")
+	assert.ErrorIs(t, err, operator.ErrLastAdmin)
+	setBool(t, orgForce, true)
+	_, err = org(t, runOrgRemoveAdmin, string(operator.SystemTenant), "ops@example.com")
+	require.NoError(t, err)
+	_, err = org(t, runOrgRemoveAdmin, "nope", "x")
+	assert.ErrorIs(t, err, operator.ErrNotFound)
+}
+
+func setBool(t *testing.T, flag *bool, value bool) {
+	t.Helper()
+	prev := *flag
+	*flag = value
+	t.Cleanup(func() { *flag = prev })
 }

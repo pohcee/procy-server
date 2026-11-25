@@ -37,6 +37,7 @@ import (
 	"github.com/openrport/openrport/server/notifications/channels/scriptRunner"
 	"github.com/openrport/openrport/server/notifications/channels/toLog"
 	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
+	"github.com/openrport/openrport/server/oidc"
 	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/routes"
 	"github.com/openrport/openrport/server/signup"
@@ -119,6 +120,11 @@ type APIListenerOptions struct {
 	NoNotificationsCleaner bool
 	// Signup, when set, serves the signup routes, organization export and deletion, and their operator routes.
 	Signup *signup.Service
+	// SignInPolicies, when set (Postgres), stores the sign-in method of memberships and the organizations' OIDC
+	// requirement; nil: standalone, every user may use both.
+	SignInPolicies oidc.Policies
+	// OIDCClient, when set, is the HTTP client OIDC sign-in reaches the provider with (tests).
+	OIDCClient *http.Client
 }
 
 // apiServices holds the options under the names the handler code uses.
@@ -160,6 +166,11 @@ type APIListener struct {
 	billing *BillingAPI
 	// meter counts the API bytes; nil: metering off
 	meter *metering.Meter
+	// oidcLogin is OIDC sign-in; nil without [oidc] enabled
+	oidcLogin *oidcLogin
+	// signInPolicies stores the sign-in policy; nil: standalone
+	signInPolicies oidc.Policies
+	policyCache    signInPolicyCache
 
 	fingerprint       string
 	apiSessions       *session.Cache
@@ -332,7 +343,30 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		usage:                  o.Usage,
 		meter:                  o.Meter,
 		billing:                o.Billing,
+		signInPolicies:         o.SignInPolicies,
 	}
+	oidcLogin, err := newOIDCLogin(config.OIDC, repos.OIDC, o.OIDCClient)
+	if err != nil {
+		return nil, err
+	}
+	a.oidcLogin = oidcLogin
+	if s, ok := repos.OIDC.(interface {
+		SetLogins(func(context.Context) ([]string, error))
+	}); ok {
+		// standalone: the email of a sign-in is matched against the API users
+		s.SetLogins(func(ctx context.Context) ([]string, error) {
+			all, err := userService.GetAll(ctx)
+			if err != nil {
+				return nil, err
+			}
+			names := make([]string, 0, len(all))
+			for _, u := range all {
+				names = append(names, u.Username)
+			}
+			return names, nil
+		})
+	}
+	a.logOIDC()
 
 	a.errResponseLogger = allog.Fork("error-response")
 	operatorMounts, err := a.initSignup(o)
@@ -345,7 +379,8 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		if o.Billing != nil {
 			ob, plans = o.Billing.Operator, o.Billing.Plans
 		}
-		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, Billing: ob, Plans: plans, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts})
+		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, Billing: ob, Plans: plans, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts,
+			OIDCEnabled: a.oidcLogin != nil})
 	}
 
 	logGroupPermissionsNotice(userService, a.Logger)
@@ -557,7 +592,7 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 	// skip basic auth with password when 2fa is enabled
 	if !al.config.API.IsTwoFAOn() && !al.config.API.TotPEnabled {
 		passwordOk := verifyPassword(user.Password, password)
-		if passwordOk {
+		if passwordOk && al.passwordAllowed(ctx, username) == nil {
 			return true, username, nil
 		}
 	}
@@ -641,6 +676,15 @@ func (al *APIListener) checkBearerToken(ctx context.Context, bearerToken, uri, m
 		return false, tokenCtx, err
 	}
 	if authorized {
+		// a password session ends once its organization (or the member) requires OIDC sign-in; like an expired
+		// session it is not a failed login (no ban)
+		allowed, err := al.sessionAllowed(ctx, tokenCtx.AppClaims)
+		if err != nil {
+			return false, tokenCtx, err
+		}
+		if !allowed {
+			return false, nil, bearer.ErrStaleSession
+		}
 		// extend the token lifetime by a short amount so that in-progress activities can complete
 		if err := bearer.IncreaseSessionLifetime(ctx, al.apiSessions, apiSession); err != nil {
 			// do not return error since it should respond with 401 instead of 500, just log it
@@ -705,6 +749,10 @@ func (al *APIListener) shouldCreateMissingUser(user *users.User, skipPasswordVal
 }
 
 func verifyPassword(saved, provided string) bool {
+	// an account without a password (OIDC sign-in only) never verifies, not even an empty one
+	if saved == "" {
+		return false
+	}
 	// bcrypt hashed password
 	if strings.HasPrefix(saved, htpasswdBcryptPrefix) {
 		return bcrypt.CompareHashAndPassword([]byte(saved), []byte(provided)) == nil

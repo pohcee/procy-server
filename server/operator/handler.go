@@ -39,6 +39,8 @@ type Options struct {
 	Respond     *api.Responder
 	// Mounts register more operator routes (other packages' operator APIs, such as signup) behind the same check.
 	Mounts []func(r *mux.Router)
+	// OIDCEnabled: [oidc] sign-in is enabled (an organization may require it only then).
+	OIDCEnabled bool
 }
 
 // Handler serves the operator API.
@@ -50,11 +52,13 @@ type Handler struct {
 	currentUser func(ctx context.Context) (*users.User, error)
 	respond     *api.Responder
 	mounts      []func(r *mux.Router)
+	oidcEnabled bool
 }
 
 // NewHandler returns the operator API handler.
 func NewHandler(o Options) *Handler {
-	return &Handler{svc: o.Service, usage: o.Usage, billing: o.Billing, plans: o.Plans, currentUser: o.CurrentUser, respond: o.Respond, mounts: o.Mounts}
+	return &Handler{svc: o.Service, usage: o.Usage, billing: o.Billing, plans: o.Plans, currentUser: o.CurrentUser, respond: o.Respond, mounts: o.Mounts,
+		oidcEnabled: o.OIDCEnabled}
 }
 
 // Mount registers the operator routes on r, a router for RoutePrefix behind authentication.
@@ -68,6 +72,7 @@ func (h *Handler) Mount(r *mux.Router) {
 	r.HandleFunc("/organizations/{id}/device-limit", h.setDeviceLimit).Methods(http.MethodPut)
 	r.HandleFunc("/organizations/{id}/admins", h.addAdmin).Methods(http.MethodPost)
 	r.HandleFunc("/organizations/{id}/members", h.members).Methods(http.MethodGet)
+	r.HandleFunc("/organizations/{id}/sign-in", h.setSignIn).Methods(http.MethodPut)
 	if h.usage != nil {
 		r.HandleFunc("/organizations/{id}/usage", h.organizationUsage).Methods(http.MethodGet)
 		r.HandleFunc("/usage", h.usageSummary).Methods(http.MethodGet)
@@ -240,8 +245,10 @@ func (h *Handler) fail(w http.ResponseWriter, err error) {
 		status = http.StatusNotFound
 	case errors.Is(err, ErrExists):
 		status = http.StatusConflict
-	case errors.Is(err, ErrNotActive):
+	case errors.Is(err, ErrNotActive), errors.Is(err, ErrLastAdmin):
 		status = http.StatusConflict
+	case errors.Is(err, ErrNotMember):
+		status = http.StatusNotFound
 	case errors.Is(err, ErrInvalid):
 		status = http.StatusBadRequest
 	}
@@ -284,4 +291,30 @@ func systemTenantRoute(path string) bool {
 		}
 	}
 	return false
+}
+
+type signInRequest struct {
+	RequireOIDC *bool `json:"require_oidc"`
+}
+
+// setSignIn handles PUT /organizations/{id}/sign-in {"require_oidc": bool}.
+func (h *Handler) setSignIn(w http.ResponseWriter, r *http.Request) {
+	var in signInRequest
+	if !h.decode(w, r, &in) {
+		return
+	}
+	if in.RequireOIDC == nil {
+		h.fail(w, fmt.Errorf("%w: require_oidc is required", ErrInvalid))
+		return
+	}
+	if *in.RequireOIDC && !h.oidcEnabled {
+		h.respond.ErrorWithTitle(w, http.StatusConflict, "OIDC sign-in is not enabled on this server ([oidc])")
+		return
+	}
+	o, err := h.svc.SetRequireOIDC(r.Context(), actor(r), mux.Vars(r)["id"], *in.RequireOIDC)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	h.respond.JSON(w, http.StatusOK, api.NewSuccessPayload(o))
 }

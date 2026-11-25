@@ -47,6 +47,9 @@ type Operator struct {
 	now         func() time.Time
 	// keepDisconnected is the [server] keep_disconnected_clients rule the device count follows (nil: forever)
 	keepDisconnected *time.Duration
+	// oidc: [oidc] sign-in is enabled; new operators (and administrators of organizations that require it) get no
+	// password
+	oidc bool
 }
 
 var _ operator.Service = (*Operator)(nil)
@@ -59,6 +62,7 @@ func NewOperator(db *sqlx.DB, cfg *chconfig.Config) *Operator {
 		memberships:      NewMemberships(db, cfg),
 		now:              time.Now,
 		keepDisconnected: keepDisconnectedClients(cfg),
+		oidc:             cfg.OIDC.Enabled,
 	}
 }
 
@@ -71,7 +75,7 @@ func (o *Operator) inSystem(ctx context.Context, fn func(tx *sqlx.Tx) error) err
 	return err
 }
 
-const organizationColumns = "id, name, status, created_at, max_clients"
+const organizationColumns = "id, name, status, created_at, max_clients, require_oidc"
 
 // List implements operator.Service.
 func (o *Operator) List(ctx context.Context) ([]operator.Organization, error) {
@@ -249,7 +253,8 @@ func (o *Operator) change(ctx context.Context, id string, fn func(tx *sqlx.Tx) e
 // AddAdmin implements operator.Service.
 func (o *Operator) AddAdmin(ctx context.Context, by operator.Actor, id string, in operator.NewAdmin) (*operator.Admin, error) {
 	var status string
-	err := o.db.GetContext(ctx, &status, "SELECT status FROM tenants WHERE id = $1", id)
+	var requireOIDC bool
+	err := o.db.QueryRowxContext(ctx, "SELECT status, require_oidc FROM tenants WHERE id = $1", id).Scan(&status, &requireOIDC)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return nil, operator.ErrNotFound
@@ -264,6 +269,7 @@ func (o *Operator) AddAdmin(ctx context.Context, by operator.Actor, id string, i
 		Username:    in.Username,
 		Groups:      []string{users.Administrators},
 		TwoFASendTo: in.TwoFASendTo,
+		NoPassword:  o.oidc && (tenant.ID(id) == operator.SystemTenant || requireOIDC),
 	}, "operator:"+by.Username)
 	switch {
 	case errors.Is(err, membership.ErrAlreadyMember):
@@ -280,7 +286,73 @@ func (o *Operator) AddAdmin(ctx context.Context, by operator.Actor, id string, i
 		return nil, fmt.Errorf("admin %q added to %q, but the audit log entry failed: %w", in.Username, id, err)
 	}
 	return &operator.Admin{Organization: id, Username: in.Username, NewAccount: inv.NewAccount, Password: inv.Password,
-		PasswordExpired: inv.PasswordExpired, Pending: inv.Pending}, nil
+		PasswordExpired: inv.PasswordExpired, Pending: inv.Pending, NoPassword: inv.NewAccount && inv.Password == ""}, nil
+}
+
+// SetRequireOIDC implements operator.Service.
+func (o *Operator) SetRequireOIDC(ctx context.Context, by operator.Actor, id string, require bool) (*operator.Organization, error) {
+	return o.change(ctx, id, func(tx *sqlx.Tx) error {
+		var found bool
+		if err := tx.GetContext(ctx, &found, "SELECT rport_set_require_oidc($1, $2)", id, require); err != nil {
+			return err
+		}
+		if !found {
+			return operator.ErrNotFound
+		}
+		return o.audit(ctx, tx, by, operator.AuditApplicationOrganizationSignIn, operator.AuditActionUpdate, id, map[string]bool{"require_oidc": require})
+	})
+}
+
+// RemoveAdmin implements operator.Service.
+func (o *Operator) RemoveAdmin(ctx context.Context, by operator.Actor, id, username string, force bool) error {
+	var status string
+	err := o.db.GetContext(ctx, &status, "SELECT status FROM tenants WHERE id = $1", id)
+	switch {
+	case errors.Is(err, sql.ErrNoRows), status == "reserved", strings.HasPrefix(id, "_") && tenant.ID(id) != operator.SystemTenant:
+		return operator.ErrNotFound
+	case err != nil:
+		return fmt.Errorf("organization %q: %w", id, err)
+	}
+	err = postgres.InTenantID(ctx, o.db, tenant.ID(id), func(tx *sqlx.Tx) error {
+		var member bool
+		if err := tx.GetContext(ctx, &member, "SELECT EXISTS (SELECT 1 FROM users WHERE tenant_id = $1 AND username = $2)", id, username); err != nil {
+			return err
+		}
+		if !member {
+			return fmt.Errorf("%q: %w %q", username, operator.ErrNotMember, id)
+		}
+		var admins []string
+		if err := tx.SelectContext(ctx, &admins, "SELECT username FROM user_groups WHERE tenant_id = $1 AND group_name = $2 FOR UPDATE",
+			id, users.Administrators); err != nil {
+			return err
+		}
+		isAdmin := false
+		for _, a := range admins {
+			isAdmin = isAdmin || a == username
+		}
+		if !isAdmin {
+			return fmt.Errorf("%w: %q is not an administrator of %q", operator.ErrInvalid, username, id)
+		}
+		if len(admins) == 1 && !force {
+			return fmt.Errorf("%q is the only administrator of %q: %w (use --force)", username, id, operator.ErrLastAdmin)
+		}
+		for _, q := range []string{
+			"DELETE FROM api_tokens WHERE tenant_id = $1 AND username = $2",
+			"DELETE FROM api_sessions WHERE tenant_id = $1 AND username = $2",
+			"DELETE FROM users WHERE tenant_id = $1 AND username = $2",
+		} {
+			if _, err := tx.ExecContext(ctx, q, id, username); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return o.inSystem(ctx, func(tx *sqlx.Tx) error {
+		return o.audit(ctx, tx, by, operator.AuditApplicationOrganizationAdmin, operator.AuditActionDelete, id, map[string]string{"username": username})
+	})
 }
 
 // Members implements operator.Service.
@@ -294,8 +366,9 @@ func (o *Operator) Members(ctx context.Context, id string) ([]operator.Member, e
 		var rows []struct {
 			Username      string `db:"username"`
 			Organizations int    `db:"organizations"`
+			SignIn        string `db:"sign_in"`
 		}
-		if err := tx.SelectContext(ctx, &rows, `SELECT u.username,
+		if err := tx.SelectContext(ctx, &rows, `SELECT u.username, u.sign_in,
 				(SELECT count(*) FROM user_logins l WHERE l.username = u.username) AS organizations
 			FROM users u WHERE u.tenant_id = $1 ORDER BY u.username COLLATE "C"`, id); err != nil {
 			return err
@@ -311,7 +384,7 @@ func (o *Operator) Members(ctx context.Context, id string) ([]operator.Member, e
 		byName := map[string]int{}
 		for _, r := range rows {
 			byName[r.Username] = len(members)
-			members = append(members, operator.Member{Username: r.Username, Groups: []string{}, Organizations: r.Organizations})
+			members = append(members, operator.Member{Username: r.Username, Groups: []string{}, Organizations: r.Organizations, SignIn: r.SignIn})
 		}
 		for _, g := range groups {
 			if i, ok := byName[g.Username]; ok {

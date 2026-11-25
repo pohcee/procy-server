@@ -131,6 +131,22 @@ func (al *APIListener) handleSwitchOrganization(w http.ResponseWriter, req *http
 		return
 	}
 	target := tenant.WithID(ctx, tenant.ID(in.Organization))
+	// the new session signed in as the current one did, and the target organization's sign-in policy applies
+	policy, err := al.signInPolicy(target, user.Username)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	if sessionAuthMethod(req, al.config.API.JWTSecret) == bearer.AuthMethodOIDC {
+		if !policy.OIDCAllowed() {
+			al.jsonErrorResponseWithTitle(w, http.StatusForbidden, fmt.Sprintf("you can't use Google sign-in in %q: sign in with your password", in.Organization))
+			return
+		}
+		target = bearer.WithAuthMethod(target, bearer.AuthMethodOIDC)
+	} else if !policy.PasswordAllowed() {
+		al.jsonError(w, al.errOIDCRequired())
+		return
+	}
 	tokenStr, err := bearer.CreateAuthToken(target, al.apiSessions, al.config.API.JWTSecret, lifetime, user.Username,
 		bearer.ScopesAllExcluding2FaCheck, req.UserAgent(), chshare.RemoteIP(req))
 	if err != nil {
@@ -157,6 +173,13 @@ func (al *APIListener) handleInviteMember(w http.ResponseWriter, req *http.Reque
 	if err != nil {
 		al.jsonError(w, err)
 		return
+	}
+	if al.oidcLogin != nil && al.signInPolicies != nil {
+		// an organization that requires OIDC sign-in gives new logins no password
+		if in.NoPassword, err = al.signInPolicies.RequireOIDC(req.Context()); err != nil {
+			al.jsonError(w, err)
+			return
+		}
 	}
 	invited, err := al.memberships.Invite(req.Context(), in, by.Username)
 	switch {

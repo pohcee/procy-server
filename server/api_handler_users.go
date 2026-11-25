@@ -12,8 +12,10 @@ import (
 	rportplus "github.com/openrport/openrport/plus"
 	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
 	"github.com/openrport/openrport/server/api"
+	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/auditlog"
+	"github.com/openrport/openrport/server/oidc"
 	"github.com/openrport/openrport/server/routes"
 )
 
@@ -32,6 +34,12 @@ type UserPayload struct {
 	GroupPermissionsEnabled      bool                         `json:"group_permissions_enabled"`
 	// EmailVerified is set when signup is on: the login proved to own its mailbox.
 	EmailVerified *bool `json:"email_verified,omitempty"`
+	// SignIn is the member's sign-in method (both, password, oidc); Postgres only.
+	SignIn *oidc.Method `json:"sign_in,omitempty"`
+	// OIDCLinked: an OIDC identity is pinned to the account; set with [oidc] enabled.
+	OIDCLinked *bool `json:"oidc_linked,omitempty"`
+	// AuthMethod is how the request's session signed in (GET /me only): "password" or "oidc".
+	AuthMethod string `json:"auth_method,omitempty"`
 }
 
 type EffectiveExtendedPermissions struct {
@@ -46,12 +54,24 @@ func (al *APIListener) handleGetUsers(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	names := make([]string, 0, len(usrs))
+	for _, user := range usrs {
+		names = append(names, user.Username)
+	}
+	details, err := al.signInDetailsOf(req.Context(), names)
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+
 	usersToSend := make([]UserPayload, 0, len(usrs))
 	for _, user := range usrs {
 		payload := UserPayload{
 			Username:    user.Username,
 			Groups:      user.Groups,
 			TwoFASendTo: user.TwoFASendTo,
+			SignIn:      details[user.Username].SignIn,
+			OIDCLinked:  details[user.Username].OIDCLinked,
 		}
 		if user.PasswordExpired != nil {
 			payload.PasswordExpired = *user.PasswordExpired
@@ -78,20 +98,52 @@ func (al *APIListener) handleChangeUser(w http.ResponseWriter, req *http.Request
 		}
 	}
 
-	var user users.User
-	err := parseRequestBody(req.Body, &user)
+	var in userChangeRequest
+	err := parseRequestBody(req.Body, &in)
 	if err != nil {
 		al.jsonError(w, err)
 		return
 	}
+	user := in.User
 
 	if userIDExists && al.refuseSharedAccountChange(w, req, userID, &user) {
 		return
 	}
 
-	if err := al.userService.Change(req.Context(), &user, userID); err != nil {
+	method, passwordless, err := al.checkUserSignIn(req.Context(), in, !userIDExists)
+	if err != nil {
 		al.jsonError(w, err)
 		return
+	}
+	switch {
+	case passwordless:
+		adder, ok := al.userService.(interface {
+			AddWithoutPassword(ctx context.Context, usr *users.User) error
+		})
+		if !ok {
+			al.jsonErrorResponseWithTitle(w, http.StatusBadRequest, "password is required")
+			return
+		}
+		err = adder.AddWithoutPassword(req.Context(), &user)
+	case userIDExists && method != "" && user.IsEmptyChange():
+		// only the sign-in method changes
+	default:
+		err = al.userService.Change(req.Context(), &user, userID)
+	}
+	if err != nil {
+		al.jsonError(w, err)
+		return
+	}
+	if method != "" {
+		name := userID
+		if user.Username != "" {
+			name = user.Username
+		}
+		if err := al.signInPolicies.SetMethod(req.Context(), name, method); err != nil {
+			al.jsonError(w, err)
+			return
+		}
+		al.policyCache.forget()
 	}
 
 	if user.PasswordExpired != nil && *user.PasswordExpired {
@@ -303,4 +355,52 @@ func (al *APIListener) revokeUserAccess(ctx context.Context, username string) er
 		}
 	}
 	return nil
+}
+
+// userChangeRequest is the body of POST /users and PUT /users/{user_id}.
+type userChangeRequest struct {
+	users.User
+	// SignIn sets the member's sign-in method (Postgres): both, password or oidc.
+	SignIn string `json:"sign_in"`
+}
+
+// checkUserSignIn validates the sign-in part of a user change and reports whether a new user is added without a
+// password: platform operators never get one (with [oidc] enabled), and a new member who signs in through OIDC only
+// (sign_in "oidc", or the organization requires it) needs none.
+func (al *APIListener) checkUserSignIn(ctx context.Context, in userChangeRequest, create bool) (oidc.Method, bool, error) {
+	var method oidc.Method
+	if in.SignIn != "" {
+		if al.signInPolicies == nil {
+			return "", false, errors2.APIError{HTTPStatus: http.StatusBadRequest, Message: "sign_in is stored only on servers with [storage] backend = \"postgres\""}
+		}
+		m, err := parseMethod(in.SignIn)
+		if err != nil {
+			return "", false, err
+		}
+		if err := al.checkMethod(ctx, m); err != nil {
+			return "", false, err
+		}
+		method = m
+	}
+	if al.oidcLogin == nil {
+		return method, false, nil
+	}
+	system := al.inSystemTenant(ctx)
+	if system && in.Password != "" {
+		return "", false, errors2.APIError{HTTPStatus: http.StatusBadRequest, Message: "platform operators sign in with OIDC only: they have no password"}
+	}
+	if !create || in.Password != "" {
+		return method, false, nil
+	}
+	if system || method == oidc.MethodOIDC {
+		return method, true, nil
+	}
+	if al.signInPolicies != nil {
+		require, err := al.signInPolicies.RequireOIDC(ctx)
+		if err != nil {
+			return "", false, err
+		}
+		return method, require, nil
+	}
+	return method, false, nil
 }

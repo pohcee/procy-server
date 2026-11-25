@@ -44,6 +44,7 @@ import (
 	"github.com/openrport/openrport/server/library"
 	"github.com/openrport/openrport/server/monitoring"
 	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
+	"github.com/openrport/openrport/server/oidc"
 	"github.com/openrport/openrport/server/vault"
 	"github.com/openrport/openrport/share/logger"
 )
@@ -345,6 +346,9 @@ func openSQLiteRepositories(ctx context.Context, config *chconfig.Config, given 
 			return nil, nil, err
 		}
 		r.APISessions = session.NewSqliteProvider(db)
+		if r.OIDC == nil {
+			r.OIDC = oidc.NewSQLiteStore(db)
+		}
 	}
 
 	if r.Vault == nil {
