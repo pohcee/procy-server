@@ -429,7 +429,7 @@ func (cl *ClientListener) acceptSSHConnection(w http.ResponseWriter, req *http.R
 // errNoConnectionRequest: the client sent no connection request (it closed the connection first, or took too long).
 var errNoConnectionRequest = errors.New("no connection request")
 
-func (cl *ClientListener) receiveClientConnectionRequest(reqs <-chan *ssh.Request, clog *logger.DynamicLogger) (connRequest *chshare.ConnectionRequest, r *ssh.Request, err error) {
+func (cl *ClientListener) receiveClientConnectionRequest(reqs <-chan *ssh.Request) (connRequest *chshare.ConnectionRequest, r *ssh.Request, err error) {
 	pendingRequestTimer := time.NewTimer(ConnectionRequestTimeOut)
 
 	select {
@@ -480,7 +480,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	clientLog.Debugf("Verifying configuration...")
 
 	// first request to be received must be a connection request
-	connRequest, r, err := cl.receiveClientConnectionRequest(reqs, clientLog)
+	connRequest, r, err := cl.receiveClientConnectionRequest(reqs)
 	if err != nil {
 		if r == nil {
 			// nothing to answer: a client giving up during its connection attempt, or one that never sends a request
