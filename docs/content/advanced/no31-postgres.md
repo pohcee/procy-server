@@ -304,6 +304,77 @@ Every change, from the API or the CLI, is written to the audit log of `_system` 
 the audit log is enabled in the configuration. `GET /api/v1/status` reports `capabilities.operator: true` to
 operators.
 
+## Usage metering
+
+With `[metering]` on, every node counts what each organization uses, per UTC hour, and the API shows it to the
+organization's administrators and to platform operators. Off by default; refused on SQLite.
+
+```toml
+[metering]
+  enabled = true
+  flush_interval = "60s"          # how often each process writes its counts (5 s to 30 min)
+  # hourly_retention = "2160h"    # hourly usage and per-device daily transfer, default 90 days (at least 10)
+  # daily_retention = "18600h"    # daily usage and device-days, default 25 months (at least hourly_retention)
+```
+
+After upgrading, run `rportd migrate --grant-to <application role>` (and `--grant-device-to <device role>` for
+device processes) once more: both roles need `EXECUTE` on the function usage is written through (`ingest_usage`),
+the application role also on the operators' summary functions. A device process with metering on refuses to start
+until its role has it (one without metering starts as before). Days are rolled up and pruned by whichever node does
+the cluster upkeep, metering on or not.
+
+What is counted:
+
+| Metric | Counted where |
+|---|---|
+| `tunnel_bytes_to_user`, `tunnel_bytes_to_device` | the tunnel's copy loop on the node holding the tunnel, both directions, while the connection runs (port tunnels, tunnels behind the built-in HTTP proxy, browser RDP/VNC through it, UDP datagrams) |
+| `upload_bytes_to_devices` | the bytes each device reads of an uploaded file (a file sent to 100 devices counts 100 times; a transfer that stops half way counts half) |
+| `api_bytes_out` | the bytes of API responses, websockets included, of requests resolved to the organization (failed logins included; not the UI's static files, not `_system`) |
+| `jobs_command`, `jobs_script`, `jobs_library` | jobs a device started (a job for several devices counts once per device) |
+| `device_seconds`, `devices_peak` | the devices connected to each node, sampled every 15 seconds: device-seconds per hour (the hour's average is device-seconds / 3600) and the most at once |
+| device-days | the devices that had a session on each UTC day (`usage_device_days`): a device counts once a day, however many nodes saw it |
+| `monitoring_rows` | the measurements stored, counted once a day by the cluster upkeep |
+
+Each process keeps its counts in memory and writes them every `flush_interval`, one item per organization with a
+unique key (node, process start, organization, flush number). A device process puts them in its outbox (kind
+`usage`, never dropped when an organization's outbox is full) and the outbox ships them; other nodes call
+`ingest_usage` directly. `ingest_usage` claims the item's key and adds its deltas in the same transaction, so
+retries add nothing twice; it rejects items with unknown metrics, values out of range, hours not on the hour, more
+than an hour ahead or more than 7 days old, and reserved organizations (suspended ones are kept). Usage keys are
+kept 8 days.
+
+Tables: `usage_hourly (tenant_id, hour, metric, value)`; `usage_daily`, rolled up from the hours of days that ended
+more than two days ago (sums; the highest value for `devices_peak` and `monitoring_rows`) and recomputed for a week
+while late data may arrive; `usage_device_days (tenant_id, day, client_id)`; `usage_client_daily (tenant_id, day,
+client_id, metric, value)` for the transfer of each device. The upkeep (rollups, the monitoring count and the
+retention) runs with the cluster upkeep, on one node at a time.
+
+Reading it:
+
+| Method | Path | For |
+|---|---|---|
+| `GET` | `/usage?from&to&granularity=hour\|day\|month` | administrators of an organization, their own organization: periods, totals and the 10 devices with the most transfer |
+| `GET` | `/operator/organizations/{id}/usage?from&to&granularity` | operators, one organization's report |
+| `GET` | `/operator/usage?month=YYYY-MM` (or `from&to`, `organization`, `metric`) | operators, every organization's totals, heaviest first (by `transfer_bytes` unless `metric` names another) |
+
+`from` and `to` are RFC 3339 times or dates (UTC); the default is the current month. Hourly reports cover at most
+31 days and only the hourly retention; day and month reports use whole UTC days. Each period has the counters, the
+transfer (`transfer_bytes` = tunnel bytes both ways + upload bytes), `jobs_run`, `device_hours`, `devices_avg`,
+`devices_peak` and, by day or month, `device_days`, `devices_billable` (the average of the daily device counts over
+the days passed, rounded up) and `devices_peak_day`. `GET /api/v1/status` reports `capabilities.usage: true`. With
+metering on, each tunnel in the API also shows `bytes: {to_user, to_device}`, its totals since it opened (live on
+the node holding the tunnel; on other nodes as of the holder's last report of the client).
+
+Accuracy:
+
+* Bytes are payload bytes: TLS, websocket and SSH framing (some 5–10 %) are not counted. Through the built-in HTTP
+  proxy the bytes counted are those between the proxy and the device.
+* A process that dies loses at most one flush interval of counts (a minute) plus what its outbox did not ship;
+  losses only under-count.
+* `devices_peak` is the most devices one node saw at once: with several nodes accepting devices it is the highest
+  node's count, not the cluster's (device-days and `device_seconds` add up across nodes correctly).
+* Hours come from each node's clock; the count of the seconds before a sample is attributed to the sample's hour.
+
 ## Developing
 
 `go run ./server/storage/postgres/pgtest/devdb` starts a throwaway Postgres without Docker and prints a `[storage]`

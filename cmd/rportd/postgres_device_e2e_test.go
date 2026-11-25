@@ -49,6 +49,10 @@ func deviceConfig(t *testing.T, root, dsn string) (configPath string, clientPort
 
 [cluster]
   node_id = "device-1"
+
+[metering]
+  enabled = true
+  flush_interval = "5s"
 `, clientPort, clientPort, e2eKeySeed, dataDir, dsn)
 	configPath = filepath.Join(root, "rportd-device.conf")
 	require.NoError(t, os.WriteFile(configPath, []byte(conf), 0o600))
@@ -123,6 +127,9 @@ func TestPostgresDeviceProcessEndToEnd(t *testing.T) {
 [vault]
   key_provider = "local"
   local_key_file = %q
+
+[metering]
+  enabled = true
 `, d.AppURL, keyFile))
 	out := runRportd(t, "", "migrate", "-c", apiConf, "--dsn", d.OwnerURL, "--grant-to", pgtest.AppRole, "--grant-device-to", pgtest.DeviceRole)
 	assert.Contains(t, out, "granted the device privileges to "+pgtest.DeviceRole)
@@ -173,6 +180,19 @@ func TestPostgresDeviceProcessEndToEnd(t *testing.T) {
 		_ = owner.Get(&events, "SELECT count(*) FROM client_connection_events WHERE client_id = 'dev-client' AND event = 'connected' AND node_id = 'device-1'")
 		return events == 1
 	}, 20*time.Second, 200*time.Millisecond, "connection event shipped")
+
+	// the device process meters through its outbox and the device role: the device's day and the connected count
+	require.Eventually(t, func() bool {
+		var days, peak int
+		_ = owner.Get(&days, "SELECT count(*) FROM usage_device_days WHERE tenant_id = 'default' AND client_id = 'dev-client'")
+		_ = owner.Get(&peak, "SELECT coalesce(max(value), 0) FROM usage_hourly WHERE tenant_id = 'default' AND metric = 'devices_peak'")
+		return days == 1 && peak == 1
+	}, 30*time.Second, 200*time.Millisecond, "usage shipped from the device process:\n%s", devLog.String())
+	var report struct {
+		Totals map[string]any `json:"totals"`
+	}
+	api.mustAPI(http.MethodGet, "/usage", nil, &report)
+	assert.EqualValues(t, 1, report.Totals["device_days"], "the api process reports it")
 
 	var outboxFiles []string
 	outboxFiles, err = filepath.Glob(filepath.Join(root, "device-data", pgserver.OutboxFile))

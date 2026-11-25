@@ -9,9 +9,10 @@ import (
 )
 
 // newDeviceFileServer returns an SFTP server for a client connection that can only read
-// the files allowed reports true for. Listing, writing and every other command are refused.
-func newDeviceFileServer(rwc io.ReadWriteCloser, allowed func(path string) bool) *sftp.RequestServer {
-	h := &deviceFileHandler{allowed: allowed}
+// the files allowed reports true for. Listing, writing and every other command are refused. uploaded, when set,
+// counts the bytes the client reads.
+func newDeviceFileServer(rwc io.ReadWriteCloser, allowed func(path string) bool, uploaded func(n int64)) *sftp.RequestServer {
+	h := &deviceFileHandler{allowed: allowed, uploaded: uploaded}
 	return sftp.NewRequestServer(rwc, sftp.Handlers{
 		FileGet:  h,
 		FilePut:  h,
@@ -21,7 +22,8 @@ func newDeviceFileServer(rwc io.ReadWriteCloser, allowed func(path string) bool)
 }
 
 type deviceFileHandler struct {
-	allowed func(path string) bool
+	allowed  func(path string) bool
+	uploaded func(n int64)
 }
 
 func (h *deviceFileHandler) Fileread(r *sftp.Request) (io.ReaderAt, error) {
@@ -32,7 +34,25 @@ func (h *deviceFileHandler) Fileread(r *sftp.Request) (io.ReaderAt, error) {
 	if err != nil {
 		return nil, err
 	}
+	if h.uploaded != nil {
+		return countingReaderAt{f, h.uploaded}, nil
+	}
 	return f, nil
+}
+
+// countingReaderAt counts the bytes read: what the device actually fetched, so a transfer that stops half way
+// counts half. It keeps the file's Close (the SFTP server closes what it opened).
+type countingReaderAt struct {
+	*os.File
+	count func(n int64)
+}
+
+func (c countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	n, err := c.File.ReadAt(p, off)
+	if n > 0 {
+		c.count(int64(n))
+	}
+	return n, err
 }
 
 func (h *deviceFileHandler) Filewrite(*sftp.Request) (io.WriterAt, error) {

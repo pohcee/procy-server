@@ -134,6 +134,11 @@ get:
                         description: >-
                           The operator API is available to the requesting user (a platform operator on a Postgres
                           server). Present only when true.
+                      usage:
+                        type: boolean
+                        description: >-
+                          Usage metering is on (a Postgres server with `[metering] enabled`): `GET /usage` for
+                          administrators and the operator usage routes. Present only when true.
               meta:
                 type: object
                 properties: {}

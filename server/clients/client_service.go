@@ -25,11 +25,13 @@ import (
 	"github.com/openrport/openrport/server/cgroups"
 	"github.com/openrport/openrport/server/clients/clientdata"
 	"github.com/openrport/openrport/server/clients/clienttunnel"
+	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/ports"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
 	"github.com/openrport/openrport/share/query"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 type ClientService interface {
@@ -90,6 +92,9 @@ type ClientServiceProvider struct {
 	alertingService     alertingcap.Service
 
 	licensecap licensecap.CapabilityEx
+
+	// meter counts the tunnels' bytes (usage metering); nil: off
+	meter *metering.Meter
 
 	mu sync.RWMutex
 }
@@ -791,6 +796,20 @@ func (s *ClientServiceProvider) FindTunnel(c *clientdata.Client, id string) *cli
 // SetTunnelHostInTunnels makes each tunnel started from now on carry [server] tunnel_host, the name of this server,
 // so that links to it name the server holding it when several servers share the clients. Set during
 // initialization.
+// SetMeter counts the bytes of the tunnels started from now on in m (usage metering). Set during initialization.
+func (s *ClientServiceProvider) SetMeter(m *metering.Meter) {
+	s.meter = m
+}
+
+// tunnelBytes returns the byte counters of a new tunnel of client, in the client's tenant; nil without a meter.
+func (s *ClientServiceProvider) tunnelBytes(client *clientdata.Client) *metering.TunnelBytes {
+	if s.meter == nil {
+		return nil
+	}
+	tid, _ := tenant.FromContext(client.GetContext())
+	return s.meter.Tunnel(tid, client.GetID())
+}
+
 func (s *ClientServiceProvider) SetTunnelHostInTunnels(on bool) {
 	s.tunnelHostInTunnels = on
 }
@@ -912,7 +931,7 @@ func (s *ClientServiceProvider) startCaddyDownstreamProxy(
 func (s *ClientServiceProvider) startRegularTunnel(ctx context.Context, client *clientdata.Client, remote *models.Remote, acl *clienttunnel.TunnelACL) (*clienttunnel.Tunnel, error) {
 	tunnelID := client.NewTunnelID()
 
-	tunnel, err := clienttunnel.NewTunnel(client.Log(), client.GetConnection(), tunnelID, *remote, acl)
+	tunnel, err := clienttunnel.NewMeteredTunnel(client.Log(), client.GetConnection(), tunnelID, *remote, acl, s.tunnelBytes(client))
 	if err != nil {
 		return nil, err
 	}
@@ -959,7 +978,7 @@ func (s *ClientServiceProvider) startTunnelWithProxy(
 	tunnelID := client.NewTunnelID()
 
 	// original tunnel will use the reconfigured original remote
-	t, err := clienttunnel.NewTunnel(clientLogger, client.GetConnection(), tunnelID, *remote, acl)
+	t, err := clienttunnel.NewMeteredTunnel(clientLogger, client.GetConnection(), tunnelID, *remote, acl, s.tunnelBytes(client))
 	if err != nil {
 		return nil, err
 	}

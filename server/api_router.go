@@ -40,6 +40,9 @@ func (al *APIListener) initRouter() {
 		resolver = tenant.DefaultResolver{}
 	}
 	r.Use(tenant.Middleware(resolver))
+	if al.meter != nil {
+		r.Use(meterResponses(al.meter))
+	}
 	al.uploads = uploads.New(uploads.Options{
 		Config:      al.config,
 		Files:       al.filesAPI,
@@ -65,6 +68,9 @@ func (al *APIListener) initRouter() {
 		al.operatorAPI.Mount(secureAPI.PathPrefix(operator.RoutePrefix).Subrouter())
 	}
 	secureAPI.HandleFunc("/status", al.handleGetStatus).Methods(http.MethodGet)
+	if al.usage != nil {
+		secureAPI.Handle("/usage", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetUsage))).Methods(http.MethodGet)
+	}
 	secureAPI.HandleFunc("/me", al.handleGetMe).Methods(http.MethodGet)
 	secureAPI.HandleFunc("/me", al.handleChangeMe).Methods(http.MethodPut)
 	secureAPI.HandleFunc("/me/ip", al.handleGetIP).Methods(http.MethodGet)

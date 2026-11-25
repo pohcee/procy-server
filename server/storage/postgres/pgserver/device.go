@@ -145,6 +145,11 @@ func deviceNodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, opts
 	if err := postgres.CheckDeviceRole(ctx, db); err != nil {
 		return nil, err
 	}
+	if cfg.Metering.Enabled {
+		if err := postgres.CheckDeviceMetering(ctx, db); err != nil {
+			return nil, err
+		}
+	}
 	if err := os.MkdirAll(cfg.Server.DataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("device: data dir: %w", err)
 	}
@@ -162,6 +167,10 @@ func deviceNodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, opts
 		AuditLog:      device.AuditLog{Outbox: ob},
 		Users:         device.NoUsers{},
 		ClientAuth:    device.ClientAuth{DB: db},
+	}
+	if cfg.Metering.Enabled {
+		// what this process counts is shipped with the rest of the outbox; the api processes serve the usage API
+		opts.Metering = &chserver.MeteringOpts{Writer: device.Usage{Outbox: ob}}
 	}
 	opts.SkipMigrations = false
 	coord := &DeviceCoordinator{db: db, nodeID: cfg.Cluster.NodeID,

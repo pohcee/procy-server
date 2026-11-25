@@ -13,6 +13,7 @@ import (
 	"github.com/openrport/openrport/server/clients"
 	"github.com/openrport/openrport/server/storage/postgres"
 	"github.com/openrport/openrport/server/storage/postgres/migrate"
+	pgusage "github.com/openrport/openrport/server/storage/postgres/usage"
 	"github.com/openrport/openrport/server/vault"
 	"github.com/openrport/openrport/server/vault/vaultkms"
 	"github.com/openrport/openrport/share/files"
@@ -117,6 +118,13 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 	if cfg.Storage.Role == chconfig.StorageRoleAPI {
 		// the clients are connected to another node: loading them must not mark them disconnected
 		opts.Repositories.Clients = clients.KeepConnectionStateOnLoad(opts.Repositories.Clients)
+	}
+	if cfg.Metering.Enabled {
+		opts.Metering = &chserver.MeteringOpts{
+			Writer: pgusage.Writer{DB: db, Log: logger.NewLogger("metering", cfg.Logging.LogOutput, cfg.Logging.LogLevel)},
+			Reader: pgusage.Store{DB: db},
+		}
+		coord.KeepUsage(pgusage.Retention{Hourly: cfg.Metering.HourlyRetention, Daily: cfg.Metering.DailyRetention, Monitoring: true})
 	}
 	opts.TenantResolver = NewResolver(db, cfg.API.JWTSecret)
 	opts.Operator = NewOperator(db, cfg)

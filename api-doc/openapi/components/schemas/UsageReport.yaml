@@ -1,0 +1,48 @@
+type: object
+description: An organization's usage between from and to
+properties:
+  from:
+    type: string
+    format: date-time
+  to:
+    type: string
+    format: date-time
+  granularity:
+    type: string
+    enum:
+      - hour
+      - day
+      - month
+  periods:
+    type: array
+    description: The periods with usage, oldest first
+    items:
+      allOf:
+        - type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+        - $ref: UsageTotals.yaml
+  totals:
+    $ref: UsageTotals.yaml
+  top_devices:
+    type: array
+    description: The devices with the most transfer in the range (by UTC day), at most 10, most first
+    items:
+      type: object
+      properties:
+        client_id:
+          type: string
+        tunnel_bytes_to_user:
+          type: integer
+          format: int64
+        tunnel_bytes_to_device:
+          type: integer
+          format: int64
+        upload_bytes_to_devices:
+          type: integer
+          format: int64
+        transfer_bytes:
+          type: integer
+          format: int64

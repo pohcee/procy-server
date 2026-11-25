@@ -31,6 +31,7 @@ import (
 	"github.com/openrport/openrport/server/clientsauth"
 	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/server/jobrunner"
+	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/monitoring"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/comm"
@@ -88,6 +89,8 @@ type ClientListenerOptions struct {
 	// DeviceTenants, when set, finds the tenant of each connecting device from its client auth id and decides
 	// whether the tenant takes it (status, client limit). nil: every device belongs to the listener's tenant.
 	DeviceTenants DeviceTenants
+	// Meter, when set, counts the upload bytes the devices read (usage metering).
+	Meter *metering.Meter
 }
 
 // listenerServices holds the options under the names the listener code uses.
@@ -105,6 +108,7 @@ type listenerServices struct {
 	capabilities       *models.Capabilities
 	sessions           dispatch.Sessions
 	deviceTenants      DeviceTenants
+	meter              *metering.Meter
 }
 
 type ClientListener struct {
@@ -186,6 +190,7 @@ func NewClientListener(o ClientListenerOptions) (*ClientListener, error) {
 		capabilities:       o.Capabilities,
 		sessions:           o.Sessions,
 		deviceTenants:      o.DeviceTenants,
+		meter:              o.Meter,
 	}
 	privateKey := o.PrivateKey
 	config := server.config
@@ -535,7 +540,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 
 	// now run handler for other client requests and connections
 	go cl.handleSSHRequests(client.GetContext(), clientLog, clientID, reqs)
-	go cl.handleSSHChannels(sshConn, clientLog.GetLogger(), chans)
+	go cl.handleSSHChannels(sshConn, clientLog.GetLogger(), chans, cl.uploadCounter(ctx, clientID))
 
 	// wait until we're disconnected from the client
 	if err = sshConn.Wait(); err != nil {
@@ -876,7 +881,18 @@ func (cl *ClientListener) saveCmdResult(ctx context.Context, respBytes []byte) (
 	return &resp, nil
 }
 
-func (cl *ClientListener) handleSSHChannels(sshConn ssh.Conn, clientLog *logger.Logger, chans <-chan ssh.NewChannel) {
+// uploadCounter returns what counts the upload bytes clientID (of the tenant of ctx) reads over SFTP, or nil
+// without usage metering.
+func (cl *ClientListener) uploadCounter(ctx context.Context, clientID string) func(n int64) {
+	m := cl.server.meter
+	if m == nil {
+		return nil
+	}
+	tid, _ := tenant.FromContext(ctx)
+	return func(n int64) { m.Add(tid, clientID, metering.UploadBytesToDevices, n) }
+}
+
+func (cl *ClientListener) handleSSHChannels(sshConn ssh.Conn, clientLog *logger.Logger, chans <-chan ssh.NewChannel, uploaded func(n int64)) {
 	for ch := range chans {
 		ch := ch
 		extraData := string(ch.ExtraData())
@@ -894,7 +910,7 @@ func (cl *ClientListener) handleSSHChannels(sshConn ssh.Conn, clientLog *logger.
 
 		switch ch.ChannelType() {
 		case "session":
-			cl.handleSessionChannel(sshConn, stream, clientLog)
+			cl.handleSessionChannel(sshConn, stream, clientLog, uploaded)
 		case models.ChannelStdout, models.ChannelStderr:
 			go func() {
 				err := cl.handleOutputChannel(ch.ChannelType(), ch.ExtraData(), clientLog, stream)
@@ -992,10 +1008,11 @@ func (cl *ClientListener) handleReq(req *ssh.Request, clientLog *logger.Logger) 
 
 // handleSessionChannel serves SFTP to a client. The client can read only the files that are
 // being sent to it over this connection (see sendFileToClient); everything else is refused.
-func (cl *ClientListener) handleSessionChannel(sshConn ssh.Conn, stream io.ReadWriteCloser, clientLog *logger.Logger) {
+// uploaded, when set, counts the bytes of the files the client reads (usage metering).
+func (cl *ClientListener) handleSessionChannel(sshConn ssh.Conn, stream io.ReadWriteCloser, clientLog *logger.Logger, uploaded func(n int64)) {
 	server := newDeviceFileServer(stream, func(path string) bool {
 		return cl.server.fileGrants.Allowed(sshConn, path)
-	})
+	}, uploaded)
 
 	if err := server.Serve(); err == io.EOF {
 		e := server.Close()

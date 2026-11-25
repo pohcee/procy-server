@@ -29,6 +29,7 @@ import (
 	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
 	"github.com/openrport/openrport/server/notifications/channels/rmailer"
@@ -101,6 +102,11 @@ type APIListenerOptions struct {
 	VaultKeys vault.KeyProvider
 	// Operator, when set, serves the operator API; nil: no operator routes.
 	Operator operator.Service
+	// Usage, when set (usage metering on), serves GET /usage and the operator usage routes, and reports the usage
+	// capability.
+	Usage metering.Reader
+	// Meter, when set, counts the bytes of the API responses (usage metering).
+	Meter *metering.Meter
 	// NoNotificationsCleaner leaves deleting old notifications to the server (per tenant, in a cluster).
 	NoNotificationsCleaner bool
 }
@@ -134,6 +140,10 @@ type APIListener struct {
 	uploads *uploads.Handler
 	// operatorAPI serves the operator routes; nil without APIListenerOptions.Operator
 	operatorAPI *operator.Handler
+	// usage reads the usage for GET /usage; nil: metering off
+	usage metering.Reader
+	// meter counts the API bytes; nil: metering off
+	meter *metering.Meter
 
 	fingerprint       string
 	apiSessions       *session.Cache
@@ -314,11 +324,13 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		notificationsProcessor: notificationProcessor,
 		notificationsCleaner:   notificationsCleaner,
 		tenantResolver:         o.TenantResolver,
+		usage:                  o.Usage,
+		meter:                  o.Meter,
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
 	if o.Operator != nil {
-		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, CurrentUser: a.getUserModelForAuth, Respond: a.responder()})
+		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, CurrentUser: a.getUserModelForAuth, Respond: a.responder()})
 	}
 
 	logGroupPermissionsNotice(userService, a.Logger)

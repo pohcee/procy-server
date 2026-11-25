@@ -3,7 +3,7 @@
 // in batches by a Shipper, so a device process loses nothing while the database is unreachable and pays the
 // database round trip once per batch. Items survive restarts. Each tenant's items are capped: when a tenant is
 // full the oldest measurement is dropped first, then the oldest connection event, audit entry or client state;
-// job results are never dropped.
+// job results and usage are never dropped.
 package outbox
 
 import (
@@ -31,12 +31,14 @@ const (
 	KindConnectionEvent Kind = "connection_event"
 	KindAudit           Kind = "audit"
 	KindMeasurement     Kind = "measurement"
+	// KindUsage is a flush of usage metering (one item per tenant per flush): small and bounded, never dropped.
+	KindUsage Kind = "usage"
 )
 
 // Kinds are all kinds in shipping order.
-var Kinds = []Kind{KindJobResult, KindClientState, KindConnectionEvent, KindAudit, KindMeasurement}
+var Kinds = []Kind{KindJobResult, KindUsage, KindClientState, KindConnectionEvent, KindAudit, KindMeasurement}
 
-// dropOrder is the order in which a full tenant's oldest items are dropped. Job results are never dropped.
+// dropOrder is the order in which a full tenant's oldest items are dropped. Job results and usage are never dropped.
 var dropOrder = []Kind{KindMeasurement, KindConnectionEvent, KindAudit, KindClientState}
 
 // DefaultMaxPerTenant is the cap of a tenant's items when Options.MaxPerTenant is 0.
@@ -119,8 +121,8 @@ func (o *Outbox) Wake() <-chan struct{} { return o.wake }
 func (o *Outbox) Dropped() int64 { return o.dropped.Load() }
 
 // Add stores an item. An item with the kind, tenant and key of a stored one is ignored. When the tenant holds
-// MaxPerTenant items the oldest droppable item is dropped to make room; when only job results are left, a new job
-// result is stored anyway and any other new item is dropped.
+// MaxPerTenant items the oldest droppable item is dropped to make room; when only job results and usage are left, a
+// new job result or usage item is stored anyway and any other new item is dropped.
 func (o *Outbox) Add(ctx context.Context, kind Kind, tid tenant.ID, key string, payload []byte) error {
 	if tid == "" {
 		return fmt.Errorf("outbox: %w", tenant.ErrMissing)
@@ -152,7 +154,7 @@ func (o *Outbox) Add(ctx context.Context, kind Kind, tid tenant.ID, key string, 
 		if err != nil {
 			return fmt.Errorf("outbox: add: %w", err)
 		}
-		if !made && kind != KindJobResult {
+		if !made && !neverDropped(kind) {
 			o.dropped.Add(1)
 			return nil
 		}
@@ -187,6 +189,9 @@ func dropOldest(ctx context.Context, tx *sqlx.Tx, tid tenant.ID) (bool, error) {
 	}
 	return false, nil
 }
+
+// neverDropped: kinds stored even when their tenant is full.
+func neverDropped(k Kind) bool { return k == KindJobResult || k == KindUsage }
 
 // Pending returns up to limit of the oldest items of kind.
 func (o *Outbox) Pending(ctx context.Context, kind Kind, limit int) ([]Item, error) {

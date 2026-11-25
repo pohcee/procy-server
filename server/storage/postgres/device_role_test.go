@@ -67,6 +67,13 @@ func TestCheckDeviceRole(t *testing.T) {
 	_, err = d.Owner.ExecContext(ctx, "REVOKE EXECUTE ON FUNCTION rport_ingest_claim(jsonb, text) FROM "+pgtest.DeviceRole)
 	require.NoError(t, err)
 
+	// a role granted before usage metering (migration 1300) still starts a device process without metering
+	assert.NoError(t, postgres.CheckDeviceMetering(ctx, d.Device))
+	_, err = d.Owner.ExecContext(ctx, "REVOKE EXECUTE ON FUNCTION ingest_usage(jsonb) FROM "+pgtest.DeviceRole)
+	require.NoError(t, err)
+	assert.NoError(t, postgres.CheckDeviceRole(ctx, d.Device))
+	assert.ErrorContains(t, postgres.CheckDeviceMetering(ctx, d.Device), "ingest_usage")
+
 	// one without the grants is told to run the grant
 	_, err = d.Owner.ExecContext(ctx, "REVOKE EXECUTE ON FUNCTION ingest_audit(jsonb) FROM "+pgtest.DeviceRole)
 	require.NoError(t, err)

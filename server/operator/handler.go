@@ -12,6 +12,7 @@ import (
 
 	"github.com/openrport/openrport/server/api"
 	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/routes"
 	chshare "github.com/openrport/openrport/share"
 	"github.com/openrport/openrport/share/tenant"
@@ -23,9 +24,11 @@ const RoutePrefix = "/operator"
 // maxBody bounds the JSON bodies of the operator API.
 const maxBody = 64 << 10
 
-// Options are the handler's dependencies; every field is required.
+// Options are the handler's dependencies; every field is required except Usage.
 type Options struct {
 	Service Service
+	// Usage, when set (usage metering on), serves the usage routes.
+	Usage metering.Reader
 	// CurrentUser returns the authenticated user of the request (an errors.APIError when there is none).
 	CurrentUser func(ctx context.Context) (*users.User, error)
 	Respond     *api.Responder
@@ -34,13 +37,14 @@ type Options struct {
 // Handler serves the operator API.
 type Handler struct {
 	svc         Service
+	usage       metering.Reader
 	currentUser func(ctx context.Context) (*users.User, error)
 	respond     *api.Responder
 }
 
 // NewHandler returns the operator API handler.
 func NewHandler(o Options) *Handler {
-	return &Handler{svc: o.Service, currentUser: o.CurrentUser, respond: o.Respond}
+	return &Handler{svc: o.Service, usage: o.Usage, currentUser: o.CurrentUser, respond: o.Respond}
 }
 
 // Mount registers the operator routes on r, a router for RoutePrefix behind authentication.
@@ -53,6 +57,10 @@ func (h *Handler) Mount(r *mux.Router) {
 	r.HandleFunc("/organizations/{id}/activate", h.setStatus(StatusActive)).Methods(http.MethodPost)
 	r.HandleFunc("/organizations/{id}/device-limit", h.setDeviceLimit).Methods(http.MethodPut)
 	r.HandleFunc("/organizations/{id}/admins", h.addAdmin).Methods(http.MethodPost)
+	if h.usage != nil {
+		r.HandleFunc("/organizations/{id}/usage", h.organizationUsage).Methods(http.MethodGet)
+		r.HandleFunc("/usage", h.usageSummary).Methods(http.MethodGet)
+	}
 }
 
 // IsOperator reports whether the request comes from a platform operator: an administrator of SystemTenant.
@@ -192,6 +200,8 @@ func (h *Handler) decode(w http.ResponseWriter, r *http.Request, v any) bool {
 func (h *Handler) fail(w http.ResponseWriter, err error) {
 	status := 0
 	switch {
+	case errors.Is(err, metering.ErrInvalid):
+		status = http.StatusBadRequest
 	case errors.Is(err, ErrNotFound):
 		status = http.StatusNotFound
 	case errors.Is(err, ErrExists):

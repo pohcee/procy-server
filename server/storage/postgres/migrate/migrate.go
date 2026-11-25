@@ -219,6 +219,11 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	for _, f := range RegistryFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+f+" TO "+q)
 	}
+	// usage metering (migration 1300): nodes without a device process write their usage through ingest_usage,
+	// and the operator API reads every tenant's usage through the summary functions
+	for _, fn := range UsageFunctions {
+		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
+	}
 	// the operator functions (migration 1050) change tenants for the operator API
 	for _, fn := range OperatorFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
@@ -243,7 +248,7 @@ func GrantDevice(ctx context.Context, db *sqlx.DB, role string) error {
 		"REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM " + q,
 		"GRANT USAGE ON SCHEMA public TO " + q,
 	}
-	for _, f := range postgres.DeviceFunctions {
+	for _, f := range append(append([]string(nil), postgres.DeviceFunctions...), postgres.MeteringDeviceFunctions...) {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+f+" TO "+q)
 	}
 	for _, s := range stmts {
@@ -262,6 +267,14 @@ var RegistryFunctions = []string{
 	"rport_register_session(text, text, text, text, integer)",
 	"rport_renew_sessions(text, jsonb, integer)",
 	"rport_end_session(text)",
+}
+
+// UsageFunctions are the SECURITY DEFINER functions of usage metering (migration 1300) the application role may
+// execute; device roles get ingest_usage through postgres.DeviceFunctions.
+var UsageFunctions = []string{
+	"ingest_usage(jsonb)",
+	"rport_usage_summary(timestamptz, timestamptz)",
+	"rport_usage_device_summary(date, date)",
 }
 
 // OperatorFunctions are the SECURITY DEFINER functions through which platform operators change tenants.

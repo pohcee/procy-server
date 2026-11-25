@@ -14,6 +14,7 @@ import (
 	"github.com/openrport/openrport/server/cluster"
 	"github.com/openrport/openrport/server/storage/postgres"
 	"github.com/openrport/openrport/server/storage/postgres/changefeed"
+	pgusage "github.com/openrport/openrport/server/storage/postgres/usage"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/tenant"
 )
@@ -53,6 +54,9 @@ type Coordinator struct {
 	// noRuns: this node can't do work on clients (role api, phase 2), so it leaves scheduled runs to the node that
 	// can: a run it claimed would only fail as "not connected"
 	noRuns bool
+
+	// usage is how the upkeep keeps the usage tables (rolled up and pruned on every node, metering on or not)
+	usage pgusage.Retention
 
 	mu       sync.Mutex
 	watchers []cluster.Watcher
@@ -166,6 +170,10 @@ func (c *Coordinator) ClaimRun(ctx context.Context, scheduleID string, fire time
 	}
 	return n == 1, nil
 }
+
+// KeepUsage sets how the cluster upkeep keeps the usage tables (retention, monitoring gauge); without it the
+// defaults, no monitoring gauge.
+func (c *Coordinator) KeepUsage(r pgusage.Retention) { c.usage = r }
 
 // LeaveScheduledRuns makes this node claim no scheduled run (ClaimRun is always false): it can't reach the clients.
 func (c *Coordinator) LeaveScheduledRuns() { c.noRuns = true }
@@ -292,6 +300,10 @@ func (c *Coordinator) upkeep(ctx context.Context) {
 // keeps an item in its outbox, or a batch shipped again after that would be applied twice.
 const IngestKeyRetention = 7 * 24 * time.Hour
 
+// UsageKeyRetention is how long the keys of usage items are kept: longer than ingest_usage accepts an hour (7 days),
+// so an item shipped again after its key is gone is rejected as too old instead of added twice.
+const UsageKeyRetention = 8 * 24 * time.Hour
+
 // ConnectionEventRetention is how long client connection events are kept.
 const ConnectionEventRetention = 30 * 24 * time.Hour
 
@@ -321,8 +333,9 @@ func (c *Coordinator) prune(ctx context.Context) {
 				return err
 			}
 			// what device processes shipped (migration 1100): idempotency keys and connection events
-			if _, err := tx.ExecContext(ctx, "DELETE FROM ingest_keys WHERE tenant_id = $1 AND received_at < now() - make_interval(secs => $2)",
-				string(tid), IngestKeyRetention.Seconds()); err != nil {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM ingest_keys WHERE tenant_id = $1 AND received_at < now() - make_interval(secs => $2)
+				AND (kind <> 'usage' OR received_at < now() - make_interval(secs => $3))`,
+				string(tid), IngestKeyRetention.Seconds(), UsageKeyRetention.Seconds()); err != nil {
 				return err
 			}
 			_, err := tx.ExecContext(ctx, "DELETE FROM client_connection_events WHERE tenant_id = $1 AND at < now() - make_interval(secs => $2)",
@@ -332,5 +345,8 @@ func (c *Coordinator) prune(ctx context.Context) {
 		if err != nil {
 			c.log.Errorf("cluster: prune schedule runs of tenant %s: %v", tid, err)
 		}
+	}
+	if err := pgusage.Upkeep(ctx, c.db, c.usage); err != nil {
+		c.log.Errorf("cluster: %v", err)
 	}
 }
