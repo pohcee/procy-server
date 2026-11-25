@@ -1,0 +1,37 @@
+get:
+  tags:
+    - Profile & Info
+  summary: List the organizations of the current login (Postgres servers only)
+  description: >-
+    The active organizations the current login is a member of, by name; `current` marks the organization of the
+    request. Not available on standalone servers (404).
+  operationId: MeOrganizationsGet
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  allOf:
+                    - $ref: ../components/schemas/MembershipOrganization.yaml
+                    - type: object
+                      properties:
+                        current:
+                          type: boolean
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Not available on this server (standalone)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

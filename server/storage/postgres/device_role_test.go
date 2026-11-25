@@ -334,6 +334,13 @@ func TestDeviceFunctionsNonSuperuserOwner(t *testing.T) {
 	var n int
 	require.NoError(t, devDB.Get(&n, "SELECT count(*) FROM device_client('a', 'c1')"))
 	assert.Equal(t, 1, n)
+	// the admission counts the tenant's clients under row-level security
+	exec(t, d.Owner, "UPDATE tenants SET max_clients = 1 WHERE id = 'a'")
+	var decision string
+	require.NoError(t, devDB.Get(&decision, "SELECT decision FROM device_admit_client('a', 'c1', NULL)"))
+	assert.Equal(t, "admitted", decision, "c1 is the tenant's client")
+	require.NoError(t, devDB.Get(&decision, "SELECT decision FROM device_admit_client('a', 'c2', NULL)"))
+	assert.Equal(t, "refused_limit", decision)
 }
 
 func TestIngestReviewCases(t *testing.T) {

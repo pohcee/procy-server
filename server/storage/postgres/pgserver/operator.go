@@ -19,9 +19,10 @@ import (
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/auditlog"
 	"github.com/openrport/openrport/server/chconfig"
+	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/openrport/openrport/server/membership"
 	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/storage/postgres"
-	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
 	"github.com/openrport/openrport/share/tenant"
 )
 
@@ -40,11 +41,12 @@ const (
 // to the system tenant's audit log in the same transaction (the user of AddAdmin is created first, by the user
 // service).
 type Operator struct {
-	db    *sqlx.DB
-	users *users.APIService
-	now   func() time.Time
-	// passwordLength is the length of generated passwords: at least [api] password_min_length
-	passwordLength int
+	db *sqlx.DB
+	// memberships adds administrators: new accounts or invitations of existing ones
+	memberships *Memberships
+	now         func() time.Time
+	// keepDisconnected is the [server] keep_disconnected_clients rule the device count follows (nil: forever)
+	keepDisconnected *time.Duration
 }
 
 var _ operator.Service = (*Operator)(nil)
@@ -53,11 +55,10 @@ var _ operator.Service = (*Operator)(nil)
 // settings of cfg's [api] section.
 func NewOperator(db *sqlx.DB, cfg *chconfig.Config) *Operator {
 	return &Operator{
-		db:    db,
-		users: users.NewAPIService(pgusers.New(db), cfg.API.IsTwoFAOn(), cfg.API.PasswordMinLength, cfg.API.PasswordZxcvbnMinscore),
-		now:   time.Now,
-
-		passwordLength: max(generatedPasswordLength, cfg.API.PasswordMinLength),
+		db:               db,
+		memberships:      NewMemberships(db, cfg),
+		now:              time.Now,
+		keepDisconnected: keepDisconnectedClients(cfg),
 	}
 }
 
@@ -81,7 +82,7 @@ func (o *Operator) List(ctx context.Context) ([]operator.Organization, error) {
 			return err
 		}
 		for i := range orgs {
-			if err := counts(ctx, tx, &orgs[i]); err != nil {
+			if err := o.counts(ctx, tx, &orgs[i]); err != nil {
 				return err
 			}
 		}
@@ -97,7 +98,7 @@ func (o *Operator) List(ctx context.Context) ([]operator.Organization, error) {
 func (o *Operator) Get(ctx context.Context, id string) (*operator.Organization, error) {
 	var org *operator.Organization
 	err := o.inSystem(ctx, func(tx *sqlx.Tx) (err error) {
-		org, err = getOrganization(ctx, tx, id)
+		org, err = o.getOrganization(ctx, tx, id)
 		return err
 	})
 	if err != nil {
@@ -107,7 +108,7 @@ func (o *Operator) Get(ctx context.Context, id string) (*operator.Organization, 
 }
 
 // getOrganization reads the organization id with its counts. It leaves the transaction in the tenant id (see counts).
-func getOrganization(ctx context.Context, tx *sqlx.Tx, id string) (*operator.Organization, error) {
+func (o *Operator) getOrganization(ctx context.Context, tx *sqlx.Tx, id string) (*operator.Organization, error) {
 	if strings.HasPrefix(id, "_") {
 		return nil, operator.ErrNotFound
 	}
@@ -119,21 +120,29 @@ func getOrganization(ctx context.Context, tx *sqlx.Tx, id string) (*operator.Org
 	if err != nil {
 		return nil, fmt.Errorf("get organization %q: %w", id, err)
 	}
-	if err := counts(ctx, tx, org); err != nil {
+	if err := o.counts(ctx, tx, org); err != nil {
 		return nil, fmt.Errorf("get organization %q: %w", id, err)
 	}
 	return org, nil
 }
 
-// counts fills in the device and user counts of org. Row-level security stays on: it switches the transaction to
-// org's tenant, so whatever runs after it in tx runs there, not in the system tenant.
-func counts(ctx context.Context, tx *sqlx.Tx, org *operator.Organization) error {
+// counts fills in the device and user counts of org. The devices are counted as the organization's client limit
+// counts them (rport_counted_clients, migration 1350): the clients nodes with role "all" saved and those device
+// processes reported (client_state), without the ones disconnected for longer than keep_disconnected_clients.
+// Row-level security stays on: it switches the transaction to org's tenant, so whatever runs after it in tx runs
+// there, not in the system tenant.
+func (o *Operator) counts(ctx context.Context, tx *sqlx.Tx, org *operator.Organization) error {
 	if _, err := tx.ExecContext(ctx, "SELECT set_config($1, $2, true)", postgres.TenantSetting, org.ID); err != nil {
 		return err
 	}
+	var cutoff *time.Time
+	if o.keepDisconnected != nil {
+		c := clientdata.Now().Add(-*o.keepDisconnected)
+		cutoff = &c
+	}
 	return tx.QueryRowxContext(ctx,
-		"SELECT (SELECT count(*) FROM clients WHERE tenant_id = $1), (SELECT count(*) FROM users WHERE tenant_id = $1)",
-		org.ID).Scan(&org.DeviceCount, &org.UserCount)
+		"SELECT (SELECT count(*) FROM rport_counted_clients($1, $2)), (SELECT count(*) FROM users WHERE tenant_id = $1)",
+		org.ID, cutoff).Scan(&org.DeviceCount, &org.UserCount)
 }
 
 func validLimit(limit *int) error {
@@ -225,7 +234,7 @@ func (o *Operator) change(ctx context.Context, id string, fn func(tx *sqlx.Tx) e
 		if err := fn(tx); err != nil {
 			return err
 		}
-		org, err = getOrganization(ctx, tx, id)
+		org, err = o.getOrganization(ctx, tx, id)
 		return err
 	})
 	if err != nil {
@@ -251,18 +260,17 @@ func (o *Operator) AddAdmin(ctx context.Context, by operator.Actor, id string, i
 	case status != operator.StatusActive:
 		return nil, fmt.Errorf("organization %q: %w", id, operator.ErrNotActive)
 	}
-	password, err := generatePassword(o.passwordLength)
-	if err != nil {
-		return nil, err
-	}
-	u := &users.User{
-		Username:        in.Username,
-		Password:        password,
-		PasswordExpired: users.PasswordExpired(true),
-		Groups:          []string{users.Administrators},
-		TwoFASendTo:     in.TwoFASendTo,
-	}
-	if err := o.users.Change(tenant.WithID(ctx, tenant.ID(id)), u, ""); err != nil {
+	inv, err := o.memberships.invite(tenant.WithID(ctx, tenant.ID(id)), tenant.ID(id), membership.Invitation{
+		Username:    in.Username,
+		Groups:      []string{users.Administrators},
+		TwoFASendTo: in.TwoFASendTo,
+	}, "operator:"+by.Username)
+	switch {
+	case errors.Is(err, membership.ErrAlreadyMember):
+		return nil, fmt.Errorf("%q is a member of %q already: %w", in.Username, id, operator.ErrExists)
+	case errors.Is(err, membership.ErrInvalid):
+		return nil, fmt.Errorf("%w: %v", operator.ErrInvalid, err)
+	case err != nil:
 		return nil, err
 	}
 	err = o.inSystem(ctx, func(tx *sqlx.Tx) error {
@@ -271,7 +279,54 @@ func (o *Operator) AddAdmin(ctx context.Context, by operator.Actor, id string, i
 	if err != nil {
 		return nil, fmt.Errorf("admin %q added to %q, but the audit log entry failed: %w", in.Username, id, err)
 	}
-	return &operator.Admin{Organization: id, Username: in.Username, Password: password, PasswordExpired: true}, nil
+	return &operator.Admin{Organization: id, Username: in.Username, NewAccount: inv.NewAccount, Password: inv.Password,
+		PasswordExpired: inv.PasswordExpired, Pending: inv.Pending}, nil
+}
+
+// Members implements operator.Service.
+func (o *Operator) Members(ctx context.Context, id string) ([]operator.Member, error) {
+	members := []operator.Member{}
+	err := o.inSystem(ctx, func(tx *sqlx.Tx) error {
+		if _, err := o.getOrganization(ctx, tx, id); err != nil {
+			return err
+		}
+		// getOrganization left tx in the organization's tenant
+		var rows []struct {
+			Username      string `db:"username"`
+			Organizations int    `db:"organizations"`
+		}
+		if err := tx.SelectContext(ctx, &rows, `SELECT u.username,
+				(SELECT count(*) FROM user_logins l WHERE l.username = u.username) AS organizations
+			FROM users u WHERE u.tenant_id = $1 ORDER BY u.username COLLATE "C"`, id); err != nil {
+			return err
+		}
+		var groups []struct {
+			Username string `db:"username"`
+			Group    string `db:"group_name"`
+		}
+		if err := tx.SelectContext(ctx, &groups,
+			`SELECT username, group_name FROM user_groups WHERE tenant_id = $1 ORDER BY group_name COLLATE "C"`, id); err != nil {
+			return err
+		}
+		byName := map[string]int{}
+		for _, r := range rows {
+			byName[r.Username] = len(members)
+			members = append(members, operator.Member{Username: r.Username, Groups: []string{}, Organizations: r.Organizations})
+		}
+		for _, g := range groups {
+			if i, ok := byName[g.Username]; ok {
+				members[i].Groups = append(members[i].Groups, g.Group)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, operator.ErrNotFound) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("members of %q: %w", id, err)
+	}
+	return members, nil
 }
 
 // audit writes an operator action to the audit log of the system tenant, in tx (which must be in the system tenant).

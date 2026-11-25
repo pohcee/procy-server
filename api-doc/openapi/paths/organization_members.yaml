@@ -1,0 +1,72 @@
+post:
+  tags:
+    - Users
+  summary: Invite a login to the organization (Postgres servers only). Administrators only
+  description: >-
+    Adds a login (normally an email address) to the organization of the request with the given permission groups.
+    A login that already has an account (a member of other organizations) gets a pending invitation (`pending`):
+    it becomes a member, with its own password and 2FA settings, when its owner accepts it
+    (`POST /me/invitations/{organization}`); `two_fa_send_to` is ignored then. A new login gets an account with a
+    generated password, returned once, that must be changed at the first login (login with `new_password`), and is
+    a member at once. Remove a member with `DELETE /users/{user_id}`: its other memberships stay. An administrator
+    can change the groups of a member of several organizations, not its password, 2FA address, TOTP secret or
+    login name (403). Not available on standalone servers (404).
+  operationId: OrganizationMembersPost
+  requestBody:
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - username
+          properties:
+            username:
+              type: string
+            groups:
+              type: array
+              items:
+                type: string
+            two_fa_send_to:
+              type: string
+              description: Where the 2FA tokens of a new login are sent; required for a new login when the server sends 2FA tokens
+    required: true
+  responses:
+    '201':
+      description: Created
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/OrganizationInvited.yaml
+    '400':
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Not available on this server (standalone)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: The login is a member of the organization already
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

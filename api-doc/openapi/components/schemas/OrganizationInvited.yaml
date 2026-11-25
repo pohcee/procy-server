@@ -1,0 +1,19 @@
+type: object
+description: An invited member
+properties:
+  organization:
+    type: string
+  username:
+    type: string
+  new_account:
+    type: boolean
+    description: True when the login had no account and one was created with `password`
+  password:
+    type: string
+    description: Generated password of a new account, shown only once; left out for an existing account
+  password_expired:
+    type: boolean
+    description: True for a new account; the first login sets a new password
+  pending:
+    type: boolean
+    description: True for an existing account; it becomes a member when its owner accepts the invitation

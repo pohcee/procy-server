@@ -150,10 +150,14 @@ id a device logs in with tells the server its tenant; creating a credential whos
   connected at that moment stay connected until they reconnect.
 * `max_clients` in the `tenants` table limits how many clients a tenant may have (clients connected or disconnected
   within `keep_disconnected_clients`, as the client list shows them). Empty (the default) means no limit. A client
-  the tenant already has always reconnects; a new one is refused once the limit is reached.
+  the tenant already has always reconnects, to any node; a new one is refused once the limit is reached. The count
+  is the database's, across every node and device process accepting devices, and it is the device count the
+  operator API shows. Give every node the same `purge_disconnected_clients` and `keep_disconnected_clients`: each
+  node counts with its own.
 
 A refused device logs the reason, for example `connection refused: the organization's limit of 10 clients is
-reached`, and the server logs a line naming the client, its client auth id and the tenant.
+reached`, and the server logs a line naming the client, its client auth id and the tenant. A device refused by its
+organization retries after its `max_retry_interval`, but not sooner than a minute.
 
 ## Running several servers
 
@@ -278,12 +282,13 @@ rportd org suspend acme -c /etc/rport/rportd.conf
 rportd org activate acme -c /etc/rport/rportd.conf
 ```
 
-* `add-admin` creates a user in the organization's Administrators group with a generated password, printed once.
-  The password must be changed at the first login. Logins are unique across organizations.
+* `add-admin` adds a login to the organization's Administrators group. A new login gets a generated password,
+  printed once, that must be changed at the first login; a login that already has an account (a member of other
+  organizations) is invited and joins with its own password when it accepts (see [Members of several organizations](#members-of-several-organizations)).
 * `suspend` takes effect on the next request: the organization's users can't log in, and their sessions and API
   tokens stop working. `activate` undoes it. Organizations are not deleted.
-* The device limit is the most devices an organization may have (unlimited when not set). In this preview it is
-  stored and shown, and enforced only once devices of every organization connect (device login per organization).
+* The device limit is the most devices an organization may have (unlimited when not set), enforced when devices
+  connect (see `max_clients` above).
 
 The same actions are in the **operator API** under `/api/v1/operator` (see the API reference, tag *Operator*), for
 administrators of `_system` only: other organizations get 404, other `_system` users 403, and servers on SQLite
@@ -297,12 +302,56 @@ have no operator API.
 | `POST` | `/operator/organizations/{id}/suspend` | suspend |
 | `POST` | `/operator/organizations/{id}/activate` | reactivate |
 | `PUT` | `/operator/organizations/{id}/device-limit` | `{"device_limit": 100}` (`null`: unlimited) |
-| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; returns the generated password once |
+| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; returns the generated password of a new login once, or invites an existing account |
+| `GET` | `/operator/organizations/{id}/members` | the members, their groups there and how many organizations each belongs to |
 
 Every change, from the API or the CLI, is written to the audit log of `_system` (application
 `operator.organization` or `operator.organization.admin`; the CLI as user `cli:<system user>`), whether or not
 the audit log is enabled in the configuration. `GET /api/v1/status` reports `capabilities.operator: true` to
 operators.
+
+### Members of several organizations
+
+A login (normally an email address) is one **account** with one password, password expiry, two-factor (TOTP)
+secret and 2FA delivery address, and can be a **member** of several organizations, with its own permission groups
+in each. An organization's administrators are the members of its Administrators group, as before.
+
+* **Login.** A login of one organization sees no change. A login of several that names no organization gets, once
+  its password is verified and before any 2FA, `"token": null` and `organizations` (id and name of each); the
+  client repeats the login with `?organization=acme` (or `"organization": "acme"` in the body). That response adds
+  `organization` (the one the token is for) and `organizations`. A login naming an organization it isn't a member
+  of is refused like a wrong password.
+* **Basic auth** with a password (sent with each request) names no organization: it works only for a login of one
+  organization. **API tokens** belong to the organization they were created in, and a request authenticating with
+  one goes there.
+* **Switching.** `GET /api/v1/me/organizations` lists the login's active organizations (`current` marks the one of
+  the request); `POST /api/v1/me/organization` with `{"organization": "acme"}` returns a session token for that
+  organization. The old token keeps working in its own organization. Only session tokens switch; there is no new
+  2FA, since the 2FA settings are the account's.
+* **Inviting.** An administrator adds a login with `POST /api/v1/organization/members`
+  (`{"username": "carol@example.com", "groups": ["Viewers"]}`). A new login gets an account with a generated
+  password, returned once, that must be changed at the first login, and is a member at once. A login that already
+  has an account gets a **pending invitation** (`"pending": true`): its owner sees it in `GET /api/v1/me/invitations`
+  and accepts it with `POST /api/v1/me/invitations/acme` (a session token, not an API token) or declines it with
+  `DELETE`. Administrators list their pending invitations with `GET /api/v1/organization/invitations` and withdraw
+  one with `DELETE /api/v1/organization/invitations/{login}`. Operators adding an existing account as an
+  administrator (`add-admin`) invite it the same way.
+* **Removing.** `DELETE /api/v1/users/{user_id}` removes the membership: its sessions and API tokens in this
+  organization stop working, its other memberships stay, and the account (with its pending invitations) goes with
+  its last membership.
+* **What an administrator can change.** The groups of any member. The password, its expiry, the 2FA address, the
+  TOTP secret and the login name of a member of other organizations too belong to its owner (`PUT /api/v1/me`, the
+  login's `new_password`, the TOTP routes): an administrator gets 403. For a member of one organization alone
+  nothing changes.
+* A suspended organization drops out of its members' lists, logins and switches.
+* Whoever holds an account's password owns it: there is no proof of email ownership yet, so the response of an
+  invitation says whether the login already had an account (`new_account`).
+
+`GET /api/v1/status` reports `capabilities.organizations: true` on Postgres servers. None of this exists on SQLite.
+`rportd migrate` turns the existing users into accounts (each login was in one organization so far). After
+upgrading, run `rportd migrate --grant-to <application role>` once more: the application role needs `EXECUTE` on
+the account and invitation functions (it can read only the accounts of its organization's members). Until then,
+password changes and invitations fail with a message naming the fix.
 
 ## Usage metering
 

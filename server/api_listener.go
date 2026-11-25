@@ -29,6 +29,7 @@ import (
 	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/server/membership"
 	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
@@ -103,6 +104,8 @@ type APIListenerOptions struct {
 	VaultKeys vault.KeyProvider
 	// Operator, when set, serves the operator API; nil: no operator routes.
 	Operator operator.Service
+	// Memberships, when set, serves the organization routes of logins in several organizations; nil: none.
+	Memberships membership.Service
 	// Usage, when set (usage metering on), serves GET /usage and the operator usage routes, and reports the usage
 	// capability.
 	Usage metering.Reader
@@ -144,6 +147,8 @@ type APIListener struct {
 	uploads *uploads.Handler
 	// operatorAPI serves the operator routes; nil without APIListenerOptions.Operator
 	operatorAPI *operator.Handler
+	// memberships: logins in several organizations; nil without APIListenerOptions.Memberships (standalone)
+	memberships membership.Service
 	// usage reads the usage for GET /usage; nil: metering off
 	usage metering.Reader
 	// billing serves GET /billing; nil: billing off
@@ -330,6 +335,7 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		notificationsProcessor: notificationProcessor,
 		notificationsCleaner:   notificationsCleaner,
 		tenantResolver:         o.TenantResolver,
+		memberships:            o.Memberships,
 		usage:                  o.Usage,
 		meter:                  o.Meter,
 		billing:                o.Billing,

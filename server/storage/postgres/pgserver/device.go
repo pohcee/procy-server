@@ -80,10 +80,11 @@ func (c *DeviceCoordinator) Run(ctx context.Context) error {
 func (c *DeviceCoordinator) Clustered() bool { return true }
 
 // deviceTenants is the chserver.DeviceTenants of a device process: the tenant of a device from device_client_auth,
-// the tenants' status and client limit from device_tenants.
+// whether its tenant takes it from device_admit_client.
 type deviceTenants struct {
 	db   *sqlx.DB
 	auth device.ClientAuth
+	keep *time.Duration
 }
 
 var _ chserver.DeviceTenants = deviceTenants{}
@@ -107,18 +108,10 @@ func (d deviceTenants) rows(ctx context.Context) ([]deviceTenantRow, error) {
 	return rows, nil
 }
 
-// DevicePolicy is the tenant's status and client limit; a tenant that doesn't exist has the status "deleted".
-func (d deviceTenants) DevicePolicy(ctx context.Context, tid tenant.ID) (chserver.DevicePolicy, error) {
-	rows, err := d.rows(ctx)
-	if err != nil {
-		return chserver.DevicePolicy{}, err
-	}
-	for _, r := range rows {
-		if r.ID == string(tid) {
-			return chserver.DevicePolicy{Status: r.Status, Limited: r.MaxClients.Valid, MaxClients: int(r.MaxClients.Int64)}, nil
-		}
-	}
-	return chserver.DevicePolicy{Status: "deleted"}, nil
+// AdmitClient asks the database whether tenant tid takes the device clientID (device_admit_client, which the device
+// role may execute): the count covers the clients of every process, not only this one's.
+func (d deviceTenants) AdmitClient(ctx context.Context, tid tenant.ID, clientID string) (chserver.Admission, error) {
+	return admitClient(ctx, d.db, tid, clientID, d.keep)
 }
 
 // Tenants are the tenants that can have devices (not reserved, no id starting with "_").
@@ -193,7 +186,7 @@ func deviceNodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, opts
 		shipper: &outbox.Shipper{Outbox: ob, Sink: device.Sink{DB: db}, Log: log}}
 	opts.Cluster = coord
 	// devices of every tenant connect; their client auth id names the tenant
-	opts.DeviceTenants = deviceTenants{db: db, auth: device.ClientAuth{DB: db}}
+	opts.DeviceTenants = deviceTenants{db: db, auth: device.ClientAuth{DB: db}, keep: keepDisconnectedClients(cfg)}
 	// the session registry, and with peer calls the peer listener api processes dispatch to
 	cp, err := newClusterProcess(cfg, db, coord, opts)
 	if err != nil {

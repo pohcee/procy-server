@@ -22,6 +22,8 @@ type ConnMock struct {
 	inputPayload     []byte
 
 	ChannelMocks map[string]*ChannelMock
+
+	closed bool
 }
 
 func NewConnMock() *ConnMock {
@@ -53,6 +55,21 @@ func (c *ConnMock) OpenChannel(name string, _ []byte) (ssh.Channel, <-chan *ssh.
 	}
 	c.ChannelMocks[name] = ch
 	return ch, nil, nil
+}
+
+// Close records that the connection was closed.
+func (c *ConnMock) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closed = true
+	return nil
+}
+
+// Closed reports whether Close was called.
+func (c *ConnMock) Closed() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closed
 }
 
 func (c *ConnMock) RemoteAddr() net.Addr {

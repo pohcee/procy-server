@@ -73,6 +73,14 @@ func TestOrgCommands(t *testing.T) {
 	require.NoError(t, err, "the first platform operator")
 	assert.Contains(t, out, `added administrator "ops" to "_system"`)
 
+	// an existing account is invited: it joins when its owner accepts
+	out, err = org(t, runOrgAddAdmin, "beta", "alice")
+	require.NoError(t, err)
+	assert.Contains(t, out, `invited "alice" to "beta" as an administrator`)
+	assert.NotContains(t, out, "password (shown once")
+	_, err = org(t, runOrgAddAdmin, "acme", "alice")
+	assert.ErrorIs(t, err, operator.ErrExists, "a member already")
+
 	out, err = org(t, runOrgList)
 	require.NoError(t, err)
 	assert.Regexp(t, `(?m)^ID\s+NAME\s+STATUS\s+DEVICES\s+LIMIT\s+USERS\s+CREATED$`, out)
@@ -97,7 +105,7 @@ func TestOrgCommands(t *testing.T) {
 	assert.Regexp(t, `^cli:`, actors[0], "the audit log names the operating system user")
 	var n int
 	require.NoError(t, d.Owner.Get(&n, "SELECT count(*) FROM auditlog WHERE tenant_id = '_system'"))
-	assert.Equal(t, 8, n, "2 adds, 2 limits, suspend, activate and 2 admins; failures are not logged")
+	assert.Equal(t, 9, n, "2 adds, 2 limits, suspend, activate and 3 admins; failures are not logged")
 }
 
 func TestOrgNeedsPostgres(t *testing.T) {

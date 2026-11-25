@@ -27,6 +27,12 @@ import (
 // deviceConfig writes the rportd.conf of a device process (client listener only, device role, no API, no vault).
 func deviceConfig(t *testing.T, root, dsn string) (configPath string, clientPort int) {
 	t.Helper()
+	return deviceConfigNode(t, root, dsn, "device-1")
+}
+
+// deviceConfigNode is deviceConfig for the device process of node nodeID.
+func deviceConfigNode(t *testing.T, root, dsn, nodeID string) (configPath string, clientPort int) {
+	t.Helper()
 	clientPort = e2eFreePort(t)
 	dataDir := filepath.Join(root, "device-data")
 	conf := fmt.Sprintf(`[server]
@@ -48,12 +54,12 @@ func deviceConfig(t *testing.T, root, dsn string) (configPath string, clientPort
   role = "device"
 
 [cluster]
-  node_id = "device-1"
+  node_id = %q
 
 [metering]
   enabled = true
   flush_interval = "5s"
-`, clientPort, clientPort, e2eKeySeed, dataDir, dsn)
+`, clientPort, clientPort, e2eKeySeed, dataDir, dsn, nodeID)
 	configPath = filepath.Join(root, "rportd-device.conf")
 	require.NoError(t, os.WriteFile(configPath, []byte(conf), 0o600))
 	return configPath, clientPort

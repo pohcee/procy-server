@@ -68,6 +68,20 @@ paths:
     $ref: paths/me_ip.yaml
   /me/tokens:
     $ref: paths/me_token.yaml
+  /me/organizations:
+    $ref: paths/me_organizations.yaml
+  /me/organization:
+    $ref: paths/me_organization.yaml
+  /organization/members:
+    $ref: paths/organization_members.yaml
+  /organization/invitations:
+    $ref: paths/organization_invitations.yaml
+  /organization/invitations/{username}:
+    $ref: paths/organization_invitations_{username}.yaml
+  /me/invitations:
+    $ref: paths/me_invitations.yaml
+  /me/invitations/{organization}:
+    $ref: paths/me_invitations_{organization}.yaml
   /status:
     $ref: paths/status.yaml
   /operator/organizations:
@@ -82,6 +96,8 @@ paths:
     $ref: paths/operator_organizations_{id}_device-limit.yaml
   /operator/organizations/{id}/admins:
     $ref: paths/operator_organizations_{id}_admins.yaml
+  /operator/organizations/{id}/members:
+    $ref: paths/operator_organizations_{id}_members.yaml
   /operator/organizations/{id}/usage:
     $ref: paths/operator_organizations_{id}_usage.yaml
   /operator/usage:

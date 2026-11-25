@@ -83,6 +83,10 @@ func (al *APIListener) handleChangeUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 
+	if userIDExists && al.refuseSharedAccountChange(w, req, userID, &user) {
+		return
+	}
+
 	if err := al.userService.Change(req.Context(), &user, userID); err != nil {
 		al.jsonError(w, err)
 		return
@@ -184,6 +188,9 @@ func (al *APIListener) handleDeleteUsersTotP(w http.ResponseWriter, req *http.Re
 	}
 	if user == nil {
 		al.jsonErrorResponseWithTitle(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if al.refuseSharedAccountChange(w, req, userID, nil) {
 		return
 	}
 

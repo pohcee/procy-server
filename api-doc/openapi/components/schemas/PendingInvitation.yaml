@@ -1,0 +1,14 @@
+type: object
+description: An organization's pending invitation of an existing account
+properties:
+  username:
+    type: string
+  groups:
+    type: array
+    items:
+      type: string
+  invited_by:
+    type: string
+  created_at:
+    type: string
+    format: date-time

@@ -1,10 +1,12 @@
 post:
   tags:
     - Operator
-  summary: Create an administrator of an organization. Platform operators only
+  summary: Add an administrator to an organization. Platform operators only
   description: >-
-    Create a user in the organization's Administrators group with a generated password, returned once. The
-    password must be changed at the first login. With the id `_system` it creates another platform operator.
+    Add a login to the organization's Administrators group. A new login gets an account with a generated password,
+    returned once, that must be changed at the first login. A login that already has an account (a member of other
+    organizations) gets an invitation and becomes an administrator, with its own password, when its owner accepts it
+    (`POST /me/invitations/{organization}`). With the id `_system` it adds another platform operator.
     Written to the audit log of `_system` (without the password).
   operationId: OperatorOrganizationAdminsPost
   parameters:
@@ -64,7 +66,7 @@ post:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
     '409':
-      description: The organization is suspended
+      description: The organization is suspended, or the login is a member of it already
       content:
         application/json:
           schema:
