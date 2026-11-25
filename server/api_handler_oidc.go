@@ -247,7 +247,7 @@ func safeReturnTo(s string) string {
 
 // oidcRedirect sends the browser to the web UI's sign-in page with params in the fragment.
 func (al *APIListener) oidcRedirect(w http.ResponseWriter, req *http.Request, params url.Values) {
-	http.Redirect(w, req, al.oidcLogin.cfg.UIReturnURL()+"#"+params.Encode(), http.StatusFound)
+	http.Redirect(w, req, al.oidcUIURL(req)+"#"+params.Encode(), http.StatusFound)
 }
 
 // oidcFail ends a sign-in at the web UI with reason; who and detail go to the log and the audit log.
@@ -282,6 +282,12 @@ func (al *APIListener) oidcSetCookie(w http.ResponseWriter, value string, maxAge
 
 // handleOIDCLogin handles GET /oidc/login?return_to=/path: it starts a sign-in and redirects to the provider.
 func (al *APIListener) handleOIDCLogin(w http.ResponseWriter, req *http.Request) {
+	al.startOIDC(w, req, safeReturnTo(req.URL.Query().Get("return_to")))
+}
+
+// startOIDC stores a pending sign-in that ends at returnTo (or a signup, see oidcSignupReturn) and redirects to the
+// provider.
+func (al *APIListener) startOIDC(w http.ResponseWriter, req *http.Request, returnTo string) {
 	o := al.oidcLogin
 	state, err1 := oidc.RandomToken()
 	nonce, err2 := oidc.RandomToken()
@@ -301,7 +307,7 @@ func (al *APIListener) handleOIDCLogin(w http.ResponseWriter, req *http.Request)
 		Nonce:       nonce,
 		Verifier:    verifier,
 		BindingHash: oidc.Hash(binding),
-		ReturnTo:    safeReturnTo(req.URL.Query().Get("return_to")),
+		ReturnTo:    returnTo,
 		ExpiresAt:   o.now().Add(oidc.LoginTTL),
 	})
 	if err != nil {
@@ -329,6 +335,12 @@ func (al *APIListener) handleOIDCCallback(w http.ResponseWriter, req *http.Reque
 	cookie, cookieErr := req.Cookie(oidcCookie)
 	// the cookie is cleared unless the sign-in succeeds (then it binds the code until POST /oidc/token)
 	al.oidcSetCookie(w, "", -1)
+	if login != nil && al.signup != nil {
+		if _, ok := signupOrganization(login.ReturnTo); ok {
+			// a signup: its outcome goes to the signup page
+			req = withOIDCSignupTarget(req)
+		}
+	}
 
 	if e := q.Get("error"); e != "" {
 		reason := oidcErrServer
@@ -372,6 +384,10 @@ func (al *APIListener) handleOIDCCallback(w http.ResponseWriter, req *http.Reque
 		return
 	}
 	id.Linkable = oidc.LinkableEmail(*id)
+	if org, ok := signupOrganization(login.ReturnTo); ok && al.signup != nil {
+		al.oidcSignupFinish(w, req, id, org)
+		return
+	}
 	username, err := o.store.Resolve(ctx, *id)
 	switch {
 	case errors.Is(err, oidc.ErrNotLinkable):

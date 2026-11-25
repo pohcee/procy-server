@@ -162,6 +162,8 @@ type APIListener struct {
 	usage metering.Reader
 	// signupAPI serves the signup routes; nil without APIListenerOptions.Signup
 	signupAPI *signup.Handler
+	// signup is APIListenerOptions.Signup (Google signup through [oidc]); nil without it
+	signup *signup.Service
 	// billing serves GET /billing; nil: billing off
 	billing *BillingAPI
 	// meter counts the API bytes; nil: metering off
@@ -832,5 +834,6 @@ func (al *APIListener) initSignup(o APIListenerOptions) ([]func(r *mux.Router), 
 		return nil, errors.New("signup needs the operator API (a server on Postgres)")
 	}
 	al.signupAPI = signup.NewHandler(o.Signup, al.responder(), al.getUserModelForAuth)
+	al.signup = o.Signup
 	return []func(r *mux.Router){al.signupAPI.MountOperator}, nil
 }

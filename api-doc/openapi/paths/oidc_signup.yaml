@@ -1,0 +1,29 @@
+get:
+  tags:
+    - Signup
+  summary: Start a signup with Google ("Continue with Google")
+  description: >-
+    Public; with `[signup]` and `[oidc]` enabled only. A browser navigation, not an API call: checks the organization
+    name and starts an OpenID Connect sign-in like `GET /oidc/login`. At the callback the provider's verified email
+    replaces the emailed link: with `[signup] require_approval` the signup waits for an operator at once (no account
+    exists before the approval; `[signup] notify_email` is told), otherwise the organization is created and its
+    administrator signs in with Google (no password). The browser ends at the web UI's `/auth/signup/google` with
+    `#status=awaiting_approval&organization_name=…&email=…`, `#status=completed&organization=…&organization_name=…&email=…`
+    or `#error=<reason>&error_description=<text>` (reasons of `GET /oidc/callback`, plus `account_exists`,
+    `rate_limited`, `invalid`, `domain_refused`). Only emails the provider vouches for (Google Workspace or Gmail)
+    are accepted, the same as for a first Google sign-in. Rate limits, domain lists and the MX lookup are those of
+    `POST /signup`; there is no captcha.
+  operationId: OIDCSignupGet
+  security: []
+  parameters:
+    - name: organization
+      in: query
+      required: true
+      description: The name of the new organization (1 to 100 characters)
+      schema:
+        type: string
+  responses:
+    '302':
+      description: To the provider (or to the web UI's signup page with an error)
+    '404':
+      description: Signup or OIDC sign-in is not enabled

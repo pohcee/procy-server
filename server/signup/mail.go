@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/openrport/openrport/server/notifications/channels/rmailer"
@@ -16,6 +17,10 @@ const (
 	VerifyPath         = "/auth/signup/verify"
 	CancelDeletionPath = "/auth/signup/cancel-deletion"
 	ConfirmEmailPath   = "/auth/confirm-email"
+	// SignInPath is the web UI's sign-in page.
+	SignInPath = "/auth"
+	// OperatorQueuePath is the operators' signup queue (the "New signup waiting" email links it).
+	OperatorQueuePath = "/signups"
 )
 
 // SMTPMailer sends through the server's [smtp] settings, the mailer of the email notifications.
@@ -92,23 +97,65 @@ If you didn't ask for this, ignore this email.
 	}
 }
 
-func readyMail(base, org, orgID string) mail {
+func readyMail(base, org, orgID, method string) mail {
+	how := "with this email address and the password you chose"
+	if method == MethodGoogle {
+		how = `with "Sign in with Google", using the Google account of this address`
+	}
 	return mail{
 		subject: "Your organization " + org + " is ready",
 		body: fmt.Sprintf(`Hello,
 
-your organization %q (id %s) was created. Sign in at %s with this email address and the password you chose.
-`, org, orgID, base),
+you're in: your organization %q (id %s) was created. Sign in %s:
+
+%s
+`, org, orgID, how, base+SignInPath),
 	}
 }
 
-func deniedMail(org string) mail {
+func deniedMail(org, reason string) mail {
+	why := ""
+	if reason = strings.TrimSpace(reason); reason != "" {
+		why = "\nThe reason given: " + reason + "\n"
+	}
 	return mail{
 		subject: "Your signup for " + org,
 		body: fmt.Sprintf(`Hello,
 
 your request to create the organization %q was not approved.
-`, org),
+%s
+If you think this is a mistake, reply to this email.
+`, org, why),
+	}
+}
+
+// notifyMail tells the operators ([signup] notify_email) that a signup waits for approval.
+func notifyMail(base string, r *Signup, freeMail bool) mail {
+	mx := "not checked"
+	if r.MXFound != nil {
+		mx = map[bool]string{true: "yes", false: "NO"}[*r.MXFound]
+	}
+	proven := "the emailed link"
+	if r.Method == MethodGoogle {
+		proven = "Google sign-in"
+	}
+	kind := ""
+	if freeMail {
+		kind = " (free mail)"
+	}
+	return mail{
+		subject: "New signup waiting: " + r.OrgName,
+		body: fmt.Sprintf(`A signup is waiting for approval.
+
+Organization: %s
+Email:        %s
+Domain:       %s%s
+Mail server:  %s
+Proven by:    %s
+From IP:      %s
+
+Approve or reject it at %s
+`, r.OrgName, r.Email, r.Domain, kind, mx, proven, r.RemoteIP, base+OperatorQueuePath),
 	}
 }
 
@@ -117,8 +164,8 @@ func awaitingMail(org string) mail {
 		subject: "Your signup for " + org + " is waiting for approval",
 		body: fmt.Sprintf(`Hello,
 
-thank you for confirming your email. The organization %q will be created once an operator approves it; you'll get
-an email then.
+thank you for confirming your email. Every new organization is reviewed by a person: %q will be created once it
+is approved, and you'll get an email then.
 `, org),
 	}
 }

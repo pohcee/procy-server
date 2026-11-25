@@ -265,6 +265,13 @@ func (al *APIListener) initRouter() {
 	}
 	if al.signupAPI != nil {
 		al.signupAPI.MountPublic(api)
+		if al.oidcLogin != nil {
+			api.HandleFunc(oidcRoutePrefix+"/signup", al.handleOIDCSignup).Methods(http.MethodGet)
+		}
+	}
+	if al.billing != nil && al.billing.Plans != nil {
+		// the plan catalog for the public home page (no provider ids)
+		api.HandleFunc("/plans", al.handleGetBillingPlans).Methods(http.MethodGet)
 	}
 	api.Handle(routes.Verify2FaRoute, al.wrapWithAuthMiddleware(true)(al.handlePostVerify2FAToken())).Methods(http.MethodPost)
 

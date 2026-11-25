@@ -46,15 +46,20 @@ func (s Store) CountSince(ctx context.Context, since time.Time, ip, domain, emai
 // Insert implements signup.Store.
 func (s Store) Insert(ctx context.Context, r signup.Signup) error {
 	return s.inSystem(ctx, func(tx *sqlx.Tx) error {
-		_, err := tx.ExecContext(ctx, `INSERT INTO signups (id, email, domain, remote_ip, org_name, password_hash, token_hash, status, created_at, expires_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-			r.ID, r.Email, r.Domain, r.RemoteIP, r.OrgName, r.PasswordHash, r.TokenHash, r.Status, r.CreatedAt, r.ExpiresAt)
+		method := r.Method
+		if method == "" {
+			method = signup.MethodEmail
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO signups (id, email, domain, remote_ip, org_name, password_hash, token_hash, status, created_at, expires_at,
+			verified_at, method, mx_found)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+			r.ID, r.Email, r.Domain, r.RemoteIP, r.OrgName, r.PasswordHash, r.TokenHash, r.Status, r.CreatedAt, r.ExpiresAt, r.VerifiedAt, method, r.MXFound)
 		return err
 	})
 }
 
 const signupColumns = `id, email, domain, remote_ip, org_name, password_hash, token_hash, status, created_at, expires_at,
-	verified_at, decided_at, decided_by, reason, organization_id`
+	verified_at, decided_at, decided_by, reason, organization_id, method, mx_found`
 
 // Get implements signup.Store.
 func (s Store) Get(ctx context.Context, id string) (*signup.Signup, error) {
@@ -75,8 +80,14 @@ func (s Store) Get(ctx context.Context, id string) (*signup.Signup, error) {
 func (s Store) List(ctx context.Context, status string, limit int) ([]signup.Signup, error) {
 	out := []signup.Signup{}
 	err := s.inSystem(ctx, func(tx *sqlx.Tx) error {
-		return tx.SelectContext(ctx, &out, "SELECT "+signupColumns+` FROM signups WHERE tenant_id = '_system' AND ($1 = '' OR status = $1)
-			ORDER BY created_at DESC, id LIMIT $2`, status, limit)
+		// the queue's duplicate checks: other signups of the same domain that completed, and denied ones of the
+		// email and of the domain
+		return tx.SelectContext(ctx, &out, "SELECT "+signupColumns+`,
+			(SELECT count(*) FROM signups o WHERE o.tenant_id = '_system' AND o.domain = s.domain AND o.status = 'completed' AND o.id <> s.id) AS domain_customers,
+			(SELECT count(*) FROM signups o WHERE o.tenant_id = '_system' AND o.email = s.email AND o.status = 'denied' AND o.id <> s.id) AS email_denied_before,
+			(SELECT count(*) FROM signups o WHERE o.tenant_id = '_system' AND o.domain = s.domain AND o.status = 'denied' AND o.id <> s.id) AS domain_denied_before
+			FROM signups s WHERE s.tenant_id = '_system' AND ($1 = '' OR s.status = $1)
+			ORDER BY s.created_at DESC, s.id LIMIT $2`, status, limit)
 	})
 	return out, err
 }

@@ -22,6 +22,9 @@ get:
                   require_approval: {type: boolean}
                   password_min_length: {type: integer}
                   trial_days: {type: integer}
+                  google_signup: {type: boolean, description: '"Continue with Google" is offered ([oidc] on)'}
+                  google_signup_url: {type: string, example: /api/v1/oidc/signup}
+                  google_button_label: {type: string, example: Continue with Google}
     '404':
       description: No signup on this server (standalone, or `[signup]` not enabled)
       content:

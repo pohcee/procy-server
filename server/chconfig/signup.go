@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/openrport/openrport/share/email"
 )
 
 // Signup defaults.
@@ -58,7 +60,14 @@ type SignupConfig struct {
 	DeletionHold time.Duration `mapstructure:"deletion_hold"`
 	// Mail is "smtp" (default) or "log".
 	Mail string `mapstructure:"mail"`
+	// NotifyEmail, when set, gets a "New signup waiting" email whenever a signup waits for approval.
+	NotifyEmail string `mapstructure:"notify_email"`
+	// EmailNotice, when set, is appended to every signup email (e.g. "Preview: features and plans may change.").
+	EmailNotice string `mapstructure:"email_notice"`
 }
+
+// maxSignupEmailNotice bounds [signup] email_notice.
+const maxSignupEmailNotice = 1000
 
 // DefaultSignupUnlimitedDomains are large shared mail providers.
 var DefaultSignupUnlimitedDomains = []string{
@@ -122,6 +131,16 @@ func (c *Config) parseAndValidateSignup() error {
 		if *l.v == 0 {
 			*l.v = l.def
 		}
+	}
+	s.NotifyEmail = strings.ToLower(strings.TrimSpace(s.NotifyEmail))
+	if s.NotifyEmail != "" {
+		if err := email.Validate(s.NotifyEmail); err != nil {
+			return fmt.Errorf("[signup] notify_email must be an email address: %w", err)
+		}
+	}
+	s.EmailNotice = strings.TrimSpace(s.EmailNotice)
+	if len(s.EmailNotice) > maxSignupEmailNotice {
+		return fmt.Errorf("[signup] email_notice must be at most %d bytes", maxSignupEmailNotice)
 	}
 	switch {
 	case s.TokenTTL == 0:

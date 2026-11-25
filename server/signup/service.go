@@ -36,9 +36,14 @@ type Options struct {
 	Mailer    Mailer
 	Captcha   Captcha
 	Domains   *Domains
-	Shredder  Shredder
-	Log       *logger.Logger
-	Now       func() time.Time
+	// LookupMX, when set, is looked up for every signup request to show the operators whether the domain has a mail
+	// server (Signup.MXFound); refusing domains without one is Domains' (check_mx).
+	LookupMX func(ctx context.Context, domain string) error
+	// GoogleSignup: "Continue with Google" is offered ([oidc] on); GoogleSignupURL starts it.
+	GoogleSignup bool
+	Shredder     Shredder
+	Log          *logger.Logger
+	Now          func() time.Time
 }
 
 // Service runs signups and deletions.
@@ -67,12 +72,20 @@ type PublicConfig struct {
 	RequireApproval   bool   `json:"require_approval"`
 	PasswordMinLength int    `json:"password_min_length"`
 	TrialDays         int    `json:"trial_days"`
+	// GoogleSignup: the page offers "Continue with Google" (GET GoogleSignupURL?organization=…): the Google account's
+	// verified email replaces the emailed link.
+	GoogleSignup      bool   `json:"google_signup"`
+	GoogleSignupURL   string `json:"google_signup_url,omitempty"`
+	GoogleButtonLabel string `json:"google_button_label,omitempty"`
 }
+
+// GoogleSignupURL is the route that starts a signup with Google (the server package serves it with [oidc]).
+const GoogleSignupURL = "/api/v1/oidc/signup"
 
 // PublicConfig returns the settings the signup page shows.
 func (s *Service) PublicConfig() PublicConfig {
 	c := s.o.Config
-	return PublicConfig{
+	pc := PublicConfig{
 		Enabled:           true,
 		Captcha:           c.Captcha,
 		CaptchaSiteKey:    c.CaptchaSiteKey,
@@ -80,6 +93,56 @@ func (s *Service) PublicConfig() PublicConfig {
 		PasswordMinLength: s.o.Passwords.MinLength,
 		TrialDays:         s.o.TrialDays,
 	}
+	if s.o.GoogleSignup {
+		pc.GoogleSignup, pc.GoogleSignupURL, pc.GoogleButtonLabel = true, GoogleSignupURL, "Continue with Google"
+	}
+	return pc
+}
+
+// CheckOrganizationName checks the name of a new organization as a signup does; it returns it trimmed.
+func CheckOrganizationName(name string) (string, error) { return checkOrgName(name) }
+
+// lookupMX records whether domain has a mail server, within mxBudget; nil without Options.LookupMX.
+func (s *Service) lookupMX(ctx context.Context, domain string) *bool {
+	if s.o.LookupMX == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, mxBudget)
+	defer cancel()
+	found := s.o.LookupMX(ctx, domain) == nil
+	return &found
+}
+
+// admit checks the email and the organization name of a signup request.
+func admit(email, organization string) (addr, domain, org string, err error) {
+	if addr, domain, err = normalizeEmail(email); err != nil {
+		return "", "", "", err
+	}
+	if org, err = checkOrgName(organization); err != nil {
+		return "", "", "", err
+	}
+	return addr, domain, org, nil
+}
+
+// limited checks the domain lists and the rate limits of a signup request.
+func (s *Service) limited(ctx context.Context, addr, domain, remoteIP string, now time.Time) error {
+	if err := s.o.Domains.Check(ctx, domain); err != nil {
+		return err
+	}
+	n, err := s.o.Store.CountSince(ctx, now.Add(-day), remoteIP, domain, addr)
+	if err != nil {
+		return err
+	}
+	c := s.o.Config
+	domainLimit := c.MaxPerDomainPerDay
+	if c.UnlimitedDomain(domain) {
+		domainLimit = -1
+	}
+	if over(n.IP, c.MaxPerIPPerDay) || over(n.Domain, domainLimit) || over(n.Email, c.MaxPerEmailPerDay) {
+		s.o.Log.Infof("signup refused (rate limit): %s from %s (ip %d, domain %d, email %d today)", addr, remoteIP, n.IP, n.Domain, n.Email)
+		return ErrRateLimited
+	}
+	return nil
 }
 
 // Request is a signup as the visitor gives it. The password is chosen when verifying (Verify), so that whoever
@@ -112,11 +175,7 @@ func checkOrgName(name string) (string, error) {
 // already a user (that one gets a notice instead of a link), and both take the same work, so it doesn't reveal
 // accounts.
 func (s *Service) Request(ctx context.Context, in Request, remoteIP string) error {
-	addr, domain, err := normalizeEmail(in.Email)
-	if err != nil {
-		return err
-	}
-	org, err := checkOrgName(in.Organization)
+	addr, domain, org, err := admit(in.Email, in.Organization)
 	if err != nil {
 		return err
 	}
@@ -125,23 +184,11 @@ func (s *Service) Request(ctx context.Context, in Request, remoteIP string) erro
 			return err
 		}
 	}
-	if err := s.o.Domains.Check(ctx, domain); err != nil {
-		return err
-	}
 	now := s.now()
-	n, err := s.o.Store.CountSince(ctx, now.Add(-day), remoteIP, domain, addr)
-	if err != nil {
+	if err := s.limited(ctx, addr, domain, remoteIP, now); err != nil {
 		return err
 	}
 	c := s.o.Config
-	domainLimit := c.MaxPerDomainPerDay
-	if c.UnlimitedDomain(domain) {
-		domainLimit = -1
-	}
-	if over(n.IP, c.MaxPerIPPerDay) || over(n.Domain, domainLimit) || over(n.Email, c.MaxPerEmailPerDay) {
-		s.o.Log.Infof("signup refused (rate limit): %s from %s (ip %d, domain %d, email %d today)", addr, remoteIP, n.IP, n.Domain, n.Email)
-		return ErrRateLimited
-	}
 
 	acct, err := s.o.Accounts.Account(ctx, addr)
 	if err != nil {
@@ -156,7 +203,7 @@ func (s *Service) Request(ctx context.Context, in Request, remoteIP string) erro
 		return err
 	}
 	row := Signup{ID: id, Email: addr, Domain: domain, RemoteIP: remoteIP, OrgName: org, CreatedAt: now, ExpiresAt: now.Add(c.TokenTTL),
-		Status: StatusPending, TokenHash: &hash}
+		Status: StatusPending, TokenHash: &hash, Method: MethodEmail, MXFound: s.lookupMX(ctx, domain)}
 	var m mail
 	switch {
 	case !acct.Exists:
@@ -179,7 +226,15 @@ func (s *Service) Request(ctx context.Context, in Request, remoteIP string) erro
 
 func over(n, limit int) bool { return limit > 0 && n >= limit }
 
+// send mails m to a person who signs up (or an organization's administrators), with [signup] email_notice.
 func (s *Service) send(ctx context.Context, to string, m mail) error {
+	if n := s.o.Config.EmailNotice; n != "" {
+		m.body = strings.TrimRight(m.body, "\n") + "\n\n-- \n" + n + "\n"
+	}
+	return s.sendRaw(ctx, to, m)
+}
+
+func (s *Service) sendRaw(ctx context.Context, to string, m mail) error {
 	if err := s.o.Mailer.Send(ctx, to, m.subject, m.body); err != nil {
 		s.o.Log.Errorf("signup: send %q to %s: %v", m.subject, to, err)
 		return ErrMail
@@ -237,6 +292,7 @@ func (s *Service) Verify(ctx context.Context, token, password, remoteIP string) 
 			return nil, err
 		}
 		_ = s.send(ctx, row.Email, awaitingMail(row.OrgName))
+		s.notifyOperators(ctx, row)
 		return &Result{Status: StatusAwaitingApproval, OrganizationName: row.OrgName, Username: row.Email}, nil
 	}
 	res, err := s.complete(ctx, row, by, Update{VerifiedAt: &now})
@@ -340,8 +396,11 @@ func (s *Service) setupOrganization(ctx context.Context, row *Signup, by operato
 		// an account of the address appeared meanwhile: it is not the one this signup proved
 		return fmt.Errorf("%w: %s got an account meanwhile; try again", ErrConflict, row.Email)
 	}
-	if err := s.o.Accounts.SetPasswordHash(ctx, org, row.Email, row.PasswordHash); err != nil {
-		return err
+	// a Google signup has no password: its generated one is never told to anyone, it signs in with Google
+	if row.PasswordHash != "" {
+		if err := s.o.Accounts.SetPasswordHash(ctx, org, row.Email, row.PasswordHash); err != nil {
+			return err
+		}
 	}
 	return s.o.Accounts.MarkVerified(ctx, row.Email)
 }
@@ -359,12 +418,87 @@ func (s *Service) discard(ctx context.Context, by operator.Actor, org string) er
 	return s.runDeletion(ctx, org, by)
 }
 
-// List returns the newest signups (operators).
+// List returns the newest signups (operators), with the queue's facts.
 func (s *Service) List(ctx context.Context, status string, limit int) ([]Signup, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	return s.o.Store.List(ctx, status, limit)
+	out, err := s.o.Store.List(ctx, status, limit)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		if out[i].Method == "" {
+			out[i].Method = MethodEmail
+		}
+		if IsFreeMail(out[i].Domain) {
+			out[i].FreeMail, out[i].DomainCustomers, out[i].DomainDeniedBefore = true, 0, 0
+		}
+	}
+	return out, nil
+}
+
+// notifyOperators mails [signup] notify_email that row waits for approval; a failure is only logged.
+func (s *Service) notifyOperators(ctx context.Context, row *Signup) {
+	to := s.o.Config.NotifyEmail
+	if to == "" {
+		return
+	}
+	_ = s.sendRaw(ctx, to, notifyMail(s.o.Config.PublicURL, row, IsFreeMail(row.Domain)))
+}
+
+// RequestVerified is a signup whose email the caller proved (a Google sign-in, MethodGoogle): the checks of
+// Request (no captcha: the provider's sign-in stands for it), then no link: the signup waits for approval at once,
+// or, without [signup] require_approval, the organization is created (no password: the account signs in with
+// Google). ErrAccountExists when the email has a proven account.
+func (s *Service) RequestVerified(ctx context.Context, email, organization, method, remoteIP string) (*Result, error) {
+	addr, domain, org, err := admit(email, organization)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	if err := s.limited(ctx, addr, domain, remoteIP, now); err != nil {
+		return nil, err
+	}
+	acct, err := s.o.Accounts.Account(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	if acct.Exists && !acct.TakeOver() {
+		return nil, ErrAccountExists
+	}
+	id, err := newID()
+	if err != nil {
+		return nil, err
+	}
+	by := signupActor(addr, remoteIP)
+	row := &Signup{ID: id, Email: addr, Domain: domain, RemoteIP: remoteIP, OrgName: org, CreatedAt: now, VerifiedAt: &now,
+		Method: method, MXFound: s.lookupMX(ctx, domain)}
+	if s.o.Config.RequireApproval {
+		row.Status, row.ExpiresAt = StatusAwaitingApproval, approvalExpiry(now)
+	} else {
+		// held by this request while the organization is created
+		row.Status, row.ExpiresAt = StatusCreating, now.Add(s.o.Config.TokenTTL)
+	}
+	if err := s.o.Store.Insert(ctx, *row); err != nil {
+		return nil, err
+	}
+	if err := s.audit(ctx, by, AuditApplicationSignup, AuditActionVerify, id, map[string]string{"organization": org, "method": method}); err != nil {
+		return nil, err
+	}
+	if s.o.Config.RequireApproval {
+		_ = s.send(ctx, addr, awaitingMail(org))
+		s.notifyOperators(ctx, row)
+		return &Result{Status: StatusAwaitingApproval, OrganizationName: org, Username: addr}, nil
+	}
+	res, err := s.complete(ctx, row, by, Update{VerifiedAt: &now})
+	if err != nil {
+		if !errors.Is(err, ErrConflict) {
+			_ = s.o.Store.SetStatus(ctx, id, Update{Status: StatusExpired, Reason: "the organization could not be created", ClearPassword: true})
+		}
+		return nil, err
+	}
+	return res, nil
 }
 
 // Approve creates the organization of a signup awaiting approval (operators). The signup is claimed first, so two
@@ -391,7 +525,7 @@ func (s *Service) Approve(ctx context.Context, by operator.Actor, id string) (*R
 	if err := s.audit(ctx, by, AuditApplicationSignup, AuditActionApprove, id, map[string]string{"organization": res.Organization}); err != nil {
 		s.o.Log.Errorf("signup %s: audit: %v", id, err)
 	}
-	_ = s.send(ctx, row.Email, readyMail(s.o.Config.PublicURL, row.OrgName, res.Organization))
+	_ = s.send(ctx, row.Email, readyMail(s.o.Config.PublicURL, row.OrgName, res.Organization, row.Method))
 	return res, nil
 }
 
@@ -412,7 +546,7 @@ func (s *Service) Deny(ctx context.Context, by operator.Actor, id, reason string
 		return err
 	}
 	if row.Status == StatusAwaitingApproval {
-		_ = s.send(ctx, row.Email, deniedMail(row.OrgName))
+		_ = s.send(ctx, row.Email, deniedMail(row.OrgName, reason))
 	}
 	return nil
 }
