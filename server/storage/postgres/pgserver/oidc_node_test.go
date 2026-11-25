@@ -1,8 +1,11 @@
 package pgserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -30,6 +33,13 @@ func oidcOn(t *testing.T, fake *oidcfake.Server) string {
 // the fragment of the redirect to the web UI.
 func (h *nodeFixture) oidcSignIn(t *testing.T, via *nodeFixture) url.Values {
 	t.Helper()
+	f, _ := h.oidcSignInBrowser(t, via)
+	return f
+}
+
+// oidcSignInBrowser is oidcSignIn returning the browser too (it trades the code).
+func (h *nodeFixture) oidcSignInBrowser(t *testing.T, via *nodeFixture) (url.Values, *oidcfake.Browser) {
+	t.Helper()
 	b := oidcfake.NewBrowser(t)
 	cb, err := url.Parse(b.Authorize(t, b.Start(t, h.base+"/oidc/login")))
 	require.NoError(t, err)
@@ -37,36 +47,44 @@ func (h *nodeFixture) oidcSignIn(t *testing.T, via *nodeFixture) url.Values {
 	require.NoError(t, err)
 	cb.Host = target.Host
 	_, frag := b.Callback(t, cb.String())
-	return frag
+	return frag, b
 }
 
-// oidcToken trades a sign-in code at h; org "" names none.
-func (h *nodeFixture) oidcToken(t *testing.T, code, org string) (int, map[string]any) {
+// oidcToken trades a sign-in code at h with the browser b; org "" names none.
+func (h *nodeFixture) oidcToken(t *testing.T, b *oidcfake.Browser, code, org string) (int, map[string]any) {
 	t.Helper()
 	body := map[string]string{"code": code}
 	if org != "" {
 		body["organization"] = org
 	}
-	return h.loginAs2(t, "/oidc/token", body)
-}
-
-func (h *nodeFixture) loginAs2(t *testing.T, path string, body map[string]string) (int, map[string]any) {
-	t.Helper()
-	code, out := h.do(t, http.MethodPost, path, "", body)
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, h.base+"/oidc/token", bytes.NewReader(raw))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := b.Client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	rb, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	out := map[string]any{}
+	_ = json.Unmarshal(rb, &out)
+	out["_raw"] = string(rb)
+	code2 := resp.StatusCode
 	data, _ := out["data"].(map[string]any)
 	if data == nil {
 		data = map[string]any{"_raw": out["_raw"]}
 	}
-	return code, data
+	return code2, data
 }
 
 // oidcLogin signs user in through OIDC at h and returns the session token.
 func (h *nodeFixture) oidcLogin(t *testing.T, fake *oidcfake.Server, sub, email string) string {
 	t.Helper()
 	fake.SignInAs(oidcfake.User{Subject: sub, Email: email, EmailVerified: true})
-	frag := h.oidcSignIn(t, h)
+	frag, b := h.oidcSignInBrowser(t, h)
 	require.NotEmpty(t, frag.Get("code"), frag)
-	code, data := h.oidcToken(t, frag.Get("code"), "")
+	code, data := h.oidcToken(t, b, frag.Get("code"), "")
 	require.Equal(t, http.StatusOK, code, data)
 	tok, _ := data["token"].(string)
 	require.NotEmpty(t, tok, data)
@@ -182,8 +200,20 @@ func TestNodeOIDCOperatorsAndPolicies(t *testing.T) {
 	code, out = h.do(t, http.MethodPut, "/me/sign-in", pat, map[string]string{"method": "both"})
 	assert.Equal(t, http.StatusNoContent, code, out["_raw"])
 
-	// bob requires OIDC for b: his own password session ends at once
+	// requiring OIDC needs an OIDC session (no lock-out by a password-only administrator)
 	code, out = h.do(t, http.MethodPut, "/organization/sign-in", bob, map[string]bool{"require_oidc": true})
+	assert.Equal(t, http.StatusConflict, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/users", bob, map[string]any{"username": "bea@example.com", "password": "beas-long-password-1",
+		"groups": []string{"Administrators"}})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	bea := h.oidcLogin(t, fake, "google-bea", "bea@example.com")
+	code, out = h.do(t, http.MethodPut, "/users/bea@example.com", bea, map[string]any{"sign_in": "oidc"})
+	require.Equal(t, http.StatusNoContent, code, "her OIDC session may: %s", out["_raw"])
+	code, out = h.do(t, http.MethodPut, "/users/bob", bob, map[string]any{"sign_in": "oidc"})
+	assert.Equal(t, http.StatusConflict, code, "bob's own password session may not: %s", out["_raw"])
+
+	// bea requires OIDC for b: bob's password session ends at once
+	code, out = h.do(t, http.MethodPut, "/organization/sign-in", bea, map[string]bool{"require_oidc": true})
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	code, out = h.do(t, http.MethodGet, "/users", bob, nil)
 	assert.Equal(t, http.StatusUnauthorized, code, out["_raw"])
@@ -215,16 +245,16 @@ func TestNodeOIDCOrganizationPicker(t *testing.T) {
 	require.NoError(t, store.AcceptInvitation(ctxB, "mia@example.com"))
 
 	fake.SignInAs(oidcfake.User{Subject: "google-mia", Email: "mia@example.com", EmailVerified: true})
-	frag := h.oidcSignIn(t, h)
+	frag, br := h.oidcSignInBrowser(t, h)
 	require.NotEmpty(t, frag.Get("code"), frag)
-	code, data := h.oidcToken(t, frag.Get("code"), "")
+	code, data := h.oidcToken(t, br, frag.Get("code"), "")
 	require.Equal(t, http.StatusOK, code, data)
 	assert.Nil(t, data["token"])
 	assert.Equal(t, []string{"a", "b"}, orgIDs(t, data["organizations"]))
 
-	code, data = h.oidcToken(t, frag.Get("code"), "nowhere")
+	code, data = h.oidcToken(t, br, frag.Get("code"), "nowhere")
 	assert.Equal(t, http.StatusForbidden, code, data)
-	code, data = h.oidcToken(t, frag.Get("code"), "b")
+	code, data = h.oidcToken(t, br, frag.Get("code"), "b")
 	require.Equal(t, http.StatusOK, code, data)
 	assert.Equal(t, "b", data["organization"])
 	assert.Equal(t, []string{"a", "b"}, orgIDs(t, data["organizations"]))
@@ -232,7 +262,7 @@ func TestNodeOIDCOrganizationPicker(t *testing.T) {
 	code, out := h.do(t, http.MethodGet, "/me", tokB, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Equal(t, []any{"Viewers"}, out["data"].(map[string]any)["groups"])
-	code, _ = h.oidcToken(t, frag.Get("code"), "a")
+	code, _ = h.oidcToken(t, br, frag.Get("code"), "a")
 	assert.Equal(t, http.StatusUnauthorized, code, "the code was used")
 
 	// switching keeps the sign-in method: an OIDC session may enter an organization that requires OIDC, a
@@ -255,8 +285,8 @@ func TestNodeOIDCOrganizationPicker(t *testing.T) {
 	// an organization that refuses OIDC for mia drops out of the list: one left, a token at once
 	_, err = d.Owner.Exec("UPDATE users SET sign_in = 'password' WHERE tenant_id = 'b' AND username = 'mia@example.com'")
 	require.NoError(t, err)
-	frag = h.oidcSignIn(t, h)
-	code, data = h.oidcToken(t, frag.Get("code"), "")
+	frag, br = h.oidcSignInBrowser(t, h)
+	code, data = h.oidcToken(t, br, frag.Get("code"), "")
 	require.Equal(t, http.StatusOK, code, data)
 	assert.NotEmpty(t, data["token"])
 	assert.NotContains(t, data, "organizations")
@@ -274,9 +304,9 @@ func TestNodeOIDCCallbackOnAnotherNode(t *testing.T) {
 	two := startNodeOn(t, d, nodeSettings{nodeID: "node-b", extra: extra})
 
 	fake.SignInAs(oidcfake.User{Subject: "google-nina", Email: "nina@example.com", EmailVerified: true})
-	frag := one.oidcSignIn(t, two)
+	frag, br := one.oidcSignInBrowser(t, two)
 	require.NotEmpty(t, frag.Get("code"), frag)
-	code, data := one.oidcToken(t, frag.Get("code"), "")
+	code, data := one.oidcToken(t, br, frag.Get("code"), "")
 	require.Equal(t, http.StatusOK, code, data)
 	tok := data["token"].(string)
 	code, out := two.do(t, http.MethodGet, "/clients", tok, nil)

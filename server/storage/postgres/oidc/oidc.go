@@ -63,8 +63,8 @@ func (s *Store) TakeLogin(ctx context.Context, stateHash string, now time.Time) 
 
 // SaveTicket implements oidc.Store.
 func (s *Store) SaveTicket(ctx context.Context, t oidc.Ticket) error {
-	_, err := s.db.ExecContext(ctx, "INSERT INTO oidc_tickets (code_hash, username, expires_at) VALUES ($1, $2, $3)",
-		t.CodeHash, t.Username, t.ExpiresAt)
+	_, err := s.db.ExecContext(ctx, "INSERT INTO oidc_tickets (code_hash, username, binding_hash, expires_at) VALUES ($1, $2, $3, $4)",
+		t.CodeHash, t.Username, t.BindingHash, t.ExpiresAt)
 	if err != nil {
 		return fmt.Errorf("oidc: save sign-in code: %w", err)
 	}
@@ -77,7 +77,7 @@ func (s *Store) GetTicket(ctx context.Context, codeHash string, now time.Time) (
 		oidc.Ticket
 		UsedAt *time.Time `db:"used_at"`
 	}
-	err := s.db.GetContext(ctx, &row, "SELECT code_hash, username, expires_at, used_at FROM oidc_tickets WHERE code_hash = $1", codeHash)
+	err := s.db.GetContext(ctx, &row, "SELECT code_hash, username, binding_hash, expires_at, used_at FROM oidc_tickets WHERE code_hash = $1", codeHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, oidc.ErrNotFound
 	}
@@ -109,7 +109,7 @@ func (s *Store) Resolve(ctx context.Context, id oidc.Identity) (string, error) {
 		Login   sql.NullString `db:"login"`
 		Outcome string         `db:"outcome"`
 	}
-	if err := s.db.GetContext(ctx, &out, "SELECT login, outcome FROM rport_oidc_resolve($1, $2, $3)", id.Issuer, id.Subject, id.Email); err != nil {
+	if err := s.db.GetContext(ctx, &out, "SELECT login, outcome FROM rport_oidc_resolve($1, $2, $3, $4)", id.Issuer, id.Subject, id.Email, id.Linkable); err != nil {
 		return "", fmt.Errorf("oidc: resolve identity: %w", err)
 	}
 	switch out.Outcome {
@@ -119,6 +119,8 @@ func (s *Store) Resolve(ctx context.Context, id oidc.Identity) (string, error) {
 		return "", oidc.ErrAmbiguous
 	case "mismatch":
 		return "", oidc.ErrMismatch
+	case "unlinkable":
+		return "", oidc.ErrNotLinkable
 	}
 	return "", oidc.ErrUnknownAccount
 }

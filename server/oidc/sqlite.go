@@ -68,8 +68,8 @@ func (s *SQLiteStore) TakeLogin(ctx context.Context, stateHash string, now time.
 
 // SaveTicket implements Store.
 func (s *SQLiteStore) SaveTicket(ctx context.Context, t Ticket) error {
-	_, err := s.db.ExecContext(ctx, "INSERT INTO oidc_tickets (code_hash, username, expires_at) VALUES (?, ?, ?)",
-		t.CodeHash, t.Username, t.ExpiresAt.UTC())
+	_, err := s.db.ExecContext(ctx, "INSERT INTO oidc_tickets (code_hash, username, binding_hash, expires_at) VALUES (?, ?, ?, ?)",
+		t.CodeHash, t.Username, t.BindingHash, t.ExpiresAt.UTC())
 	if err != nil {
 		return fmt.Errorf("oidc: save sign-in code: %w", err)
 	}
@@ -82,7 +82,7 @@ func (s *SQLiteStore) GetTicket(ctx context.Context, codeHash string, now time.T
 		Ticket
 		UsedAt *time.Time `db:"used_at"`
 	}
-	err := s.db.GetContext(ctx, &row, "SELECT code_hash, username, expires_at, used_at FROM oidc_tickets WHERE code_hash = ?", codeHash)
+	err := s.db.GetContext(ctx, &row, "SELECT code_hash, username, binding_hash, expires_at, used_at FROM oidc_tickets WHERE code_hash = ?", codeHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -112,8 +112,22 @@ func (s *SQLiteStore) UseTicket(ctx context.Context, codeHash string, now time.T
 func (s *SQLiteStore) Resolve(ctx context.Context, id Identity) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.logins == nil {
+		return "", ErrUnknownAccount
+	}
+	all, err := s.logins(ctx)
+	if err != nil {
+		return "", err
+	}
 	var username string
-	err := s.db.GetContext(ctx, &username, "SELECT username FROM oidc_identities WHERE issuer = ? AND subject = ?", id.Issuer, id.Subject)
+	err = s.db.GetContext(ctx, &username, "SELECT username FROM oidc_identities WHERE issuer = ? AND subject = ?", id.Issuer, id.Subject)
+	if err == nil && !contains(all, username) {
+		// the login was deleted or renamed: the pin was for its former owner
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM oidc_identities WHERE username = ?", username); err != nil {
+			return "", fmt.Errorf("oidc: %w", err)
+		}
+		err = sql.ErrNoRows
+	}
 	switch {
 	case err == nil:
 		_, err := s.db.ExecContext(ctx, "UPDATE oidc_identities SET last_login_at = ?, email = ? WHERE issuer = ? AND subject = ?",
@@ -125,12 +139,8 @@ func (s *SQLiteStore) Resolve(ctx context.Context, id Identity) (string, error) 
 	case !errors.Is(err, sql.ErrNoRows):
 		return "", fmt.Errorf("oidc: identity: %w", err)
 	}
-	if s.logins == nil {
-		return "", ErrUnknownAccount
-	}
-	all, err := s.logins(ctx)
-	if err != nil {
-		return "", err
+	if !id.Linkable {
+		return "", ErrNotLinkable
 	}
 	username, err = matchEmail(all, id.Email)
 	if err != nil {
@@ -149,6 +159,15 @@ func (s *SQLiteStore) Resolve(ctx context.Context, id Identity) (string, error) 
 		return "", fmt.Errorf("oidc: pin identity: %w", err)
 	}
 	return username, nil
+}
+
+func contains(list []string, s string) bool {
+	for _, l := range list {
+		if l == s {
+			return true
+		}
+	}
+	return false
 }
 
 // matchEmail returns the one login of logins equal to email ignoring case.

@@ -54,10 +54,13 @@ func TestOIDCConfig(t *testing.T) {
 }
 
 func TestOIDCDomainAllowed(t *testing.T) {
-	o := OIDCConfig{}
+	o := OIDCConfig{Issuer: DefaultOIDCIssuer}
 	assert.True(t, o.DomainAllowed("a@gmail.com", ""))
 	o.AllowedDomains = []string{"Example.com"}
-	assert.True(t, o.DomainAllowed("a@example.com", ""))
+	assert.False(t, o.DomainAllowed("a@example.com", ""), "Google: a consumer account with a corporate address")
+	assert.True(t, o.DomainAllowed("a@example.com", "example.com"))
+	o.Issuer = "https://idp.example"
+	assert.True(t, o.DomainAllowed("a@example.com", ""), "other providers: the email domain")
 	assert.True(t, o.DomainAllowed("a@other.com", "example.com"), "the Workspace domain decides")
 	assert.False(t, o.DomainAllowed("a@example.com", "other.com"))
 	assert.False(t, o.DomainAllowed("a@gmail.com", ""))

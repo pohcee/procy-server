@@ -572,9 +572,13 @@ func (al *APIListener) handleBasicAuth(ctx context.Context, httpverb, urlpath, u
 
 	// skip basic auth with password when 2fa is enabled
 	if !al.config.API.IsTwoFAOn() && !al.config.API.TotPEnabled {
-		passwordOk := verifyPassword(user.Password, password)
-		if passwordOk && al.passwordAllowed(ctx, username) == nil {
-			return true, username, nil
+		if verifyPassword(user.Password, password) {
+			if al.passwordAllowed(ctx, username) == nil {
+				return true, username, nil
+			}
+			// the right password where OIDC is required: refused, but no failed login (no ban that would also
+			// stop the user's API tokens)
+			return false, username, bearer.ErrStaleSession
 		}
 	}
 

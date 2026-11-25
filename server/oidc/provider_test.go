@@ -120,3 +120,12 @@ func TestPolicy(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, oidc.MethodOIDC, m)
 }
+
+func TestLinkableEmail(t *testing.T) {
+	g := "https://accounts.google.com"
+	assert.True(t, oidc.LinkableEmail(oidc.Identity{Issuer: g, Email: "a@gmail.com"}))
+	assert.True(t, oidc.LinkableEmail(oidc.Identity{Issuer: g, Email: "a@GoogleMail.com"}))
+	assert.True(t, oidc.LinkableEmail(oidc.Identity{Issuer: g, Email: "a@corp.com", HostedDomain: "corp.com"}))
+	assert.False(t, oidc.LinkableEmail(oidc.Identity{Issuer: g, Email: "a@corp.com"}), "a consumer account with a corporate address")
+	assert.True(t, oidc.LinkableEmail(oidc.Identity{Issuer: "https://idp.example", Email: "a@corp.com"}))
+}

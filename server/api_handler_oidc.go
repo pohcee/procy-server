@@ -39,8 +39,7 @@ import (
 const (
 	oidcRoutePrefix = "/oidc"
 	// oidcCookie binds a pending sign-in to the browser that started it (login CSRF).
-	oidcCookie     = "procy_oidc"
-	oidcCookiePath = "/api/v1/oidc"
+	oidcCookie = "procy_oidc"
 	// maxReturnTo bounds the path a sign-in returns to.
 	maxReturnTo = 512
 	// signInPolicyTTL is how long a membership's sign-in policy is cached for password sessions.
@@ -60,6 +59,7 @@ const (
 	oidcErrUnknownAccount   = "unknown_account"
 	oidcErrAccountMismatch  = "account_mismatch"
 	oidcErrAmbiguous        = "ambiguous_account"
+	oidcErrUnmanagedEmail   = "unmanaged_email"
 	oidcErrNotAllowed       = "oidc_not_allowed"
 	oidcErrServer           = "server_error"
 )
@@ -70,6 +70,9 @@ type oidcLogin struct {
 	provider *oidc.Provider
 	store    oidc.Store
 	now      func() time.Time
+	// cookiePath is the path of the OIDC routes as the browser sees them (from redirect_url: a proxy may add a
+	// prefix), where the binding cookie is sent
+	cookiePath string
 }
 
 func newOIDCLogin(cfg chconfig.OIDCConfig, store oidc.Store, client *http.Client) (*oidcLogin, error) {
@@ -79,7 +82,11 @@ func newOIDCLogin(cfg chconfig.OIDCConfig, store oidc.Store, client *http.Client
 	if store == nil {
 		return nil, errors.New("[oidc] is enabled but the storage has no OIDC store")
 	}
-	return &oidcLogin{cfg: cfg, provider: oidc.NewProvider(cfg, client), store: store, now: time.Now}, nil
+	cookiePath := oidcRoutePrefix
+	if u, err := url.Parse(cfg.RedirectURL); err == nil {
+		cookiePath = strings.TrimSuffix(u.Path, "/callback")
+	}
+	return &oidcLogin{cfg: cfg, provider: oidc.NewProvider(cfg, client), store: store, now: time.Now, cookiePath: cookiePath}, nil
 }
 
 // initOIDC sets up OIDC sign-in ([oidc]) on the listener's storage; standalone, the email of a sign-in is matched
@@ -264,7 +271,7 @@ func (al *APIListener) oidcSetCookie(w http.ResponseWriter, value string, maxAge
 	http.SetCookie(w, &http.Cookie{
 		Name:     oidcCookie,
 		Value:    value,
-		Path:     oidcCookiePath,
+		Path:     al.oidcLogin.cookiePath,
 		MaxAge:   maxAge,
 		HttpOnly: true,
 		Secure:   strings.HasPrefix(al.oidcLogin.cfg.RedirectURL, "https://"),
@@ -320,6 +327,7 @@ func (al *APIListener) handleOIDCCallback(w http.ResponseWriter, req *http.Reque
 		login, takeErr = o.store.TakeLogin(ctx, oidc.Hash(state), o.now())
 	}
 	cookie, cookieErr := req.Cookie(oidcCookie)
+	// the cookie is cleared unless the sign-in succeeds (then it binds the code until POST /oidc/token)
 	al.oidcSetCookie(w, "", -1)
 
 	if e := q.Get("error"); e != "" {
@@ -335,7 +343,10 @@ func (al *APIListener) handleOIDCCallback(w http.ResponseWriter, req *http.Reque
 			al.oidcFail(w, req, oidcErrServer, "The sign-in failed. Try again later.", "", takeErr.Error())
 			return
 		}
-		al.oidcFail(w, req, oidcErrInvalidState, "The sign-in expired or was used already. Start again.", "", "unknown, expired or replayed state")
+		// no audit entry: anyone can send made-up states; the IP ban counts them
+		al.handleBannedIPs(req, false)
+		al.Infof("oidc: callback with an unknown, expired or replayed state from %s", chshare.RemoteIP(req))
+		al.oidcRedirect(w, req, url.Values{"error": {oidcErrInvalidState}, "error_description": {"The sign-in expired or was used already. Start again."}})
 		return
 	}
 	if cookieErr != nil || subtle.ConstantTimeCompare([]byte(oidc.Hash(cookie.Value)), []byte(login.BindingHash)) != 1 {
@@ -360,8 +371,13 @@ func (al *APIListener) handleOIDCCallback(w http.ResponseWriter, req *http.Reque
 		al.oidcFail(w, req, oidcErrDomainNotAllowed, "Accounts of this domain can't sign in here.", id.Email, "domain not allowed, hd="+id.HostedDomain)
 		return
 	}
+	id.Linkable = oidc.LinkableEmail(*id)
 	username, err := o.store.Resolve(ctx, *id)
 	switch {
+	case errors.Is(err, oidc.ErrNotLinkable):
+		al.oidcFail(w, req, oidcErrUnmanagedEmail, "Google doesn't manage the address "+id.Email+
+			" of this Google account, so it can't be linked. Sign in with your password, or use a Gmail or Google Workspace account.", id.Email, "not linkable")
+		return
 	case errors.Is(err, oidc.ErrUnknownAccount):
 		al.oidcFail(w, req, oidcErrUnknownAccount, "There is no account for "+id.Email+". Ask your administrator to add you, or sign up.", id.Email, "no account")
 		return
@@ -387,12 +403,15 @@ func (al *APIListener) handleOIDCCallback(w http.ResponseWriter, req *http.Reque
 	}
 	code, err := oidc.RandomToken()
 	if err == nil {
-		err = o.store.SaveTicket(ctx, oidc.Ticket{CodeHash: oidc.Hash(code), Username: username, ExpiresAt: o.now().Add(oidc.TicketTTL)})
+		err = o.store.SaveTicket(ctx, oidc.Ticket{CodeHash: oidc.Hash(code), Username: username, BindingHash: login.BindingHash,
+			ExpiresAt: o.now().Add(oidc.TicketTTL)})
 	}
 	if err != nil {
 		al.oidcFail(w, req, oidcErrServer, "The sign-in failed. Try again later.", username, err.Error())
 		return
 	}
+	// the same browser trades the code: the binding cookie stays until then
+	al.oidcSetCookie(w, cookie.Value, int(oidc.TicketTTL/time.Second))
 	params := url.Values{"code": {code}}
 	if login.ReturnTo != "" {
 		params.Set("return_to", login.ReturnTo)
@@ -465,6 +484,11 @@ func (al *APIListener) handleOIDCToken(w http.ResponseWriter, req *http.Request)
 		al.jsonError(w, err)
 		return
 	}
+	// login CSRF: a code is traded only by the browser that started its sign-in
+	if c, err := req.Cookie(oidcCookie); err != nil || subtle.ConstantTimeCompare([]byte(oidc.Hash(c.Value)), []byte(t.BindingHash)) != 1 {
+		al.jsonErrorResponseWithTitle(w, http.StatusUnauthorized, "the sign-in was started in another browser: sign in again")
+		return
+	}
 	orgs, err := al.oidcOrganizations(ctx, t.Username)
 	if err != nil {
 		al.jsonError(w, err)
@@ -520,6 +544,7 @@ func (al *APIListener) handleOIDCToken(w http.ResponseWriter, req *http.Request)
 		return
 	}
 	al.auditOIDC(req.WithContext(api.WithUser(tctx, t.Username)), "success", t.Username)
+	al.oidcSetCookie(w, "", -1)
 	resp := loginResponse{Token: &tokenStr}
 	if al.memberships != nil && len(orgs) > 1 {
 		current := string(tid)

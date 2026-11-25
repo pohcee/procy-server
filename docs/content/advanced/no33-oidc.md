@@ -14,6 +14,9 @@ user in and the server verifies the ID token it gets back.
 * A Google sign-in never creates an account. It signs in to an existing login whose username is the Google account's
   verified email address (case is ignored). New users still come from an administrator or from
   [self-service signup](../postgres/).
+* Only Google accounts whose address Google manages can be linked at their first sign-in: Gmail addresses and
+  Google Workspace accounts. A consumer Google account registered with another address (which its holder may no
+  longer control) is refused (`unmanaged_email`); its owner signs in with the password.
 * At the first Google sign-in the Google account (issuer and subject) is **pinned** to the login. Afterwards the
   login is found by the pin, even when the Google email changes, and a different Google account that later claims
   the same address is refused. An administrator can remove the pin (`DELETE /api/v1/users/{user}/oidc-identity`,
@@ -38,7 +41,8 @@ everyone, existing users included). On a server with `[storage] backend = "postg
   organization (web UI: Organization page; API: `PUT /api/v1/organization/sign-in`, operators
   `PUT /api/v1/operator/organizations/{id}/sign-in`). Its members can no longer use their password: password logins
   get 403 with the error code `oidc_required`, and password sessions end at their next request (on other servers of
-  a cluster within 15 seconds). New members of such an organization are created without a password.
+  a cluster within 15 seconds). New members of such an organization are created without a password. An
+  administrator turns it on only while signed in with Google, so they can't lock themselves out.
 * An administrator sets a member's method on the Users page (API: `sign_in` in `POST /api/v1/users` and
   `PUT /api/v1/users/{user}`). Members can change their own method on their profile (`PUT /api/v1/me/sign-in`);
   "Google only" needs one Google sign-in first, so nobody locks themselves out.
@@ -77,7 +81,7 @@ matches.
   redirect_url = "https://rport.example.com/api/v1/oidc/callback"
   ## The web UI a sign-in returns to (its page /auth/oidc). Default: the scheme and host of redirect_url.
   #ui_url = "https://rport.example.com"
-  ## Allow only these domains: the Google Workspace domain of the account (hd claim), else its email domain.
+  ## Allow only these Google Workspace domains (hd claim). With another provider: the email domain.
   #allowed_domains = ["example.com"]
   ## The label of the button on the login page.
   #button_label = "Sign in with Google"
@@ -100,7 +104,9 @@ another: the pending sign-ins are kept in the database.
    issuer, the audience (the client ID), the expiry and the nonce. The email must be verified by Google, and
    `allowed_domains` applies.
 3. The server redirects to the web UI's page `/auth/oidc` with a one-time sign-in code in the URL fragment (valid
-   for 5 minutes), or with an error. The page trades the code for a session at `POST /api/v1/oidc/token`.
+   for 5 minutes), or with an error. The page trades the code for a session at `POST /api/v1/oidc/token`; only the
+   browser that started the sign-in can (the cookie goes with it), so nobody can sign someone else in to their own
+   account with a link.
 
 Failed Google sign-ins don't count toward the ban of an IP address or user for wrong passwords; only made-up
 sign-in codes at `POST /api/v1/oidc/token` count for the IP address. Every Google sign-in, failed or successful, is

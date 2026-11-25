@@ -70,8 +70,14 @@ func (f *oidcFixture) startURL(returnTo string) string {
 	return u
 }
 
-// call sends a JSON request and returns the status and the decoded body.
+// oidcCall sends a JSON request and returns the status and the decoded body.
 func oidcCall(t *testing.T, method, u, token string, body any) (int, map[string]any) {
+	t.Helper()
+	return oidcCallWith(t, http.DefaultClient, method, u, token, body)
+}
+
+// oidcCallWith is oidcCall with the client (a browser's cookies) c.
+func oidcCallWith(t *testing.T, c *http.Client, method, u, token string, body any) (int, map[string]any) {
 	t.Helper()
 	var rd io.Reader
 	if body != nil {
@@ -85,7 +91,7 @@ func oidcCall(t *testing.T, method, u, token string, body any) (int, map[string]
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
@@ -115,7 +121,11 @@ func TestOIDCStandaloneHappyPath(t *testing.T) {
 	assert.Equal(t, "/clients?x=1", frag.Get("return_to"))
 	require.NotEmpty(t, frag.Get("code"), frag)
 
+	// login CSRF: another browser can't trade the code
 	code, out = oidcCall(t, http.MethodPost, f.base+"/api/v1/oidc/token", "", map[string]string{"code": frag.Get("code")})
+	assert.Equal(t, http.StatusUnauthorized, code, out["_raw"])
+
+	code, out = oidcCallWith(t, b.Client, http.MethodPost, f.base+"/api/v1/oidc/token", "", map[string]string{"code": frag.Get("code")})
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	data := out["data"].(map[string]any)
 	token, _ := data["token"].(string)
@@ -135,7 +145,7 @@ func TestOIDCStandaloneHappyPath(t *testing.T) {
 	assert.Equal(t, true, out["data"].(map[string]any)["oidc_enabled"])
 
 	// the code is used once
-	code, out = oidcCall(t, http.MethodPost, f.base+"/api/v1/oidc/token", "", map[string]string{"code": frag.Get("code")})
+	code, out = oidcCallWith(t, b.Client, http.MethodPost, f.base+"/api/v1/oidc/token", "", map[string]string{"code": frag.Get("code")})
 	assert.Equal(t, http.StatusUnauthorized, code, out["_raw"])
 	code, out = oidcCall(t, http.MethodPost, f.base+"/api/v1/oidc/token", "", map[string]string{"code": "guessed"})
 	assert.Equal(t, http.StatusUnauthorized, code, out["_raw"])
@@ -165,7 +175,8 @@ func TestOIDCStandaloneRefusals(t *testing.T) {
 		assert.Equal(t, "email_unverified", signIn(t, u).Get("error"))
 	})
 	t.Run("domain not allowed", func(t *testing.T) {
-		assert.Equal(t, "domain_not_allowed", signIn(t, oidcfake.User{Subject: "x", Email: "ann@other.com", EmailVerified: true}).Get("error"))
+		assert.Equal(t, "domain_not_allowed", signIn(t, oidcfake.User{Subject: "x", Email: "ann@other.com", EmailVerified: true}).Get("error"),
+			"not Google: the email domain counts")
 		assert.Equal(t, "domain_not_allowed", signIn(t, oidcfake.User{Subject: "x", Email: oidcTestUser, EmailVerified: true, HostedDomain: "other.com"}).Get("error"),
 			"the Workspace domain decides")
 	})
@@ -226,6 +237,22 @@ func TestOIDCStandaloneRefusals(t *testing.T) {
 			assert.Empty(t, frag.Get("return_to"), evil)
 		}
 	})
+}
+
+// A deleted user's pin doesn't carry over to a new user of the same name.
+func TestOIDCStandaloneUnlinkOnDelete(t *testing.T) {
+	f := startOIDCServer(t)
+	ctx := tenant.WithID(context.Background(), tenant.Default)
+	ann := oidcfake.User{Subject: "google-ann", Email: oidcTestUser, EmailVerified: true}
+	f.fake.SignInAs(ann)
+	require.NotEmpty(t, oidcfake.NewBrowser(t).SignIn(t, f.startURL("")).Get("code"))
+	linked, err := f.srv.apiListener.oidcLogin.store.Linked(ctx, []string{oidcTestUser})
+	require.NoError(t, err)
+	require.True(t, linked[oidcTestUser])
+	f.srv.apiListener.unlinkStandalone(ctx, oidcTestUser)
+	linked, err = f.srv.apiListener.oidcLogin.store.Linked(ctx, []string{oidcTestUser})
+	require.NoError(t, err)
+	assert.False(t, linked[oidcTestUser])
 }
 
 func TestSafeReturnTo(t *testing.T) {

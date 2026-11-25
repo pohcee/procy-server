@@ -12,8 +12,9 @@ CREATE INDEX oidc_logins_expires ON oidc_logins (expires_at);
 
 -- oidc_tickets: one-time sign-in codes the callback hands to the web UI, by the SHA-256 of the code.
 CREATE TABLE oidc_tickets (
-    code_hash  TEXT PRIMARY KEY,
-    username   TEXT NOT NULL,
+    code_hash    TEXT PRIMARY KEY,
+    username     TEXT NOT NULL,
+    binding_hash TEXT NOT NULL,
     expires_at DATETIME NOT NULL,
     used_at    DATETIME
 ) WITHOUT ROWID;

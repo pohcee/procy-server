@@ -15,6 +15,7 @@ import (
 	errors2 "github.com/openrport/openrport/server/api/errors"
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/auditlog"
+	"github.com/openrport/openrport/server/bearer"
 	"github.com/openrport/openrport/server/oidc"
 	"github.com/openrport/openrport/server/routes"
 )
@@ -105,6 +106,8 @@ func (al *APIListener) handleChangeUser(w http.ResponseWriter, req *http.Request
 		return
 	}
 	user := in.User
+	in.target = userID
+	in.authMethod = sessionAuthMethod(req, al.config.API.JWTSecret)
 
 	if userIDExists && al.refuseSharedAccountChange(w, req, userID, &user) {
 		return
@@ -133,6 +136,9 @@ func (al *APIListener) handleChangeUser(w http.ResponseWriter, req *http.Request
 	if err != nil {
 		al.jsonError(w, err)
 		return
+	}
+	if userIDExists && user.Username != "" && user.Username != userID {
+		al.unlinkStandalone(req.Context(), userID)
 	}
 	if method != "" {
 		name := userID
@@ -211,6 +217,8 @@ func (al *APIListener) handleDeleteUser(w http.ResponseWriter, req *http.Request
 		al.jsonError(w, err)
 		return
 	}
+
+	al.unlinkStandalone(req.Context(), userID)
 
 	// A deleted user must not keep access through existing sessions or API tokens.
 	if err := al.revokeUserAccess(req.Context(), userID); err != nil {
@@ -362,6 +370,16 @@ type userChangeRequest struct {
 	users.User
 	// SignIn sets the member's sign-in method (Postgres): both, password or oidc.
 	SignIn string `json:"sign_in"`
+
+	// target is the user changed (the route's user id, "" on create); authMethod how the request's session
+	// signed in
+	target     string `json:"-"`
+	authMethod string `json:"-"`
+}
+
+// isCurrentUser reports whether the user target (an update) is the request's own login.
+func (al *APIListener) isCurrentUser(ctx context.Context, target string) bool {
+	return target != "" && api.GetUser(ctx, al.Logger) == target
 }
 
 // checkUserSignIn validates the sign-in part of a user change and reports whether a new user is added without a
@@ -379,6 +397,11 @@ func (al *APIListener) checkUserSignIn(ctx context.Context, in userChangeRequest
 		}
 		if err := al.checkMethod(ctx, m); err != nil {
 			return "", false, err
+		}
+		if m == oidc.MethodOIDC && !create && al.isCurrentUser(ctx, in.target) &&
+			in.authMethod != bearer.AuthMethodOIDC {
+			return "", false, errors2.APIError{HTTPStatus: http.StatusConflict,
+				Message: "sign in with Google before turning password sign-in off for yourself"}
 		}
 		method = m
 	}
@@ -403,4 +426,15 @@ func (al *APIListener) checkUserSignIn(ctx context.Context, in userChangeRequest
 		return method, require, nil
 	}
 	return method, false, nil
+}
+
+// unlinkStandalone drops the OIDC identity pinned to a deleted or renamed login of a standalone server, so a later
+// login of the same name doesn't inherit it. On Postgres the database does (account_identities follows accounts).
+func (al *APIListener) unlinkStandalone(ctx context.Context, username string) {
+	if al.oidcLogin == nil || al.memberships != nil {
+		return
+	}
+	if err := al.oidcLogin.store.Unlink(ctx, username); err != nil {
+		al.Errorf("oidc: unlink %q: %v", username, err)
+	}
 }

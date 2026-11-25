@@ -41,12 +41,16 @@ type OIDCConfig struct {
 	ClientSecret string `mapstructure:"-"`
 }
 
-// DomainAllowed reports whether a verified account of email (Workspace domain hd, "" for none) may sign in.
+// DomainAllowed reports whether a verified account of email (Workspace domain hd, "" for none) may sign in. With
+// Google only the Workspace domain counts: a consumer account may carry an address of any domain.
 func (o OIDCConfig) DomainAllowed(email, hd string) bool {
 	if len(o.AllowedDomains) == 0 {
 		return true
 	}
 	domain := hd
+	if domain == "" && o.Issuer == DefaultOIDCIssuer {
+		return false
+	}
 	if domain == "" {
 		at := strings.LastIndex(email, "@")
 		if at < 0 {

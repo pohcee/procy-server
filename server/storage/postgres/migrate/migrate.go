@@ -369,7 +369,7 @@ var SignupAccountFunctions = []string{
 // OIDCFunctions are the SECURITY DEFINER functions of OpenID Connect sign-in (migration 1700): the identities
 // pinned to accounts and the organizations' sign-in requirement.
 var OIDCFunctions = []string{
-	"rport_oidc_resolve(text, text, text)",
+	"rport_oidc_resolve(text, text, text, boolean)",
 	"rport_oidc_unlink(text)",
 	"rport_set_require_oidc(text, boolean)",
 }

@@ -14,10 +14,12 @@ CREATE TABLE oidc_logins (
 CREATE INDEX oidc_logins_expires ON oidc_logins (expires_at);
 
 -- oidc_tickets: the one-time sign-in codes the callback hands to the web UI (POST /oidc/token), by the SHA-256 of
--- the code. Not tenant data either: the organization is picked with the code.
+-- the code. Not tenant data either: the organization is picked with the code. binding_hash ties the code to the
+-- browser that started the sign-in (login CSRF).
 CREATE TABLE oidc_tickets (
-    code_hash  text        PRIMARY KEY,
-    username   text        NOT NULL,
+    code_hash    text        PRIMARY KEY,
+    username     text        NOT NULL,
+    binding_hash text        NOT NULL,
     expires_at timestamptz NOT NULL,
     used_at    timestamptz NULL
 );
@@ -61,8 +63,10 @@ ALTER TABLE users ADD COLUMN sign_in text NOT NULL DEFAULT 'both' CHECK (sign_in
 -- rport_oidc_resolve maps a verified sign-in to an account: the account the identity is pinned to ('pinned'), else
 -- the one account whose login equals p_email ignoring case, which it pins the identity to ('linked'). 'unknown': no
 -- such account (none is created); 'ambiguous': several logins match; 'mismatch': the matching account is pinned to
--- another identity of the issuer. A sign-in whose email is the login proves the mailbox: email_verified_at is set.
-CREATE FUNCTION rport_oidc_resolve(p_issuer text, p_subject text, p_email text, OUT login text, OUT outcome text)
+-- another identity of the issuer; 'unlinkable': no pin and p_linkable is false (the provider doesn't vouch that the
+-- email is still controlled by the account, see oidc.md). A sign-in whose email is the login proves the mailbox:
+-- email_verified_at is set.
+CREATE FUNCTION rport_oidc_resolve(p_issuer text, p_subject text, p_email text, p_linkable boolean, OUT login text, OUT outcome text)
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     n integer;
@@ -76,6 +80,11 @@ BEGIN
             UPDATE accounts a SET email_verified_at = coalesce(a.email_verified_at, now()) WHERE a.username = login;
         END IF;
         outcome := 'pinned';
+        RETURN;
+    END IF;
+    IF NOT p_linkable THEN
+        login := NULL;
+        outcome := 'unlinkable';
         RETURN;
     END IF;
     IF coalesce(p_email, '') = '' THEN
@@ -94,6 +103,11 @@ BEGIN
         RETURN;
     END IF;
     PERFORM 1 FROM accounts a WHERE a.username = login FOR UPDATE;
+    -- a concurrent first sign-in of the same identity may have pinned it meanwhile
+    IF EXISTS (SELECT 1 FROM account_identities i WHERE i.issuer = p_issuer AND i.subject = p_subject AND i.username = login) THEN
+        outcome := 'pinned';
+        RETURN;
+    END IF;
     IF EXISTS (SELECT 1 FROM account_identities i WHERE i.username = login AND i.issuer = p_issuer) THEN
         login := NULL;
         outcome := 'mismatch';
@@ -140,6 +154,6 @@ BEGIN
 END
 $$;
 
-REVOKE EXECUTE ON FUNCTION rport_oidc_resolve(text, text, text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION rport_oidc_resolve(text, text, text, boolean) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION rport_oidc_unlink(text) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION rport_set_require_oidc(text, boolean) FROM PUBLIC;

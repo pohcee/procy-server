@@ -55,8 +55,17 @@ func (al *APIListener) handlePutOrganizationSignIn(w http.ResponseWriter, req *h
 		al.jsonError(w, err)
 		return
 	}
+	if al.inSystemTenant(req.Context()) {
+		al.jsonErrorResponseWithTitle(w, http.StatusBadRequest, "platform operators always sign in with OIDC")
+		return
+	}
 	if in.RequireOIDC && al.oidcLogin == nil {
 		al.jsonErrorResponseWithTitle(w, http.StatusConflict, "OIDC sign-in is not enabled on this server ([oidc])")
+		return
+	}
+	if in.RequireOIDC && sessionAuthMethod(req, al.config.API.JWTSecret) != bearer.AuthMethodOIDC {
+		// or the administrator locks themselves (and maybe everyone) out
+		al.jsonErrorResponseWithTitle(w, http.StatusConflict, "sign in with Google before requiring Google sign-in for the organization")
 		return
 	}
 	if err := al.signInPolicies.SetRequireOIDC(req.Context(), in.RequireOIDC); err != nil {

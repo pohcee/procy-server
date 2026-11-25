@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -33,6 +34,8 @@ var (
 	ErrAmbiguous = errors.New("oidc: several accounts match this email")
 	// ErrMismatch: the account matching the email is pinned to a different identity of the same issuer.
 	ErrMismatch = errors.New("oidc: the account is linked to a different identity")
+	// ErrNotLinkable: the identity isn't pinned and may not be pinned (Identity.Linkable).
+	ErrNotLinkable = errors.New("oidc: the email of this account can't be linked")
 	// ErrNoSuchUser: the login is not a member of the organization.
 	ErrNoSuchUser = errors.New("oidc: no such user")
 )
@@ -45,6 +48,33 @@ type Identity struct {
 	EmailVerified bool
 	// HostedDomain is Google's hd claim (the Workspace domain), "" for none.
 	HostedDomain string
+	// Linkable: the identity may be pinned to the account its email matches. Only identities whose email the
+	// provider vouches for are (see LinkableEmail); an identity pinned already signs in regardless.
+	Linkable bool
+}
+
+// googleIssuer is Google's issuer; its consumer accounts may carry an email of another domain that the account
+// holder verified once and may no longer control.
+const googleIssuer = "https://accounts.google.com"
+
+// LinkableEmail reports whether a first sign-in of id may pin it by its email. For Google, only accounts whose email
+// Google manages: a Workspace account (hd claim) or a Gmail address. Other issuers are trusted with email_verified.
+func LinkableEmail(id Identity) bool {
+	if id.Issuer != googleIssuer {
+		return true
+	}
+	if id.HostedDomain != "" {
+		return true
+	}
+	at := strings.LastIndex(id.Email, "@")
+	if at < 0 {
+		return false
+	}
+	switch strings.ToLower(id.Email[at+1:]) {
+	case "gmail.com", "googlemail.com":
+		return true
+	}
+	return false
 }
 
 // Login is a pending sign-in: created by GET /oidc/login, taken (once) by the callback. The state and the browser
@@ -60,9 +90,11 @@ type Login struct {
 
 // Ticket is a finished sign-in waiting for POST /oidc/token: a one-time code (stored as a hash) naming the login.
 type Ticket struct {
-	CodeHash  string    `db:"code_hash"`
-	Username  string    `db:"username"`
-	ExpiresAt time.Time `db:"expires_at"`
+	CodeHash string `db:"code_hash"`
+	Username string `db:"username"`
+	// BindingHash is the browser binding of the sign-in: the code is traded only by the browser that started it.
+	BindingHash string    `db:"binding_hash"`
+	ExpiresAt   time.Time `db:"expires_at"`
 }
 
 // Store keeps pending sign-ins, sign-in codes and the identities pinned to accounts. Every node of a cluster uses

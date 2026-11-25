@@ -35,6 +35,6 @@ func TestSQLiteStore(t *testing.T) {
 
 	// two logins differing only in case are ambiguous
 	logins = append(logins, "Eve@example.com", "eve@example.com")
-	_, err = s.Resolve(context.Background(), oidc.Identity{Issuer: "i", Subject: "eve", Email: "eve@example.com", EmailVerified: true})
+	_, err = s.Resolve(context.Background(), oidc.Identity{Issuer: "i", Subject: "eve", Email: "eve@example.com", EmailVerified: true, Linkable: true})
 	assert.ErrorIs(t, err, oidc.ErrAmbiguous)
 }

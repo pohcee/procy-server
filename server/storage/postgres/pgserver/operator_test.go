@@ -260,8 +260,8 @@ func TestOperatorAddAdmin(t *testing.T) {
 	members, err := o.Members(ctx, "acme")
 	require.NoError(t, err)
 	assert.Equal(t, []operator.Member{
-		{Username: "alice@example.com", Groups: []string{users.Administrators}, Organizations: 2},
-		{Username: "dave", Groups: []string{users.Administrators}, Organizations: 1},
+		{Username: "alice@example.com", Groups: []string{users.Administrators}, Organizations: 2, SignIn: "both"},
+		{Username: "dave", Groups: []string{users.Administrators}, Organizations: 1, SignIn: "both"},
 	}, members)
 	_, err = o.Members(ctx, "nope")
 	assert.ErrorIs(t, err, operator.ErrNotFound)

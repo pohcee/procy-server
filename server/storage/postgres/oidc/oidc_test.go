@@ -38,7 +38,7 @@ func TestResolveVerifiesEmailAndUnpinsOnRename(t *testing.T) {
 	s := pgoidc.New(d.App)
 	addUser(t, d, tenantA, "erin@example.com")
 
-	u, err := s.Resolve(ctx, oidc.Identity{Issuer: "i", Subject: "erin", Email: "ERIN@example.com", EmailVerified: true})
+	u, err := s.Resolve(ctx, oidc.Identity{Issuer: "i", Subject: "erin", Email: "ERIN@example.com", EmailVerified: true, Linkable: true})
 	require.NoError(t, err)
 	assert.Equal(t, "erin@example.com", u)
 	var verified bool
@@ -61,7 +61,7 @@ func TestAmbiguousEmail(t *testing.T) {
 	ctx := tenant.WithID(context.Background(), tenantA)
 	addUser(t, d, tenantA, "Frank@example.com")
 	addUser(t, d, tenantA, "frank@example.com")
-	_, err := pgoidc.New(d.App).Resolve(ctx, oidc.Identity{Issuer: "i", Subject: "f", Email: "frank@example.com", EmailVerified: true})
+	_, err := pgoidc.New(d.App).Resolve(ctx, oidc.Identity{Issuer: "i", Subject: "f", Email: "frank@example.com", EmailVerified: true, Linkable: true})
 	assert.ErrorIs(t, err, oidc.ErrAmbiguous)
 }
 
