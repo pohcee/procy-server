@@ -29,7 +29,7 @@ func addUser(t *testing.T, d *pgtest.DB, tid tenant.ID, username string) {
 func TestStoreContract(t *testing.T) {
 	d := pgtest.New(t, tenantA)
 	ctx := tenant.WithID(context.Background(), tenantA)
-	oidcfake.StoreContract(t, ctx, pgoidc.New(d.App), func(t *testing.T, u string) { addUser(t, d, tenantA, u) })
+	oidcfake.StoreContract(ctx, t, pgoidc.New(d.App), func(t *testing.T, u string) { addUser(t, d, tenantA, u) })
 }
 
 func TestResolveVerifiesEmailAndUnpinsOnRename(t *testing.T) {

@@ -162,7 +162,7 @@ func TestOrgAdminsWithOIDC(t *testing.T) {
 	out, err = org(t, runOrgAddAdmin, "acme", "alice@example.com")
 	require.NoError(t, err)
 	assert.Contains(t, out, "password (shown once")
-	out, err = org(t, runOrgAddAdmin, "acme", "bob@example.com")
+	_, err = org(t, runOrgAddAdmin, "acme", "bob@example.com")
 	require.NoError(t, err)
 
 	// remove-admin: the last administrator stays unless forced

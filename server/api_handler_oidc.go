@@ -82,6 +82,33 @@ func newOIDCLogin(cfg chconfig.OIDCConfig, store oidc.Store, client *http.Client
 	return &oidcLogin{cfg: cfg, provider: oidc.NewProvider(cfg, client), store: store, now: time.Now}, nil
 }
 
+// initOIDC sets up OIDC sign-in ([oidc]) on the listener's storage; standalone, the email of a sign-in is matched
+// against the API users.
+func (al *APIListener) initOIDC(repos *Repositories, client *http.Client) error {
+	o, err := newOIDCLogin(al.config.OIDC, repos.OIDC, client)
+	if err != nil {
+		return err
+	}
+	al.oidcLogin = o
+	if s, ok := repos.OIDC.(interface {
+		SetLogins(func(context.Context) ([]string, error))
+	}); ok {
+		s.SetLogins(func(ctx context.Context) ([]string, error) {
+			all, err := al.userService.GetAll(ctx)
+			if err != nil {
+				return nil, err
+			}
+			names := make([]string, 0, len(all))
+			for _, u := range all {
+				names = append(names, u.Username)
+			}
+			return names, nil
+		})
+	}
+	al.logOIDC()
+	return nil
+}
+
 // signInPolicyCache caches the sign-in policy of memberships for password sessions (bearer tokens are checked on
 // every request).
 type signInPolicyCache struct {
@@ -233,6 +260,7 @@ func (al *APIListener) auditOIDC(req *http.Request, action, id string) {
 }
 
 func (al *APIListener) oidcSetCookie(w http.ResponseWriter, value string, maxAge int) {
+	//nolint:gosec // G124: HttpOnly and SameSite are set; Secure is set whenever the server is reached over https
 	http.SetCookie(w, &http.Cookie{
 		Name:     oidcCookie,
 		Value:    value,
@@ -299,7 +327,7 @@ func (al *APIListener) handleOIDCCallback(w http.ResponseWriter, req *http.Reque
 		if e == "access_denied" {
 			reason = oidcErrAccessDenied
 		}
-		al.oidcFail(w, req, reason, "The sign-in was cancelled or refused at the provider.", "", e+": "+q.Get("error_description"))
+		al.oidcFail(w, req, reason, "The sign-in was canceled or refused at the provider.", "", e+": "+q.Get("error_description"))
 		return
 	}
 	if takeErr != nil {

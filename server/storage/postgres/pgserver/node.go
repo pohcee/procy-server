@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	pgoidc "github.com/openrport/openrport/server/storage/postgres/oidc"
 	"io"
 
 	"github.com/jmoiron/sqlx"
@@ -16,6 +15,7 @@ import (
 	"github.com/openrport/openrport/server/storage/postgres"
 	pgbilling "github.com/openrport/openrport/server/storage/postgres/billing"
 	"github.com/openrport/openrport/server/storage/postgres/migrate"
+	pgoidc "github.com/openrport/openrport/server/storage/postgres/oidc"
 	pgusage "github.com/openrport/openrport/server/storage/postgres/usage"
 	"github.com/openrport/openrport/server/vault"
 	"github.com/openrport/openrport/server/vault/vaultkms"

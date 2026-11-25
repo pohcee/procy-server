@@ -346,9 +346,7 @@ func openSQLiteRepositories(ctx context.Context, config *chconfig.Config, given 
 			return nil, nil, err
 		}
 		r.APISessions = session.NewSqliteProvider(db)
-		if r.OIDC == nil {
-			r.OIDC = oidc.NewSQLiteStore(db)
-		}
+		r.OIDC = sqliteOIDCStore(r.OIDC, db)
 	}
 
 	if r.Vault == nil {
@@ -475,4 +473,12 @@ func getClientProvider(config *chconfig.Config, db *sqlx.DB) (clientsauth.Provid
 	}
 
 	return nil, errors.New("client authentication must to be enabled: set either 'auth' or 'auth_file'")
+}
+
+// sqliteOIDCStore is the OIDC store of the api_sessions database db, unless one was given.
+func sqliteOIDCStore(given oidc.Store, db *sqlx.DB) oidc.Store {
+	if given != nil {
+		return given
+	}
+	return oidc.NewSQLiteStore(db)
 }

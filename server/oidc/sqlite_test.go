@@ -27,7 +27,7 @@ func TestSQLiteStore(t *testing.T) {
 		defer mu.Unlock()
 		return append([]string(nil), logins...), nil
 	})
-	oidcfake.StoreContract(t, context.Background(), s, func(_ *testing.T, u string) {
+	oidcfake.StoreContract(context.Background(), t, s, func(_ *testing.T, u string) {
 		mu.Lock()
 		defer mu.Unlock()
 		logins = append(logins, u)

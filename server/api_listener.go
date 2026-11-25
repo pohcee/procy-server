@@ -345,28 +345,9 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		billing:                o.Billing,
 		signInPolicies:         o.SignInPolicies,
 	}
-	oidcLogin, err := newOIDCLogin(config.OIDC, repos.OIDC, o.OIDCClient)
-	if err != nil {
+	if err := a.initOIDC(repos, o.OIDCClient); err != nil {
 		return nil, err
 	}
-	a.oidcLogin = oidcLogin
-	if s, ok := repos.OIDC.(interface {
-		SetLogins(func(context.Context) ([]string, error))
-	}); ok {
-		// standalone: the email of a sign-in is matched against the API users
-		s.SetLogins(func(ctx context.Context) ([]string, error) {
-			all, err := userService.GetAll(ctx)
-			if err != nil {
-				return nil, err
-			}
-			names := make([]string, 0, len(all))
-			for _, u := range all {
-				names = append(names, u.Username)
-			}
-			return names, nil
-		})
-	}
-	a.logOIDC()
 
 	a.errResponseLogger = allog.Fork("error-response")
 	operatorMounts, err := a.initSignup(o)

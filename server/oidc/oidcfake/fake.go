@@ -53,7 +53,7 @@ type Server struct {
 	grants map[string]grant
 	// NonceOverride, when set, is put in ID tokens instead of the sign-in's nonce.
 	NonceOverride string
-	// Deny makes the authorization endpoint answer error=access_denied (the user cancelled).
+	// Deny makes the authorization endpoint answer error=access_denied (the user canceled).
 	Deny bool
 }
 
@@ -127,7 +127,8 @@ func (s *Server) authorize(w http.ResponseWriter, r *http.Request) {
 		back.Set("error", "access_denied")
 	}
 	redirect.RawQuery = back.Encode()
-	http.Redirect(w, r, redirect.String(), http.StatusFound)
+	http.Redirect(w, r, redirect.String(), http.StatusFound) //nolint:gosec // G710: a test provider redirects where the test says
+
 }
 
 func (s *Server) token(w http.ResponseWriter, r *http.Request) {

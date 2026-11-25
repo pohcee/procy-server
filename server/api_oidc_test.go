@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,7 +56,7 @@ func startOIDCServer(t *testing.T, domains ...string) *oidcFixture {
 	s, err := NewServer(context.Background(), cfg, &ServerOpts{FilesAPI: files.NewFileSystem()})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = s.Close() })
-	hs := &httptest.Server{Listener: l, Config: &http.Server{Handler: s.apiListener.router}}
+	hs := &httptest.Server{Listener: l, Config: &http.Server{Handler: s.apiListener.router, ReadHeaderTimeout: time.Minute}}
 	hs.Start()
 	t.Cleanup(hs.Close)
 	return &oidcFixture{base: base, fake: fake, srv: s}
@@ -212,7 +213,7 @@ func TestOIDCStandaloneRefusals(t *testing.T) {
 		t.Cleanup(func() { f.fake.NonceOverride = "" })
 		assert.Equal(t, "invalid_state", signIn(t, ann).Get("error"))
 	})
-	t.Run("cancelled at the provider", func(t *testing.T) {
+	t.Run("canceled at the provider", func(t *testing.T) {
 		f.fake.Deny = true
 		t.Cleanup(func() { f.fake.Deny = false })
 		assert.Equal(t, "access_denied", signIn(t, ann).Get("error"))

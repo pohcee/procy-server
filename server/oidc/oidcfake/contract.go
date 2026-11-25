@@ -11,10 +11,10 @@ import (
 	"github.com/openrport/openrport/server/oidc"
 )
 
-// StoreContract runs the behaviour every oidc.Store must have on s. addAccount creates a login (an account) that
+// StoreContract runs the behavior every oidc.Store must have on s. addAccount creates a login (an account) that
 // the email of a sign-in can match; ctx is the context the store is used with (the tenant of the accounts on
 // Postgres).
-func StoreContract(t *testing.T, ctx context.Context, s oidc.Store, addAccount func(t *testing.T, username string)) {
+func StoreContract(ctx context.Context, t *testing.T, s oidc.Store, addAccount func(t *testing.T, username string)) {
 	now := time.Now()
 
 	t.Run("logins are taken once", func(t *testing.T) {

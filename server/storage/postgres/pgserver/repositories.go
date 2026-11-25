@@ -1,7 +1,6 @@
 package pgserver
 
 import (
-	pgoidc "github.com/openrport/openrport/server/storage/postgres/oidc"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -17,6 +16,7 @@ import (
 	pglibrary "github.com/openrport/openrport/server/storage/postgres/library"
 	pgmonitoring "github.com/openrport/openrport/server/storage/postgres/monitoring"
 	pgnotifications "github.com/openrport/openrport/server/storage/postgres/notifications"
+	pgoidc "github.com/openrport/openrport/server/storage/postgres/oidc"
 	"github.com/openrport/openrport/server/storage/postgres/sessions"
 	pgstoredtunnels "github.com/openrport/openrport/server/storage/postgres/storedtunnels"
 	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
