@@ -1,0 +1,79 @@
+post:
+  tags:
+    - Profile & Info
+  summary: Accept an invitation (Postgres servers only)
+  description: >-
+    The current login becomes a member of the organization with the groups of the invitation. Switch to it with
+    `POST /me/organization`. Needs a session token (Bearer): API tokens and passwords are bound to one organization
+    (403).
+  operationId: MeInvitationAccept
+  security:
+    - bearer_auth: []
+  parameters:
+    - name: organization
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Accepted
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/MembershipOrganization.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Basic auth
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No pending invitation from an active organization with that id, or not available (standalone)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: A member already
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+delete:
+  tags:
+    - Profile & Info
+  summary: Decline an invitation (Postgres servers only)
+  operationId: MeInvitationDecline
+  parameters:
+    - name: organization
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+  responses:
+    '204':
+      description: Declined
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No pending invitation from an active organization with that id, or not available (standalone)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

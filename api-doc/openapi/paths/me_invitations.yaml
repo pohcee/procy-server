@@ -1,0 +1,32 @@
+get:
+  tags:
+    - Profile & Info
+  summary: List the pending invitations of the current login (Postgres servers only)
+  description: >-
+    Invitations of this login's account into other active organizations, by organization name. Accept one with
+    `POST /me/invitations/{organization}`. Not available on standalone servers (404).
+  operationId: MeInvitationsGet
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/MyInvitation.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Not available on this server (standalone)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

@@ -58,7 +58,12 @@ func (f *fakeService) SetDeviceLimit(_ context.Context, by Actor, id string, lim
 func (f *fakeService) AddAdmin(_ context.Context, by Actor, id string, a NewAdmin) (*Admin, error) {
 	f.calls = append(f.calls, "admin "+id+" "+a.Username)
 	f.by = by
-	return &Admin{Organization: id, Username: a.Username, Password: "pw", PasswordExpired: true}, f.err
+	return &Admin{Organization: id, Username: a.Username, NewAccount: true, Password: "pw", PasswordExpired: true}, f.err
+}
+
+func (f *fakeService) Members(_ context.Context, id string) ([]Member, error) {
+	f.calls = append(f.calls, "members "+id)
+	return nil, f.err
 }
 
 type testUser struct {
@@ -120,6 +125,7 @@ func TestOperatorRoutesOnlyForSystemAdmins(t *testing.T) {
 		{http.MethodPost, "/operator/organizations/x/activate", ""},
 		{http.MethodPut, "/operator/organizations/x/device-limit", `{"device_limit":1}`},
 		{http.MethodPost, "/operator/organizations/x/admins", `{"username":"u"}`},
+		{http.MethodGet, "/operator/organizations/x/members", ""},
 	}
 	for _, tc := range []struct {
 		who  testUser
@@ -170,9 +176,13 @@ func TestOperatorRoutes(t *testing.T) {
 
 	code, out = do(t, r, http.MethodPost, "/operator/organizations/acme/admins", `{"username":"carol"}`)
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
-	assert.Equal(t, map[string]any{"organization": "acme", "username": "carol", "password": "pw", "password_expired": true}, out["data"])
+	assert.Equal(t, map[string]any{"organization": "acme", "username": "carol", "new_account": true, "password": "pw", "password_expired": true, "pending": false}, out["data"])
 
-	assert.Equal(t, []string{"list", "create acme", "suspended acme", "active acme", "limit acme", "limit acme", "admin acme carol"}, svc.calls)
+	code, out = do(t, r, http.MethodGet, "/operator/organizations/acme/members", "")
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, []any{}, out["data"], "an empty list, not null")
+
+	assert.Equal(t, []string{"list", "create acme", "suspended acme", "active acme", "limit acme", "limit acme", "admin acme carol", "members acme"}, svc.calls)
 }
 
 func TestOperatorErrors(t *testing.T) {

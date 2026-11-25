@@ -74,6 +74,13 @@ func (al *APIListener) initRouter() {
 	secureAPI.HandleFunc("/me", al.handleGetMe).Methods(http.MethodGet)
 	secureAPI.HandleFunc("/me", al.handleChangeMe).Methods(http.MethodPut)
 	secureAPI.HandleFunc("/me/ip", al.handleGetIP).Methods(http.MethodGet)
+	if al.memberships != nil {
+		secureAPI.HandleFunc("/me/organizations", al.handleGetMyOrganizations).Methods(http.MethodGet)
+		secureAPI.HandleFunc("/me/organization", al.handleSwitchOrganization).Methods(http.MethodPost)
+		secureAPI.HandleFunc("/me/invitations", al.handleGetMyInvitations).Methods(http.MethodGet)
+		secureAPI.HandleFunc("/me/invitations/{organization}", al.handleAcceptInvitation).Methods(http.MethodPost)
+		secureAPI.HandleFunc("/me/invitations/{organization}", al.handleDeclineInvitation).Methods(http.MethodDelete)
+	}
 
 	secureAPI.HandleFunc("/me/token", al.handleTokenGone).Methods(http.MethodGet)
 	secureAPI.HandleFunc("/me/token", al.handleTokenGone).Methods(http.MethodPost)
@@ -149,6 +156,11 @@ func (al *APIListener) initRouter() {
 	adminOnly.HandleFunc("/users", al.wrapStaticPassModeMiddleware(al.handleChangeUser)).Methods(http.MethodPost)
 	adminOnly.HandleFunc("/users/{user_id}", al.wrapStaticPassModeMiddleware(al.handleChangeUser)).Methods(http.MethodPut)
 	adminOnly.HandleFunc("/users/{user_id}", al.wrapStaticPassModeMiddleware(al.handleDeleteUser)).Methods(http.MethodDelete)
+	if al.memberships != nil {
+		adminOnly.HandleFunc("/organization/members", al.handleInviteMember).Methods(http.MethodPost)
+		adminOnly.HandleFunc("/organization/invitations", al.handleGetPendingInvitations).Methods(http.MethodGet)
+		adminOnly.HandleFunc("/organization/invitations/{username}", al.handleWithdrawInvitation).Methods(http.MethodDelete)
+	}
 	adminOnly.HandleFunc("/users/{user_id}/totp-secret", al.wrapStaticPassModeMiddleware(
 		al.wrapTotPEnabledMiddleware(al.handleDeleteUsersTotP),
 	)).Methods(http.MethodDelete)

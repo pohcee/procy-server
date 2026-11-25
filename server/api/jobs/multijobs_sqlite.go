@@ -85,8 +85,12 @@ func (p *SqliteProvider) GetMultiJobSummaries(ctx context.Context, options *quer
 			},
 		}
 	}
-	q := "SELECT jid, started_at, created_by, schedule_id FROM multi_jobs WHERE tenant_id = ?"
-	q, params := p.converter.AppendOptionsToQuery(options, q, []interface{}{tid})
+	o := *options
+	var cond string
+	var condParams []interface{}
+	o.Filters, cond, condParams = SplitMultiJobFilters(options.Filters)
+	q := "SELECT jid, started_at, created_by, schedule_id FROM multi_jobs WHERE tenant_id = ?" + cond
+	q, params := p.converter.AppendOptionsToQuery(&o, q, append([]interface{}{tid}, condParams...))
 
 	err = p.db.SelectContext(ctx, &res, q, params...)
 	if err != nil {
@@ -105,8 +109,11 @@ func (p *SqliteProvider) CountMultiJobs(ctx context.Context, options *query.List
 
 	countOptions := *options
 	countOptions.Pagination = nil
-	q := "SELECT count(*) FROM multi_jobs WHERE tenant_id = ?"
-	q, params := p.converter.AppendOptionsToQuery(&countOptions, q, []interface{}{tid})
+	var cond string
+	var condParams []interface{}
+	countOptions.Filters, cond, condParams = SplitMultiJobFilters(options.Filters)
+	q := "SELECT count(*) FROM multi_jobs WHERE tenant_id = ?" + cond
+	q, params := p.converter.AppendOptionsToQuery(&countOptions, q, append([]interface{}{tid}, condParams...))
 
 	err = p.db.GetContext(ctx, &result, q, params...)
 	if err != nil {

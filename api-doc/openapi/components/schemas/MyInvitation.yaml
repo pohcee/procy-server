@@ -1,0 +1,13 @@
+type: object
+description: A pending invitation of the current login into an organization
+properties:
+  id:
+    type: string
+    description: Organization ID
+  name:
+    type: string
+  invited_by:
+    type: string
+  created_at:
+    type: string
+    format: date-time

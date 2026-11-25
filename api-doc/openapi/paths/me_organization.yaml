@@ -1,0 +1,73 @@
+post:
+  tags:
+    - Profile & Info
+  summary: Switch to another organization of the current login (Postgres servers only)
+  description: >-
+    Returns a new session token for another active organization the current login is a member of.
+    The token of the request stays valid in its own organization. No new 2FA: the 2FA address and TOTP secret are
+    the account's, the same in every organization. Needs a
+    session token (Bearer): API tokens and passwords sent with basic auth are bound to one organization (403). Not
+    available on standalone servers (404).
+  operationId: MeOrganizationPost
+  security:
+    - bearer_auth: []
+  parameters:
+    - name: token-lifetime
+      in: query
+      description: initial lifetime of the new JWT token in seconds. Max value is 90 days. Default 10 min
+      schema:
+        maximum: 7776000
+        type: integer
+        default: 600
+  requestBody:
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - organization
+          properties:
+            organization:
+              type: string
+              description: Organization ID
+    required: true
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Session JWT token of the organization
+                  organization:
+                    type: string
+    '400':
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Basic auth, or the login is not a member of an active organization with that id
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Not available on this server (standalone)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

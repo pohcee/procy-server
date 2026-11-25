@@ -1,0 +1,7 @@
+type: object
+description: An organization a login is a member of
+properties:
+  id:
+    type: string
+  name:
+    type: string

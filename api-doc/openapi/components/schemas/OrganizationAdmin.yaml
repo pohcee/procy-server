@@ -1,13 +1,22 @@
 type: object
-description: A created administrator. The password is generated, returned only once, and must be changed at the first login.
+description: >-
+  An added administrator. For a new login the password is generated, returned only once, and must be changed at
+  the first login. An existing account (a member of other organizations) gets a pending invitation (`pending`) and
+  becomes an administrator, with its own password, when its owner accepts it; `password` is then left out.
 properties:
   organization:
     type: string
   username:
     type: string
+  new_account:
+    type: boolean
+    description: True when the login had no account and one was created
   password:
     type: string
-    description: Generated password, shown only once
+    description: Generated password of a new account, shown only once
   password_expired:
     type: boolean
-    description: Always true; the first login sets a new password (login with `new_password`)
+    description: True for a new account; the first login sets a new password (login with `new_password`)
+  pending:
+    type: boolean
+    description: True for an existing account, invited to accept

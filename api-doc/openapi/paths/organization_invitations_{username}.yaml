@@ -1,0 +1,33 @@
+delete:
+  tags:
+    - Users
+  summary: Withdraw a pending invitation (Postgres servers only). Administrators only
+  operationId: OrganizationInvitationDelete
+  parameters:
+    - name: username
+      in: path
+      description: The invited login
+      required: true
+      schema:
+        type: string
+  responses:
+    '204':
+      description: Withdrawn
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No pending invitation of that login, or not available (standalone)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
