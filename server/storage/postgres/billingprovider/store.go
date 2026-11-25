@@ -229,6 +229,33 @@ func (s Store) ClaimNotice(ctx context.Context, org, kind, episode string) (bool
 	return ok, nil
 }
 
+// systemTenant is the platform operators' tenant (operator.SystemTenant).
+const systemTenant = "_system"
+
+// Audit implements billing.Store.
+func (s Store) Audit(ctx context.Context, by billing.Actor, action, org string, request any) error {
+	var req string
+	if request != nil {
+		b, err := json.Marshal(request)
+		if err != nil {
+			return err
+		}
+		req = string(b)
+	}
+	now := time.Now().UTC()
+	for _, tid := range []string{systemTenant, org} {
+		err := postgres.InTenantID(ctx, s.DB, tenant.ID(tid), func(tx *sqlx.Tx) error {
+			_, err := tx.ExecContext(ctx, `INSERT INTO auditlog (tenant_id, timestamp, username, remote_ip, application, action, affected_id, request)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, tid, now, by.Username, by.RemoteIP, billing.AuditApplication, action, org, req)
+			return err
+		})
+		if err != nil {
+			return fmt.Errorf("billing audit: %w", err)
+		}
+	}
+	return nil
+}
+
 // AdminEmails implements billing.Store.
 func (s Store) AdminEmails(ctx context.Context, org string) ([]string, error) {
 	var rows []struct {

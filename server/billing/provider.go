@@ -225,7 +225,9 @@ func (NoProvider) CheckoutURL(context.Context, CheckoutRequest) (string, error) 
 }
 
 // PortalURL implements Provider.
-func (NoProvider) PortalURL(context.Context, string, string) (string, error) { return "", ErrNoProvider }
+func (NoProvider) PortalURL(context.Context, string, string) (string, error) {
+	return "", ErrNoProvider
+}
 
 // Subscription implements Provider.
 func (NoProvider) Subscription(context.Context, string) (*Subscription, error) {
@@ -245,7 +247,9 @@ func (NoProvider) ReportUsage(context.Context, UsageRecord) error { return ErrNo
 func (NoProvider) UsageSummary(context.Context, UsageQuery) (float64, error) { return 0, ErrNoProvider }
 
 // Invoices implements Provider.
-func (NoProvider) Invoices(context.Context, string, int) ([]Invoice, error) { return nil, ErrNoProvider }
+func (NoProvider) Invoices(context.Context, string, int) ([]Invoice, error) {
+	return nil, ErrNoProvider
+}
 
 // ParseWebhook implements Provider.
 func (NoProvider) ParseWebhook([]byte, http.Header) (*Event, error) { return nil, ErrNoProvider }

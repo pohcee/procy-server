@@ -87,6 +87,28 @@ type Store interface {
 	PutReport(ctx context.Context, r *UsageReport) error
 	// ClaimNotice records a notification of kind for org in episode; false when it was sent before.
 	ClaimNotice(ctx context.Context, org, kind, episode string) (bool, error)
+	// Audit writes a billing action to the audit logs of the system tenant and of org (application
+	// AuditApplication).
+	Audit(ctx context.Context, by Actor, action, org string, request any) error
 	// AdminEmails returns the email addresses of org's Administrators (usernames or 2FA addresses that are emails).
 	AdminEmails(ctx context.Context, org string) ([]string, error)
 }
+
+// Actor is who changed billing: an operator, or the provider's webhook ("billing:stripe").
+type Actor struct {
+	Username string
+	RemoteIP string
+}
+
+// AuditApplication is the audit log application of billing actions.
+const AuditApplication = "billing"
+
+// Audit actions.
+const (
+	AuditWebhook           = "webhook"
+	AuditDunning           = "dunning"
+	AuditRestore           = "restore"
+	AuditConfirmSuspension = "confirm_suspension"
+	AuditCheckout          = "checkout"
+	AuditChangePlan        = "change_plan"
+)
