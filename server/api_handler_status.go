@@ -69,6 +69,7 @@ func (al *APIListener) statusCapabilities() capabilities.Capabilities {
 	c.Usage = al.usage != nil
 	// self-service signup (Postgres with [signup] enabled)
 	c.Signup = al.signupAPI != nil
+	c.Organizations = al.memberships != nil
 	if al.capabilitiesOverride != nil {
 		c = al.capabilitiesOverride(c)
 	}

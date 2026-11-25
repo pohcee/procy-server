@@ -69,12 +69,24 @@ type NewAdmin struct {
 	TwoFASendTo string `json:"two_fa_send_to,omitempty"`
 }
 
-// Admin is a created administrator. Password is generated, shown only once, and must be changed at the first login.
+// Admin is an added administrator. For a new login (NewAccount) Password is generated, shown only once, and must be
+// changed at the first login. An existing account (a member of other organizations) gets a pending invitation
+// (Pending): it becomes an administrator, with its own password, when its owner accepts; Password is left out.
 type Admin struct {
 	Organization    string `json:"organization"`
 	Username        string `json:"username"`
-	Password        string `json:"password"`
+	NewAccount      bool   `json:"new_account"`
+	Password        string `json:"password,omitempty"`
 	PasswordExpired bool   `json:"password_expired"`
+	Pending         bool   `json:"pending"`
+}
+
+// Member is a member of an organization as operators see it.
+type Member struct {
+	Username string   `json:"username"`
+	Groups   []string `json:"groups"`
+	// Organizations is how many organizations the login is a member of, this one included.
+	Organizations int `json:"organizations"`
 }
 
 // Actor is who does an operator action, for the audit log.
@@ -96,7 +108,11 @@ type Service interface {
 	SetStatus(ctx context.Context, by Actor, id, status string) (*Organization, error)
 	// SetDeviceLimit sets the most devices the organization may have; nil is unlimited.
 	SetDeviceLimit(ctx context.Context, by Actor, id string, limit *int) (*Organization, error)
-	// AddAdmin creates a user in the organization's Administrators group with a generated password that must be
-	// changed at the first login. id may be SystemTenant, which creates another operator.
+	// AddAdmin adds a login to the organization's Administrators group: a new login gets an account with a
+	// generated password that must be changed at the first login, an existing account (of other organizations) gets
+	// an invitation its owner accepts. ErrExists when it is a member already. id may be SystemTenant, which
+	// adds another operator.
 	AddAdmin(ctx context.Context, by Actor, id string, a NewAdmin) (*Admin, error)
+	// Members lists the members of the organization id with their groups, by login.
+	Members(ctx context.Context, id string) ([]Member, error)
 }

@@ -185,16 +185,18 @@ func (im *importer) writeUsers(w *writer) error {
 	for _, u := range im.users {
 		uc.Read++
 		mc.Read += len(u.Groups)
-		var owner string
-		err := w.tx.GetContext(w.ctx, &owner, "SELECT tenant_id FROM user_logins WHERE username = $1", u.Username)
-		if err == nil && owner != string(w.tid) {
+		// a login of other tenants only is taken: the importer doesn't make memberships of existing accounts
+		var takenElsewhere bool
+		err := w.tx.GetContext(w.ctx, &takenElsewhere, `SELECT EXISTS (SELECT 1 FROM user_logins WHERE username = $1 AND tenant_id <> $2)
+			AND NOT EXISTS (SELECT 1 FROM user_logins WHERE username = $1 AND tenant_id = $2)`, u.Username, string(w.tid))
+		if err != nil {
+			return err
+		}
+		if takenElsewhere {
 			uc.Skipped++
 			mc.Skipped += len(u.Groups)
 			taken = append(taken, u.Username)
 			continue
-		}
-		if err != nil && !isNoRows(err) {
-			return err
 		}
 		added, err := w.insertOne("users", []string{"username", "password", "password_expired", "two_fa_send_to", "totp_secret"},
 			[]any{u.Username, u.Password, u.PasswordExpired, u.TwoFASendTo, u.TotPSecret})
