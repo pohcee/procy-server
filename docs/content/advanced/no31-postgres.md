@@ -434,8 +434,6 @@ refused on SQLite. Turning it off closes signup without touching existing organi
 [signup]
   enabled = true
   public_url = "https://rport.example.com"   # the web UI the links in the emails point to
-  trial_plan = "team"                        # reported to the UI; trial_days = 14 (0: no trial, default_plan)
-  trial_device_limit = 25                    # the device limit until a payment method is on file
   captcha = "turnstile"                      # or "hcaptcha", or "" (none)
   captcha_secret_file = "/run/secrets/turnstile"
   captcha_site_key = "0x4AAAA..."            # public, given to the UI
@@ -462,31 +460,35 @@ The flow:
    characters, no control characters), the captcha (checked with the provider, server-side, before any email), the
    domain lists and the rate limits are checked; then a single-use link valid for `token_ttl` is emailed
    (`<public_url>/auth/signup/verify?token=...`). The token is stored only as a SHA-256 hash. The answer (202) is
-   the same whatever the address: a new one gets the link, a confirmed account a notice to sign in, an unconfirmed
-   account that was used a notice to sign in and confirm its email. The rate limits count the signups of the last
+   the same whatever the address: a new one or an unconfirmed account gets the link, a confirmed account a notice
+   to sign in. The rate limits count the signups of the last
    24 hours in the database, so they hold across nodes; refused requests count for nothing, and the per-domain
    limit doesn't apply to the shared mail providers of `unlimited_domains` (a built-in list by default).
 2. `POST /api/v1/signup/verify {token, password}` (public) takes the password the user chooses (the `[api]`
    password rules; a refused one leaves the link usable) and creates the organization through the operator
    service: its id is a slug of the name with a random suffix (`acme-corp-x7k2m9`), never chosen freely; the user
-   is its administrator; the device limit is `trial_device_limit`. The answer has the organization id, the plan
+   is its administrator. With `[billing]` on it gets the trial of the plans file (`[trial]`: status `trial` until
+   `now + days`, its plan, and the trial's device and transfer ceilings while no payment method is on file), or the
+   free plan when there is no trial; without `[billing]`, no plan. The answer has the organization id, the plan
    and `checkout_required` (false for a trial). With `require_approval` it answers 202 `awaiting_approval` (the
    password kept as a bcrypt hash until then) and an operator approves or denies.
 3. Every step is in the audit log of `_system`, with the actor `signup:<email>` and the remote IP.
 
 Accounts and proof of email ownership: a login is one account in any number of organizations. Signup marks the
 account's email confirmed (`accounts.email_verified_at`); so does a signed-in account with `POST
-/api/v1/me/email-confirmation` (a link to `<public_url>/auth/confirm-email?token=...`, then `POST
-/api/v1/signup/confirm-email {token}`). Accounts an administrator creates by inviting a new login start
+/api/v1/me/email-confirmation` (a link to `<public_url>/auth/confirm-email?token=...`, redeemed signed in). Accounts an administrator creates by inviting a new login start
 unconfirmed. With `[signup]` on:
 
 * an unconfirmed account can't be invited into further organizations, nor accept an invitation (400/403 naming
   the confirmation);
-* a signup for the address of an unconfirmed account whose generated password was never replaced (created by an
-  administrator, never used) takes it over: the mailbox owner's password, no TOTP secret, 2FA codes to the email,
-  its sessions and API tokens ended, its memberships kept, and the new organization added (audited `take_over`);
-* an unconfirmed account whose password was replaced is not taken over: its owner signs in and confirms the email;
-  an address held by someone else that way needs an operator.
+* a signup for the address of an unconfirmed account takes it over, in one transaction: it joins the new
+  organization, its other memberships become invitations its owner accepts or declines, its sessions and API
+  tokens end, and it gets the mailbox owner's password, no TOTP secret and 2FA codes to the email (audited
+  `take_over`). Proving the mailbox is the stronger claim to an email login;
+* a rename makes an account unconfirmed again (it names another mailbox);
+* confirming needs the link and a session of the account together (`POST /api/v1/me/email-confirmation/confirm
+  {token}`), so the mailbox owner clicking a link can't confirm an account someone else holds; only lower-case
+  email logins can be confirmed.
 
 Signups expire after `token_ttl` (verified ones waiting for approval after 30 days); the upkeep (every 5 minutes,
 one node at a time) clears their password hashes.
@@ -519,7 +521,8 @@ Operators (`/api/v1/operator`, audited):
 | `POST` | `/organizations/{id}/deletion/expedite` | delete now (irreversible) |
 
 `GET /api/v1/status` reports `capabilities.signup: true`; `GET /api/v1/signup` (public) gives the signup page the
-captcha provider and site key, `require_approval`, the password length and the trial days.
+captcha provider and site key, `require_approval`, the password length and the trial days (of the plans file).
+A deleted organization's `org_billing` and `billing_periods` rows stay, detached, for the accounting retention.
 ## Billing plans and limits
 
 With `[billing]` on (it needs `[metering]`), every organization has a plan and a billing status, each calendar month

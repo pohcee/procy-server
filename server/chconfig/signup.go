@@ -12,8 +12,6 @@ import (
 const (
 	DefaultSignupTokenTTL           = 24 * time.Hour
 	DefaultSignupDeletionHold       = 30 * 24 * time.Hour
-	DefaultSignupTrialDays          = 14
-	DefaultSignupTrialDeviceLimit   = 25
 	DefaultSignupMaxPerIPPerDay     = 3
 	DefaultSignupMaxPerDomainPerDay = 10
 	DefaultSignupMaxPerEmailPerDay  = 3
@@ -35,14 +33,6 @@ type SignupConfig struct {
 	PublicURL string `mapstructure:"public_url"`
 	// RequireApproval holds verified signups until an operator approves them.
 	RequireApproval bool `mapstructure:"require_approval"`
-	// DefaultPlan is the plan of a new organization when there is no trial (TrialDays = 0 or no TrialPlan).
-	DefaultPlan string `mapstructure:"default_plan"`
-	// TrialPlan is the plan a new organization tries for TrialDays (default 14; 0: no trial).
-	TrialPlan string `mapstructure:"trial_plan"`
-	TrialDays *int   `mapstructure:"trial_days"`
-	// TrialDeviceLimit is the device limit of a new organization until a payment method is on file, used while
-	// the plans ([billing]) don't give one (default 25).
-	TrialDeviceLimit int `mapstructure:"trial_device_limit"`
 	// Captcha is "turnstile", "hcaptcha" or "" (none). The secret is read from CaptchaSecretFile; the site key is
 	// public and given to the UI.
 	Captcha           string `mapstructure:"captcha"`
@@ -91,14 +81,6 @@ func (s SignupConfig) UnlimitedDomain(domain string) bool {
 	return false
 }
 
-// TrialDaysOrDefault is TrialDays, or DefaultSignupTrialDays when it is not set.
-func (s SignupConfig) TrialDaysOrDefault() int {
-	if s.TrialDays == nil {
-		return DefaultSignupTrialDays
-	}
-	return *s.TrialDays
-}
-
 func (c *Config) parseAndValidateSignup() error {
 	s := &c.Signup
 	if !s.Enabled {
@@ -132,15 +114,6 @@ func (c *Config) parseAndValidateSignup() error {
 	case SignupMailLog:
 	default:
 		return fmt.Errorf("[signup] mail must be %q or %q, it is %q", SignupMailSMTP, SignupMailLog, s.Mail)
-	}
-	if s.TrialDays != nil && *s.TrialDays < 0 {
-		return errors.New("[signup] trial_days must not be negative")
-	}
-	if s.TrialDeviceLimit < 0 {
-		return errors.New("[signup] trial_device_limit must not be negative")
-	}
-	if s.TrialDeviceLimit == 0 {
-		s.TrialDeviceLimit = DefaultSignupTrialDeviceLimit
 	}
 	for _, l := range []struct {
 		v   *int

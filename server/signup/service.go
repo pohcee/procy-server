@@ -31,6 +31,8 @@ type Options struct {
 	Orgs      operator.Service
 	Accounts  Accounts
 	Plans     Plans
+	// TrialDays is shown to the signup page (BillingPlans.TrialDays; 0: no trial).
+	TrialDays int
 	Mailer    Mailer
 	Captcha   Captcha
 	Domains   *Domains
@@ -76,7 +78,7 @@ func (s *Service) PublicConfig() PublicConfig {
 		CaptchaSiteKey:    c.CaptchaSiteKey,
 		RequireApproval:   c.RequireApproval,
 		PasswordMinLength: s.o.Passwords.MinLength,
-		TrialDays:         c.TrialDaysOrDefault(),
+		TrialDays:         s.o.TrialDays,
 	}
 }
 

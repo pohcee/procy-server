@@ -91,16 +91,31 @@ func startSignupNode(t *testing.T, settings string) (*nodeFixture, *mailSink) {
 	t.Cleanup(func() {
 		signupOverrides.mailer, signupOverrides.captcha, signupOverrides.lookupMX, signupOverrides.plans = nil, nil, nil, nil
 	})
-	h := startNodeWith(t, nodeSettings{extra: `
+	h := startNodeWith(t, nodeSettings{extra: signupBillingOn(t) + `
 [signup]
   enabled = true
   public_url = "https://ui.example"
   mail = "log"
-  trial_plan = "team"
   captcha = "turnstile"
   captcha_secret_file = "` + secretFile(t) + `"
 ` + settings})
 	return h, sink
+}
+
+// signupPlans are the plans of the signup tests: a 14-day trial of team, capped at 25 devices without a card.
+const signupPlans = nodePlans + `
+[trial]
+  plan = "team"
+  days = 14
+  max_clients = 25
+  transfer = "25GiB"
+`
+
+func signupBillingOn(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "plans.toml")
+	require.NoError(t, os.WriteFile(path, []byte(signupPlans), 0o600))
+	return meteringOn + fmt.Sprintf("[billing]\n  enabled = true\n  plans_file = %q\n", path)
 }
 
 func secretFile(t *testing.T) string {
@@ -459,13 +474,16 @@ func TestOrganizationDeletionHoldCancelAndExpedite(t *testing.T) {
 	assert.Equal(t, []string{"request", "cancel", "request", "cancel", "request", "expedite", "delete"}, actions)
 }
 
-// assertNoTenantRows checks that no table with a tenant_id column has rows of org left (except the change feed,
-// which is pruned).
+// assertNoTenantRows checks that no table with a tenant_id column has rows of org left, except the change feed
+// (pruned) and the billing records, which are kept, detached, for the accounting retention.
 func assertNoTenantRows(t *testing.T, h *nodeFixture, org string) {
 	t.Helper()
+	var kept int
+	require.NoError(t, h.db.Owner.Get(&kept, "SELECT count(*) FROM org_billing WHERE tenant_id = $1", org))
+	assert.Equal(t, 1, kept, "the billing record stays")
 	var tables []string
 	require.NoError(t, h.db.Owner.Select(&tables, `SELECT table_name FROM information_schema.columns
-		WHERE table_schema = 'public' AND column_name = 'tenant_id' AND table_name <> 'changes'`))
+		WHERE table_schema = 'public' AND column_name = 'tenant_id' AND table_name NOT IN ('changes', 'org_billing', 'billing_periods')`))
 	for _, tbl := range tables {
 		var n int
 		require.NoError(t, h.db.Owner.Get(&n, fmt.Sprintf("SELECT count(*) FROM %q WHERE tenant_id = $1", tbl), org))
@@ -505,7 +523,7 @@ func TestOrganizationDeletionUpkeep(t *testing.T) {
 	cfg := loadConfig(t, nodeConf(t, h.db.AppURL, freeAddr(t), nodeSettings{extra: "[signup]\nenabled = true\npublic_url = \"https://ui.example\"\nmail = \"log\"\n"}))
 	svc := signup.New(signup.Options{
 		Config: cfg.Signup, Store: signupStore(h), Orgs: NewOperator(h.db.App, cfg), Accounts: accounts{db: h.db.App},
-		Plans: signup.StandInPlans{}, Mailer: sink, Shredder: shred,
+		Plans: signup.NoPlans{}, Mailer: sink, Shredder: shred,
 	})
 	require.NoError(t, svc.Upkeep(context.Background()))
 	assert.Equal(t, []tenant.ID{tenant.ID(org1)}, shred.shredded)
@@ -707,4 +725,21 @@ func TestSignupConfirmEmailAndInvitations(t *testing.T) {
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	code, _ = h.do(t, http.MethodPost, "/me/email-confirmation", data(t, out)["token"].(string), nil)
 	assert.Equal(t, http.StatusBadRequest, code)
+}
+
+// Without [billing] a new organization gets no plan and no trial.
+func TestSignupWithoutBilling(t *testing.T) {
+	sink := &mailSink{}
+	signupOverrides.mailer = sink
+	t.Cleanup(func() { signupOverrides.mailer = nil })
+	h := startNodeWith(t, nodeSettings{extra: "[signup]\n  enabled = true\n  public_url = \"https://ui.example\"\n  mail = \"log\"\n"})
+	code, out := h.do(t, http.MethodGet, "/signup", "", nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.EqualValues(t, 0, data(t, out)["trial_days"])
+	code, out = h.do(t, http.MethodPost, "/signup", "", map[string]string{"email": "zed@example.com", "organization": "Zed"})
+	require.Equal(t, http.StatusAccepted, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": sink.last(t, "zed@example.com").token(t), "password": signupPassword})
+	require.Equal(t, http.StatusCreated, code, out["_raw"])
+	assert.Nil(t, data(t, out)["plan"])
+	assert.Equal(t, false, data(t, out)["checkout_required"])
 }

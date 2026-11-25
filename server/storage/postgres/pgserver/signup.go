@@ -6,6 +6,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
+	chserver "github.com/openrport/openrport/server"
+
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/chconfig"
 	"github.com/openrport/openrport/server/notifications/channels/rmailer"
@@ -76,7 +78,7 @@ func grantHint(err error) error {
 // NewSignup returns the signup service of [signup] on db: organizations are created through op, emails go through
 // [smtp] (or the log with mail = "log"), and the vault keys of deleted organizations are shredded when keys is the
 // managed provider.
-func NewSignup(cfg *chconfig.Config, db *sqlx.DB, op operator.Service, keys vault.KeyProvider) (*signup.Service, error) {
+func NewSignup(cfg *chconfig.Config, db *sqlx.DB, op operator.Service, keys vault.KeyProvider, bo *chserver.BillingOpts) (*signup.Service, error) {
 	sc := cfg.Signup
 	log := logger.NewLogger("signup", cfg.Logging.LogOutput, cfg.Logging.LogLevel)
 	domains, err := signup.LoadDomains(sc.BlockedDomainsFile, sc.AllowedDomainsFile)
@@ -102,7 +104,13 @@ func NewSignup(cfg *chconfig.Config, db *sqlx.DB, op operator.Service, keys vaul
 		}
 		mailer = signup.SMTPMailer{M: rmailer.NewRMailer(smtp, log.Fork("smtp"))}
 	}
-	var plans signup.Plans = signup.StandInPlans{Orgs: op, Config: sc}
+	// new organizations get the trial of the plans file; without [billing] no plan
+	var plans signup.Plans = signup.NoPlans{}
+	trialDays := 0
+	if bo != nil && bo.Operator != nil {
+		bp := signup.BillingPlans{Operator: bo.Operator, Plans: bo.Plans}
+		plans, trialDays = bp, bp.TrialDays()
+	}
 	if o := signupOverrides; o.mailer != nil || o.captcha != nil || o.lookupMX != nil || o.plans != nil {
 		if o.mailer != nil {
 			mailer = o.mailer
@@ -128,6 +136,7 @@ func NewSignup(cfg *chconfig.Config, db *sqlx.DB, op operator.Service, keys vaul
 		Orgs:      op,
 		Accounts:  accounts{db: db},
 		Plans:     plans,
+		TrialDays: trialDays,
 		Mailer:    mailer,
 		Captcha:   captcha,
 		Domains:   domains,

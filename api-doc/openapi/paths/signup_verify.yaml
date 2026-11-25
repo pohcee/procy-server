@@ -3,7 +3,7 @@ post:
     - Signup
   summary: Verify a signup and create the organization
   description: >-
-    Public. Takes the token of the verification link (single use; refused once used or expired) and the password the user chooses. For an unconfirmed, never used account of the address (created by an administrator), the account is taken over: its password is replaced, its TOTP secret removed, its 2FA codes go to the email, its sessions and API tokens end, and it keeps its memberships. Creates the organization (generated id: a slug of the name and a random suffix) with the user as its first administrator, on the trial plan with the trial limits until a payment method is on file. With `[signup] require_approval` the signup waits for an operator instead (202). `checkout_required` tells the UI to send the user to the payment checkout first (never for a trial).
+    Public. Takes the token of the verification link (single use; refused once used or expired) and the password the user chooses. For an unconfirmed account of the address (an administrator created it), the account is taken over in one transaction: it joins the new organization, its other memberships become invitations, its sessions and API tokens end, and it gets the chosen password, no TOTP secret and 2FA codes to the email. Creates the organization (generated id: a slug of the name and a random suffix) with the user as its first administrator, with `[billing]` on the trial of the plans file (capped until a payment method is on file) or the free plan. With `[signup] require_approval` the signup waits for an operator instead (202). `checkout_required` tells the UI to send the user to the payment checkout first (never for a trial).
   operationId: SignupVerifyPost
   requestBody:
     required: true

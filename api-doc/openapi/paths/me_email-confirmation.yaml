@@ -3,8 +3,8 @@ post:
     - Signup
   summary: Confirm my email address
   description: >-
-    The signed-in account, when its login is an email address and not confirmed yet, gets a link to confirm it
-    (`<public_url>/auth/confirm-email?token=...`, then POST /signup/confirm-email). Answers verified true without
+    The signed-in account, when its login is a lower-case email address and not confirmed yet, gets a link to confirm it
+    (`<public_url>/auth/confirm-email?token=...`, then POST /me/email-confirmation/confirm, signed in as the same account). Answers verified true without
     mailing when it is confirmed already. Accounts an administrator created start unconfirmed.
   operationId: MeEmailConfirmationPost
   responses:
