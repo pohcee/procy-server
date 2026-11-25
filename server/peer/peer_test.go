@@ -300,6 +300,14 @@ func TestPeerErrorsKeepTheirMeaning(t *testing.T) {
 	require.ErrorAs(t, err, &ae)
 	assert.Equal(t, http.StatusConflict, ae.HTTPStatus)
 
+	// the device process's refusal at the transfer limit keeps its 403 and code
+	pr.local.err = errors2.APIError{Message: "transfer limit reached", HTTPStatus: http.StatusForbidden, ErrCode: "ERR_CODE_TRANSFER_LIMIT"}
+	_, err = pr.dispatcher.StartTunnels(ctxA(), "c1", []*models.Remote{{RemoteHost: "127.0.0.1", RemotePort: "22"}})
+	require.ErrorAs(t, err, &ae)
+	assert.Equal(t, http.StatusForbidden, ae.HTTPStatus)
+	assert.Equal(t, "ERR_CODE_TRANSFER_LIMIT", ae.ErrCode)
+	assert.Equal(t, "transfer limit reached", ae.Message)
+
 	pr.local.err = nil
 	tunnels, err := pr.dispatcher.StartTunnels(ctxA(), "c1", []*models.Remote{{RemoteHost: "127.0.0.1", RemotePort: "22"}})
 	require.NoError(t, err)

@@ -18,7 +18,12 @@ type Responder struct {
 	ErrLog *logger.Logger
 }
 
-func (r *Responder) logErrorPayload(errPayload ErrorPayload) {
+// logErrorPayload logs a server error (5xx: its body alone doesn't say why, and nothing else logs it) and, at
+// debug level, every error payload.
+func (r *Responder) logErrorPayload(statusCode int, errPayload ErrorPayload) {
+	if statusCode >= http.StatusInternalServerError && r.Log != nil {
+		r.Log.Errorf("api error response %d: %+v", statusCode, errPayload.Errors)
+	}
 	if r.ErrLog != nil && r.ErrLog.Level == logger.LogLevelDebug {
 		r.ErrLog.Debugf("payload: %+v", errPayload)
 	}
@@ -40,7 +45,7 @@ func (r *Responder) JSON(w http.ResponseWriter, statusCode int, response interfa
 
 func (r *Responder) ErrorResponse(w http.ResponseWriter, statusCode int, err error) {
 	errPayload := NewErrAPIPayloadFromError(err, "", "")
-	r.logErrorPayload(errPayload)
+	r.logErrorPayload(statusCode, errPayload)
 	r.JSON(w, statusCode, errPayload)
 }
 
@@ -64,25 +69,25 @@ func (r *Responder) Error(w http.ResponseWriter, err error) {
 	}
 
 	errPayload := NewErrAPIPayloadFromError(err, errCode, message)
-	r.logErrorPayload(errPayload)
+	r.logErrorPayload(statusCode, errPayload)
 	r.JSON(w, statusCode, errPayload)
 }
 
 func (r *Responder) ErrorWithErrCode(w http.ResponseWriter, statusCode int, errCode, title string) {
 	errPayload := NewErrAPIPayloadFromMessage(errCode, title, "")
-	r.logErrorPayload(errPayload)
+	r.logErrorPayload(statusCode, errPayload)
 	r.JSON(w, statusCode, errPayload)
 }
 
 func (r *Responder) ErrorWithTitle(w http.ResponseWriter, statusCode int, title string) {
 	errPayload := NewErrAPIPayloadFromMessage("", title, "")
-	r.logErrorPayload(errPayload)
+	r.logErrorPayload(statusCode, errPayload)
 	r.JSON(w, statusCode, errPayload)
 }
 
 func (r *Responder) ErrorWithDetail(w http.ResponseWriter, statusCode int, errCode, title, detail string) {
 	errPayload := NewErrAPIPayloadFromMessage(errCode, title, detail)
-	r.logErrorPayload(errPayload)
+	r.logErrorPayload(statusCode, errPayload)
 	r.JSON(w, statusCode, errPayload)
 }
 
@@ -92,6 +97,6 @@ func (r *Responder) ErrorWithError(w http.ResponseWriter, statusCode int, title 
 		detail = err.Error()
 	}
 	errPayload := NewErrAPIPayloadFromMessage("", title, detail)
-	r.logErrorPayload(errPayload)
+	r.logErrorPayload(statusCode, errPayload)
 	r.JSON(w, statusCode, errPayload)
 }
