@@ -1,0 +1,36 @@
+type: object
+description: The transfer policy of the current month, as the billing upkeep last computed it (every 5 minutes).
+properties:
+  organization:
+    type: string
+  plan:
+    type: string
+  transfer_state:
+    type: string
+    enum: [normal, soft, over, capped]
+    description: >-
+      normal; soft (at the soft cap: notified, nothing limited); over (past the allowance on a plan that bills
+      overage); capped (tunnels throttled, new tunnels and uploads refused; device sessions are never closed)
+  allowance_bytes:
+    type: integer
+  used_bytes:
+    type: integer
+  soft_cap_bytes:
+    type: integer
+  hard_cap_bytes:
+    type: integer
+    description: 0 when there is no hard cap
+  overage_cents:
+    type: integer
+    description: Estimated overage of the month so far, USD cents
+  tunnel_rate:
+    type: integer
+    description: Bandwidth of each tunnel connection in each direction, bytes per second; 0 is unlimited
+  throttle_rate:
+    type: integer
+  max_clients:
+    type: integer
+    nullable: true
+  fail_open:
+    type: string
+    description: Why the hard cap was not applied although reached (metering stale or implausible); operators look into it

@@ -12,6 +12,7 @@ import (
 	errors3 "github.com/openrport/openrport/share/errors"
 	"github.com/openrport/openrport/share/logger"
 	"github.com/openrport/openrport/share/models"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 // LocalClients is what Local needs from the client service: the clients connected to this process
@@ -32,6 +33,28 @@ type Local struct {
 	log     *logger.Logger
 	// meter counts the jobs started (usage metering); nil: off
 	meter *metering.Meter
+	// transfer refuses new tunnels and uploads of tenants at their transfer limit (billing); nil: allowed
+	transfer TransferGuard
+}
+
+// TransferGuard refuses new tunnels and uploads of a tenant at its hard transfer cap (billing.Enforcer).
+type TransferGuard interface {
+	Allow(tid tenant.ID) error
+}
+
+// SetTransferGuard refuses tunnels and uploads g doesn't allow (billing limits). Set during initialization.
+func (d *Local) SetTransferGuard(g TransferGuard) { d.transfer = g }
+
+// allowTransfer checks the transfer limit of ctx's tenant.
+func (d *Local) allowTransfer(ctx context.Context) error {
+	if d.transfer == nil {
+		return nil
+	}
+	tid, err := tenant.FromContext(ctx)
+	if err != nil {
+		return nil
+	}
+	return d.transfer.Allow(tid)
 }
 
 var _ Dispatcher = (*Local)(nil)
@@ -99,6 +122,9 @@ func (d *Local) Upload(ctx context.Context, clientID string, file *models.Upload
 	if cfg := client.GetFileReceptionConfig(); cfg != nil && !cfg.Enabled {
 		return nil, errors3.ErrUploadsDisabled
 	}
+	if err := d.allowTransfer(ctx); err != nil {
+		return nil, err
+	}
 	// The client fetches the file over SFTP while it handles the request.
 	revoke := d.grants.Grant(conn, file.SourceFilePath)
 	defer revoke()
@@ -131,6 +157,9 @@ func (d *Local) CheckPort(ctx context.Context, clientID string, req *comm.CheckP
 func (d *Local) StartTunnels(ctx context.Context, clientID string, remotes []*models.Remote) ([]*clienttunnel.Tunnel, error) {
 	client, _, err := d.client(ctx, clientID)
 	if err != nil {
+		return nil, err
+	}
+	if err := d.allowTransfer(ctx); err != nil {
 		return nil, err
 	}
 	return d.clients.StartClientTunnels(ctx, client, remotes)

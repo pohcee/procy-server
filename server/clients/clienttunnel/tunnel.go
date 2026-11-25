@@ -113,6 +113,12 @@ func NewTunnel(logger *logger.Logger, ssh ssh.Conn, id string, remote models.Rem
 // NewMeteredTunnel is NewTunnel counting the tunnel's bytes in bytes (nil: not counted). The counting ends when the
 // tunnel is terminated or the context it was started with ends.
 func NewMeteredTunnel(logger *logger.Logger, ssh ssh.Conn, id string, remote models.Remote, acl *TunnelACL, bytes *metering.TunnelBytes) (*Tunnel, error) {
+	return NewLimitedTunnel(logger, ssh, id, remote, acl, bytes, nil)
+}
+
+// NewLimitedTunnel is NewMeteredTunnel limiting each connection of the tunnel to rate in each direction (nil: not
+// limited; a TCP connection and the UDP datagrams each have their own token buckets).
+func NewLimitedTunnel(logger *logger.Logger, ssh ssh.Conn, id string, remote models.Remote, acl *TunnelACL, bytes *metering.TunnelBytes, rate RateFunc) (*Tunnel, error) {
 	logger = logger.Fork("tunnel#%s:%s", id, remote)
 	logger.Debugf("new tunnel with remote = %#v", remote)
 
@@ -120,17 +126,17 @@ func NewMeteredTunnel(logger *logger.Logger, ssh ssh.Conn, id string, remote mod
 	switch remote.Protocol {
 	case models.ProtocolUDP:
 		u := newTunnelUDP(logger, ssh, remote, acl)
-		u.bytes = bytes
+		u.bytes, u.toUser, u.toDevice = bytes, newThrottle(rate), newThrottle(rate)
 		tunnelProtocol = u
 	case models.ProtocolTCP:
 		t := newTunnelTCP(logger, ssh, remote, acl)
-		t.bytes = bytes
+		t.bytes, t.rate = bytes, rate
 		tunnelProtocol = t
 	case models.ProtocolTCPUDP:
 		t := newTunnelTCP(logger, ssh, remote, acl)
-		t.bytes = bytes
+		t.bytes, t.rate = bytes, rate
 		u := newTunnelUDP(logger, ssh, remote, acl)
-		u.bytes = bytes
+		u.bytes, u.toUser, u.toDevice = bytes, newThrottle(rate), newThrottle(rate)
 		tunnelProtocol = &MultiProtocolTunnel{Protocols: []TunnelProtocol{t, u}}
 	default:
 		bytes.Close()

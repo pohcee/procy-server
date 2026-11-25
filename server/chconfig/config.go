@@ -349,6 +349,7 @@ type Config struct {
 	Cluster       ClusterConfig        `mapstructure:"cluster"`
 	Metering      MeteringConfig       `mapstructure:"metering"`
 	Signup        SignupConfig         `mapstructure:"signup"`
+	Billing       BillingConfig        `mapstructure:"billing"`
 }
 
 var (
@@ -396,6 +397,9 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 		return err
 	}
 	if err := c.parseAndValidateMetering(); err != nil {
+		return err
+	}
+	if err := c.parseAndValidateBilling(); err != nil {
 		return err
 	}
 	if err := c.parseAndValidateSignup(); err != nil {

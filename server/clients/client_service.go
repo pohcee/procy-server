@@ -95,6 +95,8 @@ type ClientServiceProvider struct {
 
 	// meter counts the tunnels' bytes (usage metering); nil: off
 	meter *metering.Meter
+	// tunnelRates gives the bandwidth of each tunnel connection per tenant (billing limits); nil: unlimited
+	tunnelRates TunnelRates
 
 	mu sync.RWMutex
 }
@@ -801,6 +803,30 @@ func (s *ClientServiceProvider) SetMeter(m *metering.Meter) {
 	s.meter = m
 }
 
+// TunnelRates gives the bandwidth of each tunnel connection of a tenant, in bytes per second in each direction
+// (billing.Enforcer).
+type TunnelRates interface {
+	RateFunc(tid tenant.ID) func() int64
+}
+
+// SetTunnelRates limits the connections of the tunnels started from now on (billing limits). Set during
+// initialization.
+func (s *ClientServiceProvider) SetTunnelRates(r TunnelRates) {
+	s.tunnelRates = r
+}
+
+// tunnelRate returns the rate of a new tunnel of client; nil: unlimited.
+func (s *ClientServiceProvider) tunnelRate(client *clientdata.Client) clienttunnel.RateFunc {
+	if s.tunnelRates == nil {
+		return nil
+	}
+	tid, _ := tenant.FromContext(client.GetContext())
+	if f := s.tunnelRates.RateFunc(tid); f != nil {
+		return f
+	}
+	return nil
+}
+
 // tunnelBytes returns the byte counters of a new tunnel of client, in the client's tenant; nil without a meter.
 func (s *ClientServiceProvider) tunnelBytes(client *clientdata.Client) *metering.TunnelBytes {
 	if s.meter == nil {
@@ -931,7 +957,7 @@ func (s *ClientServiceProvider) startCaddyDownstreamProxy(
 func (s *ClientServiceProvider) startRegularTunnel(ctx context.Context, client *clientdata.Client, remote *models.Remote, acl *clienttunnel.TunnelACL) (*clienttunnel.Tunnel, error) {
 	tunnelID := client.NewTunnelID()
 
-	tunnel, err := clienttunnel.NewMeteredTunnel(client.Log(), client.GetConnection(), tunnelID, *remote, acl, s.tunnelBytes(client))
+	tunnel, err := clienttunnel.NewLimitedTunnel(client.Log(), client.GetConnection(), tunnelID, *remote, acl, s.tunnelBytes(client), s.tunnelRate(client))
 	if err != nil {
 		return nil, err
 	}
@@ -978,7 +1004,7 @@ func (s *ClientServiceProvider) startTunnelWithProxy(
 	tunnelID := client.NewTunnelID()
 
 	// original tunnel will use the reconfigured original remote
-	t, err := clienttunnel.NewMeteredTunnel(clientLogger, client.GetConnection(), tunnelID, *remote, acl, s.tunnelBytes(client))
+	t, err := clienttunnel.NewLimitedTunnel(clientLogger, client.GetConnection(), tunnelID, *remote, acl, s.tunnelBytes(client), s.tunnelRate(client))
 	if err != nil {
 		return nil, err
 	}

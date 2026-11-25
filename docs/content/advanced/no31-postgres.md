@@ -520,6 +520,144 @@ Operators (`/api/v1/operator`, audited):
 
 `GET /api/v1/status` reports `capabilities.signup: true`; `GET /api/v1/signup` (public) gives the signup page the
 captcha provider and site key, `require_approval`, the password length and the trial days.
+## Billing plans and limits
+
+With `[billing]` on (it needs `[metering]`), every organization has a plan and a billing status, each calendar month
+(UTC) is closed with frozen quantities, and transfer limits apply. There is no payment provider yet
+(`provider = "none"`): plans, statuses, periods and limits work without one. Off by default; refused on SQLite.
+
+```toml
+[billing]
+  enabled = true
+  provider = "none"
+  plans_file = "/etc/rport/plans.toml"   # private: names, prices, allowances, rates
+  overage_review_above = 100.00          # hold a closed month with more overage (USD) for an operator's approval
+  # implausible_growth_factor = 20       # don't cap on an hour this many times the month's average hour
+```
+
+After upgrading, run `rportd migrate --grant-to <application role>` and `--grant-device-to <device role>` again: the
+application role needs `EXECUTE` on the billing functions (it can't write the billing tables directly), the device
+role on `device_transfer_policy()`. A device process with billing on refuses to start without it.
+
+When billing is turned on (and for organizations created later without a plan), every organization without a
+billing record gets one on the free plan, paying, billing starting then, but with no plan chosen
+(`plan_unassigned`): it is metered and shown, without transfer limits or rates, and its device limit is left alone.
+Once an operator sets its plan (`rportd org set-plan`), the plan's limits apply and the device limit
+(`tenants.max_clients`) follows the plan; a device limit an operator sets by hand afterwards (`rportd org
+set-limit`) is kept until the plan changes.
+
+### The plans file
+
+All numbers below are placeholders. Sizes are `B`, `KiB` … `TiB` (or `KB` … `TB`); rates are bits per second
+(`kbit`, `Mbit`, `Gbit`); prices are USD. Unknown keys are refused.
+
+```toml
+free_plan = "free"            # organizations without a record are on it; it has no price and overage = "cap"
+
+[trial]                       # what a trial without a payment method is capped at; then the free plan
+  plan = "team"
+  days = 14
+  max_clients = 25
+  transfer = "25GiB"
+
+[[plan]]
+  id = "free"
+  name = "Free"
+  max_clients = 10            # tenants.max_clients follows the plan
+  transfer_base = "10GiB"
+  overage = "cap"             # the hard cap applies at hard_cap percent (default 100)
+  tunnel_rate_limit = "2Mbit" # each tunnel connection, each direction
+  throttle_rate = "256kbit"   # past the hard cap
+
+[[plan]]
+  id = "team"
+  name = "Team"
+  base_price = 49.00          # per month, includes included_devices
+  included_devices = 50
+  price_per_device = 0.80     # each billable device above them
+  transfer_base = "250GiB"    # allowance = base + per device × billable devices
+  transfer_per_device = "5GiB"
+  overage = "bill"            # past the allowance: overage_price_per_gib; no hard cap unless a spending limit
+  overage_price_per_gib = 0.20
+  soft_cap = 80               # percent: the administrators are notified
+  provider_prices = { base = "price_…", devices = "price_…", overage = "price_…" }
+```
+
+### Billing status
+
+| Status | Charged | Notes |
+|---|---|---|
+| `paying` | yes | the default; on the free plan that is nothing |
+| `trial` | no, until `trial_ends_at` | then `paying` on the same plan with a payment method on file, otherwise `paying` on the free plan; a trial without a payment method is capped at the `[trial]` devices and transfer |
+| `exempt` | never | needs a reason; `exempt_limits = "plan"` (default) keeps the plan's limits, `"none"` lifts them; never sent to a payment provider |
+| `comped` | no, until `comped_until` (the last free day) | then as a trial that ends |
+
+Operators set plans and statuses with the API or the CLI; each change is written to the audit logs of `_system`
+and of the organization (application `billing`):
+
+```shell
+rportd org set-plan acme team
+rportd org set-billing acme trial --trial-ends 2026-12-08
+rportd org set-billing partner exempt --reason "reseller partner" --exempt-limits none
+rportd org set-billing acme comped --comped-until 2027-03-31 --reason "launch customer"
+rportd org lift-cap acme --until 2026-12-01          # --end, --extra-transfer 50GiB, --clear-fail-open; the rest is kept
+rportd org billing [acme]                            # accounts, or one with its closed periods
+rportd org approve-period acme 2026-11               # release a held period
+```
+
+### Limits
+
+Every 5 minutes one node (lease `billing-upkeep`) computes each organization's transfer this month (tunnel bytes
+both ways and upload bytes delivered) against its allowance and writes the state:
+
+| State | When | Effect |
+|---|---|---|
+| `normal` | below the soft cap | none |
+| `soft` | at `soft_cap` percent | a notification to the administrators, `soft_cap_reached` in `GET /billing` |
+| `over` | past 100% on a plan that bills overage | a notification; overage accrues |
+| `capped` | the hard cap: `cap` plans (Free, trials without a payment method) at `hard_cap` percent, or a plan that bills overage once the organization's spending limit is reached | a notification; tunnels are throttled to `throttle_rate`, new tunnels and uploads are refused with `403 ERR_CODE_TRANSFER_LIMIT` |
+
+Device sessions are never closed and existing tunnels never cut: commands, scripts, schedules, monitoring and
+updates keep working. Every process reads the states once a minute through `device_transfer_policy()` and applies
+the plan's `tunnel_rate_limit` to each tunnel connection (a token bucket per direction; with tunnels on several
+nodes the rate applies on each). The api process refuses tunnels and uploads, and the process holding the device
+refuses them again. One notification per kind per month is sent (email, through the notifications); trials and
+comped periods without a payment method are announced 14 and 3 days before they end.
+
+It fails open: the hard cap is not applied while the newest usage of any organization is more than 2 hours old
+(metering stalled) or when an organization's last hour moved more than `implausible_growth_factor` times its
+average hour (at least 10 GiB); the state is `over` and `fail_open` says why. Once a month failed open it stays open
+for the rest of the month (the spike would otherwise become part of the average) until an operator checked it and
+clears it (`rportd org lift-cap ID --clear-fail-open`); it is logged as an error and the administrators of
+`_system` with an email address are notified once per organization and month. A process that can't read the states keeps the last ones for an hour, then applies only the per-tunnel
+rates; a cap the upkeep wrote more than an hour ago is ignored. An operator can lift the cap until a time or raise
+the month's allowance; an organization's administrators can set a spending limit (`PUT /billing/spending-limit`).
+
+### Billing periods
+
+Two hours after a month ends the upkeep closes it for every organization (`billing_periods`, kept detached when an
+organization is deleted): billable devices (the average of the daily device counts over the days billed, rounded
+up) and the peak day, transfer per kind, the allowance and the overage (in whole GiB, rounded up, on plans that
+bill it), and the amounts at the plan's prices. The first month is prorated from the day billing started, and a
+trial or comped period ends the free part. Usage arriving after the close is shown but never billed. States:
+`ready` (to be charged), `held` (overage above `overage_review_above`, until an operator approves it),
+`not_charged` (trial or comped the whole month, or nothing to charge), `never_charged` (exempt), `reported` (set by
+the payment provider). A month is closed with the status and plan that applied at its end (a change made after it
+ended, before the close, is not applied to it); that plan applies to the whole month. An organization that was
+exempt and became paying during the month is billed from that day; one that became comped or exempt during the
+month is not charged for it. Setting a trial or comped organization to paying ends its free time at once.
+
+| Method | Path | For |
+|---|---|---|
+| `GET` | `/billing` | administrators: plan, status, allowance, used, transfer state, soft-cap flag |
+| `GET` | `/billing/periods` | administrators: the closed periods |
+| `PUT` | `/billing/spending-limit` | administrators: `{"spending_limit": 50.00}` (USD per month, `null` removes it) |
+| `GET` | `/operator/billing`, `/operator/billing/periods?state=held` | operators: every organization |
+| `GET` | `/operator/organizations/{id}/billing`, `…/billing/periods` | operators: one organization |
+| `PUT` | `/operator/organizations/{id}/billing/plan`, `…/status`, `…/override` | operators |
+| `POST` | `/operator/organizations/{id}/billing/periods/{YYYY-MM}/approve` | operators: release a held period |
+
+`GET /api/v1/status` reports `capabilities.billing: true`.
 
 ## Developing
 

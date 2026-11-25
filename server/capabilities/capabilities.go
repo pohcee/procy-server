@@ -49,6 +49,9 @@ type Capabilities struct {
 	// Signup: self-service signup is on (Postgres with [signup] enabled): the public /api/v1/signup routes,
 	// organization export and deletion for administrators, and the operator signup routes. Reported only when true.
 	Signup bool `json:"signup,omitempty"`
+	// Billing: billing plans and limits are on (Postgres with [billing] enabled): GET /api/v1/billing for
+	// administrators and the operator billing routes. Reported only when true.
+	Billing bool `json:"billing,omitempty"`
 }
 
 // FromConfig returns the capabilities offered by a server running with cfg.

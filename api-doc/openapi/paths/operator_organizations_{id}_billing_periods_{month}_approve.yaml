@@ -1,0 +1,52 @@
+post:
+  tags:
+    - Operator
+  summary: Release a period held for overage review so it is charged. Platform operators only
+  operationId: OperatorOrganizationBillingPeriodApprovePost
+  parameters:
+    - name: id
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+    - name: month
+      in: path
+      description: The period, YYYY-MM
+      required: true
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/BillingPeriod.yaml
+    '400':
+      description: Invalid month
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not a platform operator
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No such organization or held period
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

@@ -45,6 +45,7 @@ import (
 	"github.com/openrport/openrport/server/api/jobs/schedule"
 	"github.com/openrport/openrport/server/api/session"
 	"github.com/openrport/openrport/server/api/uploads"
+	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/clients/storedtunnels"
 	"github.com/openrport/openrport/server/pairing"
 
@@ -111,6 +112,9 @@ type APIListenerOptions struct {
 	Usage metering.Reader
 	// Meter, when set, counts the bytes of the API responses (usage metering).
 	Meter *metering.Meter
+	// Billing, when set ([billing] enabled), serves GET /billing and the operator billing routes, refuses tunnels
+	// and uploads at the hard transfer cap and reports the billing capability.
+	Billing *BillingAPI
 	// NoNotificationsCleaner leaves deleting old notifications to the server (per tenant, in a cluster).
 	NoNotificationsCleaner bool
 	// Signup, when set, serves the signup routes, organization export and deletion, and their operator routes.
@@ -152,6 +156,8 @@ type APIListener struct {
 	usage metering.Reader
 	// signupAPI serves the signup routes; nil without APIListenerOptions.Signup
 	signupAPI *signup.Handler
+	// billing serves GET /billing; nil: billing off
+	billing *BillingAPI
 	// meter counts the API bytes; nil: metering off
 	meter *metering.Meter
 
@@ -337,6 +343,7 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		memberships:            o.Memberships,
 		usage:                  o.Usage,
 		meter:                  o.Meter,
+		billing:                o.Billing,
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
@@ -345,7 +352,11 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 		return nil, err
 	}
 	if o.Operator != nil {
-		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts})
+		var ob billing.OperatorService
+		if o.Billing != nil {
+			ob = o.Billing.Operator
+		}
+		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, Billing: ob, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts})
 	}
 
 	logGroupPermissionsNotice(userService, a.Logger)

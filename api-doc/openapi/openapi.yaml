@@ -40,6 +40,10 @@ tags:
   - name: Signup
     description: >-
       Self-service signup, organization export and deletion (Postgres servers with `[signup] enabled` only).
+  - name: Billing
+    description: >-
+      Billing plans and limits (Postgres servers with `[billing] enabled` only): an organization's plan, billing
+      status, transfer allowance and closed monthly periods.
   - name: Operator
     description: >-
       Platform operator API (Postgres servers only): manage the organizations of the server. Available to
@@ -101,6 +105,28 @@ paths:
     $ref: paths/operator_organizations_{id}_usage.yaml
   /operator/usage:
     $ref: paths/operator_usage.yaml
+  /operator/billing:
+    $ref: paths/operator_billing.yaml
+  /operator/billing/periods:
+    $ref: paths/operator_billing_periods.yaml
+  /operator/organizations/{id}/billing:
+    $ref: paths/operator_organizations_{id}_billing.yaml
+  /operator/organizations/{id}/billing/plan:
+    $ref: paths/operator_organizations_{id}_billing_plan.yaml
+  /operator/organizations/{id}/billing/status:
+    $ref: paths/operator_organizations_{id}_billing_status.yaml
+  /operator/organizations/{id}/billing/override:
+    $ref: paths/operator_organizations_{id}_billing_override.yaml
+  /operator/organizations/{id}/billing/periods:
+    $ref: paths/operator_organizations_{id}_billing_periods.yaml
+  /operator/organizations/{id}/billing/periods/{month}/approve:
+    $ref: paths/operator_organizations_{id}_billing_periods_{month}_approve.yaml
+  /billing:
+    $ref: paths/billing.yaml
+  /billing/periods:
+    $ref: paths/billing_periods.yaml
+  /billing/spending-limit:
+    $ref: paths/billing_spending-limit.yaml
   /usage:
     $ref: paths/usage.yaml
   /signup:

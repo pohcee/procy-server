@@ -25,6 +25,8 @@ type tunnelUDP struct {
 	acl         atomic.Pointer[TunnelACL] // parsed Remote.ACL field
 	idleTimeout time.Duration
 	bytes       *metering.TunnelBytes // nil: not metered
+	toUser      *throttle             // nil: not limited
+	toDevice    *throttle
 
 	conn    *net.UDPConn
 	channel *comm.UDPChannel
@@ -130,6 +132,9 @@ func (t *tunnelUDP) runInbound(ctx context.Context) error {
 			}
 		}
 
+		if err := t.toDevice.take(ctx, n); err != nil {
+			return nil
+		}
 		t.bytes.ToDevice(int64(n))
 		err = t.channel.Encode(sourceAddr, buff[:n])
 		if err != nil {
@@ -156,6 +161,9 @@ func (t *tunnelUDP) runOutbound(ctx context.Context) error {
 
 		t.setLastActive()
 
+		if err := t.toUser.take(ctx, len(data)); err != nil {
+			return nil
+		}
 		t.bytes.ToUser(int64(len(data)))
 		_, err = t.conn.WriteToUDP(data, addr)
 		if err != nil {

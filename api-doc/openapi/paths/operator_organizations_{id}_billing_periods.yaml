@@ -1,0 +1,54 @@
+get:
+  tags:
+    - Operator
+  summary: Return the closed periods of an organization, newest first. Platform operators only
+  operationId: OperatorOrganizationBillingPeriodsGet
+  parameters:
+    - name: id
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+    - name: state
+      in: query
+      description: Only periods in this state
+      schema:
+        type: string
+        enum: [ready, held, not_charged, never_charged, reported]
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/BillingPeriod.yaml
+    '400':
+      description: Invalid state
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not a platform operator
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No such organization, not the system organization, or billing is off
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
