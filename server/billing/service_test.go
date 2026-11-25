@@ -2,10 +2,8 @@ package billing_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"regexp"
-	"sort"
 	"strconv"
 	"sync"
 	"testing"
@@ -15,136 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/openrport/openrport/server/billing"
+	"github.com/openrport/openrport/server/billing/billingtest"
 	"github.com/openrport/openrport/server/billing/stripe"
 	"github.com/openrport/openrport/server/billing/stripe/stripetest"
 	"github.com/openrport/openrport/share/tenant"
 )
 
 var ctx = context.Background()
-
-// memStore is an in-memory billing.Store.
-type memStore struct {
-	mu       sync.Mutex
-	accounts map[string]billing.ProviderAccount
-	events   map[string]bool
-	reports  map[string]billing.UsageReport
-	notices  map[string]bool
-	emails   map[string][]string
-	audits   []string
-}
-
-func newMemStore() *memStore {
-	return &memStore{accounts: map[string]billing.ProviderAccount{}, events: map[string]bool{}, reports: map[string]billing.UsageReport{},
-		notices: map[string]bool{}, emails: map[string][]string{}}
-}
-
-func (m *memStore) Account(_ context.Context, org string) (*billing.ProviderAccount, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	a, ok := m.accounts[org]
-	if !ok {
-		return nil, nil
-	}
-	return &a, nil
-}
-
-func (m *memStore) Accounts(context.Context) ([]billing.ProviderAccount, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	var out []billing.ProviderAccount
-	for _, a := range m.accounts {
-		out = append(out, a)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Organization < out[j].Organization })
-	return out, nil
-}
-
-func (m *memStore) OrganizationOf(_ context.Context, provider, customer string) (string, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for _, a := range m.accounts {
-		if a.Provider == provider && a.CustomerID == customer {
-			return a.Organization, nil
-		}
-	}
-	return "", nil
-}
-
-func (m *memStore) PutAccount(_ context.Context, a *billing.ProviderAccount) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.accounts[a.Organization] = *a
-	return nil
-}
-
-func (m *memStore) ApplyEvent(ctx context.Context, provider, id, _, org string, update func(*billing.ProviderAccount) (*billing.ProviderAccount, error)) (bool, error) {
-	m.mu.Lock()
-	if m.events[provider+"/"+id] {
-		m.mu.Unlock()
-		return false, nil
-	}
-	m.mu.Unlock()
-	var cur *billing.ProviderAccount
-	if org != "" {
-		cur, _ = m.Account(ctx, org)
-	}
-	next, err := update(cur)
-	if err != nil {
-		return false, err
-	}
-	m.mu.Lock()
-	m.events[provider+"/"+id] = true
-	m.mu.Unlock()
-	if next != nil {
-		return true, m.PutAccount(ctx, next)
-	}
-	return true, nil
-}
-
-func (m *memStore) Reports(_ context.Context, start time.Time) ([]billing.UsageReport, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	var out []billing.UsageReport
-	for _, r := range m.reports {
-		if start.IsZero() || r.PeriodStart.Equal(start) {
-			out = append(out, r)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Identifier < out[j].Identifier })
-	return out, nil
-}
-
-func (m *memStore) PutReport(_ context.Context, r *billing.UsageReport) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if old, ok := m.reports[r.Identifier]; ok && old.Quantity != r.Quantity {
-		return errors.New("quantity changed")
-	}
-	m.reports[r.Identifier] = *r
-	return nil
-}
-
-func (m *memStore) ClaimNotice(_ context.Context, org, kind, ep string) (bool, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	k := org + "/" + kind + "/" + ep
-	if m.notices[k] {
-		return false, nil
-	}
-	m.notices[k] = true
-	return true, nil
-}
-
-func (m *memStore) Audit(_ context.Context, by billing.Actor, action, org string, _ any) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.audits = append(m.audits, by.Username+" "+action+" "+org)
-	return nil
-}
-
-func (m *memStore) AdminEmails(_ context.Context, org string) ([]string, error) {
-	return m.emails[org], nil
-}
 
 type notice struct{ org, subject string }
 
@@ -215,7 +90,7 @@ func (s *syncRec) PeriodReported(_ context.Context, org string, start, _ time.Ti
 
 type env struct {
 	svc     *billing.Service
-	store   *memStore
+	store   *billingtest.MemStore
 	fake    *stripetest.Fake
 	notes   *recNotifier
 	susp    *recSuspender
@@ -238,7 +113,7 @@ func newEnv(t *testing.T) *env {
 	f.AddMeteredPrice("price_devices", "procy_extra_devices")
 	f.AddMeteredPrice("price_overage", "procy_overage_gib")
 	now := time.Date(2026, 12, 1, 3, 0, 0, 0, time.UTC)
-	e := &env{fake: f, store: newMemStore(), notes: &recNotifier{}, susp: &recSuspender{}, sync: &syncRec{},
+	e := &env{fake: f, store: billingtest.NewMemStore(), notes: &recNotifier{}, susp: &recSuspender{}, sync: &syncRec{},
 		records: records{}, periods: &periods{}, now: &now}
 	p, err := stripe.New(stripe.Options{SecretKey: stripetest.SecretKey, WebhookSecret: stripetest.WebhookSecret,
 		BackendURL: f.Server.URL, Now: func() time.Time { return *e.now }})
@@ -260,9 +135,9 @@ func (r periodsRef) ClosedSince(ctx context.Context, since time.Time) ([]billing
 }
 
 func (e *env) link(org, customer string) {
-	e.store.accounts[org] = billing.ProviderAccount{Organization: org, Provider: "stripe", CustomerID: customer, SubscriptionID: "sub_" + org,
+	e.store.Accts[org] = billing.ProviderAccount{Organization: org, Provider: "stripe", CustomerID: customer, SubscriptionID: "sub_" + org,
 		SubscriptionStatus: billing.SubscriptionActive, Dunning: billing.Dunning{State: billing.DunningNone}}
-	e.store.emails[org] = []string{"admin@" + org + ".test"}
+	e.store.Emails[org] = []string{"admin@" + org + ".test"}
 }
 
 func (e *env) webhook(t *testing.T, id, typ string, obj any) billing.WebhookResult {
@@ -301,7 +176,7 @@ func TestWebhookIsVerifiedAndAppliedOnce(t *testing.T) {
 	assert.Equal(t, int64(1), st.WebhooksAccepted)
 	assert.Equal(t, int64(1), st.WebhooksDuplicate)
 	assert.Equal(t, int64(1), st.WebhooksUnverified)
-	assert.Contains(t, e.store.audits, "billing:stripe webhook acme")
+	assert.Contains(t, e.store.Audits, "billing:stripe webhook acme")
 }
 
 func TestWebhookTrustsOurCustomerMappingOnly(t *testing.T) {
@@ -408,7 +283,7 @@ func TestOperatorRestore(t *testing.T) {
 	_, err := e.svc.Restore(ctx, billing.Actor{Username: "op"}, "acme")
 	require.NoError(t, err)
 	assert.Equal(t, billing.AccessFull, e.svc.Access(ctx, "acme"))
-	assert.Contains(t, e.store.audits, "op restore acme")
+	assert.Contains(t, e.store.Audits, "op restore acme")
 	_, err = e.svc.Restore(ctx, billing.Actor{Username: "op"}, "nobody")
 	assert.ErrorIs(t, err, billing.ErrNotFound)
 }
@@ -466,7 +341,7 @@ func TestReportingInArrearsIsIdempotentAndNeverSendsExempt(t *testing.T) {
 	// running again sends nothing more
 	require.NoError(t, e.svc.ReportClosedPeriods(ctx))
 	assert.Len(t, e.fake.Events(), 2)
-	for _, r := range e.store.reports {
+	for _, r := range e.store.Rpts {
 		assert.Equal(t, billing.ReportSent, r.State)
 		assert.Equal(t, 1, r.Attempts)
 	}
@@ -478,7 +353,7 @@ func TestReportingRetriesFailures(t *testing.T) {
 	*e.periods = periods{period("acme", billing.StatusPaying, billing.PeriodReady, 12, 0)}
 	e.fake.FailMeterEvents = true
 	_ = e.svc.ReportClosedPeriods(ctx)
-	r := e.store.reports["procy:acme:extra_devices:2026-11-01"]
+	r := e.store.Rpts["procy:acme:extra_devices:2026-11-01"]
 	assert.Equal(t, billing.ReportFailed, r.State)
 	assert.Empty(t, e.sync.reported)
 
@@ -491,7 +366,7 @@ func TestReportingRetriesFailures(t *testing.T) {
 	*e.now = e.now.Add(15 * time.Minute)
 	require.NoError(t, e.svc.ReportClosedPeriods(ctx))
 	assert.Len(t, e.fake.Events(), 1)
-	r = e.store.reports["procy:acme:extra_devices:2026-11-01"]
+	r = e.store.Rpts["procy:acme:extra_devices:2026-11-01"]
 	assert.Equal(t, billing.ReportSent, r.State)
 	assert.Equal(t, 2, r.Attempts)
 	assert.Equal(t, []string{"acme 2026-11"}, e.sync.reported)
@@ -503,15 +378,15 @@ func TestReportingAfterTheDedupWindowLooksFirst(t *testing.T) {
 	*e.periods = periods{period("acme", billing.StatusPaying, billing.PeriodReady, 12, 0)}
 	// a send that "failed" (timeout) but reached Stripe a day ago
 	require.NoError(t, e.svc.ReportClosedPeriods(ctx))
-	r := e.store.reports["procy:acme:extra_devices:2026-11-01"]
+	r := e.store.Rpts["procy:acme:extra_devices:2026-11-01"]
 	long := e.now.Add(-25 * time.Hour)
 	r.State, r.LastAttemptAt, r.SentAt = billing.ReportFailed, &long, nil
-	e.store.reports[r.Identifier] = r
+	e.store.Rpts[r.Identifier] = r
 	e.fake.MeterEvents = e.fake.MeterEvents[:1]
 	e.fake.MeterEvents[0].Identifier = "procy:acme:extra_devices:2026-11-01#stripe-forgot-the-identifier"
 	require.NoError(t, e.svc.ReportClosedPeriods(ctx))
 	assert.Len(t, e.fake.Events(), 1, "the provider shows the usage: not sent again")
-	assert.Equal(t, billing.ReportSent, e.store.reports[r.Identifier].State)
+	assert.Equal(t, billing.ReportSent, e.store.Rpts[r.Identifier].State)
 }
 
 func TestReconciliation(t *testing.T) {
@@ -532,14 +407,14 @@ func TestReconciliation(t *testing.T) {
 
 	// too early to compare
 	require.NoError(t, e.svc.Reconcile(ctx))
-	assert.Equal(t, billing.ReportSent, e.store.reports["procy:acme:extra_devices:2026-11-01"].State)
+	assert.Equal(t, billing.ReportSent, e.store.Rpts["procy:acme:extra_devices:2026-11-01"].State)
 
 	*e.now = e.now.Add(2 * time.Hour)
 	require.NoError(t, e.svc.Reconcile(ctx))
-	assert.Equal(t, billing.ReportConfirmed, e.store.reports["procy:acme:extra_devices:2026-11-01"].State)
-	assert.Equal(t, billing.ReportMismatch, e.store.reports["procy:gamma:extra_devices:2026-11-01"].State)
-	assert.Equal(t, 9.0, *e.store.reports["procy:gamma:extra_devices:2026-11-01"].ProviderValue)
-	assert.Equal(t, billing.ReportSent, e.store.reports["procy:beta:extra_devices:2026-11-01"].State, "nothing at Stripe yet: wait")
+	assert.Equal(t, billing.ReportConfirmed, e.store.Rpts["procy:acme:extra_devices:2026-11-01"].State)
+	assert.Equal(t, billing.ReportMismatch, e.store.Rpts["procy:gamma:extra_devices:2026-11-01"].State)
+	assert.Equal(t, 9.0, *e.store.Rpts["procy:gamma:extra_devices:2026-11-01"].ProviderValue)
+	assert.Equal(t, billing.ReportSent, e.store.Rpts["procy:beta:extra_devices:2026-11-01"].State, "nothing at Stripe yet: wait")
 	assert.Len(t, e.fake.Events(), 2)
 
 	*e.now = e.now.Add(6 * time.Hour)
@@ -549,13 +424,13 @@ func TestReconciliation(t *testing.T) {
 
 	*e.now = e.now.Add(2 * time.Hour)
 	require.NoError(t, e.svc.Reconcile(ctx))
-	assert.Equal(t, billing.ReportConfirmed, e.store.reports["procy:beta:extra_devices:2026-11-01"].State)
+	assert.Equal(t, billing.ReportConfirmed, e.store.Rpts["procy:beta:extra_devices:2026-11-01"].State)
 	assert.Equal(t, int64(1), e.svc.Stats().Mismatches)
 }
 
 func TestCheckout(t *testing.T) {
 	e := newEnv(t)
-	e.store.emails["acme"] = []string{"admin@acme.test"}
+	e.store.Emails["acme"] = []string{"admin@acme.test"}
 	res, err := e.svc.Checkout(ctx, billing.Actor{Username: "admin@acme.test"}, "acme", "Acme Inc", "starter")
 	require.NoError(t, err)
 	assert.Contains(t, res.URL, "https://checkout.stripe.test/")

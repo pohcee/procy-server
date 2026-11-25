@@ -87,9 +87,9 @@ func TestReadOnlyGuard(t *testing.T) {
 	e.link("acme", "cus_1")
 	e.link("beta", "cus_2")
 	failed := e.now.AddDate(0, 0, -15)
-	a := e.store.accounts["acme"]
+	a := e.store.Accts["acme"]
 	a.Dunning = billing.Dunning{State: billing.DunningReadOnly, FailedAt: &failed}
-	e.store.accounts["acme"] = a
+	e.store.Accts["acme"] = a
 	resp := &api.Responder{Log: logger.NewLogger("t", logger.LogOutput{}, logger.LogLevelError)}
 	guard := billing.ReadOnlyGuard(e.svc, resp, "/api/v1")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) }))
 	do := func(org, method, path string, ws bool) int {
@@ -125,9 +125,9 @@ func TestSchedulesPauseWhileReadOnly(t *testing.T) {
 	assert.True(t, ok)
 
 	failed := e.now.AddDate(0, 0, -15)
-	a := e.store.accounts["acme"]
+	a := e.store.Accts["acme"]
 	a.Dunning = billing.Dunning{State: billing.DunningReadOnly, FailedAt: &failed}
-	e.store.accounts["acme"] = a
+	e.store.Accts["acme"] = a
 	*e.now = e.now.Add(time.Minute) // past the access cache
 	ok, err = c.ClaimRun(tenant.WithID(ctx, "acme"), "s1", time.Now())
 	require.NoError(t, err)
