@@ -1,0 +1,23 @@
+get:
+  tags:
+    - Billing
+  summary: Return the public plan catalog (for the home page)
+  description: >-
+    Public, read-only; with `[billing]` and its plans file only. The same catalog as `GET /billing/plans`: prices in
+    USD cents, sizes in bytes, never the payment provider's price ids.
+  operationId: PlansGet
+  security: []
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/BillingPlanInfo.yaml
+    '404':
+      description: Billing is off on this server

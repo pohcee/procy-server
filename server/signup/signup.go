@@ -12,6 +12,7 @@ package signup
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/openrport/openrport/server/operator"
@@ -77,6 +78,8 @@ var (
 	ErrConflict = errors.New("conflict")
 	// ErrMail: the email could not be sent.
 	ErrMail = errors.New("the email could not be sent")
+	// ErrAccountExists: the proven email has an account already (sign in instead). It is also ErrConflict.
+	ErrAccountExists = fmt.Errorf("%w: this email address has an account; sign in instead", ErrConflict)
 )
 
 // Error codes of POST /signup/verify (the HTTP statuses are the ones of ErrInvalid and ErrToken).
@@ -111,7 +114,27 @@ type Signup struct {
 	DecidedBy      string     `json:"decided_by" db:"decided_by"`
 	Reason         string     `json:"reason" db:"reason"`
 	OrganizationID *string    `json:"organization_id" db:"organization_id"`
+	// Method is how the email was proven: MethodEmail (the emailed link) or MethodGoogle (a Google sign-in).
+	Method string `json:"method" db:"method"`
+	// MXFound: the email domain had a mail server when the signup was requested; nil when not looked up.
+	MXFound *bool `json:"mx_found" db:"mx_found"`
+
+	// What the operators' queue shows (List only).
+	// FreeMail: the domain is a large free mail provider (the domain checks below don't apply to it).
+	FreeMail bool `json:"free_mail" db:"-"`
+	// DomainCustomers counts the completed signups of the same domain (0 for free mail).
+	DomainCustomers int `json:"domain_customers" db:"domain_customers"`
+	// EmailDeniedBefore and DomainDeniedBefore count the other denied signups of the email and of the domain (0
+	// for free mail).
+	EmailDeniedBefore  int `json:"email_denied_before" db:"email_denied_before"`
+	DomainDeniedBefore int `json:"domain_denied_before" db:"domain_denied_before"`
 }
+
+// How the email of a signup was proven.
+const (
+	MethodEmail  = "email"
+	MethodGoogle = "google"
+)
 
 // Update changes a signup's status (and what goes with it). PasswordHash is cleared when ClearPassword.
 type Update struct {
@@ -166,7 +189,8 @@ type Store interface {
 	CountSince(ctx context.Context, since time.Time, ip, domain, email string) (Counts, error)
 	Insert(ctx context.Context, s Signup) error
 	Get(ctx context.Context, id string) (*Signup, error)
-	// List returns the newest signups first; status "" is every status.
+	// List returns the newest signups first; status "" is every status. The rows carry the queue's counts
+	// (DomainCustomers, EmailDeniedBefore, DomainDeniedBefore), not yet adjusted for free mail.
 	List(ctx context.Context, status string, limit int) ([]Signup, error)
 	// ClaimToken takes the unexpired signup in status whose token hash is tokenHash and makes its token unusable
 	// (single use), atomically. ErrToken when there is none.

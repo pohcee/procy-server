@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	zxcvbn "github.com/trustelem/zxcvbn"
@@ -185,6 +186,28 @@ func LookupMX(ctx context.Context, domain string) error {
 	}
 	return errors.Join(err, err2, errors.New("no mail server"))
 }
+
+// freeMailDomains are large free mail providers: their domain says nothing about the organization, so the signup
+// queue skips its domain checks for them.
+var freeMailDomains = map[string]bool{}
+
+func init() {
+	for _, d := range []string{
+		"gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "yahoo.com", "ymail.com",
+		"icloud.com", "me.com", "mac.com", "aol.com", "proton.me", "protonmail.com", "pm.me", "gmx.com", "gmx.net",
+		"gmx.de", "web.de", "mail.com", "yandex.com", "yandex.ru", "zoho.com", "fastmail.com", "tutanota.com",
+		"tuta.io", "mail.ru", "qq.com", "163.com", "hotmail.co.uk", "yahoo.co.uk", "outlook.de", "t-online.de",
+		"libero.it", "orange.fr", "free.fr", "laposte.net", "hey.com",
+	} {
+		freeMailDomains[d] = true
+	}
+}
+
+// IsFreeMail reports whether domain is a large free mail provider.
+func IsFreeMail(domain string) bool { return freeMailDomains[strings.ToLower(domain)] }
+
+// mxBudget bounds the MX lookup a signup request records for the queue.
+const mxBudget = 3 * time.Second
 
 // newToken returns a random token for a link and the hash that is stored.
 func newToken() (token, hash string, err error) {

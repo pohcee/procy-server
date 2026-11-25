@@ -13,3 +13,9 @@ properties:
   decided_by: {type: string}
   reason: {type: string}
   organization_id: {type: string, nullable: true}
+  method: {type: string, enum: [email, google], description: How the email was proven (the emailed link or a Google sign-in)}
+  mx_found: {type: boolean, nullable: true, description: The email domain had a mail server at the request; null when not looked up}
+  free_mail: {type: boolean, description: The domain is a large free mail provider (the domain counts are 0 then)}
+  domain_customers: {type: integer, description: Other completed signups of the same domain (list only)}
+  email_denied_before: {type: integer, description: Other denied signups of the same email (list only)}
+  domain_denied_before: {type: integer, description: Other denied signups of the same domain (list only)}
