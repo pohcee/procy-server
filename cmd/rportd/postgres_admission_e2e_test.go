@@ -98,4 +98,11 @@ func TestPostgresDeviceProcessesShareTheClientLimit(t *testing.T) {
 	b4 := dev2.startClient("b4", "b-auth", cred.Password)
 	b4.waitLog("the organization's limit of 1 clients is reached", dev2)
 	assert.ElementsMatch(t, []string{"b1", "b3"}, api.clientIDs())
+
+	// a device process runs none of the api processes' background work
+	for _, task := range []string{"Task to cleanup jobs", "Task to cleanup expired api sessions", "Task to purge disconnected clients"} {
+		assert.NotContains(t, dev2.log.String(), task)
+	}
+	assert.Contains(t, api.log.String(), "Task to cleanup jobs")
+	assert.NotContains(t, dev2.log.String(), "nil request")
 }
