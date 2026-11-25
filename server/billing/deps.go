@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// BillingRecords reads organizations' billing records (billing-plans' org_billing store). A missing record is
+// RecordReader reads organizations' billing records (billing-plans' org_billing store). A missing record is
 // (nil, nil): the organization is on the free plan, paying.
-type BillingRecords interface {
+type RecordReader interface {
 	Billing(ctx context.Context, org string) (*Billing, error)
 }
 

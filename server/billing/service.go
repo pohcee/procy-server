@@ -67,7 +67,7 @@ type Options struct {
 	FreePlan string
 	// Records reads billing statuses (exempt organizations are never sent to the provider). Nil: every
 	// organization is paying.
-	Records BillingRecords
+	Records RecordReader
 	// Periods lists closed periods to report. Nil: nothing is reported.
 	Periods ClosedPeriods
 	// Sync, Notifier and Suspender are optional.

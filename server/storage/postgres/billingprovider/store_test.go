@@ -81,7 +81,7 @@ func TestApplyEventOnceAndRollsBackOnError(t *testing.T) {
 	require.NoError(t, s.PutAccount(ctx, &billing.ProviderAccount{Organization: a, Provider: "stripe", CustomerID: "cus_a"}))
 
 	boom := errors.New("boom")
-	applied, err := s.ApplyEvent(ctx, "stripe", "evt_1", "invoice.paid", a, func(cur *billing.ProviderAccount) (*billing.ProviderAccount, error) {
+	applied, err := s.ApplyEvent(ctx, "stripe", "evt_1", "invoice.paid", a, func(_ *billing.ProviderAccount) (*billing.ProviderAccount, error) {
 		return nil, boom
 	})
 	assert.ErrorIs(t, err, boom)

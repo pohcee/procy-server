@@ -43,11 +43,11 @@ func TestBillingProviderStripe(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			c := postgresConfig()
-			c.Metering = MeteringConfig{Enabled: true}
-			c.Billing = stripeBilling()
-			change(&c.Billing)
-			assert.Error(t, validate(c))
+			bad := postgresConfig()
+			bad.Metering = MeteringConfig{Enabled: true}
+			bad.Billing = stripeBilling()
+			change(&bad.Billing)
+			assert.Error(t, validate(bad))
 		})
 	}
 	c = postgresConfig()

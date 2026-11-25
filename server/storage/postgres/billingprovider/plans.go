@@ -17,9 +17,9 @@ type Records struct {
 	Store pgbilling.Store
 }
 
-var _ billing.BillingRecords = Records{}
+var _ billing.RecordReader = Records{}
 
-// Billing implements billing.BillingRecords: the organization's record, or the default (free plan, paying).
+// Billing implements billing.RecordReader: the organization's record, or the default (free plan, paying).
 func (r Records) Billing(ctx context.Context, org string) (*billing.Billing, error) {
 	a, err := r.Store.Account(ctx, tenant.ID(org))
 	if err != nil {

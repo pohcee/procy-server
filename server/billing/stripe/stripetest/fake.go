@@ -21,7 +21,7 @@ import (
 // SecretKey and WebhookSecret are the test credentials the fake accepts.
 const (
 	SecretKey     = "sk_test_fake"
-	WebhookSecret = "whsec_test_fake"
+	WebhookSecret = "whsec_test_fake" //nolint:gosec // a test secret, not a credential
 )
 
 // MeterEvent is a meter event the fake received.
@@ -159,6 +159,7 @@ func list(data []map[string]any, path string) map[string]any {
 	return map[string]any{"object": "list", "data": data, "has_more": false, "url": path}
 }
 
+//nolint:gocyclo // one switch over the fake endpoints reads best
 func (f *Fake) serve(w http.ResponseWriter, r *http.Request) {
 	if user, _, ok := r.BasicAuth(); (!ok || user != SecretKey) && r.Header.Get("Authorization") != "Bearer "+SecretKey {
 		stripeError(w, http.StatusUnauthorized, "", "Invalid API Key provided")
