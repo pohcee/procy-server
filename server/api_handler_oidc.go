@@ -544,6 +544,7 @@ func (al *APIListener) handleOIDCToken(w http.ResponseWriter, req *http.Request)
 		return
 	}
 	al.auditOIDC(req.WithContext(api.WithUser(tctx, t.Username)), "success", t.Username)
+	al.loginSucceeded(tctx, t.Username)
 	al.oidcSetCookie(w, "", -1)
 	resp := loginResponse{Token: &tokenStr}
 	if al.memberships != nil && len(orgs) > 1 {
