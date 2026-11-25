@@ -76,16 +76,34 @@ func DayStart(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
 
-// Period is the frozen quantities of one organization's closed billing period (billing_periods). (stand-in)
+// PeriodState is what happens to a closed billing period. (stand-in)
+type PeriodState string
+
+// Period states. (stand-in)
+const (
+	PeriodReady        PeriodState = "ready"
+	PeriodHeld         PeriodState = "held"
+	PeriodNotCharged   PeriodState = "not_charged"
+	PeriodNeverCharged PeriodState = "never_charged"
+	PeriodReported     PeriodState = "reported"
+)
+
+// Period is a closed billing period of an organization with its frozen quantities (billing_periods). (stand-in:
+// the fields this stream reads)
 type Period struct {
-	Organization    string    `json:"organization" db:"tenant_id"`
-	Start           time.Time `json:"period_start" db:"period_start"`
-	End             time.Time `json:"period_end" db:"period_end"`
-	Plan            string    `json:"plan" db:"plan"`
-	BillableDevices int64     `json:"billable_devices" db:"billable_devices"`
-	TransferBytes   int64     `json:"transfer_bytes" db:"transfer_bytes"`
-	AllowanceBytes  int64     `json:"allowance_bytes" db:"allowance_bytes"`
-	OverageBytes    int64     `json:"overage_bytes" db:"overage_bytes"`
-	State           string    `json:"state" db:"state"`
-	ClosedAt        time.Time `json:"closed_at" db:"closed_at"`
+	Organization    string      `json:"organization" db:"tenant_id"`
+	Start           time.Time   `json:"start" db:"period_start"`
+	End             time.Time   `json:"end" db:"period_end"`
+	Plan            string      `json:"plan" db:"plan"`
+	Status          Status      `json:"status" db:"billing_status"`
+	BillableDevices int64       `json:"billable_devices" db:"billable_devices"`
+	ExtraDevices    int64       `json:"extra_devices" db:"extra_devices"`
+	TransferBytes   int64       `json:"transfer_bytes" db:"transfer_bytes"`
+	AllowanceBytes  int64       `json:"allowance_bytes" db:"allowance_bytes"`
+	OverageBytes    int64       `json:"overage_bytes" db:"overage_bytes"`
+	OverageGiB      int64       `json:"overage_gib" db:"overage_gib"`
+	TotalCents      int64       `json:"total_cents" db:"total_cents"`
+	State           PeriodState `json:"state" db:"state"`
+	ClosedAt        time.Time   `json:"closed_at" db:"closed_at"`
+	ReportedAt      *time.Time  `json:"reported_at" db:"reported_at"`
 }
