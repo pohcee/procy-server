@@ -38,6 +38,7 @@ import (
 	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
 	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/routes"
+	"github.com/openrport/openrport/server/signup"
 
 	"github.com/openrport/openrport/server/api/authorization"
 	"github.com/openrport/openrport/server/api/jobs/schedule"
@@ -109,6 +110,8 @@ type APIListenerOptions struct {
 	Meter *metering.Meter
 	// NoNotificationsCleaner leaves deleting old notifications to the server (per tenant, in a cluster).
 	NoNotificationsCleaner bool
+	// Signup, when set, serves the signup routes, organization export and deletion, and their operator routes.
+	Signup *signup.Service
 }
 
 // apiServices holds the options under the names the handler code uses.
@@ -142,6 +145,8 @@ type APIListener struct {
 	operatorAPI *operator.Handler
 	// usage reads the usage for GET /usage; nil: metering off
 	usage metering.Reader
+	// signupAPI serves the signup routes; nil without APIListenerOptions.Signup
+	signupAPI *signup.Handler
 	// meter counts the API bytes; nil: metering off
 	meter *metering.Meter
 
@@ -329,8 +334,13 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
+	var operatorMounts []func(r *mux.Router)
+	if o.Signup != nil {
+		a.signupAPI = signup.NewHandler(o.Signup, a.responder(), a.getUserModelForAuth)
+		operatorMounts = append(operatorMounts, a.signupAPI.MountOperator)
+	}
 	if o.Operator != nil {
-		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, CurrentUser: a.getUserModelForAuth, Respond: a.responder()})
+		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts})
 	}
 
 	logGroupPermissionsNotice(userService, a.Logger)

@@ -32,6 +32,8 @@ type Options struct {
 	// CurrentUser returns the authenticated user of the request (an errors.APIError when there is none).
 	CurrentUser func(ctx context.Context) (*users.User, error)
 	Respond     *api.Responder
+	// Mounts register more operator routes (other packages' operator APIs, such as signup) behind the same check.
+	Mounts []func(r *mux.Router)
 }
 
 // Handler serves the operator API.
@@ -40,11 +42,12 @@ type Handler struct {
 	usage       metering.Reader
 	currentUser func(ctx context.Context) (*users.User, error)
 	respond     *api.Responder
+	mounts      []func(r *mux.Router)
 }
 
 // NewHandler returns the operator API handler.
 func NewHandler(o Options) *Handler {
-	return &Handler{svc: o.Service, usage: o.Usage, currentUser: o.CurrentUser, respond: o.Respond}
+	return &Handler{svc: o.Service, usage: o.Usage, currentUser: o.CurrentUser, respond: o.Respond, mounts: o.Mounts}
 }
 
 // Mount registers the operator routes on r, a router for RoutePrefix behind authentication.
@@ -60,6 +63,9 @@ func (h *Handler) Mount(r *mux.Router) {
 	if h.usage != nil {
 		r.HandleFunc("/organizations/{id}/usage", h.organizationUsage).Methods(http.MethodGet)
 		r.HandleFunc("/usage", h.usageSummary).Methods(http.MethodGet)
+	}
+	for _, m := range h.mounts {
+		m(r)
 	}
 }
 
@@ -94,6 +100,9 @@ func (h *Handler) requireOperator(next http.Handler) http.Handler {
 }
 
 type operatorKey struct{}
+
+// ActorOf is the operator of a request that passed the operator check (a route of Options.Mounts).
+func ActorOf(r *http.Request) Actor { return actor(r) }
 
 // actor is the operator of a request that passed requireOperator.
 func actor(r *http.Request) Actor {

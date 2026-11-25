@@ -42,6 +42,9 @@ type Capabilities struct {
 	// Usage: usage metering is on (Postgres with [metering] enabled): GET /api/v1/usage for administrators and the
 	// operator usage routes. Reported only when true.
 	Usage bool `json:"usage,omitempty"`
+	// Signup: self-service signup is on (Postgres with [signup] enabled): the public /api/v1/signup routes,
+	// organization export and deletion for administrators, and the operator signup routes. Reported only when true.
+	Signup bool `json:"signup,omitempty"`
 }
 
 // FromConfig returns the capabilities offered by a server running with cfg.

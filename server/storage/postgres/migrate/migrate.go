@@ -213,6 +213,8 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO " + q,
 		"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO " + q,
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON schema_migrations, tenants, user_logins, client_auth_ids, changes, changes_horizon, migrate_deferred FROM " + q,
+		// written only by rport_signup_delete_tenant (migration 1550)
+		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON deleted_tenant_ids FROM " + q,
 		"GRANT EXECUTE ON FUNCTION rport_prune_changes(interval) TO " + q,
 		"REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON nodes, client_sessions FROM " + q,
 	}
@@ -282,6 +284,8 @@ var OperatorFunctions = []string{
 	"rport_operator_add_tenant(text, text, integer)",
 	"rport_operator_set_tenant_status(text, text)",
 	"rport_operator_set_max_clients(text, integer)",
+	// self-service signup (migration 1550): deleting an organization whose deletion is due
+	"rport_signup_delete_tenant(text)",
 }
 
 func quoteIdent(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
