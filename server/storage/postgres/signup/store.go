@@ -37,7 +37,7 @@ func (s Store) CountSince(ctx context.Context, since time.Time, ip, domain, emai
 		return tx.QueryRowxContext(ctx, `SELECT
 			(SELECT count(*) FROM signups WHERE tenant_id = '_system' AND remote_ip = $2 AND created_at >= $1),
 			(SELECT count(*) FROM signups WHERE tenant_id = '_system' AND domain = $3 AND created_at >= $1),
-			(SELECT count(*) FROM signups WHERE tenant_id = '_system' AND email = $4 AND created_at >= $1)`,
+			(SELECT count(*) FROM signups WHERE tenant_id = '_system' AND email = $4 AND status <> 'existing' AND created_at >= $1)`,
 			since, ip, domain, email).Scan(&c.IP, &c.Domain, &c.Email)
 	})
 	return c, err
@@ -114,10 +114,10 @@ func (s Store) SetStatus(ctx context.Context, id string, u signup.Update) error 
 			expires_at = coalesce($4, expires_at), decided_at = coalesce($5, decided_at),
 			decided_by = CASE WHEN $6 = '' THEN decided_by ELSE $6 END, reason = CASE WHEN $7 = '' THEN reason ELSE $7 END,
 			organization_id = coalesce(nullif($8, ''), organization_id),
-			password_hash = CASE WHEN $9 THEN '' ELSE password_hash END,
+			password_hash = CASE WHEN $9 THEN '' WHEN $10 <> '' THEN $10 ELSE password_hash END,
 			token_hash = CASE WHEN $2 = 'pending' THEN token_hash ELSE NULL END
 			WHERE tenant_id = '_system' AND id = $1`,
-			id, u.Status, u.VerifiedAt, u.ExpiresAt, u.DecidedAt, u.DecidedBy, u.Reason, u.OrganizationID, u.ClearPassword)
+			id, u.Status, u.VerifiedAt, u.ExpiresAt, u.DecidedAt, u.DecidedBy, u.Reason, u.OrganizationID, u.ClearPassword, u.PasswordHash)
 		if err != nil {
 			return err
 		}
@@ -126,6 +126,22 @@ func (s Store) SetStatus(ctx context.Context, id string, u signup.Update) error 
 		}
 		return nil
 	})
+}
+
+// Transition implements signup.Store.
+func (s Store) Transition(ctx context.Context, id, from, to string) (*signup.Signup, error) {
+	r := &signup.Signup{}
+	err := s.inSystem(ctx, func(tx *sqlx.Tx) error {
+		return tx.GetContext(ctx, r, "UPDATE signups SET status = $3 WHERE tenant_id = '_system' AND id = $1 AND status = $2 RETURNING "+signupColumns,
+			id, from, to)
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, signup.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 // Expire implements signup.Store.
@@ -184,9 +200,9 @@ func (s Store) AddDeletion(ctx context.Context, d signup.Deletion) (*signup.Dele
 	out := &signup.Deletion{}
 	err := s.inSystem(ctx, func(tx *sqlx.Tx) error {
 		return tx.GetContext(ctx, out, `INSERT INTO org_deletions (organization_id, organization_name, state, requested_at, requested_by,
-			reason, delete_after, cancel_token_hash, previous_status) VALUES ($1, $2, 'pending', $3, $4, $5, $6, $7, $8)
+			reason, delete_after, cancel_token_hash, previous_status) VALUES ($1, $2, 'pending', $3, $4, $5, coalesce($6, now()), $7, $8)
 			RETURNING `+deletionColumns,
-			d.OrganizationID, d.OrganizationName, d.RequestedAt, d.RequestedBy, d.Reason, d.DeleteAfter, d.CancelTokenHash, d.PreviousStatus)
+			d.OrganizationID, d.OrganizationName, d.RequestedAt, d.RequestedBy, d.Reason, timeOrNil(d.DeleteAfter), d.CancelTokenHash, d.PreviousStatus)
 	})
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -257,13 +273,39 @@ func (s Store) SetDeleteAfter(ctx context.Context, org string, at time.Time) err
 	})
 }
 
+func timeOrNil(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
+// ClaimDeletion implements signup.Store.
+func (s Store) ClaimDeletion(ctx context.Context, org string) (*signup.Deletion, error) {
+	d := &signup.Deletion{}
+	err := s.inSystem(ctx, func(tx *sqlx.Tx) error {
+		return tx.GetContext(ctx, d, `UPDATE org_deletions SET state = 'deleting', cancel_token_hash = NULL
+			WHERE tenant_id = '_system' AND organization_id = $1
+			AND (state = 'deleting' OR state = 'pending' AND delete_after <= now()
+			     AND EXISTS (SELECT 1 FROM tenants WHERE id = $1 AND status = 'suspended'))
+			RETURNING `+deletionColumns, org)
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, signup.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
 // DueDeletions implements signup.Store. Due is by the database's clock (the one rport_signup_delete_tenant
 // checks), so now is not used.
 func (s Store) DueDeletions(ctx context.Context, _ time.Time) ([]signup.Deletion, error) {
 	var out []signup.Deletion
 	err := s.inSystem(ctx, func(tx *sqlx.Tx) error {
 		return tx.SelectContext(ctx, &out, "SELECT "+deletionColumns+` FROM org_deletions
-			WHERE tenant_id = '_system' AND state = 'pending' AND delete_after <= now() ORDER BY delete_after`)
+			WHERE tenant_id = '_system' AND (state = 'pending' AND delete_after <= now() OR state = 'deleting') ORDER BY delete_after`)
 	})
 	return out, err
 }
@@ -278,25 +320,20 @@ func (s Store) ListDeletions(ctx context.Context, state string, limit int) ([]si
 	return out, err
 }
 
-// DeleteOrganization implements signup.Store. The deletion's date is compared with the database's clock (the
-// function's now()), so at is only recorded.
-func (s Store) DeleteOrganization(ctx context.Context, org, by string, at time.Time) (deleted bool, err error) {
-	err = s.inSystem(ctx, func(tx *sqlx.Tx) error {
-		if err := tx.GetContext(ctx, &deleted, "SELECT rport_signup_delete_tenant($1)", org); err != nil {
+// DeleteOrganization implements signup.Store.
+func (s Store) DeleteOrganization(ctx context.Context, org, by string, at time.Time) error {
+	return s.inSystem(ctx, func(tx *sqlx.Tx) error {
+		if _, err := tx.ExecContext(ctx, "SELECT rport_signup_delete_tenant($1)", org); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "42501" {
 				return fmt.Errorf("%w (give the application role the signup privileges: run \"rportd migrate --grant-to ROLE\" as the schema owner)", err)
 			}
 			return err
 		}
-		if !deleted {
-			return nil
-		}
 		_, err := tx.ExecContext(ctx, `UPDATE org_deletions SET state = 'done', finished_at = $2, finished_by = $3, cancel_token_hash = NULL
-			WHERE tenant_id = '_system' AND organization_id = $1 AND state = 'pending'`, org, at, by)
+			WHERE tenant_id = '_system' AND organization_id = $1 AND state = 'deleting'`, org, at, by)
 		return err
 	})
-	return deleted, err
 }
 
 // Audit implements signup.Store: an entry of the system tenant's audit log.

@@ -53,6 +53,7 @@ func NewSignup(cfg *chconfig.Config, db *sqlx.DB, op operator.Service, keys vaul
 	var mailer signup.Mailer
 	switch sc.Mail {
 	case chconfig.SignupMailLog:
+		log.Infof(`[signup] mail = "log": signup emails are not sent; they are logged with their links (development only)`)
 		mailer = signup.LogMailer{Log: log}
 	default:
 		smtp, err := rmailer.ConfigFromSMTPConfig(cfg.SMTP)

@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	zxcvbn "github.com/trustelem/zxcvbn"
 
@@ -22,7 +23,7 @@ import (
 
 const (
 	maxEmail   = 254
-	maxOrgName = 200
+	maxOrgName = 100
 	// maxPassword: bcrypt uses the first 72 bytes only
 	maxPassword = 72
 	idChars     = "abcdefghijkmnpqrstuvwxyz23456789"
@@ -55,7 +56,7 @@ type PasswordRules struct {
 }
 
 func (p PasswordRules) check(password, user string) error {
-	if len(password) < p.MinLength {
+	if utf8.RuneCountInString(password) < p.MinLength {
 		return fmt.Errorf("%w: the password must be at least %d characters", ErrInvalid, p.MinLength)
 	}
 	if len(password) > maxPassword {

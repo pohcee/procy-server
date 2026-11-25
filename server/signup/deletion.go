@@ -21,9 +21,11 @@ func checkOrganization(org string) error {
 }
 
 // RequestDeletion starts the deletion of an organization: it is suspended at once (nobody can log in, devices
-// can't connect), its billing is closed, its administrators get a link to cancel, and its data is deleted after
-// [signup] deletion_hold. by is the organization's administrator or an operator.
-func (s *Service) RequestDeletion(ctx context.Context, by operator.Actor, org, reason string) (*Deletion, error) {
+// can't connect), its billing is closed, and its data is deleted after [signup] deletion_hold. by is the
+// organization's administrator (byOperator false: the administrators get a link to cancel, since they can't log in
+// to the suspended organization) or an operator (byOperator true: they get a notice, and only an operator can
+// cancel).
+func (s *Service) RequestDeletion(ctx context.Context, by operator.Actor, org, reason string, byOperator bool) (*Deletion, error) {
 	if err := checkOrganization(org); err != nil {
 		return nil, err
 	}
@@ -37,37 +39,53 @@ func (s *Service) RequestDeletion(ctx context.Context, by operator.Actor, org, r
 	if err != nil {
 		return nil, err
 	}
-	// the administrators, read before the suspension, get the cancel link
+	// the administrators, read before the suspension, are told
 	admins, err := s.o.Store.AdminEmails(ctx, org)
 	if err != nil {
 		return nil, err
 	}
-	token, hash, err := newToken()
-	if err != nil {
-		return nil, err
+	if !byOperator && len(admins) == 0 {
+		return nil, fmt.Errorf("%w: no administrator of the organization has an email address for the link to cancel the deletion", ErrConflict)
+	}
+	var token string
+	var hash *string
+	if !byOperator {
+		t, h, err := newToken()
+		if err != nil {
+			return nil, err
+		}
+		token, hash = t, &h
 	}
 	now := s.now()
 	d, err := s.o.Store.AddDeletion(ctx, Deletion{
 		OrganizationID: org, OrganizationName: o.Name, State: DeletionPending, RequestedAt: now, RequestedBy: by.Username,
-		Reason: reason, DeleteAfter: now.Add(s.o.Config.DeletionHold), CancelTokenHash: &hash, PreviousStatus: o.Status,
+		Reason: reason, DeleteAfter: now.Add(s.o.Config.DeletionHold), CancelTokenHash: hash, PreviousStatus: o.Status,
 	})
 	if err != nil {
 		return nil, err
 	}
+	undo := func() { _, _ = s.o.Store.FinishDeletion(ctx, org, DeletionCanceled, "signup:request-failed", now) }
+	if err := s.audit(ctx, by, AuditApplicationDeletion, AuditActionRequest, org, map[string]any{"reason": reason, "delete_after": d.DeleteAfter}); err != nil {
+		undo()
+		return nil, err
+	}
 	if o.Status != operator.StatusSuspended {
 		if _, err := s.o.Orgs.SetStatus(ctx, by, org, operator.StatusSuspended); err != nil {
-			_, _ = s.o.Store.FinishDeletion(ctx, org, DeletionCanceled, "failed", now)
+			undo()
 			return nil, err
 		}
-	}
-	if err := s.audit(ctx, by, AuditApplicationDeletion, AuditActionRequest, org, map[string]any{"reason": reason, "delete_after": d.DeleteAfter}); err != nil {
-		return nil, err
 	}
 	if err := s.o.Plans.DeletionRequested(ctx, by, org); err != nil {
 		s.o.Log.Errorf("deletion of organization %s: billing: %v", org, err)
 	}
 	for _, a := range admins {
-		_ = s.send(ctx, a, deletionMail(s.o.Config.PublicURL, o.Name, org, token, d.DeleteAfter))
+		m := deletionNotice(o.Name, org, d.DeleteAfter)
+		if token != "" {
+			m = deletionMail(s.o.Config.PublicURL, o.Name, org, token, d.DeleteAfter)
+		}
+		if s.send(ctx, a, m) == nil && token != "" {
+			d.CancelLinksSent++
+		}
 	}
 	return d, nil
 }
@@ -108,6 +126,7 @@ func (s *Service) CancelDeletionByToken(ctx context.Context, token, remoteIP str
 }
 
 // Expedite deletes an organization whose deletion is pending now, without waiting for its date (operators).
+// ErrConflict when the organization was reactivated meanwhile (the deletion is then canceled).
 func (s *Service) Expedite(ctx context.Context, by operator.Actor, org string) error {
 	if err := checkOrganization(org); err != nil {
 		return err
@@ -141,7 +160,7 @@ func (s *Service) Export(ctx context.Context, by operator.Actor, org string) (*E
 	if err != nil {
 		return nil, err
 	}
-	if err := s.audit(ctx, by, AuditApplicationDeletion, AuditActionExport, org, nil); err != nil {
+	if err := s.audit(ctx, by, AuditApplicationExport, AuditActionExport, org, nil); err != nil {
 		return nil, err
 	}
 	return e, nil

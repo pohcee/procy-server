@@ -23,6 +23,7 @@ const (
 	StatusPending          = "pending"
 	StatusExisting         = "existing"
 	StatusAwaitingApproval = "awaiting_approval"
+	StatusCreating         = "creating"
 	StatusCompleted        = "completed"
 	StatusDenied           = "denied"
 	StatusExpired          = "expired"
@@ -31,6 +32,7 @@ const (
 // Deletion states.
 const (
 	DeletionPending  = "pending"
+	DeletionDeleting = "deleting"
 	DeletionCanceled = "canceled"
 	DeletionDone     = "done"
 )
@@ -39,6 +41,7 @@ const (
 const (
 	AuditApplicationSignup   = "signup"
 	AuditApplicationDeletion = "organization.deletion"
+	AuditApplicationExport   = "organization.export"
 	AuditActionRequest       = "request"
 	AuditActionVerify        = "verify"
 	AuditActionCreate        = "create"
@@ -97,7 +100,9 @@ type Update struct {
 	DecidedBy      string
 	Reason         string
 	OrganizationID string
-	ClearPassword  bool
+	// PasswordHash, when set, is stored (a signup waiting for approval keeps the password chosen at verify)
+	PasswordHash  string
+	ClearPassword bool
 }
 
 // Counts are the signups since a time from one IP, email domain and email.
@@ -119,6 +124,8 @@ type Deletion struct {
 	PreviousStatus   string     `json:"previous_status" db:"previous_status"`
 	FinishedAt       *time.Time `json:"finished_at" db:"finished_at"`
 	FinishedBy       string     `json:"finished_by" db:"finished_by"`
+	// CancelLinksSent is how many administrators were mailed a link to cancel (RequestDeletion only).
+	CancelLinksSent int `json:"cancel_links_sent" db:"-"`
 }
 
 // AuditEntry is a signup or deletion action for the system tenant's audit log.
@@ -145,6 +152,9 @@ type Store interface {
 	// RestoreToken gives a claimed signup its token back (its creation failed and may be retried).
 	RestoreToken(ctx context.Context, id, tokenHash string) error
 	SetStatus(ctx context.Context, id string, u Update) error
+	// Transition changes the status of signup id from from to to, atomically, and returns it; ErrNotFound when it
+	// is not in from.
+	Transition(ctx context.Context, id, from, to string) (*Signup, error)
 	// Expire marks pending and awaiting signups whose expiry passed as expired and clears their passwords.
 	Expire(ctx context.Context, now time.Time) (int, error)
 	// UserExists reports whether username is a user of any tenant.
@@ -152,7 +162,8 @@ type Store interface {
 	// AdminEmails returns the email addresses of the administrators of the organization.
 	AdminEmails(ctx context.Context, org string) ([]string, error)
 
-	// AddDeletion records a pending deletion; ErrConflict when one is pending for the organization already.
+	// AddDeletion records a pending deletion (a zero DeleteAfter is the database's now); ErrConflict when one is
+	// pending or under way for the organization already.
 	AddDeletion(ctx context.Context, d Deletion) (*Deletion, error)
 	PendingDeletion(ctx context.Context, org string) (*Deletion, error)
 	DeletionByCancelToken(ctx context.Context, tokenHash string) (*Deletion, error)
@@ -160,12 +171,15 @@ type Store interface {
 	FinishDeletion(ctx context.Context, org, state, by string, at time.Time) (*Deletion, error)
 	// SetDeleteAfter moves the date of a pending deletion; a zero time is now by the database clock.
 	SetDeleteAfter(ctx context.Context, org string, at time.Time) error
-	// DueDeletions are the pending deletions whose date is at or before now.
+	// ClaimDeletion moves the deletion of org to deleting, atomically, when it is pending and due and the
+	// organization suspended, or returns it when it is deleting already; ErrNotFound otherwise.
+	ClaimDeletion(ctx context.Context, org string) (*Deletion, error)
+	// DueDeletions are the pending deletions whose date is at or before now, and those under way.
 	DueDeletions(ctx context.Context, now time.Time) ([]Deletion, error)
 	ListDeletions(ctx context.Context, state string, limit int) ([]Deletion, error)
-	// DeleteOrganization deletes the tenant org of a due deletion and marks the deletion done, in one transaction.
-	// deleted is false (nothing changed) when the organization is not suspended.
-	DeleteOrganization(ctx context.Context, org, by string, at time.Time) (deleted bool, _ error)
+	// DeleteOrganization deletes the tenant org of a claimed deletion and marks the deletion done, in one
+	// transaction.
+	DeleteOrganization(ctx context.Context, org, by string, at time.Time) error
 
 	// Export returns the configuration of the organization, without secrets.
 	Export(ctx context.Context, org string) (*Export, error)

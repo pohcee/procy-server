@@ -16,8 +16,9 @@ CREATE TABLE signups (
     password_hash   text        NOT NULL DEFAULT '',
     token_hash      text        NULL,
     -- pending: link sent; existing: the email is already a user (a notice was sent, no link); awaiting_approval:
-    -- verified, held for an operator; completed; denied; expired
-    status          text        NOT NULL CHECK (status IN ('pending', 'existing', 'awaiting_approval', 'completed', 'denied', 'expired')),
+    -- verified, held for an operator; creating: an operator's approval is creating the organization; completed;
+    -- denied; expired
+    status          text        NOT NULL CHECK (status IN ('pending', 'existing', 'awaiting_approval', 'creating', 'completed', 'denied', 'expired')),
     created_at      timestamptz NOT NULL DEFAULT now(),
     expires_at      timestamptz NOT NULL,
     verified_at     timestamptz NULL,
@@ -43,7 +44,9 @@ CREATE TABLE org_deletions (
     id                bigserial,
     organization_id   text        NOT NULL,
     organization_name text        NOT NULL DEFAULT '',
-    state             text        NOT NULL CHECK (state IN ('pending', 'canceled', 'done')),
+    -- pending: held; deleting: claimed by the upkeep or an expedite (the vault key may be shredded already: no
+    -- cancel, no reactivation); canceled; done
+    state             text        NOT NULL CHECK (state IN ('pending', 'deleting', 'canceled', 'done')),
     requested_at      timestamptz NOT NULL DEFAULT now(),
     requested_by      text        NOT NULL,
     reason            text        NOT NULL DEFAULT '',
@@ -55,7 +58,7 @@ CREATE TABLE org_deletions (
     finished_by       text        NOT NULL DEFAULT '',
     PRIMARY KEY (tenant_id, id)
 );
-CREATE UNIQUE INDEX org_deletions_one_pending ON org_deletions (organization_id) WHERE state = 'pending';
+CREATE UNIQUE INDEX org_deletions_one_pending ON org_deletions (organization_id) WHERE state IN ('pending', 'deleting');
 CREATE UNIQUE INDEX org_deletions_cancel_token ON org_deletions (cancel_token_hash) WHERE cancel_token_hash IS NOT NULL;
 CREATE INDEX org_deletions_due ON org_deletions (tenant_id, state, delete_after);
 SELECT rport_enable_rls('org_deletions');
@@ -79,20 +82,34 @@ $$;
 CREATE TRIGGER tenants_not_deleted_ids BEFORE INSERT ON tenants
     FOR EACH ROW EXECUTE FUNCTION rport_refuse_deleted_tenant_id();
 
--- rport_signup_delete_tenant deletes an organization whose deletion is due: a pending org_deletions row with
--- delete_after in the past and the tenant suspended. Every tenant-scoped table cascades from tenants. Like the
--- operator functions it runs only in a system tenant transaction and only for organizations. Returns false (and
--- deletes nothing) when the organization is not suspended (an operator reactivated it).
+-- An organization whose deletion is under way (state deleting: its vault key may be gone) can't be reactivated.
+-- The operator functions change tenants inside system tenant transactions, where org_deletions is visible.
+CREATE FUNCTION rport_refuse_reactivating_deleted() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.status = 'active' AND OLD.status <> 'active' AND EXISTS (
+        SELECT 1 FROM org_deletions WHERE tenant_id = '_system' AND organization_id = NEW.id AND state = 'deleting') THEN
+        RAISE EXCEPTION 'organization % is being deleted', NEW.id USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END
+$$;
+CREATE TRIGGER tenants_not_reactivated_while_deleting BEFORE UPDATE OF status ON tenants
+    FOR EACH ROW EXECUTE FUNCTION rport_refuse_reactivating_deleted();
+
+-- rport_signup_delete_tenant deletes an organization whose deletion was claimed (org_deletions state deleting)
+-- and which is suspended. Every tenant-scoped table cascades from tenants. Like the operator functions it runs only
+-- in a system tenant transaction and only for organizations. The checks keep a slip of the signup code from deleting
+-- the wrong tenant; they are no barrier against the application role itself, which can write org_deletions and
+-- suspend tenants (and already reads and writes every tenant's data).
 CREATE FUNCTION rport_signup_delete_tenant(p_id text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
     PERFORM rport_operator_check(p_id);
-    IF NOT EXISTS (SELECT 1 FROM org_deletions WHERE tenant_id = '_system' AND organization_id = p_id
-                   AND state = 'pending' AND delete_after <= now()) THEN
-        RAISE EXCEPTION 'organization % has no deletion due', p_id USING ERRCODE = 'check_violation';
+    IF NOT EXISTS (SELECT 1 FROM org_deletions WHERE tenant_id = '_system' AND organization_id = p_id AND state = 'deleting') THEN
+        RAISE EXCEPTION 'organization % has no deletion under way', p_id USING ERRCODE = 'check_violation';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM tenants WHERE id = p_id AND status = 'suspended') THEN
-        RETURN false;
+        RAISE EXCEPTION 'organization % is not suspended', p_id USING ERRCODE = 'check_violation';
     END IF;
     INSERT INTO deleted_tenant_ids (id) VALUES (p_id) ON CONFLICT (id) DO NOTHING;
     DELETE FROM work_leases WHERE tenant_id = p_id;
@@ -101,3 +118,15 @@ BEGIN
 END
 $$;
 REVOKE EXECUTE ON FUNCTION rport_signup_delete_tenant(text) FROM PUBLIC;
+-- the application role reads deleted_tenant_ids only (rport_signup_delete_tenant writes it); "rportd migrate
+-- --grant-to" revokes the default privileges' writes on it, and so does this for roles granted before
+DO $$
+DECLARE r record;
+BEGIN
+    FOR r IN SELECT DISTINCT grantee FROM information_schema.role_table_grants
+             WHERE table_schema = 'public' AND table_name = 'deleted_tenant_ids' AND privilege_type = 'INSERT'
+               AND grantee <> current_user LOOP
+        EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON deleted_tenant_ids FROM %I', r.grantee);
+    END LOOP;
+END
+$$;

@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/openrport/openrport/server/api/users"
 	"github.com/openrport/openrport/server/chconfig"
@@ -78,11 +80,11 @@ func (s *Service) PublicConfig() PublicConfig {
 	}
 }
 
-// Request is a signup as the visitor gives it.
+// Request is a signup as the visitor gives it. The password is chosen when verifying (Verify), so that whoever
+// asks for a signup with someone else's email never knows the password of the account it creates.
 type Request struct {
 	Email        string `json:"email"`
 	Organization string `json:"organization"`
-	Password     string `json:"password"`
 	Captcha      string `json:"captcha"`
 }
 
@@ -90,18 +92,30 @@ func signupActor(email, ip string) operator.Actor {
 	return operator.Actor{Username: "signup:" + email, RemoteIP: ip}
 }
 
+// checkOrgName refuses names that are empty, too long or have control characters (they go into emails).
+func checkOrgName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || utf8.RuneCountInString(name) > maxOrgName {
+		return "", fmt.Errorf("%w: the organization name must be 1 to %d characters", ErrInvalid, maxOrgName)
+	}
+	for _, r := range name {
+		if unicode.IsControl(r) || !unicode.IsPrint(r) && r != ' ' {
+			return "", fmt.Errorf("%w: the organization name must not contain control characters", ErrInvalid)
+		}
+	}
+	return name, nil
+}
+
 // Request checks a signup and sends the verification email. The result is the same whether or not the email is
-// already a user (that one gets a notice instead of a link), so it doesn't reveal accounts.
+// already a user (that one gets a notice instead of a link), and both take the same work, so it doesn't reveal
+// accounts.
 func (s *Service) Request(ctx context.Context, in Request, remoteIP string) error {
 	addr, domain, err := normalizeEmail(in.Email)
 	if err != nil {
 		return err
 	}
-	org := strings.TrimSpace(in.Organization)
-	if org == "" || len(org) > maxOrgName {
-		return fmt.Errorf("%w: the organization name must be 1 to %d characters", ErrInvalid, maxOrgName)
-	}
-	if err := s.o.Passwords.check(in.Password, addr); err != nil {
+	org, err := checkOrgName(in.Organization)
+	if err != nil {
 		return err
 	}
 	if s.o.Captcha != nil {
@@ -118,7 +132,11 @@ func (s *Service) Request(ctx context.Context, in Request, remoteIP string) erro
 		return err
 	}
 	c := s.o.Config
-	if over(n.IP, c.MaxPerIPPerDay) || over(n.Domain, c.MaxPerDomainPerDay) || over(n.Email, c.MaxPerEmailPerDay) {
+	domainLimit := c.MaxPerDomainPerDay
+	if c.UnlimitedDomain(domain) {
+		domainLimit = -1
+	}
+	if over(n.IP, c.MaxPerIPPerDay) || over(n.Domain, domainLimit) || over(n.Email, c.MaxPerEmailPerDay) {
 		s.o.Log.Infof("signup refused (rate limit): %s from %s (ip %d, domain %d, email %d today)", addr, remoteIP, n.IP, n.Domain, n.Email)
 		return ErrRateLimited
 	}
@@ -131,21 +149,16 @@ func (s *Service) Request(ctx context.Context, in Request, remoteIP string) erro
 	if err != nil {
 		return err
 	}
-	row := Signup{ID: id, Email: addr, Domain: domain, RemoteIP: remoteIP, OrgName: org, CreatedAt: now, ExpiresAt: now.Add(c.TokenTTL)}
-	var m mail
+	token, hash, err := newToken()
+	if err != nil {
+		return err
+	}
+	row := Signup{ID: id, Email: addr, Domain: domain, RemoteIP: remoteIP, OrgName: org, CreatedAt: now, ExpiresAt: now.Add(c.TokenTTL),
+		Status: StatusPending, TokenHash: &hash}
+	m := verifyMail(c.PublicURL, token, org, c.TokenTTL)
 	if exists {
-		row.Status = StatusExisting
+		row.Status, row.TokenHash = StatusExisting, nil
 		m = existingMail(c.PublicURL)
-	} else {
-		token, hash, err := newToken()
-		if err != nil {
-			return err
-		}
-		row.Status, row.TokenHash = StatusPending, &hash
-		if row.PasswordHash, err = users.GenerateTokenHash(in.Password); err != nil {
-			return err
-		}
-		m = verifyMail(c.PublicURL, token, org, c.TokenTTL)
 	}
 	if err := s.o.Store.Insert(ctx, row); err != nil {
 		return err
@@ -183,9 +196,9 @@ type Result struct {
 	CheckoutRequired bool `json:"checkout_required"`
 }
 
-// Verify takes the token of a verification link (single use) and creates the organization, or holds it for an
-// operator with [signup] require_approval.
-func (s *Service) Verify(ctx context.Context, token, remoteIP string) (*Result, error) {
+// Verify takes the token of a verification link (single use) and the password the user chooses, and creates the
+// organization, or holds it for an operator with [signup] require_approval.
+func (s *Service) Verify(ctx context.Context, token, password, remoteIP string) (*Result, error) {
 	if token == "" {
 		return nil, ErrToken
 	}
@@ -195,10 +208,21 @@ func (s *Service) Verify(ctx context.Context, token, remoteIP string) (*Result, 
 	if err != nil {
 		return nil, err
 	}
+	// a refused password or a failure on the way may be retried with the same link until it expires
+	restore := func() { _ = s.o.Store.RestoreToken(ctx, row.ID, hash) }
+	if err := s.o.Passwords.check(password, row.Email); err != nil {
+		restore()
+		return nil, err
+	}
+	if row.PasswordHash, err = users.GenerateTokenHash(password); err != nil {
+		restore()
+		return nil, err
+	}
 	by := signupActor(row.Email, remoteIP)
 	if s.o.Config.RequireApproval {
-		if err := s.o.Store.SetStatus(ctx, row.ID, Update{Status: StatusAwaitingApproval, VerifiedAt: &now, ExpiresAt: ptr(approvalExpiry(now))}); err != nil {
-			_ = s.o.Store.RestoreToken(ctx, row.ID, hash)
+		if err := s.o.Store.SetStatus(ctx, row.ID, Update{Status: StatusAwaitingApproval, VerifiedAt: &now, ExpiresAt: ptr(approvalExpiry(now)),
+			PasswordHash: row.PasswordHash}); err != nil {
+			restore()
 			return nil, err
 		}
 		if err := s.audit(ctx, by, AuditApplicationSignup, AuditActionVerify, row.ID, nil); err != nil {
@@ -210,15 +234,15 @@ func (s *Service) Verify(ctx context.Context, token, remoteIP string) (*Result, 
 	res, err := s.complete(ctx, row, by, Update{VerifiedAt: &now})
 	if err != nil {
 		if !errors.Is(err, ErrConflict) {
-			// a failure on the way may be retried with the same link until it expires
-			_ = s.o.Store.RestoreToken(ctx, row.ID, hash)
+			restore()
 		}
 		return nil, err
 	}
 	return res, nil
 }
 
-// complete creates the organization of a verified signup with its first administrator and its plan.
+// complete creates the organization of a verified signup (row.PasswordHash set) with its first administrator and
+// its plan.
 func (s *Service) complete(ctx context.Context, row *Signup, by operator.Actor, u Update) (*Result, error) {
 	exists, err := s.o.Store.UserExists(ctx, row.Email)
 	if err != nil {
@@ -240,6 +264,12 @@ func (s *Service) complete(ctx context.Context, row *Signup, by operator.Actor, 
 			continue
 		}
 		if err != nil {
+			// the tenant may exist already (a later step of Create failed): don't leave it behind
+			if _, gerr := s.o.Orgs.Get(ctx, id); gerr == nil {
+				if derr := s.discard(ctx, by, id); derr != nil {
+					s.o.Log.Errorf("signup %s: delete the half-created organization %s: %v", row.ID, id, derr)
+				}
+			}
 			return nil, err
 		}
 		break
@@ -289,13 +319,12 @@ func (s *Service) discard(ctx context.Context, by operator.Actor, org string) er
 	if _, err := s.o.Orgs.SetStatus(ctx, by, org, operator.StatusSuspended); err != nil {
 		return err
 	}
-	now := s.now()
-	if _, err := s.o.Store.AddDeletion(ctx, Deletion{OrganizationID: org, State: DeletionPending, RequestedAt: now, RequestedBy: by.Username,
-		Reason: "signup could not be completed", DeleteAfter: now, PreviousStatus: operator.StatusActive}); err != nil {
+	// a zero DeleteAfter is the database's now(): due at once by the clock rport_signup_delete_tenant uses
+	if _, err := s.o.Store.AddDeletion(ctx, Deletion{OrganizationID: org, State: DeletionPending, RequestedAt: s.now(), RequestedBy: by.Username,
+		Reason: "signup could not be completed", PreviousStatus: operator.StatusActive}); err != nil {
 		return err
 	}
-	_, err := s.o.Store.DeleteOrganization(ctx, org, by.Username, now)
-	return err
+	return s.runDeletion(ctx, org, by)
 }
 
 // List returns the newest signups (operators).
@@ -306,22 +335,29 @@ func (s *Service) List(ctx context.Context, status string, limit int) ([]Signup,
 	return s.o.Store.List(ctx, status, limit)
 }
 
-// Approve creates the organization of a signup awaiting approval (operators).
+// Approve creates the organization of a signup awaiting approval (operators). The signup is claimed first, so two
+// operators approving at once create one organization.
 func (s *Service) Approve(ctx context.Context, by operator.Actor, id string) (*Result, error) {
-	row, err := s.o.Store.Get(ctx, id)
+	row, err := s.o.Store.Transition(ctx, id, StatusAwaitingApproval, StatusCreating)
+	if errors.Is(err, ErrNotFound) {
+		if _, gerr := s.o.Store.Get(ctx, id); gerr != nil {
+			return nil, gerr
+		}
+		return nil, fmt.Errorf("%w: the signup is not awaiting approval", ErrConflict)
+	}
 	if err != nil {
-		return nil, err
-	}
-	if row.Status != StatusAwaitingApproval {
-		return nil, fmt.Errorf("%w: the signup is %s, not awaiting approval", ErrConflict, row.Status)
-	}
-	if err := s.audit(ctx, by, AuditApplicationSignup, AuditActionApprove, id, nil); err != nil {
 		return nil, err
 	}
 	now := s.now()
 	res, err := s.complete(ctx, row, signupActor(row.Email, row.RemoteIP), Update{VerifiedAt: row.VerifiedAt, DecidedAt: &now, DecidedBy: by.Username})
 	if err != nil {
+		if !errors.Is(err, ErrConflict) {
+			_, _ = s.o.Store.Transition(ctx, id, StatusCreating, StatusAwaitingApproval)
+		}
 		return nil, err
+	}
+	if err := s.audit(ctx, by, AuditApplicationSignup, AuditActionApprove, id, map[string]string{"organization": res.Organization}); err != nil {
+		s.o.Log.Errorf("signup %s: audit: %v", id, err)
 	}
 	_ = s.send(ctx, row.Email, readyMail(s.o.Config.PublicURL, row.OrgName, res.Organization))
 	return res, nil
@@ -361,23 +397,23 @@ func (s *Service) Upkeep(ctx context.Context) error {
 	}
 	var errs []error
 	for _, d := range due {
-		if err := s.runDeletion(ctx, d.OrganizationID, operator.Actor{Username: "signup:upkeep"}); err != nil {
+		if err := s.runDeletion(ctx, d.OrganizationID, operator.Actor{Username: "signup:upkeep"}); err != nil && !errors.Is(err, ErrConflict) {
 			errs = append(errs, fmt.Errorf("delete organization %s: %w", d.OrganizationID, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// runDeletion deletes the organization of a due deletion: billing is told, the vault key shredded, the tenant
-// deleted with everything it has.
+// runDeletion deletes the organization of a due deletion. The deletion is claimed first (state deleting: no
+// cancel and no reactivation from then on), then billing is told, the vault key shredded and the tenant deleted
+// with everything it has. A claimed deletion that failed half way is taken up again by the next upkeep. ErrConflict
+// when the deletion is off: the organization was reactivated meanwhile.
 func (s *Service) runDeletion(ctx context.Context, org string, by operator.Actor) error {
-	// an organization an operator reactivated keeps its vault key: check before shredding
-	o, err := s.o.Orgs.Get(ctx, org)
-	if err != nil {
-		return err
-	}
-	if o.Status != operator.StatusSuspended {
-		return s.reactivated(ctx, org, by)
+	if _, err := s.o.Store.ClaimDeletion(ctx, org); err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			return err
+		}
+		return s.notClaimed(ctx, org, by)
 	}
 	if err := s.o.Plans.BeforeDelete(ctx, org); err != nil {
 		return err
@@ -387,24 +423,36 @@ func (s *Service) runDeletion(ctx context.Context, org string, by operator.Actor
 			return err
 		}
 	}
-	now := s.now()
-	deleted, err := s.o.Store.DeleteOrganization(ctx, org, by.Username, now)
-	if err != nil {
+	if err := s.o.Store.DeleteOrganization(ctx, org, by.Username, s.now()); err != nil {
 		return err
-	}
-	if !deleted {
-		return s.reactivated(ctx, org, by)
 	}
 	s.o.Log.Infof("organization %s deleted", org)
 	return s.audit(ctx, by, AuditApplicationDeletion, AuditActionDelete, org, nil)
 }
 
-// reactivated ends the deletion of an organization an operator reactivated meanwhile.
-func (s *Service) reactivated(ctx context.Context, org string, by operator.Actor) error {
-	if _, err := s.o.Store.FinishDeletion(ctx, org, DeletionCanceled, "reactivated", s.now()); err != nil {
+// notClaimed handles a pending deletion that could not be claimed: its organization is gone (done), active again
+// (canceled), or not due.
+func (s *Service) notClaimed(ctx context.Context, org string, by operator.Actor) error {
+	o, err := s.o.Orgs.Get(ctx, org)
+	switch {
+	case errors.Is(err, operator.ErrNotFound):
+		if _, err := s.o.Store.FinishDeletion(ctx, org, DeletionDone, "gone", s.now()); err != nil && !errors.Is(err, ErrNotFound) {
+			return err
+		}
+		return nil
+	case err != nil:
 		return err
+	case o.Status != operator.StatusSuspended:
+		if _, err := s.o.Store.FinishDeletion(ctx, org, DeletionCanceled, "reactivated", s.now()); err != nil {
+			return err
+		}
+		if err := s.audit(ctx, by, AuditApplicationDeletion, AuditActionCancel, org, map[string]string{"reason": "the organization was reactivated"}); err != nil {
+			return err
+		}
+		return fmt.Errorf("%w: organization %s was reactivated; its deletion is canceled", ErrConflict, org)
+	default:
+		return fmt.Errorf("%w: the deletion of organization %s is not due", ErrConflict, org)
 	}
-	return s.audit(ctx, by, AuditApplicationDeletion, AuditActionCancel, org, map[string]string{"reason": "the organization was reactivated"})
 }
 
 func ptr[T any](v T) *T { return &v }

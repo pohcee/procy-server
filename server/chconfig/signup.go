@@ -54,6 +54,9 @@ type SignupConfig struct {
 	AllowedDomainsFile string `mapstructure:"allowed_domains_file"`
 	// CheckMX refuses email domains without an MX (or address) record.
 	CheckMX bool `mapstructure:"check_mx"`
+	// UnlimitedDomains are email domains the per-domain limit doesn't apply to: shared mail providers, where it
+	// would let a few requests block everyone's signup (default DefaultSignupUnlimitedDomains; [] for none).
+	UnlimitedDomains []string `mapstructure:"unlimited_domains"`
 	// Limits per day (24 hours); 0 takes the default, a negative value turns the limit off.
 	MaxPerIPPerDay     int `mapstructure:"max_per_ip_per_day"`
 	MaxPerDomainPerDay int `mapstructure:"max_per_domain_per_day"`
@@ -65,6 +68,27 @@ type SignupConfig struct {
 	DeletionHold time.Duration `mapstructure:"deletion_hold"`
 	// Mail is "smtp" (default) or "log".
 	Mail string `mapstructure:"mail"`
+}
+
+// DefaultSignupUnlimitedDomains are large shared mail providers.
+var DefaultSignupUnlimitedDomains = []string{
+	"gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com", "yahoo.com", "icloud.com",
+	"me.com", "aol.com", "proton.me", "protonmail.com", "gmx.com", "gmx.net", "gmx.de", "web.de", "mail.com",
+	"yandex.com", "zoho.com", "fastmail.com",
+}
+
+// UnlimitedDomain reports whether the per-domain limit is off for domain.
+func (s SignupConfig) UnlimitedDomain(domain string) bool {
+	list := s.UnlimitedDomains
+	if list == nil {
+		list = DefaultSignupUnlimitedDomains
+	}
+	for _, d := range list {
+		if strings.EqualFold(d, domain) {
+			return true
+		}
+	}
+	return false
 }
 
 // TrialDaysOrDefault is TrialDays, or DefaultSignupTrialDays when it is not set.

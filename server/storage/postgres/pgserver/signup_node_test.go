@@ -111,7 +111,7 @@ func secretFile(t *testing.T) string {
 }
 
 func signupBody(email, org string) map[string]string {
-	return map[string]string{"email": email, "organization": org, "password": signupPassword, "captcha": "solved"}
+	return map[string]string{"email": email, "organization": org, "captcha": "solved"}
 }
 
 func (h *nodeFixture) loginAs(t *testing.T, user, password string) (int, string) {
@@ -133,17 +133,19 @@ func TestSignupFullFlow(t *testing.T) {
 	assert.Equal(t, "turnstile", data(t, out)["captcha"])
 	assert.EqualValues(t, 14, data(t, out)["trial_days"])
 
-	// refused before any email: bad captcha, weak password, bad email
+	// refused before any email: bad captcha, bad email, control characters in the name, a password (chosen at verify)
 	body := signupBody("Dana@Example.COM", "Dana's Widgets, Inc.")
 	body["captcha"] = "robot"
 	code, out = h.do(t, http.MethodPost, "/signup", "", body)
 	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
-	weak := signupBody("dana@example.com", "x")
-	weak["password"] = "short"
-	code, _ = h.do(t, http.MethodPost, "/signup", "", weak)
-	assert.Equal(t, http.StatusBadRequest, code)
 	code, _ = h.do(t, http.MethodPost, "/signup", "", signupBody("not-an-email", "x"))
 	assert.Equal(t, http.StatusBadRequest, code)
+	code, _ = h.do(t, http.MethodPost, "/signup", "", signupBody("dana@example.com", "Evil\r\nBcc: x@y.z"))
+	assert.Equal(t, http.StatusBadRequest, code)
+	withPassword := signupBody("dana@example.com", "x")
+	withPassword["password"] = signupPassword
+	code, _ = h.do(t, http.MethodPost, "/signup", "", withPassword)
+	assert.Equal(t, http.StatusBadRequest, code, "unknown field")
 	assert.Empty(t, sink.all())
 
 	code, out = h.do(t, http.MethodPost, "/signup", "", signupBody("Dana@Example.COM", "Dana's Widgets, Inc."))
@@ -158,7 +160,10 @@ func TestSignupFullFlow(t *testing.T) {
 	require.Len(t, stored, 1)
 	assert.NotContains(t, stored[0], tok)
 
-	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok})
+	// a weak password is refused and the link still works
+	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok, "password": "short"})
+	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok, "password": signupPassword})
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
 	res := data(t, out)
 	assert.Equal(t, "completed", res["status"])
@@ -169,7 +174,7 @@ func TestSignupFullFlow(t *testing.T) {
 	assert.Regexp(t, `^dana-s-widgets-inc-[a-z0-9]{6}$`, org)
 
 	// single use
-	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok})
+	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok, "password": signupPassword})
 	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
 
 	// the new administrator logs in with the password they chose, in the new organization
@@ -222,9 +227,9 @@ func TestSignupTokenExpiry(t *testing.T) {
 	tok := sink.last(t, "erin@example.com").token(t)
 	_, err := h.db.Owner.Exec("UPDATE signups SET expires_at = now() - interval '1 second'")
 	require.NoError(t, err)
-	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok})
+	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": tok, "password": signupPassword})
 	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
-	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": "made-up"})
+	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": "made-up", "password": signupPassword})
 	assert.Equal(t, http.StatusBadRequest, code, out["_raw"])
 	code, _ = h.loginAs(t, "erin@example.com", signupPassword)
 	assert.Equal(t, http.StatusUnauthorized, code)
@@ -285,7 +290,7 @@ func TestSignupRequireApproval(t *testing.T) {
 	for _, e := range []string{"fay@example.com", "gus@example.com"} {
 		code, out := h.do(t, http.MethodPost, "/signup", "", signupBody(e, "Org of "+e))
 		require.Equal(t, http.StatusAccepted, code, out["_raw"])
-		code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": sink.last(t, e).token(t)})
+		code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": sink.last(t, e).token(t), "password": signupPassword})
 		require.Equal(t, http.StatusAccepted, code, out["_raw"])
 		assert.Equal(t, "awaiting_approval", data(t, out)["status"])
 	}
@@ -322,7 +327,7 @@ func signUp(t *testing.T, h *nodeFixture, sink *mailSink, email string) (string,
 	t.Helper()
 	code, out := h.do(t, http.MethodPost, "/signup", "", signupBody(email, "Org"))
 	require.Equal(t, http.StatusAccepted, code, out["_raw"])
-	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": sink.last(t, email).token(t)})
+	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": sink.last(t, email).token(t), "password": signupPassword})
 	require.Equal(t, http.StatusCreated, code, out["_raw"])
 	org := data(t, out)["organization"].(string)
 	code, tok := h.loginAs(t, email, signupPassword)
@@ -332,14 +337,27 @@ func signUp(t *testing.T, h *nodeFixture, sink *mailSink, email string) (string,
 
 func TestOrganizationExport(t *testing.T) {
 	h, sink := startSignupNode(t, "")
+	// a stored tunnel with a password in its options, and a non-administrator
+	_, err := h.db.Owner.Exec(`INSERT INTO stored_tunnels (tenant_id, id, client_id, created_at, name, further_options)
+		VALUES ('a', 'st1', 'web01', now(), 'rdp', '{"auth_user": "u", "auth_password": "hunter2"}')`)
+	require.NoError(t, err)
+	require.NoError(t, AddUser(context.Background(), h.db.App, "a", "carl", testPassword, []string{"Viewers"}))
+	carl := h.login(t, "carl")
+	code, _ := h.do(t, http.MethodGet, "/organization/export", carl, nil)
+	assert.Equal(t, http.StatusForbidden, code, "administrators only")
+	code, _ = h.do(t, http.MethodPost, "/organization/deletion", carl, map[string]string{"confirm": "a"})
+	assert.Equal(t, http.StatusForbidden, code, "administrators only")
+
 	alice := h.login(t, "alice")
 	code, out := h.do(t, http.MethodGet, "/organization/export", alice, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.NotContains(t, out["_raw"], "hunter2")
+	assert.Contains(t, out["_raw"], "auth_user")
 	e := data(t, out)
 	assert.Equal(t, signup.ExportFormat, e["format"])
 	assert.Equal(t, "a", e["organization"].(map[string]any)["id"])
 	users := e["users"].([]any)
-	require.Len(t, users, 1)
+	require.Len(t, users, 2)
 	assert.Equal(t, "alice", users[0].(map[string]any)["username"])
 	clients := e["clients"].([]any)
 	require.Len(t, clients, 1)
@@ -375,6 +393,7 @@ func TestOrganizationDeletionHoldCancelAndExpedite(t *testing.T) {
 	code, out = h.do(t, http.MethodPost, "/organization/deletion", admin, map[string]string{"confirm": org, "reason": "done with it"})
 	require.Equal(t, http.StatusAccepted, code, out["_raw"])
 	assert.Equal(t, "pending", data(t, out)["state"])
+	assert.EqualValues(t, 1, data(t, out)["cancel_links_sent"])
 
 	// suspended at once
 	code, _ = h.do(t, http.MethodGet, "/me", admin, nil)
@@ -392,9 +411,14 @@ func TestOrganizationDeletionHoldCancelAndExpedite(t *testing.T) {
 	code, admin = h.loginAs(t, "hal@example.com", signupPassword)
 	require.Equal(t, http.StatusOK, code, "active again")
 
-	// an operator starts it, cancels it, starts it again and expedites it
+	// an operator starts it (the administrators get a notice without a link), cancels it, starts it again and
+	// expedites it
 	code, out = h.do(t, http.MethodPost, "/operator/organizations/"+org+"/deletion", op, map[string]string{"reason": "abuse"})
 	require.Equal(t, http.StatusAccepted, code, out["_raw"])
+	assert.EqualValues(t, 0, data(t, out)["cancel_links_sent"])
+	m = sink.last(t, "hal@example.com")
+	assert.Contains(t, m.body, "a platform operator")
+	assert.NotContains(t, m.body, "token=")
 	code, out = h.do(t, http.MethodDelete, "/operator/organizations/"+org+"/deletion", op, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	code, _ = h.do(t, http.MethodGet, "/me", admin, nil)
@@ -403,6 +427,8 @@ func TestOrganizationDeletionHoldCancelAndExpedite(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, code)
 	code, out = h.do(t, http.MethodPost, "/operator/organizations/"+org+"/deletion/expedite", op, nil)
 	require.Equal(t, http.StatusNoContent, code, out["_raw"])
+	code, _ = h.do(t, http.MethodPost, "/operator/organizations/"+org+"/deletion/expedite", op, nil)
+	assert.Equal(t, http.StatusNotFound, code, "nothing pending")
 
 	code, _ = h.do(t, http.MethodGet, "/operator/organizations/"+org, op, nil)
 	assert.Equal(t, http.StatusNotFound, code)
@@ -512,7 +538,65 @@ func TestSignupFunctionOnlyForDueDeletions(t *testing.T) {
 	op := h.login(t, "op")
 	code, _ := h.do(t, http.MethodPost, "/operator/organizations/"+org+"/deletion", op, map[string]string{})
 	require.Equal(t, http.StatusAccepted, code)
-	ok, err := signupStore(h).DeleteOrganization(context.Background(), org, "test", time.Now())
-	assert.ErrorContains(t, err, "no deletion due")
-	assert.False(t, ok)
+	err = signupStore(h).DeleteOrganization(context.Background(), org, "test", time.Now())
+	assert.ErrorContains(t, err, "no deletion under way", "pending, not claimed")
+
+	// once claimed, the organization can't be reactivated (its vault key may be gone)
+	_, err = h.db.Owner.Exec("UPDATE org_deletions SET state = 'deleting' WHERE organization_id = $1", org)
+	require.NoError(t, err)
+	_, err = NewOperator(h.db.App, loadConfig(t, nodeConf(t, h.db.AppURL, freeAddr(t), nodeSettings{}))).SetStatus(context.Background(), ops, org, operator.StatusActive)
+	assert.ErrorContains(t, err, "is being deleted")
+	code, _ = h.do(t, http.MethodPost, "/signup/cancel-deletion", "", map[string]string{"token": "x"})
+	assert.Equal(t, http.StatusBadRequest, code)
+	code, _ = h.do(t, http.MethodDelete, "/operator/organizations/"+org+"/deletion", op, nil)
+	assert.Equal(t, http.StatusNotFound, code, "no pending deletion to cancel")
+}
+
+func TestOrganizationExpediteReactivated(t *testing.T) {
+	h, sink := startSignupNode(t, "")
+	op := h.login(t, "op")
+	org, _ := signUp(t, h, sink, "max@example.com")
+	code, _ := h.do(t, http.MethodPost, "/operator/organizations/"+org+"/deletion", op, map[string]string{})
+	require.Equal(t, http.StatusAccepted, code)
+	code, _ = h.do(t, http.MethodPost, "/operator/organizations/"+org+"/activate", op, nil)
+	require.Equal(t, http.StatusOK, code)
+	code, out := h.do(t, http.MethodPost, "/operator/organizations/"+org+"/deletion/expedite", op, nil)
+	assert.Equal(t, http.StatusConflict, code, out["_raw"])
+	code, _ = h.do(t, http.MethodGet, "/operator/organizations/"+org, op, nil)
+	assert.Equal(t, http.StatusOK, code, "kept")
+}
+
+func TestSignupConcurrentApprovals(t *testing.T) {
+	h, sink := startSignupNode(t, "require_approval = true\n")
+	op := h.login(t, "op")
+	code, _ := h.do(t, http.MethodPost, "/signup", "", signupBody("ned@example.com", "Ned"))
+	require.Equal(t, http.StatusAccepted, code)
+	code, _ = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": sink.last(t, "ned@example.com").token(t), "password": signupPassword})
+	require.Equal(t, http.StatusAccepted, code)
+	var id string
+	require.NoError(t, h.db.Owner.Get(&id, "SELECT id FROM signups"))
+	codes := make(chan int, 4)
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c, _ := h.do(t, http.MethodPost, "/operator/signups/"+id+"/approve", op, nil)
+			codes <- c
+		}()
+	}
+	wg.Wait()
+	close(codes)
+	created := 0
+	for c := range codes {
+		if c == http.StatusCreated {
+			created++
+		} else {
+			assert.Equal(t, http.StatusConflict, c)
+		}
+	}
+	assert.Equal(t, 1, created)
+	var n int
+	require.NoError(t, h.db.Owner.Get(&n, "SELECT count(*) FROM deleted_tenant_ids"))
+	assert.Zero(t, n, "no organization made and thrown away")
 }

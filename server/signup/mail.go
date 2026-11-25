@@ -42,7 +42,7 @@ type mail struct{ subject, body string }
 
 func verifyMail(base, token, org string, ttl time.Duration) mail {
 	return mail{
-		subject: "Confirm your email to create " + org,
+		subject: "Confirm your email address",
 		body: fmt.Sprintf(`Hello,
 
 someone (hopefully you) asked to create the organization %q with this email address.
@@ -111,5 +111,17 @@ To keep the organization, open this link before then:
 
 %s
 `, org, orgID, at.UTC().Format("2006-01-02 15:04 MST"), link(base, CancelDeletionPath, token)),
+	}
+}
+
+func deletionNotice(org, orgID string, at time.Time) mail {
+	return mail{
+		subject: "Your organization " + org + " will be deleted",
+		body: fmt.Sprintf(`Hello,
+
+a platform operator started the deletion of the organization %q (id %s). It is suspended now: nobody can sign in
+and devices can't connect. On %s its data will be deleted for good. Contact the operators of this service if
+this is a mistake.
+`, org, orgID, at.UTC().Format("2006-01-02 15:04 MST")),
 	}
 }

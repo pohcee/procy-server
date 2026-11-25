@@ -80,12 +80,18 @@ type tokenRequest struct {
 	Token string `json:"token"`
 }
 
+type verifyRequest struct {
+	Token string `json:"token"`
+	// Password is the password the new administrator chooses.
+	Password string `json:"password"`
+}
+
 func (h *Handler) verify(w http.ResponseWriter, r *http.Request) {
-	var in tokenRequest
+	var in verifyRequest
 	if !h.decode(w, r, &in) {
 		return
 	}
-	res, err := h.svc.Verify(r.Context(), in.Token, chshare.RemoteIP(r))
+	res, err := h.svc.Verify(r.Context(), in.Token, in.Password, chshare.RemoteIP(r))
 	if err != nil {
 		h.fail(w, err)
 		return
@@ -165,7 +171,7 @@ func (h *Handler) deleteOwn(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, fmt.Errorf("%w: confirm must be the organization's id (%s)", ErrInvalid, org))
 		return
 	}
-	h.startDeletion(w, r, by, org, in.Reason)
+	h.startDeletion(w, r, by, org, in.Reason, false)
 }
 
 func (h *Handler) deleteAny(w http.ResponseWriter, r *http.Request) {
@@ -173,11 +179,11 @@ func (h *Handler) deleteAny(w http.ResponseWriter, r *http.Request) {
 	if !h.decode(w, r, &in) {
 		return
 	}
-	h.startDeletion(w, r, operator.ActorOf(r), mux.Vars(r)["id"], in.Reason)
+	h.startDeletion(w, r, operator.ActorOf(r), mux.Vars(r)["id"], in.Reason, true)
 }
 
-func (h *Handler) startDeletion(w http.ResponseWriter, r *http.Request, by operator.Actor, org, reason string) {
-	d, err := h.svc.RequestDeletion(r.Context(), by, org, reason)
+func (h *Handler) startDeletion(w http.ResponseWriter, r *http.Request, by operator.Actor, org, reason string, byOperator bool) {
+	d, err := h.svc.RequestDeletion(r.Context(), by, org, reason, byOperator)
 	if err != nil {
 		h.fail(w, err)
 		return

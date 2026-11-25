@@ -334,10 +334,9 @@ func NewAPIListener(ctx context.Context, o APIListenerOptions) (*APIListener, er
 	}
 
 	a.errResponseLogger = allog.Fork("error-response")
-	var operatorMounts []func(r *mux.Router)
-	if o.Signup != nil {
-		a.signupAPI = signup.NewHandler(o.Signup, a.responder(), a.getUserModelForAuth)
-		operatorMounts = append(operatorMounts, a.signupAPI.MountOperator)
+	operatorMounts, err := a.initSignup(o)
+	if err != nil {
+		return nil, err
 	}
 	if o.Operator != nil {
 		a.operatorAPI = operator.NewHandler(operator.Options{Service: o.Operator, Usage: o.Usage, CurrentUser: a.getUserModelForAuth, Respond: a.responder(), Mounts: operatorMounts})
@@ -754,4 +753,16 @@ func logGroupPermissionsNotice(userService *users.APIService, log *logger.Logger
 		log.Infof("the configured user store has no group permissions (auth_group_details_table): " +
 			"only Administrators can use commands, scripts, tunnels, vault and other permission-protected features")
 	}
+}
+
+// initSignup builds the signup handler of APIListenerOptions.Signup and returns the operator routes it adds.
+func (al *APIListener) initSignup(o APIListenerOptions) ([]func(r *mux.Router), error) {
+	if o.Signup == nil {
+		return nil, nil
+	}
+	if o.Operator == nil {
+		return nil, errors.New("signup needs the operator API (a server on Postgres)")
+	}
+	al.signupAPI = signup.NewHandler(o.Signup, al.responder(), al.getUserModelForAuth)
+	return []func(r *mux.Router){al.signupAPI.MountOperator}, nil
 }
