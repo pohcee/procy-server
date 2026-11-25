@@ -29,6 +29,8 @@ type CurrentUsage struct {
 	AvgHourBytes  float64
 	// NewestUsage is the newest hour of usage of any organization (for the stale-metering guard).
 	NewestUsage time.Time
+	// FailedOpen is why the period already failed open (kept for the rest of it, until an operator clears it).
+	FailedOpen string
 }
 
 // BillableDevices are the billable devices so far.
@@ -108,7 +110,9 @@ func Evaluate(b *Billing, plans *Plans, u CurrentUsage, o EnforceOptions, now ti
 	pl := EffectivePlan(b, plans)
 	p := Policy{Organization: b.Organization, Plan: pl.ID, UsedBytes: u.TransferBytes, State: TransferNormal,
 		MaxClients: MaxClients(b, plans)}
-	if b.Status == StatusExempt && b.ExemptLimits == ExemptLimitsNone {
+	if (b.Status == StatusExempt && b.ExemptLimits == ExemptLimitsNone) || b.PlanUnassigned {
+		// no limits: exempt without them, or no plan chosen yet (billing just turned on)
+		p.MaxClients = nil
 		return p
 	}
 	p.TunnelRate, p.ThrottleRate = pl.TunnelRateLimit, pl.ThrottleRate
@@ -169,6 +173,8 @@ func Evaluate(b *Billing, plans *Plans, u CurrentUsage, o EnforceOptions, now ti
 		factor = DefaultImplausibleFactor
 	}
 	switch {
+	case u.FailedOpen != "":
+		p.FailOpen = u.FailedOpen
 	case u.NewestUsage.IsZero() || now.Sub(u.NewestUsage) > MaxUsageAge:
 		p.FailOpen = fmt.Sprintf("metering is stale: the newest usage is from %s", u.NewestUsage.UTC().Format(time.RFC3339))
 	case u.LastHourBytes > implausibleFloor && float64(u.LastHourBytes) > factor*u.AvgHourBytes:

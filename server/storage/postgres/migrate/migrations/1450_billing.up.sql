@@ -37,7 +37,18 @@ CREATE TABLE org_billing (
     throttle_rate            bigint      NOT NULL DEFAULT 0,
     -- the device limit the upkeep last wrote to tenants.max_clients (an operator's own limit is left alone)
     plan_max_clients         integer     NULL,
-    fail_open                text        NOT NULL DEFAULT ''
+    fail_open                text        NOT NULL DEFAULT '',
+    -- when a period first failed open (the hard cap is held open for the rest of it, until an operator clears it)
+    fail_open_at             timestamptz NULL,
+    -- a record the upkeep created (billing turned on, or a new organization) has no plan chosen yet: it is metered
+    -- and shown on the free plan, without limits, and its device limit is left alone, until a plan is set
+    plan_unassigned          boolean     NOT NULL DEFAULT false,
+    -- the status and plan before the last change and since when the current ones apply: a period closed after a
+    -- change is closed with what applied at its end
+    previous_status          text        NULL,
+    status_since             timestamptz NULL,
+    previous_plan            text        NULL,
+    plan_since               timestamptz NULL
 );
 SELECT rport_enable_rls('org_billing');
 
@@ -147,7 +158,9 @@ BEGIN
     END IF;
     INSERT INTO org_billing AS b (tenant_id, plan, updated_by, plan_max_clients) VALUES (p_id, p_plan, p_by, p_max_clients)
     ON CONFLICT (tenant_id) DO UPDATE SET plan = EXCLUDED.plan, updated_at = now(), updated_by = EXCLUDED.updated_by,
-        plan_max_clients = EXCLUDED.plan_max_clients;
+        plan_max_clients = EXCLUDED.plan_max_clients, plan_unassigned = false,
+        previous_plan = CASE WHEN b.plan <> EXCLUDED.plan THEN b.plan ELSE b.previous_plan END,
+        plan_since = CASE WHEN b.plan <> EXCLUDED.plan THEN now() ELSE b.plan_since END;
     UPDATE tenants SET max_clients = p_max_clients WHERE id = p_id;
     PERFORM rport_billing_done();
     RETURN true;
@@ -171,9 +184,15 @@ BEGIN
         RAISE EXCEPTION 'exempt needs a reason' USING ERRCODE = 'check_violation';
     END IF;
     INSERT INTO org_billing (tenant_id, plan) VALUES (p_id, p_plan) ON CONFLICT (tenant_id) DO NOTHING;
+    -- a trial or comped period ended early by an operator ends now: later periods are charged from today
     UPDATE org_billing SET status = p_status,
-        trial_ends_at = CASE WHEN p_status = 'trial' THEN p_trial_ends_at ELSE trial_ends_at END,
-        comped_until = CASE WHEN p_status = 'comped' THEN p_comped_until ELSE comped_until END,
+        previous_status = CASE WHEN status <> p_status THEN status ELSE previous_status END,
+        status_since = CASE WHEN status <> p_status THEN now() ELSE status_since END,
+        trial_ends_at = CASE WHEN p_status = 'trial' THEN p_trial_ends_at
+                             WHEN trial_ends_at > now() THEN now() ELSE trial_ends_at END,
+        comped_until = CASE WHEN p_status = 'comped' THEN p_comped_until
+                            WHEN comped_until >= (now() AT TIME ZONE 'UTC')::date THEN (now() AT TIME ZONE 'UTC')::date - 1
+                            ELSE comped_until END,
         reason = coalesce(p_reason, ''),
         exempt_limits = CASE WHEN p_status = 'exempt' THEN coalesce(nullif(p_exempt_limits, ''), 'plan') ELSE 'plan' END,
         updated_at = now(), updated_by = p_by
@@ -186,7 +205,7 @@ $$;
 -- rport_operator_billing_override lifts the hard cap until p_cap_lifted_until (NULL ends a lift) and raises the
 -- allowance of the period starting p_extra_period by p_extra_bytes. Returns false when the organization doesn't exist.
 CREATE FUNCTION rport_operator_billing_override(p_id text, p_cap_lifted_until timestamptz, p_extra_bytes bigint,
-        p_extra_period date, p_plan text, p_by text) RETURNS boolean
+        p_extra_period date, p_clear_fail_open boolean, p_plan text, p_by text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
     PERFORM rport_operator_check(p_id);
@@ -197,7 +216,10 @@ BEGIN
     END IF;
     INSERT INTO org_billing (tenant_id, plan) VALUES (p_id, p_plan) ON CONFLICT (tenant_id) DO NOTHING;
     UPDATE org_billing SET cap_lifted_until = p_cap_lifted_until, extra_transfer_bytes = coalesce(p_extra_bytes, 0),
-        extra_transfer_period = p_extra_period, updated_at = now(), updated_by = p_by
+        extra_transfer_period = p_extra_period,
+        fail_open = CASE WHEN p_clear_fail_open THEN '' ELSE fail_open END,
+        fail_open_at = CASE WHEN p_clear_fail_open THEN NULL ELSE fail_open_at END,
+        updated_at = now(), updated_by = p_by
     WHERE tenant_id = p_id;
     PERFORM rport_billing_done();
     RETURN true;
@@ -250,8 +272,8 @@ CREATE FUNCTION rport_billing_ensure(p_plan text) RETURNS integer
 DECLARE n integer;
 BEGIN
     PERFORM rport_billing_check();
-    INSERT INTO org_billing (tenant_id, plan, updated_by)
-    SELECT t.id, p_plan, 'billing:upkeep' FROM tenants t
+    INSERT INTO org_billing (tenant_id, plan, updated_by, plan_unassigned)
+    SELECT t.id, p_plan, 'billing:upkeep', true FROM tenants t
     WHERE t.status IN ('active', 'suspended') AND left(t.id, 1) <> '_'
     ON CONFLICT (tenant_id) DO NOTHING;
     GET DIAGNOSTICS n = ROW_COUNT;
@@ -265,15 +287,19 @@ $$;
 -- operator just set is not overwritten. Returns false when nothing changed.
 CREATE FUNCTION rport_billing_transition(p_id text, p_from text, p_plan text, p_max_clients integer) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE found_it boolean;
+DECLARE found_it boolean; prev integer;
 BEGIN
     PERFORM rport_billing_check();
+    SELECT plan_max_clients INTO prev FROM org_billing WHERE tenant_id = p_id;
     UPDATE org_billing SET status = 'paying', plan = p_plan, updated_at = now(), updated_by = 'billing:upkeep',
-        plan_max_clients = p_max_clients
+        plan_max_clients = p_max_clients, previous_status = status, status_since = now(),
+        previous_plan = CASE WHEN plan <> p_plan THEN plan ELSE previous_plan END,
+        plan_since = CASE WHEN plan <> p_plan THEN now() ELSE plan_since END
     WHERE tenant_id = p_id AND status = p_from;
     found_it := FOUND;
     IF found_it THEN
-        UPDATE tenants SET max_clients = p_max_clients WHERE id = p_id;
+        -- a device limit an operator set by hand stays
+        UPDATE tenants SET max_clients = p_max_clients WHERE id = p_id AND max_clients IS NOT DISTINCT FROM prev;
     END IF;
     PERFORM rport_billing_done();
     RETURN found_it;
@@ -287,18 +313,19 @@ CREATE FUNCTION rport_billing_set_policy(p_id text, p_state text, p_allowance bi
         p_hard bigint, p_overage_cents bigint, p_tunnel_rate bigint, p_throttle_rate bigint, p_max_clients integer,
         p_fail_open text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
-DECLARE prev integer; had boolean;
+DECLARE prev integer; had boolean; unassigned boolean;
 BEGIN
     PERFORM rport_billing_check();
-    SELECT plan_max_clients, true INTO prev, had FROM org_billing WHERE tenant_id = p_id;
+    SELECT plan_max_clients, true, plan_unassigned INTO prev, had, unassigned FROM org_billing WHERE tenant_id = p_id;
     IF had THEN
-        IF prev IS DISTINCT FROM p_max_clients THEN
+        IF NOT unassigned AND prev IS DISTINCT FROM p_max_clients THEN
             UPDATE tenants SET max_clients = p_max_clients WHERE id = p_id AND max_clients IS NOT DISTINCT FROM prev;
         END IF;
         UPDATE org_billing SET transfer_state = p_state, transfer_state_at = now(), allowance_bytes = p_allowance,
             used_bytes = p_used, soft_cap_bytes = p_soft, hard_cap_bytes = p_hard, overage_cents = p_overage_cents,
             tunnel_rate = p_tunnel_rate, throttle_rate = p_throttle_rate, plan_max_clients = p_max_clients,
-            fail_open = coalesce(p_fail_open, '')
+            fail_open = coalesce(p_fail_open, ''),
+            fail_open_at = CASE WHEN coalesce(p_fail_open, '') = '' THEN NULL ELSE coalesce(fail_open_at, now()) END
         WHERE tenant_id = p_id;
     END IF;
     PERFORM rport_billing_done();
@@ -392,7 +419,7 @@ $$;
 REVOKE EXECUTE ON FUNCTION rport_billing_check(), rport_billing_done(), rport_billing_org_exists(text),
     rport_operator_set_plan(text, text, integer, text),
     rport_operator_set_billing(text, text, timestamptz, date, text, text, text, text),
-    rport_operator_billing_override(text, timestamptz, bigint, date, text, text),
+    rport_operator_billing_override(text, timestamptz, bigint, date, boolean, text, text),
     rport_operator_approve_period(text, date, text), rport_operator_billing(text),
     rport_operator_billing_periods(text, text), rport_billing_ensure(text),
     rport_billing_transition(text, text, text, integer),

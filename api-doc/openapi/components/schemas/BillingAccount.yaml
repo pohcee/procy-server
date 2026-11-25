@@ -52,6 +52,27 @@ properties:
     type: string
     format: date-time
     nullable: true
+  fail_open_at:
+    type: string
+    format: date-time
+    nullable: true
+  plan_unassigned:
+    type: boolean
+    description: No plan chosen yet (billing just turned on), so metered on the free plan without limits
+  previous_status:
+    type: string
+    description: Operators only
+  status_since:
+    type: string
+    format: date-time
+    description: Operators only
+  previous_plan:
+    type: string
+    description: Operators only
+  plan_since:
+    type: string
+    format: date-time
+    description: Operators only
   policy:
     $ref: BillingPolicy.yaml
   soft_cap_reached:

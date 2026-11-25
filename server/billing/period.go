@@ -78,7 +78,7 @@ type PeriodUsage struct {
 	UploadBytesToDevices int64
 }
 
-// PeriodSpan returns the first day the period starting start is billed from for b, and whether any of it is
+// PeriodSpan returns (for b as it applied at the end of the period, see Billing.AsOf) the first day the period starting start is billed from for b, and whether any of it is
 // charged: from the later of start, the day billing started, the day a trial ended and the day after a comped date.
 // Exempt organizations are never charged; for them, and for periods not charged at all, from is the first day
 // billing covers (for the quantities shown).
@@ -92,6 +92,12 @@ func PeriodSpan(b *Billing, start time.Time) (from time.Time, charged bool) {
 	covered := from
 	if b.Status == StatusExempt {
 		return covered, false
+	}
+	if b.Status == StatusPaying && b.PreviousStatus != nil && *b.PreviousStatus == StatusExempt && b.StatusSince != nil {
+		// exempt until then: charged from that day
+		if d := DayStart(*b.StatusSince); d.After(from) {
+			from = d
+		}
 	}
 	if b.TrialEndsAt != nil && (b.Status == StatusTrial || b.Status == StatusPaying) {
 		// a trial is not charged before the day it ends; the day it ends is charged

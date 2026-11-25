@@ -246,6 +246,8 @@ func TestUpkeepEnforcesCapsAndNotifiesOnce(t *testing.T) {
 	e.startedAt(t, "team1", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	_, err := e.op.SetPlan(ctx, op, "team1", "team")
 	require.NoError(t, err)
+	_, err = e.op.SetPlan(ctx, op, "free1", "free")
+	require.NoError(t, err)
 	hour := e.clock.Truncate(time.Hour)
 
 	e.usage(t, "free1", hour.Add(-time.Hour), "tunnel_bytes_to_user", 9*billing.GiB)
@@ -303,8 +305,11 @@ func TestUpkeepEnforcesCapsAndNotifiesOnce(t *testing.T) {
 func TestUpkeepKeepsAnOperatorsDeviceLimit(t *testing.T) {
 	e := newEnv(t, "acme")
 	require.NoError(t, e.up.Run(ctx))
+	_, err := e.op.SetPlan(ctx, op, "acme", "free")
+	require.NoError(t, err)
+	require.NoError(t, e.up.Run(ctx))
 	assert.Equal(t, 10, *maxClients(t, e, "acme"))
-	_, err := e.d.Owner.Exec("UPDATE tenants SET max_clients = 3 WHERE id = 'acme'")
+	_, err = e.d.Owner.Exec("UPDATE tenants SET max_clients = 3 WHERE id = 'acme'")
 	require.NoError(t, err)
 	require.NoError(t, e.up.Run(ctx))
 	assert.Equal(t, 3, *maxClients(t, e, "acme"), "a limit set by hand stays")
@@ -354,6 +359,9 @@ func TestUpkeepClosesPeriods(t *testing.T) {
 	_, err := e.op.SetPlan(ctx, op, "acme", "team")
 	require.NoError(t, err)
 	_, err = e.op.SetStatus(ctx, op, "partner", billing.StatusChange{Status: billing.StatusExempt, Reason: "partner"})
+	require.NoError(t, err)
+	// both changes were made before October (the functions stamp them with the database's clock)
+	_, err = e.d.Owner.Exec("UPDATE org_billing SET status_since = '2026-09-01', plan_since = '2026-09-01'")
 	require.NoError(t, err)
 	// October (15 days of billing for acme): 60 devices a day, 800 GiB
 	e.devices(t, "acme", time.Date(2026, 10, 17, 0, 0, 0, 0, time.UTC), 15, 60)
@@ -407,4 +415,133 @@ func TestUpkeepClosesPeriods(t *testing.T) {
 	require.Len(t, pp, 10, "January to October")
 	assert.Equal(t, billing.PeriodNeverCharged, pp[0].State)
 	assert.EqualValues(t, 5*billing.GiB, pp[0].TransferBytes, "exempt organizations are metered")
+}
+
+// Turning billing on puts the organizations without a record on the free plan without limits, their device limit
+// left alone, until an operator sets their plan.
+func TestUpkeepLeavesUnassignedOrganizationsUnlimited(t *testing.T) {
+	e := newEnv(t, "acme")
+	require.NoError(t, e.up.Run(ctx))
+	e.startedAt(t, "acme", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	e.usage(t, "acme", e.clock.Truncate(time.Hour).Add(-time.Hour), "tunnel_bytes_to_user", 5*billing.GiB)
+	e.usage(t, "acme", e.clock.Truncate(time.Hour).Add(-2*time.Hour), "tunnel_bytes_to_user", 6*billing.GiB)
+	require.NoError(t, e.up.Run(ctx))
+	a, err := e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	assert.True(t, a.PlanUnassigned)
+	assert.Equal(t, billing.TransferNormal, a.TransferState)
+	assert.Nil(t, maxClients(t, e, "acme"), "the device limit is left alone")
+	_, err = e.op.SetPlan(ctx, op, "acme", "free")
+	require.NoError(t, err)
+	require.NoError(t, e.up.Run(ctx))
+	a, err = e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	assert.False(t, a.PlanUnassigned)
+	assert.Equal(t, billing.TransferCapped, a.TransferState, "%+v", a.Policy)
+}
+
+// Just after midnight today's devices are not reported yet: the allowance comes from the days before.
+func TestUpkeepAllowanceAtTheStartOfADay(t *testing.T) {
+	e := newEnv(t, "acme")
+	require.NoError(t, e.up.Run(ctx))
+	e.startedAt(t, "acme", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	_, err := e.op.SetPlan(ctx, op, "acme", "team")
+	require.NoError(t, err)
+	e.devices(t, "acme", time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), 23, 60)
+	e.clock = time.Date(2026, 11, 24, 0, 10, 0, 0, time.UTC)
+	require.NoError(t, e.up.Run(ctx))
+	a, err := e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	assert.EqualValues(t, (250+60*5)*billing.GiB, a.Policy.AllowanceBytes, "60 devices, not 23×60/24")
+
+	// the first day of a month: yesterday's devices
+	e.devices(t, "acme", time.Date(2026, 11, 24, 0, 0, 0, 0, time.UTC), 7, 60)
+	e.clock = time.Date(2026, 12, 1, 0, 10, 0, 0, time.UTC)
+	require.NoError(t, e.up.Run(ctx))
+	a, err = e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	assert.EqualValues(t, (250+60*5)*billing.GiB, a.Policy.AllowanceBytes)
+}
+
+// A period that failed open stays open until an operator clears it, even once the spike is in the average.
+func TestUpkeepFailOpenHoldsForThePeriod(t *testing.T) {
+	e := newEnv(t, "acme")
+	require.NoError(t, e.up.Run(ctx))
+	e.startedAt(t, "acme", time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	_, err := e.op.SetPlan(ctx, op, "acme", "free")
+	require.NoError(t, err)
+	hour := e.clock.Truncate(time.Hour)
+	e.usage(t, "acme", hour.Add(-time.Hour), "tunnel_bytes_to_user", 400*billing.GiB) // a counting bug
+	require.NoError(t, e.up.Run(ctx))
+	a, err := e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	assert.Equal(t, billing.TransferOver, a.TransferState)
+	assert.Contains(t, a.Policy.FailOpen, "implausible")
+
+	// an hour later the spike is in the average, the last hour is quiet
+	e.clock = e.clock.Add(time.Hour)
+	e.usage(t, "acme", hour, "tunnel_bytes_to_user", 1)
+	require.NoError(t, e.up.Run(ctx))
+	a, err = e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	assert.Equal(t, billing.TransferOver, a.TransferState, "still open")
+
+	_, err = e.op.SetOverride(ctx, op, "acme", billing.Override{ClearFailOpen: true})
+	require.NoError(t, err)
+	require.NoError(t, e.up.Run(ctx))
+	a, err = e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	assert.Equal(t, billing.TransferCapped, a.TransferState, "an operator checked it")
+}
+
+func TestOverrideKeepsWhatIsNotGiven(t *testing.T) {
+	e := newEnv(t, "acme")
+	until := e.clock.Add(48 * time.Hour)
+	_, err := e.op.SetOverride(ctx, op, "acme", billing.Override{CapLiftedUntil: &until})
+	require.NoError(t, err)
+	a, err := e.op.SetOverride(ctx, op, "acme", billing.Override{ExtraTransfer: "5GiB"})
+	require.NoError(t, err)
+	require.NotNil(t, a.CapLiftedUntil, "the lift stays")
+	assert.EqualValues(t, 5*billing.GiB, a.ExtraTransferBytes)
+	a, err = e.op.SetOverride(ctx, op, "acme", billing.Override{EndCapLift: true})
+	require.NoError(t, err)
+	assert.Nil(t, a.CapLiftedUntil)
+	assert.EqualValues(t, 5*billing.GiB, a.ExtraTransferBytes, "the extra transfer stays")
+}
+
+// Status changes: ending a trial early charges from now; a change made after a month ended is not applied to it.
+func TestStatusChangesAndPeriods(t *testing.T) {
+	e := newEnv(t, "acme", "beta")
+	e.clock = time.Now().UTC()
+	ends := e.clock.Add(10 * 24 * time.Hour)
+	_, err := e.op.SetStatus(ctx, op, "acme", billing.StatusChange{Status: billing.StatusTrial, TrialEndsAt: &ends})
+	require.NoError(t, err)
+	a, err := e.op.SetStatus(ctx, op, "acme", billing.StatusChange{Status: billing.StatusPaying})
+	require.NoError(t, err)
+	require.NotNil(t, a.TrialEndsAt)
+	assert.False(t, a.TrialEndsAt.After(time.Now()), "the trial ended now")
+	require.NotNil(t, a.PreviousStatus)
+	assert.Equal(t, billing.StatusTrial, *a.PreviousStatus)
+
+	org, err := e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	assert.Nil(t, org.PreviousStatus, "the organization's view leaves out the operators' fields")
+	assert.Empty(t, org.UpdatedBy)
+
+	// beta, paying on Team all October, comped from November 1 01:00, before October is closed
+	_, err = e.op.SetPlan(ctx, op, "beta", "team")
+	require.NoError(t, err)
+	until := time.Now().AddDate(0, 3, 0)
+	_, err = e.op.SetStatus(ctx, op, "beta", billing.StatusChange{Status: billing.StatusComped, CompedUntil: &until})
+	require.NoError(t, err)
+	_, err = e.d.Owner.Exec("UPDATE org_billing SET started_at = '2026-01-01', plan_since = '2026-09-01', status_since = '2026-11-01 01:00Z' WHERE tenant_id = 'beta'")
+	require.NoError(t, err)
+	e.clock = time.Date(2026, 11, 1, 2, 30, 0, 0, time.UTC)
+	require.NoError(t, e.up.Run(ctx))
+	ps, err := e.op.Periods(ctx, "beta", "")
+	require.NoError(t, err)
+	require.NotEmpty(t, ps)
+	assert.Equal(t, billing.StatusPaying, ps[0].Status, "October was paying")
+	assert.Equal(t, billing.PeriodReady, ps[0].State)
+	assert.EqualValues(t, 4900, ps[0].TotalCents)
 }

@@ -40,12 +40,16 @@ type Account struct {
 	PlanDetails    *Plan `json:"plan_details"`
 }
 
-// Override is an operator's change of the limits of the current period.
+// Override is an operator's change of the limits of the current period. Fields left out keep their value.
 type Override struct {
-	// CapLiftedUntil lifts the hard cap until then; nil ends a lift.
-	CapLiftedUntil *time.Time `json:"cap_lifted_until"`
-	// ExtraTransfer raises the allowance of the current period (a size such as "50GiB"; "" or "0": none).
-	ExtraTransfer string `json:"extra_transfer"`
+	// CapLiftedUntil lifts the hard cap until then.
+	CapLiftedUntil *time.Time `json:"cap_lifted_until,omitempty"`
+	// EndCapLift ends a cap lift.
+	EndCapLift bool `json:"end_cap_lift,omitempty"`
+	// ExtraTransfer raises the allowance of the current period (a size such as "50GiB"; "0" removes it).
+	ExtraTransfer string `json:"extra_transfer,omitempty"`
+	// ClearFailOpen lets the hard cap apply again in a period that failed open (an operator checked the usage).
+	ClearFailOpen bool `json:"clear_fail_open,omitempty"`
 }
 
 // OperatorService is what platform operators do with billing (operator API and CLI). Every change is audited.

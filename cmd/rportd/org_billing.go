@@ -48,8 +48,8 @@ var (
 	}
 	orgLiftCapCmd = &cobra.Command{
 		Use:     "lift-cap ID",
-		Short:   "lift an organization's hard transfer cap until a time, or raise this month's allowance ([billing] enabled)",
-		Example: "rportd org lift-cap acme --until 2026-12-01\nrportd org lift-cap acme --extra-transfer 50GiB",
+		Short:   "lift an organization's hard transfer cap until a time, or raise this month's allowance ([billing] enabled); what is not given is kept",
+		Example: "rportd org lift-cap acme --until 2026-12-01\nrportd org lift-cap acme --extra-transfer 50GiB\nrportd org lift-cap acme --end",
 		Args:    cobra.ExactArgs(1),
 		Run:     billingRun(runOrgLiftCap),
 	}
@@ -61,13 +61,15 @@ var (
 		Run:     billingRun(runOrgApprovePeriod),
 	}
 
-	orgTrialEnds    *string
-	orgCompedUntil  *string
-	orgReason       *string
-	orgExemptLimits *string
-	orgLiftUntil    *string
-	orgExtra        *string
-	orgBillingJSON  *bool
+	orgTrialEnds     *string
+	orgCompedUntil   *string
+	orgReason        *string
+	orgExemptLimits  *string
+	orgLiftUntil     *string
+	orgExtra         *string
+	orgBillingJSON   *bool
+	orgEndLift       *bool
+	orgClearFailOpen *bool
 )
 
 type billingCommand func(ctx context.Context, w io.Writer, svc billing.OperatorService, by billing.Actor, args []string) error
@@ -174,10 +176,11 @@ func runOrgLiftCap(ctx context.Context, w io.Writer, svc billing.OperatorService
 	if err != nil {
 		return fmt.Errorf("--until: %w", err)
 	}
-	if until == nil && *orgExtra == "" {
-		return errors.New("give --until (lift the hard cap until then) or --extra-transfer (raise this month's allowance)")
+	if until == nil && *orgExtra == "" && !*orgEndLift && !*orgClearFailOpen {
+		return errors.New("give --until (lift the hard cap until then), --end, --extra-transfer (raise this month's allowance) or --clear-fail-open")
 	}
-	a, err := svc.SetOverride(ctx, by, args[0], billing.Override{CapLiftedUntil: until, ExtraTransfer: *orgExtra})
+	a, err := svc.SetOverride(ctx, by, args[0], billing.Override{CapLiftedUntil: until, EndCapLift: *orgEndLift,
+		ExtraTransfer: *orgExtra, ClearFailOpen: *orgClearFailOpen})
 	if err != nil {
 		return err
 	}
@@ -253,4 +256,6 @@ func init() {
 	orgLiftUntil = orgLiftCapCmd.Flags().String("until", "", "lift the hard cap until then (date or RFC 3339 time)")
 	orgExtra = orgLiftCapCmd.Flags().String("extra-transfer", "", "raise this month's transfer allowance, e.g. 50GiB")
 	orgBillingJSON = orgBillingCmd.Flags().Bool("json", false, "print JSON")
+	orgEndLift = orgLiftCapCmd.Flags().Bool("end", false, "end a cap lift")
+	orgClearFailOpen = orgLiftCapCmd.Flags().Bool("clear-fail-open", false, "let the hard cap apply again in a month that failed open")
 }

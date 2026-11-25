@@ -380,3 +380,44 @@ func TestEnforcerFailsOpen(t *testing.T) {
 	assert.Zero(t, nilE.TunnelRate("a"))
 	assert.Nil(t, nilE.RateFunc("a"))
 }
+
+func TestAsOfAndStatusHistory(t *testing.T) {
+	p := plans(t)
+	team := p.Get("team")
+	exempt, trial := StatusExempt, StatusTrial
+	since := day("2026-11-21")
+	b := &Billing{Plan: "team", Status: StatusPaying, PreviousStatus: &exempt, StatusSince: &since, StartedAt: day("2026-01-01")}
+	got := ClosePeriod(b, team, day("2026-11-01"), PeriodUsage{DailyDevices: devices(50, 10)}, 0, time.Now())
+	assert.Equal(t, since, got.BilledFrom, "exempt until the 21st: billed from then")
+	assert.InDelta(t, 10.0/30, got.Proration, 1e-9)
+
+	// a change after the month ended doesn't apply to it
+	after := day("2026-12-01").Add(time.Hour)
+	free := "free"
+	ends := day("2027-01-01")
+	b = &Billing{Plan: "team", Status: StatusTrial, TrialEndsAt: &ends, PreviousStatus: &exempt, StatusSince: &after, PreviousPlan: &free, PlanSince: &after}
+	at := b.AsOf(day("2026-12-01"))
+	assert.Equal(t, StatusExempt, at.Status)
+	assert.Equal(t, "free", at.Plan)
+	assert.Nil(t, at.TrialEndsAt)
+	at = b.AsOf(day("2027-01-01"))
+	assert.Equal(t, StatusTrial, at.Status)
+	_ = trial
+}
+
+func TestEvaluateUnassignedAndStickyFailOpen(t *testing.T) {
+	p := plans(t)
+	now := day("2026-11-24")
+	b := &Billing{Organization: "u", Plan: "free", Status: StatusPaying, PlanUnassigned: true, StartedAt: day("2026-01-01")}
+	pol := Evaluate(b, p, usage(1<<40), EnforceOptions{}, now)
+	assert.Equal(t, TransferNormal, pol.State)
+	assert.Nil(t, pol.MaxClients)
+	assert.Zero(t, pol.TunnelRate)
+
+	b.PlanUnassigned = false
+	u := usage(20 * GiB)
+	u.FailedOpen = "implausible transfer"
+	pol = Evaluate(b, p, u, EnforceOptions{}, now)
+	assert.Equal(t, TransferOver, pol.State)
+	assert.Equal(t, "implausible transfer", pol.FailOpen)
+}

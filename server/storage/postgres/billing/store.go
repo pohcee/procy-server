@@ -27,7 +27,8 @@ const systemTenant tenant.ID = "_system"
 const accountColumns = `tenant_id, plan, status, trial_ends_at, comped_until, reason, exempt_limits, spending_limit_cents,
 	has_payment_method, provider_customer_id, provider_subscription_id, cap_lifted_until, extra_transfer_bytes,
 	extra_transfer_period, started_at, updated_at, updated_by, transfer_state, transfer_state_at, allowance_bytes,
-	used_bytes, soft_cap_bytes, hard_cap_bytes, overage_cents, tunnel_rate, throttle_rate, plan_max_clients, fail_open`
+	used_bytes, soft_cap_bytes, hard_cap_bytes, overage_cents, tunnel_rate, throttle_rate, plan_max_clients, fail_open,
+	fail_open_at, plan_unassigned, previous_status, status_since, previous_plan, plan_since`
 
 const periodColumns = `tenant_id, period_start, period_end, billed_from, proration, plan, billing_status,
 	billable_devices, peak_devices, device_days, extra_devices, tunnel_bytes_to_user, tunnel_bytes_to_device,
@@ -86,7 +87,9 @@ func (s Store) Account(ctx context.Context, tid tenant.ID) (*billing.Account, er
 	if len(rows) == 0 {
 		return billing.DefaultAccount(string(tid), s.Plans), nil
 	}
-	return rows[0].account(s.Plans), nil
+	a := rows[0].account(s.Plans)
+	a.Billing = a.Billing.OrgView()
+	return a, nil
 }
 
 // Periods implements billing.OrgService: the last 36 closed periods, newest first.
@@ -97,6 +100,9 @@ func (s Store) Periods(ctx context.Context, tid tenant.ID) ([]billing.Period, er
 	})
 	if err != nil {
 		return nil, fmt.Errorf("billing: %w", err)
+	}
+	for i := range out {
+		out[i].ApprovedBy = nil // who reviewed it is for operators
 	}
 	return out, nil
 }
