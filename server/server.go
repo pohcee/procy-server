@@ -86,6 +86,9 @@ type Server struct {
 	jobsDoneChannel *jobrunner.DoneChannels // used for sequential command execution to know when command is finished
 	jobRunner       *jobrunner.Runner
 	libraryManager  *library.Manager
+	libraryLog      *logger.Logger
+	// builtinsSynced are the tenants whose built-in library entries were synced at start (in a cluster)
+	builtinsSynced  map[tenant.ID]bool
 	auditLog        *auditlog.AuditLog
 	capabilities    *models.Capabilities
 	scheduleManager *schedule.Manager
@@ -332,7 +335,8 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 
 	s.filesAPI = filesAPI
 
-	s.libraryManager, err = openLibrary(ctx, repos.Library, logger.NewLogger("library", config.Logging.LogOutput, config.Logging.LogLevel), s.cluster)
+	s.libraryLog = logger.NewLogger("library", config.Logging.LogOutput, config.Logging.LogLevel)
+	s.libraryManager, s.builtinsSynced, err = openLibrary(ctx, repos.Library, s.libraryLog, s.cluster, s.runsAPIWork())
 	if err != nil {
 		return nil, err
 	}
@@ -488,6 +492,14 @@ func initPrivateKey(seed string) (ssh.Signer, error) {
 	return private, nil
 }
 
+// runsAPIWork reports whether this process runs the background work that belongs to the API side: the cleanups of
+// jobs, API sessions, measurements, notifications and library versions, the purge of disconnected clients and the
+// sync of the built-in library entries. A device process ([storage] role = "device") runs none of it: it holds no
+// lease and has no access to what these tasks change; the api processes of the cluster run them.
+func (s *Server) runsAPIWork() bool {
+	return s.config.Storage.Role != chconfig.StorageRoleDevice
+}
+
 // Run is responsible for starting the rport service
 func (s *Server) Run(ctx context.Context) error {
 	ctx = tenant.WithID(ctx, tenant.Default)
@@ -509,14 +521,6 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 
 	// TODO(m-terel): add graceful shutdown of background task
-	if s.config.Server.PurgeDisconnectedClients {
-		s.Infof("Period to keep disconnected clients is set to %v", s.config.Server.KeepDisconnectedClients)
-		go runPeriodic(ctx, s.cluster, s.Logger, "clients-purge", clients.NewCleanupTask(s.Logger, s.clientService.GetRepo()), s.config.Server.PurgeDisconnectedClientsInterval)
-		s.Infof("Task to purge disconnected clients will run with interval %v", s.config.Server.PurgeDisconnectedClientsInterval)
-	} else {
-		s.Debugf("Task to purge disconnected clients disabled")
-	}
-
 	if s.clientListener != nil {
 		// Run a task to Check the client connections status by sending and receiving pings
 		clientsStatusCheckTask := NewClientsStatusCheckTask(
@@ -529,42 +533,55 @@ func (s *Server) Run(ctx context.Context) error {
 		s.Infof("Task to check the clients connection status will run with interval %v", s.config.Server.CheckClientsConnectionInterval)
 	}
 
-	if s.config.Monitoring.Enabled {
-		var cleaningPeriod time.Duration
-		if s.config.Monitoring.DataStorageDays > 0 {
-			s.Infof("Period to keep measurements will be %d day(s)", s.config.Monitoring.DataStorageDays)
-			cleaningPeriod = time.Hour * 24 * time.Duration(s.config.Monitoring.DataStorageDays)
+	if s.runsAPIWork() {
+		if s.config.Server.PurgeDisconnectedClients {
+			s.Infof("Period to keep disconnected clients is set to %v", s.config.Server.KeepDisconnectedClients)
+			go runPeriodic(ctx, s.cluster, s.Logger, "clients-purge", clients.NewCleanupTask(s.Logger, s.clientService.GetRepo()), s.config.Server.PurgeDisconnectedClientsInterval)
+			s.Infof("Task to purge disconnected clients will run with interval %v", s.config.Server.PurgeDisconnectedClientsInterval)
 		} else {
-			s.Infof("Period to keep measurements will be %s", s.config.Monitoring.DataStorageDuration)
-			cleaningPeriod = s.config.Monitoring.GetDataStorageDuration()
+			s.Debugf("Task to purge disconnected clients disabled")
 		}
 
-		monitoringCleanupTask := monitoring.NewCleanupTask(s.Logger, s.monitoringService, cleaningPeriod)
-		go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", monitoringCleanupTask)), "monitoring-cleanup", monitoringCleanupTask, cleanupMeasurementsInterval)
-		s.Infof("Task to cleanup measurements will run with interval %v", cleanupMeasurementsInterval)
+		if s.config.Monitoring.Enabled {
+			var cleaningPeriod time.Duration
+			if s.config.Monitoring.DataStorageDays > 0 {
+				s.Infof("Period to keep measurements will be %d day(s)", s.config.Monitoring.DataStorageDays)
+				cleaningPeriod = time.Hour * 24 * time.Duration(s.config.Monitoring.DataStorageDays)
+			} else {
+				s.Infof("Period to keep measurements will be %s", s.config.Monitoring.DataStorageDuration)
+				cleaningPeriod = s.config.Monitoring.GetDataStorageDuration()
+			}
+
+			monitoringCleanupTask := monitoring.NewCleanupTask(s.Logger, s.monitoringService, cleaningPeriod)
+			go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", monitoringCleanupTask)), "monitoring-cleanup", monitoringCleanupTask, cleanupMeasurementsInterval)
+			s.Infof("Task to cleanup measurements will run with interval %v", cleanupMeasurementsInterval)
+		} else {
+			s.Infof("Measurement disabled")
+		}
+
+		sessionsCleanupTask := session.NewCleanupTask(s.apiListener.apiSessions)
+		go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", sessionsCleanupTask)), "sessions-cleanup", sessionsCleanupTask, cleanupAPISessionsInterval)
+		s.Infof("Task to cleanup expired api sessions will run with interval %v", cleanupAPISessionsInterval)
+
+		jobsCleanupTask := jobs.NewCleanupTask(s.jobProvider, s.config.Server.JobsMaxResults)
+		go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", jobsCleanupTask)), "jobs-cleanup", jobsCleanupTask, cleanupJobsInterval)
+		s.Infof("Task to cleanup jobs will run with interval %v", cleanupJobsInterval)
+
+		if keep, days := s.config.Library.KeepVersions, s.config.Library.KeepVersionsDays; keep > 0 || days > 0 {
+			libraryPruneTask := library.NewPruneTask(s.libraryManager, keep, days, s.Logger)
+			go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", libraryPruneTask)), "library-prune", libraryPruneTask, pruneLibraryVersionsInterval)
+			s.Infof("Task to prune old library versions will run with interval %v", pruneLibraryVersionsInterval)
+		}
+
+		s.runClusterNotificationsCleanup(ctx)
+		go followBuiltins(ctx, s.repos.Library, s.libraryLog, s.cluster, s.builtinsSynced)
+
+		if s.signup != nil {
+			go runGlobalPeriodic(ctx, s.cluster, s.Logger.Fork("signup"), "signup-upkeep", s.signup.Upkeep, signupUpkeepInterval)
+			s.Infof("self-service signup is on")
+		}
 	} else {
-		s.Infof("Measurement disabled")
-	}
-
-	sessionsCleanupTask := session.NewCleanupTask(s.apiListener.apiSessions)
-	go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", sessionsCleanupTask)), "sessions-cleanup", sessionsCleanupTask, cleanupAPISessionsInterval)
-	s.Infof("Task to cleanup expired api sessions will run with interval %v", cleanupAPISessionsInterval)
-
-	jobsCleanupTask := jobs.NewCleanupTask(s.jobProvider, s.config.Server.JobsMaxResults)
-	go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", jobsCleanupTask)), "jobs-cleanup", jobsCleanupTask, cleanupJobsInterval)
-	s.Infof("Task to cleanup jobs will run with interval %v", cleanupJobsInterval)
-
-	if keep, days := s.config.Library.KeepVersions, s.config.Library.KeepVersionsDays; keep > 0 || days > 0 {
-		libraryPruneTask := library.NewPruneTask(s.libraryManager, keep, days, s.Logger)
-		go runPeriodic(ctx, s.cluster, s.Logger.Fork(fmt.Sprintf("task %T", libraryPruneTask)), "library-prune", libraryPruneTask, pruneLibraryVersionsInterval)
-		s.Infof("Task to prune old library versions will run with interval %v", pruneLibraryVersionsInterval)
-	}
-
-	s.runClusterNotificationsCleanup(ctx)
-
-	if s.signup != nil {
-		go runGlobalPeriodic(ctx, s.cluster, s.Logger.Fork("signup"), "signup-upkeep", s.signup.Upkeep, signupUpkeepInterval)
-		s.Infof("self-service signup is on")
+		s.Infof("device process: background work (cleanups, purge of disconnected clients) runs on the api processes")
 	}
 
 	// Only on debug mode, log the number of running go routines

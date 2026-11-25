@@ -25,7 +25,7 @@ func TestDeviceTenants(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, added)
 	}
-	dt := NewDeviceTenants(d.App)
+	dt := NewDeviceTenants(d.App, nil)
 
 	for _, id := range []tenant.ID{"a", "b", "s"} {
 		got, found, err := dt.TenantOfClientAuth(ctx, "auth-"+string(id))
@@ -37,17 +37,17 @@ func TestDeviceTenants(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found)
 
-	policy := func(id tenant.ID) chserver.DevicePolicy {
-		p, err := dt.DevicePolicy(ctx, id)
+	admission := func(id tenant.ID) chserver.Admission {
+		a, err := dt.AdmitClient(ctx, id, "c1")
 		require.NoError(t, err)
-		return p
+		return a
 	}
-	assert.Equal(t, chserver.DevicePolicy{Status: "active"}, policy("a"))
-	assert.Equal(t, chserver.DevicePolicy{Status: "active", Limited: true, MaxClients: 3}, policy("b"))
-	assert.Equal(t, "suspended", policy("s").Status)
-	assert.Equal(t, "reserved", policy("_unresolved").Status)
-	assert.Equal(t, "deleted", policy("gone").Status)
-	assert.Equal(t, chserver.DevicePolicy{Status: "active"}, policy(tenant.Default))
+	assert.Equal(t, chserver.Admission{Status: "active"}, admission("a"))
+	assert.Equal(t, chserver.Admission{Status: "active", Clients: 1, MaxClients: 3}, admission("b"))
+	assert.Equal(t, chserver.Admission{Refused: chserver.RefusedStatus, Status: "suspended"}, admission("s"))
+	assert.Equal(t, chserver.Admission{Refused: chserver.RefusedStatus, Status: "reserved"}, admission("_unresolved"))
+	assert.Equal(t, chserver.Admission{Refused: chserver.RefusedStatus, Status: "deleted"}, admission("gone"))
+	assert.Equal(t, chserver.Admission{Status: "active"}, admission(tenant.Default))
 
 	tids, err := dt.Tenants(ctx)
 	require.NoError(t, err)
