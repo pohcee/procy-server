@@ -50,6 +50,8 @@ get:
         `fields[<RESOURCE>]=<FIELDS>`, where `<RESOURCE>` is `commands` or
         `result` and `<FIELDS>` is a comma separated list of fields. Default is:
         `fields[commands]=jid,status,finished_at&fields[result]=summary`.
+        Library runs also have `library_entry_id`, `library_version` and `os`
+        (the OS whose implementation ran); other jobs leave them out.
       schema:
         type: string
   responses:

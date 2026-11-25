@@ -93,8 +93,10 @@ properties:
       status:
         type: string
         description: >-
-          Status of last schedule execution (only available when
-          `client_count=1`)
+          Status of last schedule execution: the lowest status of its device jobs
+          (`failed` when one failed, else `running` while one runs, else
+          `successful`; `skipped` when every device was skipped). With several
+          devices, `success_count` of `client_count` succeeded.
       summary:
         type: string
         description: >-

@@ -254,7 +254,9 @@ func TestLastExecutionTypedUnchanged(t *testing.T) {
 	require.NotNil(t, ex)
 	assert.Equal(t, 2, *ex.ClientCount)
 	assert.Equal(t, 1, *ex.SuccessCount)
-	assert.Nil(t, ex.Status, "status only for single-client runs")
+	require.NotNil(t, ex.Status)
+	assert.Equal(t, "failed", *ex.Status, "the lowest device status: one device failed")
+	assert.Nil(t, ex.Summary, "summary only for single-client runs")
 	assert.Nil(t, ex.Error)
 }
 
