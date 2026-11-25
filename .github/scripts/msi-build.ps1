@@ -2,7 +2,8 @@ param (
     [switch]$SignMsi = $false,
     [string]$msiFileName = "rport-client.msi"
 )
-$versionParts = $env:RELEASE_TAG -replace '^[^\d]+','' -split '\.'
+# MSI versions are numeric only: a pre-release tag (0.15.0-rc.4) builds as its base version (0.15.0).
+$versionParts = ($env:RELEASE_TAG -replace '^[^\d]+','' -replace '-.*$','') -split '\.'
 if ($versionParts.Length -ne 3 -or -not ($versionParts[0] -as [int] -is [int]) -or -not ($versionParts[1] -as [int] -is [int]) -or -not ($versionParts[2] -as [int] -is [int])) {
     throw "Version information could not be parsed from RELEASE_TAG: $env:RELEASE_TAG"
 }
