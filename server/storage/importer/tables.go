@@ -393,7 +393,7 @@ func (im *importer) writeLibrary(w *writer) error {
 		skipped
 	)
 	state := map[string]int{}
-	var nameTaken, deletedHere []string
+	var nameTaken, deletedHere, deletedTarget []string
 	err := readRows(d, "entries", entryCols, "id", func(vals []any) error {
 		ec.Read++
 		id := vals[0].(string)
@@ -404,6 +404,9 @@ func (im *importer) writeLibrary(w *writer) error {
 				im.libRemap.add(id, b.ID, key)
 				if vals[11] != nil && !b.Deleted {
 					deletedHere = append(deletedHere, key)
+				}
+				if vals[11] == nil && b.Deleted {
+					deletedTarget = append(deletedTarget, key)
 				}
 				return nil
 			}
@@ -437,6 +440,9 @@ func (im *importer) writeLibrary(w *writer) error {
 	}
 	if !im.libRemap.empty() {
 		im.rep.warnf("library entries: built-ins the target has under other ids, references to them are rewritten to the target's ids: %s", im.libRemap.describe())
+	}
+	if len(deletedTarget) > 0 {
+		im.rep.warnf("library entries: built-ins deleted in the target but live in the source (schedules running them fail until they are undeleted): %s", strings.Join(deletedTarget, ", "))
 	}
 	if len(deletedHere) > 0 {
 		im.rep.warnf("library entries: built-ins deleted in the source but present in the target (delete them again if they are not wanted): %s", strings.Join(deletedHere, ", "))

@@ -48,7 +48,10 @@ func (m *libraryRemap) rewrite(details string) (string, bool) {
 	}
 	var doc map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(details), &doc); err != nil {
-		return details, false
+		// a raw NUL or invalid UTF-8 (which Postgres can't store and the insert drops) may be all that is wrong
+		if clean := storable(details); clean == details || json.Unmarshal([]byte(clean), &doc) != nil {
+			return details, false
+		}
 	}
 	raw, ok := doc[libraryEntryIDField]
 	if !ok {
@@ -84,10 +87,11 @@ func (m *libraryRemap) rewriteDetails(vals []any, i int, n *int) {
 	}
 }
 
-// reportRewrites tells how many rows of an entity had their library entry reference rewritten.
+// reportRewrites tells how many source rows of an entity reference a remapped built-in (rewritten before they are
+// written; rows already in the target count as well, they were imported the same way or repaired).
 func (im *importer) reportRewrites(ent string, n int) {
 	if n > 0 {
-		im.rep.warnf("%s: %d run built-in library entries the target has under other ids, their references point at the target's entries", ent, n)
+		im.rep.warnf("%s: %d source rows run built-in library entries the target has under other ids, imported with the target's entry ids", ent, n)
 	}
 }
 

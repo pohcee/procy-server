@@ -51,7 +51,7 @@ func writeBuiltinRefsSource(t *testing.T) *builtinRefsSource {
 		s := schedule.NewSQLiteProvider(db)
 		for id, entry := range map[string]string{"s-cu": src.clientUpdate, "s-ou": src.osUpds, "s-custom": "custom1"} {
 			require.NoError(t, s.Insert(ctxDefault, &schedule.Schedule{
-				Base:    schedule.Base{ID: id, CreatedAt: now, CreatedBy: "admin", Name: id, Schedule: "0 3 * * *", Type: "command"},
+				Base:    schedule.Base{ID: id, CreatedAt: now, CreatedBy: "admin", Name: id, Schedule: "0 3 * * *", Type: schedule.TypeLibrary},
 				Details: schedule.Details{ClientIDs: []string{"c1"}, Command: "x <&> y", TimeoutSec: 60, LibraryEntryID: entry},
 			}))
 		}
@@ -113,7 +113,7 @@ func TestImportRewritesBuiltinLibraryRefs(t *testing.T) {
 	rep := run(t, pg, Options{From: src.d.dir, Tenant: "acme", WithHistory: true, DryRun: true})
 	want(t, rep, entSchedules, 3, 3, 0, 0)
 	assert.True(t, hasWarning(rep, "client-update "+src.clientUpdate+" → "+cu.ID), rep.Warnings)
-	assert.Contains(t, rep.Warnings, "schedules: 2 run built-in library entries the target has under other ids, their references point at the target's entries")
+	assert.Contains(t, rep.Warnings, "schedules: 2 source rows run built-in library entries the target has under other ids, imported with the target's entry ids")
 	none, err := pgjobs.NewScheduleStore(pg.App).Get(ctx, "s-cu")
 	require.NoError(t, err)
 	assert.Nil(t, none)
@@ -122,15 +122,17 @@ func TestImportRewritesBuiltinLibraryRefs(t *testing.T) {
 	want(t, rep, entSchedules, 3, 3, 0, 0)
 	want(t, rep, entMultiJobs, 1, 1, 0, 0)
 	want(t, rep, entJobs, 2, 2, 0, 0)
-	assert.Contains(t, rep.Warnings, "schedules: 2 run built-in library entries the target has under other ids, their references point at the target's entries")
-	assert.Contains(t, rep.Warnings, "multi jobs: 1 run built-in library entries the target has under other ids, their references point at the target's entries")
-	assert.Contains(t, rep.Warnings, "jobs: 1 run built-in library entries the target has under other ids, their references point at the target's entries")
+	assert.Contains(t, rep.Warnings, "schedules: 2 source rows run built-in library entries the target has under other ids, imported with the target's entry ids")
+	assert.Contains(t, rep.Warnings, "multi jobs: 1 source rows run built-in library entries the target has under other ids, imported with the target's entry ids")
+	assert.Contains(t, rep.Warnings, "jobs: 1 source rows run built-in library entries the target has under other ids, imported with the target's entry ids")
 	check()
 
 	// a second run changes nothing
 	rep = run(t, pg, Options{From: src.d.dir, Tenant: "acme", WithHistory: true})
 	check()
 	want(t, rep, entSchedules, 3, 0, 3, 0)
+	assert.Contains(t, rep.Warnings, "schedules: 2 source rows run built-in library entries the target has under other ids, imported with the target's entry ids")
+	assert.False(t, hasWarning(rep, "already imported"), rep.Warnings)
 	want(t, rep, entMultiJobs, 1, 0, 1, 0)
 	want(t, rep, entJobs, 2, 0, 2, 0)
 }
@@ -147,14 +149,21 @@ func TestImportRepairsBuiltinRefsOfEarlierImport(t *testing.T) {
 	// the schedule as the earlier import wrote it
 	ss := pgjobs.NewScheduleStore(pg.App)
 	require.NoError(t, ss.Insert(ctx, &schedule.Schedule{
-		Base:    schedule.Base{ID: "s-cu", CreatedAt: time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC), CreatedBy: "admin", Name: "s-cu", Schedule: "0 3 * * *", Type: "command"},
+		Base:    schedule.Base{ID: "s-cu", CreatedAt: time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC), CreatedBy: "admin", Name: "s-cu", Schedule: "0 3 * * *", Type: schedule.TypeLibrary},
 		Details: schedule.Details{ClientIDs: []string{"c1"}, Command: "x <&> y", TimeoutSec: 60, LibraryEntryID: src.clientUpdate},
 	}))
 
-	rep := run(t, pg, Options{From: src.d.dir, Tenant: "acme"})
-	want(t, rep, entSchedules, 3, 2, 1, 0)
+	// a dry run reports the repair and leaves the schedule as it was
+	rep := run(t, pg, Options{From: src.d.dir, Tenant: "acme", DryRun: true})
 	assert.True(t, hasWarning(rep, "1 already imported"), rep.Warnings)
 	got, err := ss.Get(ctx, "s-cu")
+	require.NoError(t, err)
+	assert.Equal(t, src.clientUpdate, got.Details.LibraryEntryID)
+
+	rep = run(t, pg, Options{From: src.d.dir, Tenant: "acme"})
+	want(t, rep, entSchedules, 3, 2, 1, 0)
+	assert.True(t, hasWarning(rep, "1 already imported"), rep.Warnings)
+	got, err = ss.Get(ctx, "s-cu")
 	require.NoError(t, err)
 	assert.Equal(t, cu.ID, got.Details.LibraryEntryID)
 }
@@ -168,6 +177,7 @@ func TestLibraryRemapRewrite(t *testing.T) {
 		{`{"command":"library_entry_id"}`, ""},
 		{`{"library_entry_id":5}`, ""},
 		{`not json library_entry_id`, ""},
+		{"{\"library_entry_id\":\"src\",\"command\":\"a\x00b\"}", `{"command":"ab","library_entry_id":"dst"}`},
 	} {
 		got, ok := m.rewrite(tc.in)
 		if tc.want == "" {
@@ -181,4 +191,23 @@ func TestLibraryRemapRewrite(t *testing.T) {
 	got, ok := (&libraryRemap{}).rewrite(`{"library_entry_id":"src"}`)
 	assert.False(t, ok)
 	assert.Equal(t, `{"library_entry_id":"src"}`, got)
+}
+
+// A built-in deleted in the target but live in the source: its schedules point at the deleted entry, reported.
+func TestImportBuiltinDeletedInTarget(t *testing.T) {
+	pg := pgtest.New(t)
+	src := writeBuiltinRefsSource(t)
+	require.NoError(t, pgserver.AddTenant(ctxDefault, pg.Owner, "acme", "Acme"))
+	ctx := tenant.WithID(ctxDefault, "acme")
+	lib := pglibrary.New(pg.App)
+	ou, err := lib.ByBuiltinKey(ctx, "os-updates")
+	require.NoError(t, err)
+	gone := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, lib.SetDeleted(ctx, ou.ID, &gone, "admin"))
+
+	rep := run(t, pg, Options{From: src.d.dir, Tenant: "acme"})
+	assert.True(t, hasWarning(rep, "built-ins deleted in the target but live in the source (schedules running them fail until they are undeleted): os-updates"), rep.Warnings)
+	got, err := pgjobs.NewScheduleStore(pg.App).Get(ctx, "s-ou")
+	require.NoError(t, err)
+	assert.Equal(t, ou.ID, got.Details.LibraryEntryID)
 }
