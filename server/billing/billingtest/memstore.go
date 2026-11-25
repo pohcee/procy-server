@@ -16,6 +16,8 @@ var _ billing.Store = (*MemStore)(nil)
 // MemStore is an in-memory billing.Store for tests.
 type MemStore struct {
 	mu sync.Mutex
+	// upd serializes the read-change-write of accounts, as the Postgres store's lock does
+	upd sync.Mutex
 	// Accts by organization, Rpts by identifier, Emails of each organization's administrators; Events,
 	// Notices and Audits record what was claimed and audited.
 	Accts   map[string]billing.ProviderAccount
@@ -71,7 +73,21 @@ func (m *MemStore) PutAccount(_ context.Context, a *billing.ProviderAccount) err
 	return nil
 }
 
+// UpdateAccount implements billing.Store.
+func (m *MemStore) UpdateAccount(ctx context.Context, org string, update func(*billing.ProviderAccount) (*billing.ProviderAccount, error)) error {
+	m.upd.Lock()
+	defer m.upd.Unlock()
+	cur, _ := m.Account(ctx, org)
+	next, err := update(cur)
+	if err != nil || next == nil {
+		return err
+	}
+	return m.PutAccount(ctx, next)
+}
+
 func (m *MemStore) ApplyEvent(ctx context.Context, provider, id, _, org string, update func(*billing.ProviderAccount) (*billing.ProviderAccount, error)) (bool, error) {
+	m.upd.Lock()
+	defer m.upd.Unlock()
 	m.mu.Lock()
 	if m.Events[provider+"/"+id] {
 		m.mu.Unlock()

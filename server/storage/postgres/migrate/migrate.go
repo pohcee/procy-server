@@ -306,7 +306,9 @@ var BillingProviderTables = []string{"billing_provider_accounts", "billing_event
 var BillingProviderFunctions = []string{
 	"rport_billing_claim_event(text, text, text, text)",
 	"rport_billing_customer_tenant(text, text)",
+	"rport_billing_account(text)",
 	"rport_billing_put_account(text, jsonb)",
+	"rport_billing_prune_events(interval)",
 	"rport_billing_accounts()",
 	"rport_billing_put_report(text, jsonb)",
 	"rport_billing_reports(timestamptz)",

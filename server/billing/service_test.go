@@ -2,6 +2,7 @@ package billing_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -68,11 +69,15 @@ type syncRec struct {
 	mu       sync.Mutex
 	reported []string
 	states   []string
+	fail     error
 }
 
 func (s *syncRec) ProviderState(_ context.Context, org, _, sub string, pm bool, plan string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.fail != nil {
+		return s.fail
+	}
 	st := org + " " + sub + " plan=" + plan
 	if pm {
 		st += " pm"
@@ -333,9 +338,9 @@ func TestReportingInArrearsIsIdempotentAndNeverSendsExempt(t *testing.T) {
 		assert.Equal(t, "cus_acme", x.Customer)
 		assert.Equal(t, time.Date(2026, 11, 30, 23, 59, 59, 0, time.UTC), x.Timestamp, "usage is recorded inside the period")
 	}
-	assert.Equal(t, int64(12), byID["procy:acme:extra_devices:2026-11-01"].Value)
+	assert.Equal(t, 12.0, byID["procy:acme:extra_devices:2026-11-01"].Value)
 	assert.Equal(t, "procy_extra_devices", byID["procy:acme:extra_devices:2026-11-01"].EventName)
-	assert.Equal(t, int64(21), byID["procy:acme:overage_gib:2026-11-01"].Value)
+	assert.Equal(t, 21.0, byID["procy:acme:overage_gib:2026-11-01"].Value)
 	assert.ElementsMatch(t, []string{"acme 2026-11", "zero 2026-11"}, e.sync.reported)
 
 	// running again sends nothing more
@@ -380,7 +385,7 @@ func TestReportingAfterTheDedupWindowLooksFirst(t *testing.T) {
 	require.NoError(t, e.svc.ReportClosedPeriods(ctx))
 	r := e.store.Rpts["procy:acme:extra_devices:2026-11-01"]
 	long := e.now.Add(-25 * time.Hour)
-	r.State, r.LastAttemptAt, r.SentAt = billing.ReportFailed, &long, nil
+	r.State, r.FirstAttemptAt, r.LastAttemptAt, r.SentAt = billing.ReportFailed, &long, &long, nil
 	e.store.Rpts[r.Identifier] = r
 	e.fake.MeterEvents = e.fake.MeterEvents[:1]
 	e.fake.MeterEvents[0].Identifier = "procy:acme:extra_devices:2026-11-01#stripe-forgot-the-identifier"
@@ -532,4 +537,152 @@ var createdRe = regexp.MustCompile(`"created":\d+`)
 
 func replaceCreated(body string, at int64) string {
 	return createdRe.ReplaceAllString(body, `"created":`+strconv.FormatInt(at, 10))
+}
+
+func TestASecondSubscriptionIsCanceled(t *testing.T) {
+	e := newEnv(t)
+	e.link("acme", "cus_1") // live sub_acme
+	e.fake.Subscriptions["sub_acme"] = &stripetest.Subscription{ID: "sub_acme", Customer: "cus_1", Status: "active"}
+	e.fake.Subscriptions["sub_2"] = &stripetest.Subscription{ID: "sub_2", Customer: "cus_1", Status: "active"}
+	e.webhook(t, "evt_cs2", "checkout.session.completed", map[string]any{"id": "cs_2", "object": "checkout.session", "mode": "subscription",
+		"status": "complete", "customer": "cus_1", "subscription": "sub_2", "client_reference_id": "acme"})
+	a, _ := e.store.Account(ctx, "acme")
+	assert.Equal(t, "sub_acme", a.SubscriptionID, "the first subscription stays")
+	assert.Equal(t, "canceled", e.fake.Subscriptions["sub_2"].Status, "the second one is canceled at once")
+	assert.Contains(t, e.store.Audits, "billing:stripe cancel_subscription acme")
+}
+
+func TestCheckoutRefusesWhileTheProviderHasASubscription(t *testing.T) {
+	e := newEnv(t)
+	_, err := e.svc.Checkout(ctx, billing.Actor{Username: "admin@acme.test"}, "acme", "Acme", "starter")
+	require.NoError(t, err)
+	a, _ := e.store.Account(ctx, "acme")
+	require.Len(t, e.fake.OpenCheckouts[a.CustomerID], 1)
+	// a second click: the first page is expired, only the newest can be completed
+	_, err = e.svc.Checkout(ctx, billing.Actor{Username: "admin@acme.test"}, "acme", "Acme", "starter")
+	require.NoError(t, err)
+	assert.Len(t, e.fake.OpenCheckouts[a.CustomerID], 1)
+
+	// a subscription whose webhook didn't arrive yet
+	e.fake.Subscriptions["sub_x"] = &stripetest.Subscription{ID: "sub_x", Customer: a.CustomerID, Status: "incomplete"}
+	_, err = e.svc.Checkout(ctx, billing.Actor{Username: "admin@acme.test"}, "acme", "Acme", "starter")
+	assert.ErrorIs(t, err, billing.ErrConflict)
+	e.fake.Subscriptions["sub_x"].Status = "active"
+	_, err = e.svc.Checkout(ctx, billing.Actor{Username: "admin@acme.test"}, "acme", "Acme", "team")
+	assert.ErrorIs(t, err, billing.ErrConflict)
+}
+
+func TestExtraDevicesOfAPartialMonthAreProrated(t *testing.T) {
+	e := newEnv(t)
+	e.link("acme", "cus_acme")
+	p := period("acme", billing.StatusPaying, billing.PeriodReady, 10, 0)
+	p.Proration = 11.0 / 30.0 // billed from the 20th
+	*e.periods = periods{p}
+	require.NoError(t, e.svc.ReportClosedPeriods(ctx))
+	ev := e.fake.Events()
+	require.Len(t, ev, 1)
+	assert.InDelta(t, 3.666667, ev[0].Value, 1e-6, "as the period's device charge: 10 × 11/30")
+}
+
+func TestAFailureDeliveredAfterItsPaymentIsIgnored(t *testing.T) {
+	e := newEnv(t)
+	e.link("acme", "cus_1")
+	e.webhook(t, "evt_paid", "invoice.paid", invoice("in_1", "cus_1"))
+	e.fake.InvoiceStatuses["in_1"] = "paid"
+	e.webhook(t, "evt_failed", "invoice.payment_failed", invoice("in_1", "cus_1"))
+	a, _ := e.store.Account(ctx, "acme")
+	assert.Equal(t, billing.DunningNone, a.State)
+}
+
+func TestOnlyTheFailedInvoiceEndsTheEpisode(t *testing.T) {
+	e := newEnv(t)
+	e.link("acme", "cus_1")
+	e.webhook(t, "evt_f", "invoice.payment_failed", invoice("in_1", "cus_1"))
+	e.webhook(t, "evt_other", "invoice.paid", invoice("in_2", "cus_1"))
+	a, _ := e.store.Account(ctx, "acme")
+	assert.Equal(t, billing.DunningPastDue, a.State, "a one-off or $0 invoice paid meanwhile")
+	e.webhook(t, "evt_p", "invoice.paid", invoice("in_1", "cus_1"))
+	a, _ = e.store.Account(ctx, "acme")
+	assert.Equal(t, billing.DunningNone, a.State)
+}
+
+func TestDunningTickLooksUpTheFailedInvoice(t *testing.T) {
+	e := newEnv(t)
+	e.link("acme", "cus_1")
+	e.webhook(t, "evt_f", "invoice.payment_failed", invoice("in_1", "cus_1"))
+	a, _ := e.store.Account(ctx, "acme")
+	// the "paid" event never reached us
+	e.fake.InvoiceStatuses["in_1"] = "paid"
+	*e.now = a.FailedAt.Add(15 * 24 * time.Hour)
+	require.NoError(t, e.svc.DunningTick(ctx))
+	a, _ = e.store.Account(ctx, "acme")
+	assert.Equal(t, billing.DunningNone, a.State)
+	assert.Equal(t, billing.AccessFull, e.svc.Access(ctx, "acme"))
+}
+
+func TestExemptOrganizationsAreNeverInDunningNorSubscribed(t *testing.T) {
+	e := newEnv(t)
+	e.link("partner", "cus_p")
+	e.fake.Subscriptions["sub_partner"] = &stripetest.Subscription{ID: "sub_partner", Customer: "cus_p", Status: "active"}
+	e.records["partner"] = &billing.Billing{Organization: "partner", Status: billing.StatusExempt}
+	e.webhook(t, "evt_f", "invoice.payment_failed", invoice("in_1", "cus_p"))
+	a, _ := e.store.Account(ctx, "partner")
+	assert.Equal(t, billing.DunningNone, a.State)
+	require.NoError(t, e.svc.DunningTick(ctx))
+	assert.Equal(t, "canceled", e.fake.Subscriptions["sub_partner"].Status, "an exempt organization's subscription is canceled")
+}
+
+func TestPlanFollowsOnlyABillingSubscription(t *testing.T) {
+	e := newEnv(t)
+	e.link("acme", "cus_1")
+	sub := func(status string) map[string]any {
+		return e.fake.SubscriptionJSON(&stripetest.Subscription{ID: "sub_acme", Customer: "cus_1", Status: status, Items: []string{"price_team"}})
+	}
+	e.webhook(t, "evt_1", "customer.subscription.updated", sub("incomplete"))
+	assert.Equal(t, []string{"acme sub_acme plan="}, e.sync.states, "an unpaid subscription doesn't grant its plan")
+	e.webhook(t, "evt_2", "customer.subscription.updated", sub("incomplete_expired"))
+	assert.Equal(t, "acme sub_acme plan=free", e.sync.states[1])
+	e.webhook(t, "evt_3", "customer.subscription.updated", sub("active"))
+	assert.Equal(t, "acme sub_acme plan=team", e.sync.states[2])
+}
+
+func TestASyncFailureLeavesTheEventToBeRetried(t *testing.T) {
+	e := newEnv(t)
+	e.link("acme", "cus_1")
+	e.sync.fail = errors.New("database gone")
+	obj := e.fake.SubscriptionJSON(&stripetest.Subscription{ID: "sub_acme", Customer: "cus_1", Status: "active", Items: []string{"price_team"}})
+	body, sig := stripetest.SignedEvent("evt_1", "customer.subscription.updated", obj, stripetest.WebhookSecret, time.Now())
+	h := http.Header{}
+	h.Set("Stripe-Signature", sig)
+	res, err := e.svc.HandleWebhook(ctx, body, h)
+	assert.Equal(t, billing.WebhookFailed, res)
+	assert.Error(t, err)
+	e.sync.fail = nil
+	res, err = e.svc.HandleWebhook(ctx, body, h)
+	require.NoError(t, err)
+	assert.Equal(t, billing.WebhookApplied, res, "Stripe's retry applies it")
+}
+
+func TestLateUsageGoesOnTheNextInvoice(t *testing.T) {
+	e := newEnv(t)
+	e.link("acme", "cus_acme")
+	*e.periods = periods{period("acme", billing.StatusPaying, billing.PeriodReady, 4, 0)}
+	*e.now = time.Date(2026, 12, 3, 9, 0, 0, 0, time.UTC) // approved two days late
+	require.NoError(t, e.svc.ReportClosedPeriods(ctx))
+	ev := e.fake.Events()
+	require.Len(t, ev, 1)
+	assert.Equal(t, *e.now, ev[0].Timestamp)
+	*e.now = e.now.Add(2 * time.Hour)
+	require.NoError(t, e.svc.Reconcile(ctx))
+	assert.Equal(t, billing.ReportConfirmed, e.store.Rpts["procy:acme:extra_devices:2026-11-01"].State)
+}
+
+func TestUnreadableWebhooksAreNotCountedAsForged(t *testing.T) {
+	e := newEnv(t)
+	body := []byte(`{"id":"evt_x","object":"event","type":"invoice.paid","api_version":"2024-06-20","created":1,"data":{"object":{"id":"in_1","object":"invoice"}}}`)
+	h := http.Header{}
+	h.Set("Stripe-Signature", stripetest.SignHeader(body, stripetest.WebhookSecret, time.Now()))
+	res, _ := e.svc.HandleWebhook(ctx, body, h)
+	assert.Equal(t, billing.WebhookUnreadable, res)
+	assert.Zero(t, e.svc.Stats().WebhooksUnverified)
 }

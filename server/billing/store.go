@@ -45,25 +45,32 @@ const (
 	ReportMismatch ReportState = "mismatch"
 	// ReportFailed: the last send failed; it is retried.
 	ReportFailed ReportState = "failed"
+	// ReportExpired: the usage became too old for the provider before it could be sent; operators invoice it by
+	// hand.
+	ReportExpired ReportState = "expired"
 )
 
 // UsageReport is one quantity of one closed period reported to the provider (billing_usage_reports).
 type UsageReport struct {
-	Organization  string      `json:"organization" db:"tenant_id"`
-	PeriodStart   time.Time   `json:"period_start" db:"period_start"`
-	PeriodEnd     time.Time   `json:"period_end" db:"period_end"`
-	Metric        string      `json:"metric" db:"metric"`
-	Identifier    string      `json:"identifier" db:"identifier"`
-	CustomerID    string      `json:"customer_id" db:"customer_id"`
-	PriceID       string      `json:"price_id" db:"price_id"`
-	Quantity      int64       `json:"quantity" db:"quantity"`
-	State         ReportState `json:"state" db:"state"`
-	Attempts      int         `json:"attempts" db:"attempts"`
-	LastAttemptAt *time.Time  `json:"last_attempt_at" db:"last_attempt_at"`
-	SentAt        *time.Time  `json:"sent_at" db:"sent_at"`
-	ConfirmedAt   *time.Time  `json:"confirmed_at" db:"confirmed_at"`
-	ProviderValue *float64    `json:"provider_value" db:"provider_value"`
-	LastError     string      `json:"last_error,omitempty" db:"last_error"`
+	Organization string      `json:"organization" db:"tenant_id"`
+	PeriodStart  time.Time   `json:"period_start" db:"period_start"`
+	PeriodEnd    time.Time   `json:"period_end" db:"period_end"`
+	Metric       string      `json:"metric" db:"metric"`
+	Identifier   string      `json:"identifier" db:"identifier"`
+	CustomerID   string      `json:"customer_id" db:"customer_id"`
+	PriceID      string      `json:"price_id" db:"price_id"`
+	Quantity     float64     `json:"quantity" db:"quantity"`
+	State        ReportState `json:"state" db:"state"`
+	Attempts     int         `json:"attempts" db:"attempts"`
+	// FirstAttemptAt is the first send: the provider's identifier window runs from there.
+	FirstAttemptAt *time.Time `json:"first_attempt_at" db:"first_attempt_at"`
+	LastAttemptAt  *time.Time `json:"last_attempt_at" db:"last_attempt_at"`
+	// RecordedAt is the usage time sent (inside the period; inside the current invoice period when late).
+	RecordedAt    *time.Time `json:"recorded_at" db:"recorded_at"`
+	SentAt        *time.Time `json:"sent_at" db:"sent_at"`
+	ConfirmedAt   *time.Time `json:"confirmed_at" db:"confirmed_at"`
+	ProviderValue *float64   `json:"provider_value" db:"provider_value"`
+	LastError     string     `json:"last_error,omitempty" db:"last_error"`
 }
 
 // Store keeps the provider's records (Postgres: migration 1500).
@@ -76,7 +83,11 @@ type Store interface {
 	OrganizationOf(ctx context.Context, provider, customerID string) (string, error)
 	// PutAccount writes an account.
 	PutAccount(ctx context.Context, a *ProviderAccount) error
-	// ApplyEvent claims the webhook event (provider, eventID) and, when it is new, runs update on org's account (nil
+	// UpdateAccount runs update on org's current account (nil when it has none) and writes what it returns (nil:
+	// no change), with org's account locked against concurrent changes (webhooks, the dunning tick, operators).
+	UpdateAccount(ctx context.Context, org string, update func(*ProviderAccount) (*ProviderAccount, error)) error
+	// ApplyEvent claims the webhook event (provider, eventID) and, when it is new, runs update on org's locked
+	// account (nil
 	// when it has none; org "" for events of no organization) and writes the account it returns (nil: no change),
 	// in one transaction: a failing update leaves the event unclaimed, so the provider's retry applies it again.
 	// applied is false for an event received before.
@@ -102,4 +113,5 @@ const (
 	AuditConfirmSuspension = "confirm_suspension"
 	AuditCheckout          = "checkout"
 	AuditChangePlan        = "change_plan"
+	AuditCancel            = "cancel_subscription"
 )

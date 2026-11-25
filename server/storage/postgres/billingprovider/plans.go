@@ -65,8 +65,11 @@ var _ billing.Sync = Sync{}
 
 // ProviderState implements billing.Sync.
 func (s Sync) ProviderState(ctx context.Context, org, customerID, subscriptionID string, hasPaymentMethod bool, plan string) error {
-	if _, err := s.DB.ExecContext(ctx, "SELECT rport_billing_provider_state($1, $2, $3, $4, $5, $6, $7)",
-		org, customerID, subscriptionID, hasPaymentMethod, plan, s.FreePlan, s.By); err != nil {
+	if err := (Store{DB: s.DB}).inCtx(ctx, func(tx *sqlx.Tx) error {
+		_, err := tx.ExecContext(ctx, "SELECT rport_billing_provider_state($1, $2, $3, $4, $5, $6, $7)",
+			org, customerID, subscriptionID, hasPaymentMethod, plan, s.FreePlan, s.By)
+		return err
+	}); err != nil {
 		return fmt.Errorf("billing: provider state of %s: %w", org, err)
 	}
 	return nil
@@ -74,7 +77,10 @@ func (s Sync) ProviderState(ctx context.Context, org, customerID, subscriptionID
 
 // PeriodReported implements billing.Sync.
 func (s Sync) PeriodReported(ctx context.Context, org string, start, _ time.Time) error {
-	if _, err := s.DB.ExecContext(ctx, "SELECT rport_billing_period_reported($1, $2::date)", org, start.UTC().Format("2006-01-02")); err != nil {
+	if err := (Store{DB: s.DB}).inCtx(ctx, func(tx *sqlx.Tx) error {
+		_, err := tx.ExecContext(ctx, "SELECT rport_billing_period_reported($1, $2::date)", org, start.UTC().Format("2006-01-02"))
+		return err
+	}); err != nil {
 		return fmt.Errorf("billing: period %s of %s reported: %w", start.Format("2006-01"), org, err)
 	}
 	return nil

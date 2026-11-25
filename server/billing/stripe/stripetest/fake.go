@@ -29,7 +29,7 @@ type MeterEvent struct {
 	EventName  string
 	Identifier string
 	Customer   string
-	Value      int64
+	Value      float64
 	Timestamp  time.Time
 }
 
@@ -52,6 +52,10 @@ type Fake struct {
 	Subscriptions map[string]*Subscription
 	// Invoices of each customer, as JSON objects.
 	Invoices map[string][]map[string]any
+	// InvoiceStatuses by invoice id (GET /v1/invoices/{id}); unknown ids are "open".
+	InvoiceStatuses map[string]string
+	// OpenCheckouts of each customer; expired ones are removed.
+	OpenCheckouts map[string][]string
 	// Requests are the paths requested ("POST /v1/customers").
 	Requests []string
 	// Forms are the form bodies of the POST requests, by path.
@@ -84,6 +88,9 @@ func New(t testing.TB) *Fake {
 		Subscriptions: map[string]*Subscription{},
 		Invoices:      map[string][]map[string]any{},
 		Forms:         map[string][]url.Values{},
+
+		InvoiceStatuses: map[string]string{},
+		OpenCheckouts:   map[string][]string{},
 	}
 	f.Server = httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(f.Server.Close)
@@ -195,8 +202,42 @@ func (f *Fake) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"id": parts[2], "object": "customer", "metadata": meta})
+	case r.Method == http.MethodGet && r.URL.Path == "/v1/checkout/sessions":
+		var data []map[string]any
+		for _, id := range f.OpenCheckouts[r.URL.Query().Get("customer")] {
+			data = append(data, map[string]any{"id": id, "object": "checkout.session", "status": "open"})
+		}
+		writeJSON(w, http.StatusOK, list(data, r.URL.Path))
+	case r.Method == http.MethodPost && len(parts) == 5 && parts[1] == "checkout" && parts[4] == "expire":
+		for c, ids := range f.OpenCheckouts {
+			var keep []string
+			for _, id := range ids {
+				if id != parts[3] {
+					keep = append(keep, id)
+				}
+			}
+			f.OpenCheckouts[c] = keep
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": parts[3], "object": "checkout.session", "status": "expired"})
+	case r.Method == http.MethodGet && len(parts) == 3 && parts[1] == "invoices":
+		st := f.InvoiceStatuses[parts[2]]
+		if st == "" {
+			st = "open"
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": parts[2], "object": "invoice", "status": st})
+	case r.Method == http.MethodGet && r.URL.Path == "/v1/subscriptions":
+		var data []map[string]any
+		for _, sub := range f.Subscriptions {
+			if sub.Customer == r.URL.Query().Get("customer") {
+				data = append(data, f.subscriptionJSON(sub))
+			}
+		}
+		writeJSON(w, http.StatusOK, list(data, r.URL.Path))
 	case r.Method == http.MethodPost && r.URL.Path == "/v1/checkout/sessions":
 		id := f.id("cs_test")
+		if c := r.PostForm.Get("customer"); c != "" {
+			f.OpenCheckouts[c] = append(f.OpenCheckouts[c], id)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"id": id, "object": "checkout.session", "url": "https://checkout.stripe.test/c/pay/" + id})
 	case r.Method == http.MethodPost && r.URL.Path == "/v1/billing_portal/sessions":
 		id := f.id("bps")
@@ -233,7 +274,7 @@ func (f *Fake) serve(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		v, err := strconv.ParseInt(r.PostForm.Get("payload[value]"), 10, 64)
+		v, err := strconv.ParseFloat(r.PostForm.Get("payload[value]"), 64)
 		ts, err2 := strconv.ParseInt(r.PostForm.Get("timestamp"), 10, 64)
 		if err != nil || err2 != nil {
 			stripeError(w, http.StatusBadRequest, "parameter_invalid", "bad value or timestamp")
@@ -251,7 +292,7 @@ func (f *Fake) serve(w http.ResponseWriter, r *http.Request) {
 			stripeError(w, http.StatusBadRequest, "parameter_invalid", "start_time and end_time must be aligned with minute boundaries")
 			return
 		}
-		var sum int64
+		var sum float64
 		for _, e := range f.MeterEvents {
 			if e.EventName == name && e.Customer == q.Get("customer") && e.Timestamp.Unix() >= start && e.Timestamp.Unix() < end {
 				sum += e.Value

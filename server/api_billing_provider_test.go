@@ -2,6 +2,7 @@ package chserver
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -31,7 +32,7 @@ func billingProviderListener(t *testing.T, store *billingtest.MemStore) *APIList
 	require.NoError(t, err)
 	al := &APIListener{
 		insecureForTests: true,
-		apiServices:      &apiServices{config: &chconfig.Config{API: chconfig.APIConfig{MaxRequestBytes: 1024 * 1024}}},
+		apiServices:      &apiServices{config: &chconfig.Config{API: chconfig.APIConfig{MaxRequestBytes: 10 * 1024}}},
 		Logger:           testLog,
 	}
 	al.billing = &BillingAPI{Provider: svc}
@@ -58,8 +59,15 @@ func TestBillingWebhookRouteNeedsNoSessionButASignature(t *testing.T) {
 	store := billingtest.NewMemStore()
 	store.Accts["acme"] = billing.ProviderAccount{Organization: "acme", Provider: "stripe", CustomerID: "cus_1"}
 	al := billingProviderListener(t, store)
+	// a real invoice event is often larger than API requests may be (10 KB by default)
+	lines := make([]map[string]any, 200)
+	for i := range lines {
+		lines[i] = map[string]any{"id": fmt.Sprintf("il_%d", i), "object": "line_item", "description": "a line of an invoice with tax"}
+	}
 	body, sig := stripetest.SignedEvent("evt_1", "invoice.payment_failed",
-		map[string]any{"id": "in_1", "object": "invoice", "customer": "cus_1"}, stripetest.WebhookSecret, time.Now())
+		map[string]any{"id": "in_1", "object": "invoice", "customer": "cus_1", "lines": map[string]any{"object": "list", "data": lines}},
+		stripetest.WebhookSecret, time.Now())
+	require.Greater(t, len(body), 10*1024)
 	post := func(sig string) int {
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/billing/webhook", bytes.NewReader(body))
 		req.Header.Set("Stripe-Signature", sig)

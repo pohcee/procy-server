@@ -290,10 +290,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		}
 	}
 	s.billingOpts = opts.Billing
-	if opts.Billing != nil && opts.Billing.Provider != nil {
-		// schedules of organizations read-only for an overdue payment pause
-		s.cluster = billing.PauseSchedules(s.cluster, opts.Billing.Provider)
-	}
+	s.pauseSchedulesWhileReadOnly(opts.Billing)
 	s.setupBilling(opts.Billing)
 	if s.enforcer != nil {
 		if p, ok := s.clientService.(*clients.ClientServiceProvider); ok {
@@ -418,6 +415,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	if err != nil {
 		return nil, err
 	}
+	s.setBillingProviderNotifier(opts.Billing)
 
 	if s.config.CaddyEnabled() {
 		cfg := s.config

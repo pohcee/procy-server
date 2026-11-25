@@ -12,11 +12,13 @@ import (
 	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/repotest"
 	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	"github.com/openrport/openrport/share/tenant"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m) }
 
-var ctx = context.Background()
+// ctx is the system tenant's, as the webhook and the jobs run
+var ctx = tenant.WithID(context.Background(), "_system")
 
 func TestAccountsAndCustomerMapping(t *testing.T) {
 	d := pgtest.New(t, repotest.TenantA, repotest.TenantB)
@@ -133,7 +135,7 @@ func TestReportsKeepTheirQuantity(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, billing.ReportConfirmed, got[0].State)
-	assert.Equal(t, int64(12), got[0].Quantity)
+	assert.Equal(t, 12.0, got[0].Quantity)
 	assert.Equal(t, 12.0, *got[0].ProviderValue)
 	assert.True(t, start.Equal(got[0].PeriodStart))
 
@@ -174,4 +176,43 @@ func TestNoticesAndRecipients(t *testing.T) {
 	got, err := s.AdminEmails(ctx, a)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"admin@a.test", "bob@a.test"}, got)
+}
+
+func TestOnlyTheSystemTenantOrTheOrganizationItselfWrites(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA, repotest.TenantB)
+	s := Store{DB: d.App}
+	a, b := string(repotest.TenantA), string(repotest.TenantB)
+	failed := time.Now().UTC()
+	require.NoError(t, s.PutAccount(ctx, &billing.ProviderAccount{Organization: a, Provider: "stripe", CustomerID: "cus_a",
+		SubscriptionID: "sub_a", Dunning: billing.Dunning{State: billing.DunningReadOnly, FailedAt: &failed}}))
+
+	inA := tenant.WithID(context.Background(), repotest.TenantA)
+	// its own checkout links a customer, nothing else: the dunning state stays
+	require.NoError(t, s.UpdateAccount(inA, a, func(cur *billing.ProviderAccount) (*billing.ProviderAccount, error) {
+		cur.CustomerID = "cus_a2"
+		cur.Dunning = billing.Dunning{State: billing.DunningNone}
+		cur.SubscriptionID = ""
+		return cur, nil
+	}))
+	got, err := s.Account(ctx, a)
+	require.NoError(t, err)
+	assert.Equal(t, "cus_a2", got.CustomerID)
+	assert.Equal(t, billing.DunningReadOnly, got.State)
+	assert.Equal(t, "sub_a", got.SubscriptionID)
+
+	// another organization's records are refused
+	assert.Error(t, s.PutAccount(inA, &billing.ProviderAccount{Organization: b, Provider: "stripe", CustomerID: "cus_b"}))
+	_, err = s.Accounts(inA)
+	assert.Error(t, err)
+	_, err = s.OrganizationOf(inA, "stripe", "cus_a2")
+	assert.Error(t, err)
+	_, err = s.ApplyEvent(inA, "stripe", "evt", "t", a, func(*billing.ProviderAccount) (*billing.ProviderAccount, error) { return nil, nil })
+	assert.Error(t, err)
+	assert.Error(t, s.PutReport(inA, &billing.UsageReport{Organization: a, PeriodStart: time.Now(), PeriodEnd: time.Now(), Metric: billing.MetricOverageGiB,
+		Identifier: "x", CustomerID: "c", PriceID: "p", State: billing.ReportSent}))
+	_, err = s.ApplyEvent(ctx, "stripe", "evt_s", "t", a, func(*billing.ProviderAccount) (*billing.ProviderAccount, error) { return nil, nil })
+	require.NoError(t, err)
+	var n int
+	require.NoError(t, d.App.Get(&n, "SELECT count(*) FROM billing_events"))
+	assert.Zero(t, n, "webhook events are visible to the system tenant only")
 }

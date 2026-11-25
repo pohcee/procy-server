@@ -46,16 +46,19 @@ func BillingProvider(cfg *chconfig.Config, db *sqlx.DB, plans *billing.Plans, op
 	if ops != nil {
 		susp = suspender{ops: ops}
 	}
+	provStore := billingprovider.Store{DB: db}
 	return billing.NewService(billing.Options{
-		Provider:  p,
-		Store:     billingprovider.Store{DB: db},
-		Plans:     plans,
-		PlanIDs:   ids,
-		FreePlan:  plans.Free,
-		Records:   billingprovider.Records{Store: store},
-		Periods:   billingprovider.Periods{Operator: &pgbilling.Operator{DB: db, Plans: plans}},
-		Sync:      billingprovider.Sync{DB: db, FreePlan: plans.Free, By: "billing:" + p.Name()},
-		Suspender: susp,
+		Provider: p,
+		Store:    provStore,
+		// webhook event ids are kept far longer than Stripe retries (3 days)
+		PruneEvents: func(ctx context.Context) error { return provStore.PruneEvents(ctx, 90*24*time.Hour) },
+		Plans:       plans,
+		PlanIDs:     ids,
+		FreePlan:    plans.Free,
+		Records:     billingprovider.Records{Store: store},
+		Periods:     billingprovider.Periods{Operator: &pgbilling.Operator{DB: db, Plans: plans}},
+		Sync:        billingprovider.Sync{DB: db, FreePlan: plans.Free, By: "billing:" + p.Name()},
+		Suspender:   susp,
 		Dunning: billing.DunningPolicy{
 			Grace:    time.Duration(cfg.Billing.GraceDays) * 24 * time.Hour,
 			ReadOnly: time.Duration(cfg.Billing.ReadOnlyDays) * 24 * time.Hour,

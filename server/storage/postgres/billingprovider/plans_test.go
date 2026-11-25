@@ -116,8 +116,7 @@ func TestProviderStateNeverChangesAnExemptPlan(t *testing.T) {
 	plans, err := billing.ParsePlans([]byte(plansFile))
 	require.NoError(t, err)
 	op := &pgbilling.Operator{DB: d.App, Plans: plans}
-	sysCtx := ctx
-	_, err = op.SetStatus(sysCtx, billing.Actor{Username: "op"}, a, billing.StatusChange{Status: billing.StatusExempt, Reason: "partner"})
+	_, err = op.SetStatus(ctx, billing.Actor{Username: "op"}, a, billing.StatusChange{Status: billing.StatusExempt, Reason: "partner"})
 	require.NoError(t, err)
 	sync := Sync{DB: d.App, FreePlan: "free", By: "billing:stripe"}
 	require.NoError(t, sync.ProviderState(ctx, a, "cus_a", "", false, "starter"))

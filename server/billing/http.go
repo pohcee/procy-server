@@ -27,8 +27,11 @@ const (
 	OperatorRoutePrefix = "/billing/provider"
 )
 
-// maxWebhookBody bounds a webhook body (Stripe events are a few KiB, up to a few hundred with large objects).
-const maxWebhookBody = 1 << 20
+// MaxWebhookBody bounds a webhook body (Stripe events are a few KiB, up to a few hundred with large objects).
+const MaxWebhookBody = 1 << 20
+
+// WebhookRouteName names the webhook route, so the API's request size limit gives it MaxWebhookBody.
+const WebhookRouteName = "billing-webhook"
 
 // HTTPOptions are the dependencies of the HTTP handlers.
 type HTTPOptions struct {
@@ -52,8 +55,8 @@ func NewHTTP(o HTTPOptions) *HTTP { return &HTTP{o: o} }
 // in one transaction. 200 for an applied or repeated event, 400 for a request that isn't from the provider (counted
 // for operators), 500 when applying failed (the provider retries).
 func (h *HTTP) Webhook(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxWebhookBody+1))
-	if err != nil || len(body) > maxWebhookBody {
+	body, err := io.ReadAll(io.LimitReader(r.Body, MaxWebhookBody+1))
+	if err != nil || len(body) > MaxWebhookBody {
 		h.o.Service.count(func(st *Stats) { st.WebhooksUnverified++ })
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
@@ -64,6 +67,9 @@ func (h *HTTP) Webhook(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	case WebhookUnverified:
 		h.o.Service.log.Infof("billing: webhook from %s refused: %v", r.RemoteAddr, err)
+		http.Error(w, "bad request", http.StatusBadRequest)
+	case WebhookUnreadable:
+		h.o.Service.log.Errorf("billing: webhook: a verified event can't be read (check the endpoint's API version): %v", err)
 		http.Error(w, "bad request", http.StatusBadRequest)
 	default:
 		h.o.Service.log.Errorf("billing: webhook: %v", err)
@@ -295,8 +301,8 @@ func (h *HTTP) confirmSuspension(w http.ResponseWriter, r *http.Request) {
 const ReadOnlyErrCode = "ERR_CODE_BILLING_READ_ONLY"
 
 // readOnlyAllowed are the changes a read-only organization's users may still make: their own session and
-// account, and the payment routes (paying is how read-only ends).
-var readOnlyAllowed = []string{"/login", "/logout", "/me", "/verify-2fa", OrgRoutePrefix + "/"}
+// account, and the portal (paying is how read-only ends; checkout answers for itself that it is refused).
+var readOnlyAllowed = []string{"/login", "/logout", "/me", "/verify-2fa", OrgRoutePrefix + "/portal", OrgRoutePrefix + "/checkout"}
 
 // ReadOnlyGuard refuses changes (any method but GET, HEAD and OPTIONS; and websocket upgrades, which start jobs
 // and uploads) for organizations that are read-only after an overdue payment, with 403 and ReadOnlyErrCode.
@@ -329,7 +335,7 @@ func mutating(r *http.Request) bool {
 
 func allowedWhileReadOnly(path string) bool {
 	for _, p := range readOnlyAllowed {
-		if path == strings.TrimSuffix(p, "/") || strings.HasPrefix(path, p) || strings.HasPrefix(path, p+"/") {
+		if path == p || strings.HasPrefix(path, p+"/") {
 			return true
 		}
 	}

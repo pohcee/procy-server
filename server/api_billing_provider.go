@@ -44,7 +44,7 @@ func (al *APIListener) addBillingProviderRoutes(api, secureAPI, operatorAPI *mux
 	if h == nil {
 		return
 	}
-	api.HandleFunc(billing.WebhookRoute, h.Webhook).Methods(http.MethodPost)
+	api.HandleFunc(billing.WebhookRoute, h.Webhook).Methods(http.MethodPost).Name(billing.WebhookRouteName)
 	org := secureAPI.PathPrefix(billing.OrgRoutePrefix).Subrouter()
 	org.Use(al.wrapAdminAccessMiddleware)
 	h.MountOrg(org)

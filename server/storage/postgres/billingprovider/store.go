@@ -1,6 +1,8 @@
 // Package billingprovider is the Postgres billing.Store (migration 1500): the payment provider's accounts, webhook
 // events, usage reports and dunning notices. It works on the application connection; every write goes through
-// the migration's SECURITY DEFINER functions.
+// the migration's SECURITY DEFINER functions, in a transaction of the context's tenant: the system tenant for the
+// webhook, the jobs and operators (every organization), an organization's own for its checkout (its customer
+// only).
 package billingprovider
 
 import (
@@ -70,10 +72,64 @@ func accountIn(ctx context.Context, tx *sqlx.Tx, org string) (*billing.ProviderA
 	return &a, err
 }
 
-// Accounts implements billing.Store.
+// inCtx runs fn in a transaction of the context's tenant.
+func (s Store) inCtx(ctx context.Context, fn func(tx *sqlx.Tx) error) error {
+	tid, err := tenant.FromContext(ctx)
+	if err != nil {
+		return err
+	}
+	return postgres.InTenantID(ctx, s.DB, tid, fn)
+}
+
+// lockAccount serializes the changes of org's account until the transaction ends (webhooks, the dunning tick,
+// operators and checkout each read, change and write the whole account).
+func lockAccount(ctx context.Context, tx *sqlx.Tx, org string) error {
+	_, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtext('rport_billing_provider_accounts'), hashtext($1))", org)
+	return err
+}
+
+// lockedAccount locks org's account and reads it (nil without one).
+func lockedAccount(ctx context.Context, tx *sqlx.Tx, org string) (*billing.ProviderAccount, error) {
+	if err := lockAccount(ctx, tx, org); err != nil {
+		return nil, err
+	}
+	var rows []accountRow
+	if err := tx.SelectContext(ctx, &rows, "SELECT "+accountColumns+" FROM rport_billing_account($1)", org); err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	a, err := rows[0].account()
+	return &a, err
+}
+
+// UpdateAccount implements billing.Store.
+func (s Store) UpdateAccount(ctx context.Context, org string, update func(*billing.ProviderAccount) (*billing.ProviderAccount, error)) error {
+	err := s.inCtx(ctx, func(tx *sqlx.Tx) error {
+		cur, err := lockedAccount(ctx, tx, org)
+		if err != nil {
+			return err
+		}
+		next, err := update(cur)
+		if err != nil || next == nil {
+			return err
+		}
+		return putAccount(ctx, tx, next)
+	})
+	if err != nil {
+		return fmt.Errorf("billing account %q: %w", org, err)
+	}
+	return nil
+}
+
+// Accounts implements billing.Store (system tenant).
 func (s Store) Accounts(ctx context.Context) ([]billing.ProviderAccount, error) {
 	var rows []accountRow
-	if err := s.DB.SelectContext(ctx, &rows, "SELECT "+accountColumns+" FROM rport_billing_accounts()"); err != nil {
+	err := s.inCtx(ctx, func(tx *sqlx.Tx) error {
+		return tx.SelectContext(ctx, &rows, "SELECT "+accountColumns+" FROM rport_billing_accounts()")
+	})
+	if err != nil {
 		return nil, fmt.Errorf("billing accounts: %w", err)
 	}
 	out := make([]billing.ProviderAccount, 0, len(rows))
@@ -90,7 +146,10 @@ func (s Store) Accounts(ctx context.Context) ([]billing.ProviderAccount, error) 
 // OrganizationOf implements billing.Store.
 func (s Store) OrganizationOf(ctx context.Context, provider, customerID string) (string, error) {
 	var org sql.NullString
-	if err := s.DB.GetContext(ctx, &org, "SELECT rport_billing_customer_tenant($1, $2)", provider, customerID); err != nil {
+	err := s.inCtx(ctx, func(tx *sqlx.Tx) error {
+		return tx.GetContext(ctx, &org, "SELECT rport_billing_customer_tenant($1, $2)", provider, customerID)
+	})
+	if err != nil {
 		return "", fmt.Errorf("billing customer: %w", err)
 	}
 	return org.String, nil
@@ -137,7 +196,7 @@ func putAccount(ctx context.Context, ex sqlx.ExecerContext, a *billing.ProviderA
 
 // PutAccount implements billing.Store.
 func (s Store) PutAccount(ctx context.Context, a *billing.ProviderAccount) error {
-	if err := putAccount(ctx, s.DB, a); err != nil {
+	if err := s.inCtx(ctx, func(tx *sqlx.Tx) error { return putAccount(ctx, tx, a) }); err != nil {
 		return fmt.Errorf("billing account %q: %w", a.Organization, err)
 	}
 	return nil
@@ -145,6 +204,10 @@ func (s Store) PutAccount(ctx context.Context, a *billing.ProviderAccount) error
 
 // ApplyEvent implements billing.Store.
 func (s Store) ApplyEvent(ctx context.Context, provider, eventID, eventType, org string, update func(*billing.ProviderAccount) (*billing.ProviderAccount, error)) (applied bool, err error) {
+	tid, err := tenant.FromContext(ctx)
+	if err != nil {
+		return false, err
+	}
 	tx, err := s.DB.BeginTxx(ctx, nil)
 	if err != nil {
 		return false, fmt.Errorf("billing event: %w", err)
@@ -154,6 +217,9 @@ func (s Store) ApplyEvent(ctx context.Context, provider, eventID, eventType, org
 			_ = tx.Rollback()
 		}
 	}()
+	if _, err = tx.ExecContext(ctx, "SELECT set_config($1, $2, true)", postgres.TenantSetting, string(tid)); err != nil {
+		return false, err
+	}
 	var orgArg any
 	if org != "" {
 		orgArg = org
@@ -166,10 +232,7 @@ func (s Store) ApplyEvent(ctx context.Context, provider, eventID, eventType, org
 	}
 	var cur *billing.ProviderAccount
 	if org != "" {
-		if _, err = tx.ExecContext(ctx, "SELECT set_config($1, $2, true)", postgres.TenantSetting, org); err != nil {
-			return false, err
-		}
-		if cur, err = accountIn(ctx, tx, org); err != nil {
+		if cur, err = lockedAccount(ctx, tx, org); err != nil {
 			return false, fmt.Errorf("billing event %s: %w", eventID, err)
 		}
 	}
@@ -189,7 +252,7 @@ func (s Store) ApplyEvent(ctx context.Context, provider, eventID, eventType, org
 }
 
 const reportColumns = `tenant_id, period_start, period_end, metric, identifier, customer_id, price_id, quantity, state,
-	attempts, last_attempt_at, sent_at, confirmed_at, provider_value, last_error`
+	attempts, first_attempt_at, last_attempt_at, recorded_at, sent_at, confirmed_at, provider_value, last_error`
 
 // Reports implements billing.Store.
 func (s Store) Reports(ctx context.Context, periodStart time.Time) ([]billing.UsageReport, error) {
@@ -198,7 +261,9 @@ func (s Store) Reports(ctx context.Context, periodStart time.Time) ([]billing.Us
 		arg = periodStart
 	}
 	out := []billing.UsageReport{}
-	if err := s.DB.SelectContext(ctx, &out, "SELECT "+reportColumns+" FROM rport_billing_reports($1)", arg); err != nil {
+	if err := s.inCtx(ctx, func(tx *sqlx.Tx) error {
+		return tx.SelectContext(ctx, &out, "SELECT "+reportColumns+" FROM rport_billing_reports($1)", arg)
+	}); err != nil {
 		return nil, fmt.Errorf("billing usage reports: %w", err)
 	}
 	for i := range out {
@@ -214,7 +279,10 @@ func (s Store) PutReport(ctx context.Context, r *billing.UsageReport) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.DB.ExecContext(ctx, "SELECT rport_billing_put_report($1, $2)", r.Organization, string(b)); err != nil {
+	if err := s.inCtx(ctx, func(tx *sqlx.Tx) error {
+		_, err := tx.ExecContext(ctx, "SELECT rport_billing_put_report($1, $2)", r.Organization, string(b))
+		return err
+	}); err != nil {
 		return fmt.Errorf("billing usage report %s: %w", r.Identifier, err)
 	}
 	return nil
@@ -223,10 +291,20 @@ func (s Store) PutReport(ctx context.Context, r *billing.UsageReport) error {
 // ClaimNotice implements billing.Store.
 func (s Store) ClaimNotice(ctx context.Context, org, kind, episode string) (bool, error) {
 	var ok bool
-	if err := s.DB.GetContext(ctx, &ok, "SELECT rport_billing_claim_dunning_notice($1, $2, $3)", org, kind, episode); err != nil {
+	if err := s.inCtx(ctx, func(tx *sqlx.Tx) error {
+		return tx.GetContext(ctx, &ok, "SELECT rport_billing_claim_dunning_notice($1, $2, $3)", org, kind, episode)
+	}); err != nil {
 		return false, fmt.Errorf("billing notice: %w", err)
 	}
 	return ok, nil
+}
+
+// PruneEvents removes webhook event ids older than keep (system tenant).
+func (s Store) PruneEvents(ctx context.Context, keep time.Duration) error {
+	return s.inCtx(ctx, func(tx *sqlx.Tx) error {
+		_, err := tx.ExecContext(ctx, "SELECT rport_billing_prune_events(make_interval(secs => $1))", keep.Seconds())
+		return err
+	})
 }
 
 // systemTenant is the platform operators' tenant (operator.SystemTenant).

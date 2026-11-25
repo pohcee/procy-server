@@ -115,7 +115,7 @@ func TestReportUsageIsIdempotentAndFindsTheMeter(t *testing.T) {
 	require.Len(t, ev, 1)
 	assert.Equal(t, "procy_extra_devices", ev[0].EventName)
 	assert.Equal(t, "cus_1", ev[0].Customer)
-	assert.Equal(t, int64(12), ev[0].Value)
+	assert.Equal(t, 12.0, ev[0].Value)
 	assert.Equal(t, at, ev[0].Timestamp)
 	assert.Equal(t, 1, f.Count("GET /v1/prices/price_devices"), "the meter of a price is cached")
 

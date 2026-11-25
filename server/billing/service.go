@@ -22,6 +22,11 @@ const (
 	ReconcileInterval = 24 * time.Hour
 	// DunningInterval: overdue organizations move on to read-only and suspension proposed.
 	DunningInterval = time.Hour
+	// DefaultFinalizationGrace is how long after a period ends its invoice still takes usage: the provider's
+	// invoice finalization grace period, which the operators set (Stripe: 1 hour by default; the docs ask for at
+	// least 6). finalizationMargin keeps a send clear of it.
+	DefaultFinalizationGrace = 6 * time.Hour
+	finalizationMargin       = 15 * time.Minute
 	// accessCacheTTL is how long an organization's access is cached for the read-only middleware.
 	accessCacheTTL = 30 * time.Second
 	// reportLookback is how far back closed periods are looked at (the provider takes usage up to 35 days old).
@@ -75,6 +80,10 @@ type Options struct {
 	Notifier  Notifier
 	Suspender Suspender
 	Dunning   DunningPolicy
+	// FinalizationGrace is the provider's invoice finalization grace period (default DefaultFinalizationGrace).
+	FinalizationGrace time.Duration
+	// PruneEvents, when set, prunes old webhook event ids (run with the reconciliation).
+	PruneEvents func(ctx context.Context) error
 	// ReturnURL is the UI's billing page: checkout and the portal return there.
 	ReturnURL string
 	Log       *logger.Logger
@@ -121,6 +130,9 @@ func NewService(o Options) (*Service, error) {
 	}
 	if o.Dunning.Grace <= 0 {
 		o.Dunning.Grace = DefaultDunningPolicy.Grace
+	}
+	if o.FinalizationGrace <= 0 {
+		o.FinalizationGrace = DefaultFinalizationGrace
 	}
 	if o.Dunning.ReadOnly <= 0 {
 		o.Dunning.ReadOnly = DefaultDunningPolicy.ReadOnly
@@ -213,16 +225,26 @@ const (
 	WebhookDuplicate
 	// WebhookUnverified: the request is not from the provider (400).
 	WebhookUnverified
+	// WebhookUnreadable: a verified request the integration can't read (another API version; 400, the provider
+	// retries until the endpoint is fixed).
+	WebhookUnreadable
 	// WebhookFailed: the event couldn't be applied; the provider retries (500).
 	WebhookFailed
 )
+
+// SystemTenant is the tenant the webhook and the background jobs work in (operator.SystemTenant).
+const SystemTenant tenant.ID = "_system"
 
 // HandleWebhook verifies and applies a webhook request.
 func (s *Service) HandleWebhook(ctx context.Context, body []byte, header map[string][]string) (WebhookResult, error) {
 	e, err := s.o.Provider.ParseWebhook(body, header)
 	if err != nil {
-		s.count(func(st *Stats) { st.WebhooksUnverified++ })
-		return WebhookUnverified, err
+		if errors.Is(err, ErrSignature) {
+			s.count(func(st *Stats) { st.WebhooksUnverified++ })
+			return WebhookUnverified, err
+		}
+		s.count(func(st *Stats) { st.WebhooksFailed++ })
+		return WebhookUnreadable, err
 	}
 	applied, err := s.ProcessEvent(ctx, e)
 	switch {
@@ -237,10 +259,12 @@ func (s *Service) HandleWebhook(ctx context.Context, body []byte, header map[str
 	return WebhookApplied, nil
 }
 
-// ProcessEvent applies a verified event once. The organization is found through our own customer mapping; an
-// organization the provider names (metadata, client reference) must agree with it, or the event is recorded and
-// ignored.
+// ProcessEvent applies a verified event once, in the system tenant. The organization is found through our own
+// customer mapping; an organization the provider names (metadata, client reference) must agree with it, or the
+// event is recorded and ignored. The event is claimed, the account changed and the billing record synced in one
+// transaction: a failure leaves the event unclaimed and the provider sends it again.
 func (s *Service) ProcessEvent(ctx context.Context, e *Event) (applied bool, err error) {
+	ctx = tenant.WithID(ctx, SystemTenant)
 	provider := s.o.Provider.Name()
 	org := ""
 	if e.CustomerID != "" {
@@ -255,28 +279,119 @@ func (s *Service) ProcessEvent(ctx context.Context, e *Event) (applied bool, err
 		s.log.Errorf("billing: %s event %s names organization %q but customer %s is %q's: ignored", provider, e.ID, e.Organization, e.CustomerID, org)
 		org = ""
 	}
+	var exempt bool
+	if org != "" {
+		b, err := s.record(ctx, org)
+		if err != nil {
+			return false, err
+		}
+		exempt = b.Status == StatusExempt
+	}
+	// a failure delivered after the invoice was paid (or voided) is stale: look the invoice up first
+	staleFailure := false
+	if org != "" && e.Type == EventPaymentFailed && e.InvoiceID != "" {
+		st, err := s.o.Provider.InvoiceStatus(ctx, e.InvoiceID)
+		if err != nil {
+			return false, err
+		}
+		staleFailure = st == "paid" || st == "void"
+	}
 	var before, after *ProviderAccount
+	var duplicate string
 	applied, err = s.o.Store.ApplyEvent(ctx, provider, e.ID, e.ProviderType, org, func(cur *ProviderAccount) (*ProviderAccount, error) {
+		before, after, duplicate = nil, nil, ""
 		if org == "" || cur == nil || e.Type == EventIgnored {
+			return nil, nil
+		}
+		if e.Type == EventPaymentFailed && (exempt || staleFailure) {
+			if exempt && e.Type == EventPaymentFailed {
+				s.log.Errorf("billing: a payment of exempt organization %s failed (%s); exempt organizations are never in dunning", org, e.InvoiceID)
+			}
+			return nil, nil
+		}
+		if isSecondSubscription(cur, e) {
+			duplicate = e.SubscriptionID
 			return nil, nil
 		}
 		prev := *cur
 		before = &prev
 		next := *cur
 		next.UpdatedBy = WebhookActor(provider).Username + " " + e.ID
-		changed := applyEvent(&next, e)
-		if !changed {
+		if !applyEvent(&next, e) {
 			return nil, nil
 		}
 		after = &next
+		if err := s.sync(ctx, e, &next); err != nil {
+			return nil, err
+		}
 		return &next, nil
 	})
-	if err != nil || !applied || after == nil {
+	if err != nil || !applied {
 		return applied, err
+	}
+	if duplicate != "" {
+		s.cancelDuplicate(ctx, org, duplicate, e)
+	}
+	if after == nil {
+		return true, nil
 	}
 	s.forget(org)
 	s.afterEvent(ctx, e, before, after)
 	return true, nil
+}
+
+// isSecondSubscription reports whether e starts another subscription while a's is still live (two checkout pages
+// completed): it must not replace the first, or both would bill.
+func isSecondSubscription(a *ProviderAccount, e *Event) bool {
+	if a.SubscriptionID == "" || e.SubscriptionID == "" || e.SubscriptionID == a.SubscriptionID {
+		return false
+	}
+	if a.SubscriptionStatus != "" && !live(a.SubscriptionStatus) {
+		return false
+	}
+	switch e.Type {
+	case EventCheckoutCompleted:
+		return true
+	case EventSubscriptionChanged:
+		return e.SubscriptionStatus == "" || live(e.SubscriptionStatus) || e.SubscriptionStatus == SubscriptionIncomplete
+	}
+	return false
+}
+
+// cancelDuplicate cancels a second subscription at once and tells operators (its first invoice may need a refund).
+func (s *Service) cancelDuplicate(ctx context.Context, org, subscriptionID string, e *Event) {
+	s.log.Errorf("billing: organization %s completed a second subscription %s while another is live; canceling it (check its first invoice for a refund)", org, subscriptionID)
+	if err := s.o.Provider.Cancel(ctx, subscriptionID, false); err != nil {
+		s.log.Errorf("billing: cancel the second subscription %s of %s: %v", subscriptionID, org, err)
+	}
+	if err := s.o.Store.Audit(ctx, WebhookActor(s.o.Provider.Name()), AuditCancel, org,
+		map[string]string{"subscription": subscriptionID, "event": e.ID, "reason": "second live subscription"}); err != nil {
+		s.log.Errorf("billing: %v", err)
+	}
+}
+
+// sync passes the account's provider state to the billing record (inside the event's transaction: a failure makes
+// the provider send the event again). The plan follows the subscription only while it bills (active, trialing);
+// a subscription that ended (canceled, incomplete_expired) moves the organization to the free plan.
+func (s *Service) sync(ctx context.Context, e *Event, a *ProviderAccount) error {
+	if s.o.Sync == nil {
+		return nil
+	}
+	switch e.Type {
+	case EventCheckoutCompleted, EventSubscriptionChanged, EventSubscriptionCanceled, EventInvoicePaid:
+	default:
+		return nil
+	}
+	plan := ""
+	switch a.SubscriptionStatus {
+	case SubscriptionCanceled, SubscriptionIncompleteExpired:
+		plan = s.o.FreePlan
+	case SubscriptionActive, SubscriptionTrialing:
+		if e.Type == EventSubscriptionChanged {
+			plan = s.planOfPrices(s.o.PlanIDs, a.PriceIDs)
+		}
+	}
+	return s.o.Sync.ProviderState(ctx, a.Organization, a.CustomerID, a.SubscriptionID, a.HasPaymentMethod, plan)
 }
 
 // applyEvent changes a according to e; false when nothing changes.
@@ -292,12 +407,12 @@ func applyEvent(a *ProviderAccount, e *Event) bool {
 		a.HasPaymentMethod = a.HasPaymentMethod || e.PaymentMethod
 		return true
 	case EventSubscriptionChanged, EventSubscriptionCanceled:
-		// events arrive out of order: an older one doesn't overwrite a newer state
-		if a.SubscriptionEventAt != nil && e.Created.Before(*a.SubscriptionEventAt) {
-			return false
-		}
 		if a.SubscriptionID != "" && e.SubscriptionID != a.SubscriptionID && e.Type == EventSubscriptionCanceled {
 			// an old subscription ending doesn't end the current one
+			return false
+		}
+		// events arrive out of order: an older one doesn't overwrite a newer state of the same subscription
+		if a.SubscriptionEventAt != nil && e.Created.Before(*a.SubscriptionEventAt) && e.SubscriptionID == a.SubscriptionID {
 			return false
 		}
 		at := e.Created
@@ -311,11 +426,9 @@ func applyEvent(a *ProviderAccount, e *Event) bool {
 		return true
 	case EventInvoicePaid:
 		a.HasPaymentMethod = a.HasPaymentMethod || e.PaymentMethod
-		if a.State != DunningNone && a.State != "" {
-			// a late "paid" of an invoice from before the failure doesn't end the episode
-			if a.FailedInvoice == "" || e.InvoiceID == a.FailedInvoice || a.FailedAt == nil || !e.Created.Before(*a.FailedAt) {
-				a.Dunning = a.PaymentSucceeded()
-			}
+		// only the invoice that failed ends the episode (not a $0 or one-off invoice paid meanwhile)
+		if a.State != DunningNone && a.State != "" && (a.FailedInvoice == "" || e.InvoiceID == a.FailedInvoice) {
+			a.Dunning = a.PaymentSucceeded()
 		}
 		return true
 	case EventPaymentFailed:
@@ -334,19 +447,6 @@ func (s *Service) afterEvent(ctx context.Context, e *Event, before, after *Provi
 		"event": e.ID, "type": e.ProviderType, "subscription_status": after.SubscriptionStatus, "dunning_state": after.State,
 	}); err != nil {
 		s.log.Errorf("billing: %v", err)
-	}
-	if s.o.Sync != nil && (e.Type == EventCheckoutCompleted || e.Type == EventSubscriptionChanged || e.Type == EventSubscriptionCanceled ||
-		e.Type == EventInvoicePaid) {
-		plan := ""
-		switch {
-		case after.SubscriptionStatus == SubscriptionCanceled:
-			plan = s.o.FreePlan
-		case e.Type == EventSubscriptionChanged:
-			plan = s.planOfPrices(s.o.PlanIDs, after.PriceIDs)
-		}
-		if err := s.o.Sync.ProviderState(ctx, org, after.CustomerID, after.SubscriptionID, after.HasPaymentMethod, plan); err != nil {
-			s.log.Errorf("billing: sync %s: %v", org, err)
-		}
 	}
 	switch {
 	case before.State != DunningPastDue && after.State == DunningPastDue:
@@ -531,22 +631,37 @@ func (s *Service) ensureCustomer(ctx context.Context, org, name, email string) (
 	if err != nil {
 		return nil, nil, err
 	}
-	if id != existing || (a.BillingEmail == "" && email != "") {
-		a.CustomerID = id
-		if a.BillingEmail == "" {
-			a.BillingEmail = email
+	if id == existing && (a.BillingEmail != "" || email == "") {
+		return a, b, nil
+	}
+	// written under the account's lock, onto what is there now (a webhook may have changed it meanwhile)
+	var out *ProviderAccount
+	err = s.o.Store.UpdateAccount(ctx, org, func(cur *ProviderAccount) (*ProviderAccount, error) {
+		if cur == nil {
+			cur = &ProviderAccount{Organization: org, Provider: s.o.Provider.Name(), Dunning: Dunning{State: DunningNone}}
 		}
-		a.UpdatedBy = email
-		if err := s.o.Store.PutAccount(ctx, a); err != nil {
-			return nil, nil, err
+		if cur.CustomerID != existing && cur.CustomerID != "" {
+			// another request linked a customer first: keep it (ours is left unused)
+			out = cur
+			return nil, nil
 		}
-		if s.o.Sync != nil {
-			if err := s.o.Sync.ProviderState(ctx, org, a.CustomerID, a.SubscriptionID, a.HasPaymentMethod, ""); err != nil {
-				s.log.Errorf("billing: sync %s: %v", org, err)
-			}
+		cur.CustomerID = id
+		if cur.BillingEmail == "" {
+			cur.BillingEmail = email
+		}
+		cur.UpdatedBy = email
+		out = cur
+		return cur, nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if s.o.Sync != nil {
+		if err := s.o.Sync.ProviderState(ctx, org, out.CustomerID, out.SubscriptionID, out.HasPaymentMethod, ""); err != nil {
+			s.log.Errorf("billing: sync %s: %v", org, err)
 		}
 	}
-	return a, b, nil
+	return out, b, nil
 }
 
 // CheckoutResult is the answer to a checkout: a URL to send the user to, or a plan changed in place (an active
@@ -578,7 +693,21 @@ func (s *Service) Checkout(ctx context.Context, by Actor, org, orgName, planID s
 	if err != nil {
 		return nil, err
 	}
-	if a.SubscriptionID != "" && live(a.SubscriptionStatus) {
+	// a subscription the provider holds, whether or not its webhook arrived yet: never start a second one
+	subs, err := s.o.Provider.Subscriptions(ctx, a.CustomerID)
+	if err != nil {
+		return nil, err
+	}
+	for _, sub := range subs {
+		switch {
+		case sub.ID == a.SubscriptionID && live(sub.Status):
+		case sub.Status == SubscriptionIncomplete:
+			return nil, fmt.Errorf("%w: a checkout is completing (its first payment is pending); try again in a few minutes", ErrConflict)
+		default:
+			return nil, fmt.Errorf("%w: the organization already has subscription %s (%s); manage it in the customer portal", ErrConflict, sub.ID, sub.Status)
+		}
+	}
+	if a.SubscriptionID != "" && live(a.SubscriptionStatus) && len(subs) > 0 {
 		if err := s.o.Provider.ChangePlan(ctx, a.SubscriptionID, plan); err != nil {
 			return nil, err
 		}
@@ -586,6 +715,10 @@ func (s *Service) Checkout(ctx context.Context, by Actor, org, orgName, planID s
 			s.log.Errorf("billing: %v", err)
 		}
 		return &CheckoutResult{PlanChanged: true}, nil
+	}
+	// only the newest checkout page can be completed
+	if err := s.o.Provider.ExpireOpenCheckouts(ctx, a.CustomerID); err != nil {
+		return nil, err
 	}
 	u, err := s.o.Provider.CheckoutURL(ctx, CheckoutRequest{
 		Organization: org, CustomerID: a.CustomerID, Plan: plan,

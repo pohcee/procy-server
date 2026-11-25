@@ -110,6 +110,8 @@ func TestReadOnlyGuard(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, do("acme", http.MethodPut, "/api/v1/clients/c1/tunnels", false))
 	assert.Equal(t, http.StatusForbidden, do("acme", http.MethodGet, "/api/v1/ws/commands", true), "websockets start jobs")
 	assert.Equal(t, http.StatusTeapot, do("acme", http.MethodPost, "/api/v1/billing/portal", false), "paying stays possible")
+	assert.Equal(t, http.StatusForbidden, do("acme", http.MethodPut, "/api/v1/billing/spending-limit", false))
+	assert.Equal(t, http.StatusForbidden, do("acme", http.MethodPost, "/api/v1/members", false))
 	assert.Equal(t, http.StatusTeapot, do("acme", http.MethodDelete, "/api/v1/logout", false))
 	assert.Equal(t, http.StatusTeapot, do("acme", http.MethodPost, "/api/v1/login", false))
 	assert.Equal(t, http.StatusTeapot, do("beta", http.MethodPost, "/api/v1/commands", false), "other organizations are not affected")

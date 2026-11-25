@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -145,8 +146,6 @@ func (p *Provider) EnsureCustomer(ctx context.Context, org billing.Customer, cus
 	if org.Email != "" {
 		params.Email = sg.String(org.Email)
 	}
-	// a replaced (deleted) customer gets a new key: Stripe keeps idempotency keys for 24 hours
-	params.SetIdempotencyKey("procy-customer-" + org.Organization + "-" + customerID)
 	c, err := p.sc.V1Customers.Create(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("stripe: create customer: %w", err)
@@ -200,7 +199,8 @@ func (p *Provider) CheckoutURL(ctx context.Context, req billing.CheckoutRequest)
 	// until then; the billing cycle then runs from the trial's end, not from the 1st.
 	anchor := !req.PeriodStart.IsZero() && req.PeriodStart.After(p.now())
 	switch {
-	case req.FreeUntil != nil && anchor && !req.FreeUntil.After(req.PeriodStart):
+	case req.FreeUntil != nil && anchor && (!req.FreeUntil.After(req.PeriodStart) || !req.FreeUntil.After(p.now().Add(minTrial))):
+		// (free time ending within 49 hours but after the 1st can't be a trial: free until the 1st instead)
 		params.SubscriptionData.BillingCycleAnchor = sg.Int64(req.PeriodStart.Unix())
 		params.SubscriptionData.ProrationBehavior = sg.String("none")
 	case req.FreeUntil != nil && req.FreeUntil.After(p.now().Add(minTrial)):
@@ -326,6 +326,53 @@ func (p *Provider) Cancel(ctx context.Context, subscriptionID string, atPeriodEn
 	return nil
 }
 
+// Subscriptions implements billing.Provider.
+func (p *Provider) Subscriptions(ctx context.Context, customerID string) ([]billing.Subscription, error) {
+	params := &sg.SubscriptionListParams{Customer: sg.String(customerID), Status: sg.String("all")}
+	var out []billing.Subscription
+	for sub, err := range p.sc.V1Subscriptions.List(ctx, params).All(ctx) {
+		if err != nil {
+			return nil, fmt.Errorf("stripe: list subscriptions: %w", err)
+		}
+		switch sub.Status {
+		case sg.SubscriptionStatusCanceled, sg.SubscriptionStatusIncompleteExpired:
+			continue
+		}
+		out = append(out, *subscriptionOf(sub))
+	}
+	return out, nil
+}
+
+// ExpireOpenCheckouts implements billing.Provider.
+func (p *Provider) ExpireOpenCheckouts(ctx context.Context, customerID string) error {
+	params := &sg.CheckoutSessionListParams{Customer: sg.String(customerID), Status: sg.String(string(sg.CheckoutSessionStatusOpen))}
+	var ids []string
+	for cs, err := range p.sc.V1CheckoutSessions.List(ctx, params).All(ctx) {
+		if err != nil {
+			return fmt.Errorf("stripe: list checkout sessions: %w", err)
+		}
+		ids = append(ids, cs.ID)
+	}
+	for _, id := range ids {
+		if _, err := p.sc.V1CheckoutSessions.Expire(ctx, id, nil); err != nil && !isNotFound(err) {
+			return fmt.Errorf("stripe: expire checkout session %s: %w", id, err)
+		}
+	}
+	return nil
+}
+
+// InvoiceStatus implements billing.Provider.
+func (p *Provider) InvoiceStatus(ctx context.Context, invoiceID string) (string, error) {
+	inv, err := p.sc.V1Invoices.Retrieve(ctx, invoiceID, nil)
+	if err != nil {
+		if isNotFound(err) {
+			return "", fmt.Errorf("stripe: invoice %s: %w", invoiceID, billing.ErrNotFound)
+		}
+		return "", fmt.Errorf("stripe: retrieve invoice: %w", err)
+	}
+	return string(inv.Status), nil
+}
+
 // meterOf returns the meter of a metered price (cached).
 func (p *Provider) meterOf(ctx context.Context, priceID string) (*meter, error) {
 	p.mu.Lock()
@@ -361,8 +408,8 @@ func (p *Provider) meterOf(ctx context.Context, priceID string) (*meter, error) 
 // maxEventAge is how old a meter event's timestamp may be (Stripe: 35 calendar days), with a day of margin.
 const maxEventAge = 34 * 24 * time.Hour
 
-// ErrTooOld is returned by ReportUsage for usage older than Stripe accepts.
-var ErrTooOld = errors.New("stripe: usage is older than Stripe accepts (35 days)")
+// ErrTooOld is returned by ReportUsage for usage older than Stripe accepts (35 days).
+var ErrTooOld = billing.ErrUsageTooOld
 
 // ReportUsage implements billing.Provider: one meter event with the record's identifier. Stripe answering that the
 // identifier was used already counts as success (the record was sent before).
@@ -370,8 +417,8 @@ func (p *Provider) ReportUsage(ctx context.Context, rec billing.UsageRecord) err
 	if rec.Identifier == "" || len(rec.Identifier) > 100 {
 		return fmt.Errorf("stripe: meter event identifier must have 1 to 100 characters: %q", rec.Identifier)
 	}
-	if rec.Quantity < 0 {
-		return fmt.Errorf("stripe: negative usage %d", rec.Quantity)
+	if rec.Quantity < 0 || math.IsNaN(rec.Quantity) || math.IsInf(rec.Quantity, 0) {
+		return fmt.Errorf("stripe: invalid usage %v", rec.Quantity)
 	}
 	if p.now().Sub(rec.At) > maxEventAge {
 		return ErrTooOld
@@ -386,7 +433,7 @@ func (p *Provider) ReportUsage(ctx context.Context, rec billing.UsageRecord) err
 		Timestamp:  sg.Int64(rec.At.Unix()),
 		Payload: map[string]string{
 			m.customerKey: rec.CustomerID,
-			m.valueKey:    strconv.FormatInt(rec.Quantity, 10),
+			m.valueKey:    strconv.FormatFloat(math.Round(rec.Quantity*1e6)/1e6, 'f', -1, 64),
 		},
 	}
 	params.SetIdempotencyKey(rec.Identifier)

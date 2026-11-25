@@ -11,6 +11,9 @@ import (
 // ErrNoProvider is returned by NoProvider: billing runs without a payment provider ([billing] provider = "none").
 var ErrNoProvider = errors.New("billing: no payment provider is configured")
 
+// ErrUsageTooOld is returned by Provider.ReportUsage for usage older than the provider accepts.
+var ErrUsageTooOld = errors.New("billing: the usage is older than the payment provider accepts")
+
 // ErrSignature is wrapped by Provider.ParseWebhook when a webhook request can't be verified (missing or wrong
 // signature, timestamp outside the tolerance, unreadable body). The webhook route answers 400.
 var ErrSignature = errors.New("billing: webhook signature verification failed")
@@ -35,6 +38,13 @@ type Provider interface {
 	ChangePlan(ctx context.Context, subscriptionID string, plan *Plan) error
 	// Cancel cancels a subscription, at the end of its period or at once.
 	Cancel(ctx context.Context, subscriptionID string, atPeriodEnd bool) error
+	// Subscriptions lists a customer's subscriptions that are not over (every status but canceled and
+	// incomplete_expired).
+	Subscriptions(ctx context.Context, customerID string) ([]Subscription, error)
+	// ExpireOpenCheckouts expires a customer's checkout pages still open, so only the newest can be completed.
+	ExpireOpenCheckouts(ctx context.Context, customerID string) error
+	// InvoiceStatus returns an invoice's status (draft, open, paid, uncollectible, void).
+	InvoiceStatus(ctx context.Context, invoiceID string) (string, error)
 	// ReportUsage sends one usage record. It is idempotent for a short time through the record's identifier
 	// (Stripe: at least 24 hours); callers check UsageSummary before sending a record again later.
 	ReportUsage(ctx context.Context, rec UsageRecord) error
@@ -130,8 +140,9 @@ type UsageRecord struct {
 	// PriceID is the metered price; the provider finds its meter.
 	PriceID string
 	Metric  string
-	// Quantity is in the metric's unit (devices, GiB).
-	Quantity int64
+	// Quantity is in the metric's unit (devices, GiB); extra devices of a partial month are prorated, so it
+	// may have decimals (Stripe meters accept decimal values).
+	Quantity float64
 	// At is the time the usage is recorded at: inside the period it belongs to.
 	At time.Time
 }
@@ -242,6 +253,17 @@ func (NoProvider) ChangePlan(context.Context, string, *Plan) error { return ErrN
 
 // Cancel implements Provider.
 func (NoProvider) Cancel(context.Context, string, bool) error { return ErrNoProvider }
+
+// Subscriptions implements Provider.
+func (NoProvider) Subscriptions(context.Context, string) ([]Subscription, error) {
+	return nil, ErrNoProvider
+}
+
+// ExpireOpenCheckouts implements Provider.
+func (NoProvider) ExpireOpenCheckouts(context.Context, string) error { return ErrNoProvider }
+
+// InvoiceStatus implements Provider.
+func (NoProvider) InvoiceStatus(context.Context, string) (string, error) { return "", ErrNoProvider }
 
 // ReportUsage implements Provider.
 func (NoProvider) ReportUsage(context.Context, UsageRecord) error { return ErrNoProvider }
