@@ -40,6 +40,11 @@ func (al *APIListener) handleDeleteLogout(w http.ResponseWriter, req *http.Reque
 		req.Method,
 		al.apiSessions,
 		al.Logger)
+	if bearer.IsStale(err) {
+		// the session expired or is gone already: not a failed login, no ban
+		al.jsonErrorResponse(w, http.StatusBadRequest, fmt.Errorf("token is invalid or expired"))
+		return
+	}
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusInternalServerError, err)
 		return

@@ -73,6 +73,9 @@ func (al *APIListener) parseAndValidate2FATokenRequest(req *http.Request) (usern
 		}
 
 		isAuthorized, token, err := al.checkBearerToken(req.Context(), bearerToken, req.URL.Path, req.Method)
+		if bearer.IsStale(err) {
+			return reqBody.Username, errors2.APIError{HTTPStatus: http.StatusUnauthorized, Message: "login session expired"}
+		}
 		if err != nil {
 			return reqBody.Username, err
 		}

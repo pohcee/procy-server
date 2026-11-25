@@ -612,8 +612,12 @@ func (al *APIListener) checkBearerToken(ctx context.Context, bearerToken, uri, m
 	tokenCtx, err := bearer.ParseToken(bearerToken, al.config.API.JWTSecret)
 	if err != nil {
 		// A malformed, wrongly signed or expired token means "not authenticated": respond
-		// 401 (so clients send the user to the login page), not 500.
+		// 401 (so clients send the user to the login page), not 500. Only an expired one of ours is stale (not a
+		// failed login).
 		al.Debugf("failed to parse jwt token: %v", err)
+		if bearer.IsStale(err) {
+			return false, nil, bearer.ErrStaleSession
+		}
 		return false, nil, nil
 	}
 
@@ -746,6 +750,11 @@ func (al *APIListener) wsAuth(f http.Handler) http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, ErrTooManyRequests) {
 				al.jsonErrorResponse(w, http.StatusTooManyRequests, err)
+				return
+			}
+			if bearer.IsStale(err) {
+				// not a failed login: no ban
+				al.jsonErrorResponse(w, http.StatusUnauthorized, errUnauthorized)
 				return
 			}
 			al.jsonErrorResponse(w, http.StatusInternalServerError, err)
