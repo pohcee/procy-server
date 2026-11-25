@@ -1,0 +1,50 @@
+post:
+  tags:
+    - Operator
+  summary: Renew a pending invitation. Platform operators only
+  description: >-
+    Invitations have no email: the invitee sees them in the app after signing in. Renewing sets created_at to now
+    and invited_by to `operator:<login>`, which moves it to the top of the invitee's list. Written to the audit log of
+    `_system` (operator.organization.invitation, resend).
+  operationId: OperatorInvitationResendPost
+  parameters:
+    - name: id
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+    - name: username
+      in: path
+      description: The invited login
+      required: true
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/OperatorInvitation.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization, or the organization does not exist
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

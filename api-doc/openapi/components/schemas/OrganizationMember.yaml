@@ -17,3 +17,17 @@ properties:
       - password
       - oidc
     description: How the member may sign in to the organization
+  has_password:
+    type: boolean
+    description: The account has a password
+  oidc_linked:
+    type: boolean
+    description: An OIDC identity (Google) is linked to the account
+  two_fa:
+    type: boolean
+    description: A TOTP secret is set, or the server sends 2FA codes to every login
+  last_login_at:
+    type: string
+    format: date-time
+    nullable: true
+    description: The last full sign-in to the organization; null when never since it was recorded
