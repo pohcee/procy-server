@@ -248,7 +248,7 @@ func GrantDevice(ctx context.Context, db *sqlx.DB, role string) error {
 		"REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM " + q,
 		"GRANT USAGE ON SCHEMA public TO " + q,
 	}
-	for _, f := range postgres.DeviceFunctions {
+	for _, f := range append(append([]string(nil), postgres.DeviceFunctions...), postgres.MeteringDeviceFunctions...) {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+f+" TO "+q)
 	}
 	for _, s := range stmts {

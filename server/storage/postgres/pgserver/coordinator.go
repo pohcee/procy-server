@@ -55,8 +55,8 @@ type Coordinator struct {
 	// can: a run it claimed would only fail as "not connected"
 	noRuns bool
 
-	// usage, when set, makes the upkeep roll up and prune the usage tables (metering on)
-	usage *pgusage.Retention
+	// usage is how the upkeep keeps the usage tables (rolled up and pruned on every node, metering on or not)
+	usage pgusage.Retention
 
 	mu       sync.Mutex
 	watchers []cluster.Watcher
@@ -171,8 +171,9 @@ func (c *Coordinator) ClaimRun(ctx context.Context, scheduleID string, fire time
 	return n == 1, nil
 }
 
-// KeepUsage makes the cluster upkeep do the usage tables' upkeep (rollups, monitoring gauge, retention r).
-func (c *Coordinator) KeepUsage(r pgusage.Retention) { c.usage = &r }
+// KeepUsage sets how the cluster upkeep keeps the usage tables (retention, monitoring gauge); without it the
+// defaults, no monitoring gauge.
+func (c *Coordinator) KeepUsage(r pgusage.Retention) { c.usage = r }
 
 // LeaveScheduledRuns makes this node claim no scheduled run (ClaimRun is always false): it can't reach the clients.
 func (c *Coordinator) LeaveScheduledRuns() { c.noRuns = true }
@@ -345,9 +346,7 @@ func (c *Coordinator) prune(ctx context.Context) {
 			c.log.Errorf("cluster: prune schedule runs of tenant %s: %v", tid, err)
 		}
 	}
-	if c.usage != nil {
-		if err := pgusage.Upkeep(ctx, c.db, *c.usage); err != nil {
-			c.log.Errorf("cluster: %v", err)
-		}
+	if err := pgusage.Upkeep(ctx, c.db, c.usage); err != nil {
+		c.log.Errorf("cluster: %v", err)
 	}
 }

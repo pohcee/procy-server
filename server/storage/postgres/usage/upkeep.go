@@ -23,6 +23,8 @@ const (
 // usage_daily and usage_device_days. Zero fields take the defaults.
 type Retention struct {
 	Hourly, Daily time.Duration
+	// Monitoring records the monitoring rows gauge (nodes with [metering] on).
+	Monitoring bool
 }
 
 func (r Retention) withDefaults() Retention {
@@ -35,11 +37,15 @@ func (r Retention) withDefaults() Retention {
 	if r.Daily <= 0 {
 		r.Daily = DefaultDailyRetention
 	}
+	if r.Daily < r.Hourly {
+		r.Daily = r.Hourly
+	}
 	return r
 }
 
-// Upkeep does the periodic work on the usage of every tenant (the cluster upkeep calls it under its lease): it
-// records the monitoring rows gauge once a day, rolls the hours of the days that ended more than two days ago up into
+// Upkeep does the periodic work on the usage of every tenant (the cluster upkeep calls it under its lease, on every
+// Postgres node, so a node without [metering] holding the lease still rolls up and prunes): it records the
+// monitoring rows gauge once a day (r.Monitoring), rolls the hours of the days that ended more than two days ago up into
 // usage_daily (recomputing the last week, which late data may still change, and any day not rolled up yet), and
 // prunes what is older than r.
 func Upkeep(ctx context.Context, db *sqlx.DB, r Retention) error {
@@ -83,6 +89,9 @@ func upkeepTenant(ctx context.Context, db *sqlx.DB, tid tenant.ID, r Retention) 
 			{"DELETE FROM usage_client_daily WHERE tenant_id = $1 AND day < ((now() - make_interval(secs => $2)) AT TIME ZONE 'UTC')::date", []any{r.Hourly.Seconds()}},
 			{"DELETE FROM usage_daily WHERE tenant_id = $1 AND day < ((now() - make_interval(secs => $2)) AT TIME ZONE 'UTC')::date", []any{r.Daily.Seconds()}},
 			{"DELETE FROM usage_device_days WHERE tenant_id = $1 AND day < ((now() - make_interval(secs => $2)) AT TIME ZONE 'UTC')::date", []any{r.Daily.Seconds()}},
+		}
+		if !r.Monitoring {
+			stmts = stmts[1:]
 		}
 		for _, s := range stmts {
 			if _, err := tx.ExecContext(ctx, s.q, append([]any{string(tid)}, s.args...)...); err != nil {

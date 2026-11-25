@@ -145,6 +145,11 @@ func deviceNodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, opts
 	if err := postgres.CheckDeviceRole(ctx, db); err != nil {
 		return nil, err
 	}
+	if cfg.Metering.Enabled {
+		if err := postgres.CheckDeviceMetering(ctx, db); err != nil {
+			return nil, err
+		}
+	}
 	if err := os.MkdirAll(cfg.Server.DataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("device: data dir: %w", err)
 	}

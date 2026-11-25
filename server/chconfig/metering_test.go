@@ -26,6 +26,7 @@ func TestMeteringDefaultsAndBounds(t *testing.T) {
 		{Enabled: true, FlushInterval: time.Hour},
 		{Enabled: true, HourlyRetention: 24 * time.Hour},
 		{Enabled: true, DailyRetention: -time.Hour},
+		{Enabled: true, DailyRetention: 30 * 24 * time.Hour}, // shorter than the default 90 days of hours
 	} {
 		c := postgresConfig()
 		c.Metering = m

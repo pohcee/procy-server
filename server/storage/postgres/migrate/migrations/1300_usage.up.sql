@@ -63,7 +63,9 @@ END
 $$;
 
 -- usage_periods is the usage to report per day or month: the daily rollups for days that ended more than two days
--- ago, the hours after that. hour is the start of the day for rolled-up rows.
+-- ago, the hours after that, and the hours of older days not rolled up yet (the upkeep runs hourly, so a day that
+-- just passed the cutoff, or every day while no node does the upkeep, is read from its hours). hour is the start of
+-- the day for rolled-up rows.
 CREATE VIEW usage_periods WITH (security_invoker = true) AS
 SELECT d.tenant_id, (d.day::timestamp AT TIME ZONE 'UTC') AS hour, d.metric, d.value
 FROM usage_daily d
@@ -71,7 +73,9 @@ WHERE d.day < (now() AT TIME ZONE 'UTC')::date - 2
 UNION ALL
 SELECT h.tenant_id, h.hour, h.metric, h.value
 FROM usage_hourly h
-WHERE h.hour >= (((now() AT TIME ZONE 'UTC')::date - 2)::timestamp AT TIME ZONE 'UTC');
+WHERE h.hour >= (((now() AT TIME ZONE 'UTC')::date - 2)::timestamp AT TIME ZONE 'UTC')
+   OR NOT EXISTS (SELECT 1 FROM usage_daily d
+                  WHERE d.tenant_id = h.tenant_id AND d.day = (h.hour AT TIME ZONE 'UTC')::date);
 
 -- rport_usage_ceiling is the highest value one delta of metric may have, NULL for a metric ingest_usage doesn't
 -- take (monitoring_rows is recorded by the upkeep).

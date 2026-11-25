@@ -223,7 +223,8 @@ func ParseQuery(from, to, granularity string, now time.Time) (Query, error) {
 			return q, fmt.Errorf("%w: to: %v", ErrInvalid, err)
 		}
 	}
-	q.From = time.Date(q.To.Year(), q.To.Month(), 1, 0, 0, 0, 0, time.UTC)
+	last := q.To.Add(-time.Nanosecond) // to is excluded: ?to=2026-12-01 means November
+	q.From = time.Date(last.Year(), last.Month(), 1, 0, 0, 0, 0, time.UTC)
 	if from != "" {
 		if q.From, err = parseTime(from); err != nil {
 			return q, fmt.Errorf("%w: from: %v", ErrInvalid, err)

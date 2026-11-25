@@ -314,13 +314,14 @@ organization's administrators and to platform operators. Off by default; refused
   enabled = true
   flush_interval = "60s"          # how often each process writes its counts (5 s to 30 min)
   # hourly_retention = "2160h"    # hourly usage and per-device daily transfer, default 90 days (at least 10)
-  # daily_retention = "18600h"    # daily usage and device-days, default 25 months
+  # daily_retention = "18600h"    # daily usage and device-days, default 25 months (at least hourly_retention)
 ```
 
 After upgrading, run `rportd migrate --grant-to <application role>` (and `--grant-device-to <device role>` for
 device processes) once more: both roles need `EXECUTE` on the function usage is written through (`ingest_usage`),
-the application role also on the operators' summary functions. A device process refuses to start until its role
-has it.
+the application role also on the operators' summary functions. A device process with metering on refuses to start
+until its role has it (one without metering starts as before). Days are rolled up and pruned by whichever node does
+the cluster upkeep, metering on or not.
 
 What is counted:
 
@@ -328,7 +329,7 @@ What is counted:
 |---|---|
 | `tunnel_bytes_to_user`, `tunnel_bytes_to_device` | the tunnel's copy loop on the node holding the tunnel, both directions, while the connection runs (port tunnels, tunnels behind the built-in HTTP proxy, browser RDP/VNC through it, UDP datagrams) |
 | `upload_bytes_to_devices` | the bytes each device reads of an uploaded file (a file sent to 100 devices counts 100 times; a transfer that stops half way counts half) |
-| `api_bytes_out` | the bytes of API and UI responses, websockets included (not for `_system`) |
+| `api_bytes_out` | the bytes of API responses, websockets included, of requests resolved to the organization (failed logins included; not the UI's static files, not `_system`) |
 | `jobs_command`, `jobs_script`, `jobs_library` | jobs a device started (a job for several devices counts once per device) |
 | `device_seconds`, `devices_peak` | the devices connected to each node, sampled every 15 seconds: device-seconds per hour (the hour's average is device-seconds / 3600) and the most at once |
 | device-days | the devices that had a session on each UTC day (`usage_device_days`): a device counts once a day, however many nodes saw it |
@@ -361,7 +362,8 @@ Reading it:
 transfer (`transfer_bytes` = tunnel bytes both ways + upload bytes), `jobs_run`, `device_hours`, `devices_avg`,
 `devices_peak` and, by day or month, `device_days`, `devices_billable` (the average of the daily device counts over
 the days passed, rounded up) and `devices_peak_day`. `GET /api/v1/status` reports `capabilities.usage: true`. With
-metering on, each tunnel in the API also shows `bytes: {to_user, to_device}`, its totals since it opened.
+metering on, each tunnel in the API also shows `bytes: {to_user, to_device}`, its totals since it opened (live on
+the node holding the tunnel; on other nodes as of the holder's last report of the client).
 
 Accuracy:
 

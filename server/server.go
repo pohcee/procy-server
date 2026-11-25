@@ -655,8 +655,6 @@ func (s *Server) Close() error {
 	}
 
 	wg.Go(s.monitoringQueue.Close)
-	// the last counts; a device process's outbox is closed only after the server stopped
-	wg.Go(s.meter.Close)
 
 	// the SQLite files (and the [database] connection) that no repository closes
 	for _, closeFn := range s.storageClosers {
@@ -673,6 +671,9 @@ func (s *Server) Close() error {
 	if err != nil {
 		s.Logger.Errorf("error closing server: %v", err)
 	}
+	// the last counts, once the listeners stopped moving bytes; the database and a device process's outbox are
+	// closed only after the server stopped
+	_ = s.meter.Close()
 
 	return err
 }

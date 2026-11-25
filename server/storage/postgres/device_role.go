@@ -21,13 +21,38 @@ var DeviceFunctions = []string{
 	"ingest_connection_events(jsonb)",
 	"ingest_audit(jsonb)",
 	"report_client_state(jsonb)",
-	// usage metering (migration 1300)
-	"ingest_usage(jsonb)",
 	// the session registry (migration 1200, migrate.RegistryFunctions)
 	"rport_node_heartbeat(text, text, text)",
 	"rport_register_session(text, text, text, text, integer)",
 	"rport_renew_sessions(text, jsonb, integer)",
 	"rport_end_session(text)",
+}
+
+// MeteringDeviceFunctions are the functions a device process with [metering] on also executes (migration 1300).
+// migrate.GrantDevice grants them; CheckDeviceRole allows them, CheckDeviceMetering requires them. Kept apart from
+// DeviceFunctions so a device process without metering starts on a role granted before migration 1300.
+var MeteringDeviceFunctions = []string{"ingest_usage(jsonb)"}
+
+// CheckDeviceMetering returns an error unless the role db connects as may execute MeteringDeviceFunctions.
+func CheckDeviceMetering(ctx context.Context, db *sqlx.DB) error {
+	return requireExecute(ctx, db, MeteringDeviceFunctions)
+}
+
+func requireExecute(ctx context.Context, db *sqlx.DB, fns []string) error {
+	var name string
+	if err := db.GetContext(ctx, &name, "SELECT current_user"); err != nil {
+		return fmt.Errorf("pg: check role: %w", err)
+	}
+	for _, f := range fns {
+		var ok bool
+		if err := db.GetContext(ctx, &ok, "SELECT has_function_privilege(current_user, $1, 'EXECUTE')", f); err != nil {
+			return fmt.Errorf("pg: check role: function %s: %w (run rportd migrate)", f, err)
+		}
+		if !ok {
+			return fmt.Errorf("pg: role %q may not execute %s; grant it with rportd migrate --grant-device-to %s", name, f, name)
+		}
+	}
+	return nil
 }
 
 // CheckDeviceRole returns an error unless the role db connects as has no more privilege than the device role
@@ -84,28 +109,35 @@ func CheckDeviceRole(ctx context.Context, db *sqlx.DB) error {
 	if len(schemas) > 0 {
 		return fmt.Errorf("pg: role %q may create objects in schema(s) %s, more than the device role needs", name, firstFew(schemas))
 	}
-	for _, f := range DeviceFunctions {
-		var ok bool
-		if err := db.GetContext(ctx, &ok, "SELECT has_function_privilege(current_user, $1, 'EXECUTE')", f); err != nil {
-			return fmt.Errorf("pg: check role: function %s: %w (run rportd migrate)", f, err)
-		}
-		if !ok {
-			return fmt.Errorf("pg: role %q may not execute %s; grant it with rportd migrate --grant-device-to %s", name, f, name)
-		}
+	if err := requireExecute(ctx, db, DeviceFunctions); err != nil {
+		return err
 	}
+	allowed := append(append([]string(nil), DeviceFunctions...), existingFunctions(ctx, db, MeteringDeviceFunctions)...)
 	var extra []string
 	if err := db.SelectContext(ctx, &extra, `SELECT p.oid::regprocedure::text
 		FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
 		WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema')
 			AND p.prorettype <> 'trigger'::regtype AND has_function_privilege(current_user, p.oid, 'EXECUTE')
 			AND p.oid <> ALL (SELECT unnest($1::text[])::regprocedure::oid)
-		ORDER BY 1`, DeviceFunctions); err != nil {
+		ORDER BY 1`, allowed); err != nil {
 		return fmt.Errorf("pg: check role: %w", err)
 	}
 	if len(extra) > 0 {
 		return fmt.Errorf("pg: role %q may execute SECURITY DEFINER function(s) the device role doesn't need: %s", name, firstFew(extra))
 	}
 	return nil
+}
+
+// existingFunctions returns those of fns that exist (a database migrated before they were added has not all).
+func existingFunctions(ctx context.Context, db *sqlx.DB, fns []string) []string {
+	var out []string
+	for _, f := range fns {
+		var ok bool
+		if err := db.GetContext(ctx, &ok, "SELECT to_regprocedure($1) IS NOT NULL", f); err == nil && ok {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 func firstFew(names []string) string {

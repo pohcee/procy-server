@@ -221,8 +221,8 @@ func TestUpkeepRollsUpRecordsMonitoringAndPrunes(t *testing.T) {
 		VALUES ('a', 'c1', now(), 1, 1, 1), ('a', 'c1', now() - interval '1 minute', 1, 1, 1)`)
 	require.NoError(t, err)
 
-	require.NoError(t, Upkeep(ctx, d.App, Retention{}))
-	require.NoError(t, Upkeep(ctx, d.App, Retention{}), "twice changes nothing")
+	require.NoError(t, Upkeep(ctx, d.App, Retention{Monitoring: true}))
+	require.NoError(t, Upkeep(ctx, d.App, Retention{Monitoring: true}), "twice changes nothing")
 
 	var daily []struct {
 		Metric string `db:"metric"`
@@ -257,4 +257,31 @@ func TestUpkeepRollsUpRecordsMonitoringAndPrunes(t *testing.T) {
 	data, err = s.Usage(ctx, repotest.TenantA, q)
 	require.NoError(t, err)
 	assert.EqualValues(t, 25, metering.BuildReport(q, data, time.Now()).Totals.TunnelBytesToUser)
+}
+
+// Days that passed the rollup cutoff are read from their hours until the upkeep rolled them up (no gap at midnight,
+// nor while no node does the upkeep); without Monitoring the upkeep records no monitoring gauge.
+func TestDaysNotRolledUpYetAreReadFromHours(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA)
+	old := today().AddDate(0, 0, -4).Add(5 * time.Hour)
+	_, err := d.Owner.Exec(`INSERT INTO usage_hourly (tenant_id, hour, metric, value) VALUES ('a', $1, 'api_bytes_out', 11)`, old)
+	require.NoError(t, err)
+	_, err = d.Owner.Exec(`INSERT INTO measurements (tenant_id, client_id, timestamp, cpu_usage_percent, memory_usage_percent, io_usage_percent)
+		VALUES ('a', 'c1', now(), 1, 1, 1)`)
+	require.NoError(t, err)
+	s := Store{DB: d.App}
+	q, err := metering.ParseQuery(old.Format("2006-01-02"), "", "day", time.Now())
+	require.NoError(t, err)
+	read := func() int64 {
+		data, err := s.Usage(ctx, repotest.TenantA, q)
+		require.NoError(t, err)
+		return metering.BuildReport(q, data, time.Now()).Totals.APIBytesOut
+	}
+	assert.EqualValues(t, 11, read(), "before the upkeep")
+	require.NoError(t, Upkeep(ctx, d.App, Retention{}))
+	assert.EqualValues(t, 11, read(), "after the upkeep, once")
+	assert.Zero(t, hourly(t, d)["a/monitoring_rows"])
+	rows, _, err := s.Summary(ctx, q.From, q.To)
+	require.NoError(t, err)
+	assert.Equal(t, []metering.TenantRow{{Tenant: "a", Metric: "api_bytes_out", Value: 11}}, rows)
 }

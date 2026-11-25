@@ -50,5 +50,12 @@ func (c *Config) parseAndValidateMetering() error {
 	if m.DailyRetention < 0 {
 		return fmt.Errorf("[metering] daily_retention must not be negative")
 	}
+	hourly := m.HourlyRetention
+	if hourly == 0 {
+		hourly = 90 * 24 * time.Hour
+	}
+	if m.DailyRetention > 0 && m.DailyRetention < hourly {
+		return fmt.Errorf("[metering] daily_retention (%s) must be at least hourly_retention (%s)", m.DailyRetention, hourly)
+	}
 	return nil
 }

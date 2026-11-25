@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -298,4 +299,47 @@ func BenchmarkAdd(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		m.Add("a", "c1", APIBytesOut, 512)
 	}
+}
+
+// A big flush is split into records ingest_usage accepts, each with its own key; counts that could not be written
+// for longer than ingest_usage accepts are dropped instead of making the whole flush rejected.
+func TestLargeAndStaleFlushes(t *testing.T) {
+	ck := &clock{t: time.Date(2026, 11, 24, 10, 0, 0, 0, time.UTC)}
+	w := &memWriter{fail: errors.New("down")}
+	m := New(Options{Node: "n1", Writer: w, Now: ck.now})
+	m.Add("a", "old", APIBytesOut, 1)
+	require.Error(t, m.Flush(context.Background())) // held as pending
+	ck.add(7 * 24 * time.Hour)
+	for i := 0; i < maxDeltas+10; i++ {
+		m.Add("a", fmt.Sprintf("c%05d", i), UploadBytesToDevices, 1)
+	}
+	m.Add("a", "stale", APIBytesOut, 1)
+	m.mu.Lock()
+	m.counts[bucket{"a", "stale", hourOf(ck.now().Add(-maxAge - time.Hour)), APIBytesOut}] = 5
+	m.mu.Unlock()
+	w.fail = nil
+	require.NoError(t, m.Flush(context.Background()))
+	require.Len(t, w.recs, 3, "the pending record, then the new counts in two parts")
+	keys := map[string]bool{}
+	total := int64(0)
+	for _, r := range w.recs[1:] {
+		assert.LessOrEqual(t, len(r.Deltas), maxDeltas)
+		keys[r.Key] = true
+		for _, d := range r.Deltas {
+			total += d.Value
+		}
+	}
+	assert.Len(t, keys, 2)
+	assert.EqualValues(t, maxDeltas+10+1, total, "the stale count is dropped")
+}
+
+func TestTunnelBytesStoredSnapshot(t *testing.T) {
+	var v struct {
+		B *TunnelBytes `json:"bytes,omitempty"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(`{"bytes":{"to_user":12,"to_device":3}}`), &v))
+	u, d := v.B.Totals()
+	assert.EqualValues(t, 12, u)
+	assert.EqualValues(t, 3, d)
+	require.NoError(t, json.Unmarshal([]byte(`{"bytes":"garbage"}`), &v))
 }

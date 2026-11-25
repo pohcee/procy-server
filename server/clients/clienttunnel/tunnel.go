@@ -32,10 +32,7 @@ func (t *Tunnel) Start(ctx context.Context) error {
 		return err
 	}
 	if t.Bytes != nil {
-		go func() {
-			<-ctx.Done()
-			t.Bytes.Close()
-		}()
+		t.stopCounting = context.AfterFunc(ctx, t.Bytes.Close)
 	}
 	return nil
 }
@@ -93,6 +90,8 @@ type Tunnel struct {
 	TunnelHost string `json:"tunnel_host,omitempty"`
 	// Bytes counts what the tunnel carried, only when usage metering is on (it is omitted otherwise).
 	Bytes *metering.TunnelBytes `json:"bytes,omitempty"`
+	// stopCounting releases the context hook that ends the counting (set by Start when metered)
+	stopCounting func() bool
 }
 
 // Terminate stops the tunnel; once it is stopped its byte counting ends.
@@ -101,6 +100,9 @@ func (t *Tunnel) Terminate(force bool) error {
 		return err
 	}
 	t.Bytes.Close()
+	if t.stopCounting != nil {
+		t.stopCounting()
+	}
 	return nil
 }
 
@@ -131,6 +133,7 @@ func NewMeteredTunnel(logger *logger.Logger, ssh ssh.Conn, id string, remote mod
 		u.bytes = bytes
 		tunnelProtocol = &MultiProtocolTunnel{Protocols: []TunnelProtocol{t, u}}
 	default:
+		bytes.Close()
 		return nil, errors.Errorf("unsupported protocol %q", remote.Protocol)
 	}
 

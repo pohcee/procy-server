@@ -320,6 +320,7 @@ func (m *Meter) Flush(ctx context.Context) error {
 	defer m.flushMu.Unlock()
 	if len(m.pending) > 0 {
 		if err := m.opts.Writer.WriteUsage(ctx, m.pending); err != nil {
+			m.dropStale(m.opts.Now()) // keeps the memory bounded while the Writer fails
 			return err
 		}
 		m.pending = nil
@@ -335,32 +336,64 @@ func (m *Meter) Flush(ctx context.Context) error {
 	return nil
 }
 
-// take moves the counts, the peaks that rose and the devices not flushed yet into one record per tenant.
+// Limits of what is flushed. ingest_usage refuses hours older than 7 days and items with more than 100000 deltas,
+// and rejects an item as a whole: counts are dropped before they reach that age (while the Writer fails), and a
+// tenant's flush is split into records of at most maxDeltas deltas and maxClients device ids.
+const (
+	maxAge     = 6 * 24 * time.Hour
+	maxDeltas  = 5000
+	maxClients = 10000
+)
+
+// dropStale drops counts and device ids older than maxAge; it returns how many entries were dropped.
+func (m *Meter) dropStale(now time.Time) int {
+	oldest := hourOf(now.Add(-maxAge))
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for k := range m.counts {
+		if k.hour < oldest {
+			delete(m.counts, k)
+			n++
+		}
+	}
+	for k := range m.peaks {
+		if k.hour < oldest {
+			delete(m.peaks, k)
+			delete(m.shipped, k)
+			n++
+		}
+	}
+	for dk, set := range m.seen {
+		if dk.day < oldest {
+			n += len(set)
+			delete(m.seen, dk)
+		}
+	}
+	return n
+}
+
+// take moves the counts, the peaks that rose and the devices not flushed yet into records per tenant (several when
+// a tenant has more than maxDeltas deltas or maxClients device ids).
 func (m *Meter) take() []Record {
 	m.seq++
 	seq := m.seq
 	now := m.opts.Now()
+	if n := m.dropStale(now); n > 0 && m.opts.Log != nil {
+		m.opts.Log.Errorf("metering: dropped %d counts older than %s that could not be written", n, maxAge)
+	}
 	curHour, curDay := hourOf(now), dayOf(now)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	by := map[tenant.ID]*Record{}
-	rec := func(tid tenant.ID) *Record {
-		r := by[tid]
-		if r == nil {
-			r = &Record{Tenant: tid, Node: m.opts.Node, Key: m.key(tid, seq)}
-			by[tid] = r
-		}
-		return r
-	}
+	deltas := map[tenant.ID][]Delta{}
+	devices := map[tenant.ID][]DeviceDay{}
 	for k, v := range m.counts {
-		r := rec(k.tid)
-		r.Deltas = append(r.Deltas, Delta{Hour: time.Unix(k.hour, 0).UTC(), Metric: k.metric, Client: k.client, Value: v})
+		deltas[k.tid] = append(deltas[k.tid], Delta{Hour: time.Unix(k.hour, 0).UTC(), Metric: k.metric, Client: k.client, Value: v})
 	}
 	clear(m.counts)
 	for k, v := range m.peaks {
 		if v > m.shipped[k] {
-			r := rec(k.tid)
-			r.Deltas = append(r.Deltas, Delta{Hour: time.Unix(k.hour, 0).UTC(), Metric: k.metric, Value: v})
+			deltas[k.tid] = append(deltas[k.tid], Delta{Hour: time.Unix(k.hour, 0).UTC(), Metric: k.metric, Value: v})
 			m.shipped[k] = v
 		}
 		if k.hour < curHour { // that hour is over: its peak is final
@@ -376,19 +409,29 @@ func (m *Meter) take() []Record {
 				set[id] = true
 			}
 		}
-		if len(ids) > 0 {
-			sort.Strings(ids)
-			r := rec(dk.tid)
-			r.Devices = append(r.Devices, DeviceDay{Day: time.Unix(dk.day, 0).UTC(), Clients: ids})
+		sort.Strings(ids)
+		day := time.Unix(dk.day, 0).UTC()
+		for len(ids) > 0 {
+			n := min(len(ids), maxClients)
+			devices[dk.tid] = append(devices[dk.tid], DeviceDay{Day: day, Clients: ids[:n]})
+			ids = ids[n:]
 		}
 		if dk.day < curDay {
 			delete(m.seen, dk)
 		}
 	}
-	out := make([]Record, 0, len(by))
-	for _, r := range by {
-		sort.Slice(r.Deltas, func(i, j int) bool {
-			a, b := r.Deltas[i], r.Deltas[j]
+	tenants := map[tenant.ID]bool{}
+	for tid := range deltas {
+		tenants[tid] = true
+	}
+	for tid := range devices {
+		tenants[tid] = true
+	}
+	var out []Record
+	for tid := range tenants {
+		ds := deltas[tid]
+		sort.Slice(ds, func(i, j int) bool {
+			a, b := ds[i], ds[j]
 			if !a.Hour.Equal(b.Hour) {
 				return a.Hour.Before(b.Hour)
 			}
@@ -397,14 +440,29 @@ func (m *Meter) take() []Record {
 			}
 			return a.Client < b.Client
 		})
-		out = append(out, *r)
+		devs := devices[tid]
+		for part := 0; part == 0 || len(ds) > 0 || len(devs) > 0; part++ {
+			r := Record{Tenant: tid, Node: m.opts.Node, Key: m.key(tid, seq, part)}
+			n := min(len(ds), maxDeltas)
+			r.Deltas, ds = ds[:n], ds[n:]
+			if n == 0 && len(devs) > 0 {
+				r.Devices, devs = devs[:1], devs[1:]
+			}
+			if len(r.Deltas) == 0 && len(r.Devices) == 0 {
+				break
+			}
+			out = append(out, r)
+		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Tenant < out[j].Tenant })
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Tenant < out[j].Tenant })
 	return out
 }
 
-func (m *Meter) key(tid tenant.ID, seq int64) string {
+func (m *Meter) key(tid tenant.ID, seq int64, part int) string {
 	key := fmt.Sprintf("%s/%s/%s/%d", m.opts.Node, m.boot, tid, seq)
+	if part > 0 {
+		key += fmt.Sprintf(".%d", part)
+	}
 	if len(key) > 200 {
 		sum := sha256.Sum256([]byte(key))
 		key = hex.EncodeToString(sum[:])
@@ -542,5 +600,18 @@ func (r Record) Payload() ([]byte, error) {
 
 func noNUL(s string) string { return strings.ReplaceAll(s, "\x00", "") }
 
-// UnmarshalJSON ignores the totals: a tunnel read back from storage is not counted.
-func (b *TunnelBytes) UnmarshalJSON([]byte) error { return nil }
+// UnmarshalJSON keeps the totals of a tunnel read back from storage (as another node stored them) as a snapshot:
+// it is not registered with a Meter, so nothing is counted for it.
+func (b *TunnelBytes) UnmarshalJSON(data []byte) error {
+	var v struct {
+		ToUser   int64 `json:"to_user"`
+		ToDevice int64 `json:"to_device"`
+	}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return nil // an unreadable snapshot is no reason to fail reading the client
+	}
+	b.toUser.Store(v.ToUser)
+	b.toDevice.Store(v.ToDevice)
+	b.closed.Store(true)
+	return nil
+}

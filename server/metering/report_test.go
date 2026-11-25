@@ -31,6 +31,10 @@ func TestParseQuery(t *testing.T) {
 		assert.True(t, errors.Is(err, ErrInvalid), "%v: %v", c, err)
 	}
 
+	q, err = ParseQuery("", "2026-12-01", "day", now)
+	require.NoError(t, err)
+	assert.Equal(t, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), q.From, "to is excluded: the month before")
+
 	from, to, err := ParseMonth("2026-02", now)
 	require.NoError(t, err)
 	assert.Equal(t, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), from)

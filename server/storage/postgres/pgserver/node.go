@@ -124,7 +124,7 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 			Writer: pgusage.Writer{DB: db, Log: logger.NewLogger("metering", cfg.Logging.LogOutput, cfg.Logging.LogLevel)},
 			Reader: pgusage.Store{DB: db},
 		}
-		coord.KeepUsage(pgusage.Retention{Hourly: cfg.Metering.HourlyRetention, Daily: cfg.Metering.DailyRetention})
+		coord.KeepUsage(pgusage.Retention{Hourly: cfg.Metering.HourlyRetention, Daily: cfg.Metering.DailyRetention, Monitoring: true})
 	}
 	opts.TenantResolver = NewResolver(db, cfg.API.JWTSecret)
 	opts.Operator = NewOperator(db, cfg)
