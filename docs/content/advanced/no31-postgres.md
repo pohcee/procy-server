@@ -152,7 +152,8 @@ id a device logs in with tells the server its tenant; creating a credential whos
   within `keep_disconnected_clients`, as the client list shows them). Empty (the default) means no limit. A client
   the tenant already has always reconnects, to any node; a new one is refused once the limit is reached. The count
   is the database's, across every node and device process accepting devices, and it is the device count the
-  operator API shows.
+  operator API shows. Give every node the same `purge_disconnected_clients` and `keep_disconnected_clients`: each
+  node counts with its own.
 
 A refused device logs the reason, for example `connection refused: the organization's limit of 10 clients is
 reached`, and the server logs a line naming the client, its client auth id and the tenant. A device refused by its

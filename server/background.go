@@ -78,7 +78,8 @@ func followNewTenants(ctx context.Context, c cluster.Coordinator, log *logger.Lo
 }
 
 // runForTenants runs fn once for each active tenant not in skip whose lease (name, tenant) this node holds for ttl.
-// It returns the active tenants it listed, or nil when listing them failed.
+// It returns the active tenants it listed (without those whose lease could not be checked), or nil when listing them
+// failed.
 func runForTenants(ctx context.Context, c cluster.Coordinator, log *logger.Logger, name string, ttl time.Duration, fn func(ctx context.Context) error, skip map[tenant.ID]bool) map[tenant.ID]bool {
 	tenants, err := c.Tenants(ctx)
 	if err != nil {
@@ -99,6 +100,8 @@ func runForTenants(ctx context.Context, c cluster.Coordinator, log *logger.Logge
 		held, err := c.Lease(ctx, name, tid, ttl)
 		if err != nil {
 			log.Errorf("%s: lease for tenant %s: %v", name, tid, err)
+			// not seen: the next refresh tries the tenant again rather than waiting for the next run
+			delete(listed, tid)
 			continue
 		}
 		if !held {

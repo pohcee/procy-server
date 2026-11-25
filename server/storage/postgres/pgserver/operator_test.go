@@ -355,5 +355,5 @@ func TestOperatorDeviceCountCountsDeviceProcessClients(t *testing.T) {
 		}
 	}
 	_, _, all := twoDeviceProcesses(t, d, &cfg.Server.KeepDisconnectedClients)
-	assert.Equal(t, 2, admit(t, all, "acme", "on-device-process").Clients, "the admission counts the same")
+	assert.Equal(t, 3, admit(t, all, "acme", "a-new-one").Clients, "the admission counts the same (and the new one)")
 }

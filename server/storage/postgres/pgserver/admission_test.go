@@ -2,6 +2,7 @@ package pgserver
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 	"testing"
@@ -82,18 +83,59 @@ func TestAdmissionKnowsTheTenantsClientsFromTheDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, id := range []string{"connected", "recent", "live"} {
-		a := admit(t, dev1, "b", id)
-		assert.Empty(t, a.Refused, "%s is the tenant's client", id)
-		assert.Equal(t, 3, a.Clients, "%s: connected, recent and live count", id)
+		assert.Empty(t, admit(t, dev1, "b", id).Refused, "%s is the tenant's client", id)
 	}
-	assert.Equal(t, chserver.RefusedLimit, admit(t, dev2, "b", "old").Refused, "disconnected for longer than kept: new")
+	a := admit(t, dev2, "b", "old")
+	assert.Equal(t, chserver.RefusedLimit, a.Refused, "disconnected for longer than kept: new")
+	assert.Equal(t, 3, a.Clients, "connected, recent and live count")
 	assert.Equal(t, chserver.RefusedLimit, admit(t, dev2, "b", "lapsed").Refused)
 
 	// without a keep_disconnected_clients rule every stored client counts
 	_, _, all := twoDeviceProcesses(t, d, nil)
-	a := admit(t, all, "b", "old")
-	assert.Empty(t, a.Refused)
+	assert.Empty(t, admit(t, all, "b", "old").Refused)
+	a = admit(t, all, "b", "brand-new")
+	assert.Equal(t, chserver.RefusedLimit, a.Refused)
 	assert.Equal(t, 4, a.Clients)
+}
+
+// A client the tenant has is admitted without waiting for the tenant's admission lock (a reconnect storm after a
+// failover doesn't queue behind new clients); a new client waits for it.
+func TestAdmissionOfKnownClientTakesNoLock(t *testing.T) {
+	d := pgtest.New(t, "b")
+	_, err := d.Owner.Exec("UPDATE tenants SET max_clients = 5 WHERE id = 'b'")
+	require.NoError(t, err)
+	reportState(t, d.Owner, "b", "known", nil)
+	dev1, _, _ := twoDeviceProcesses(t, d, nil)
+
+	tx, err := d.Owner.Beginx()
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended('rport/device-admission/' || 'b', 0))")
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	a, err := dev1.AdmitClient(ctx, "b", "known")
+	require.NoError(t, err, "admitted while another admission holds the lock")
+	assert.Empty(t, a.Refused)
+
+	short, cancelShort := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancelShort()
+	_, err = dev1.AdmitClient(short, "b", "new")
+	assert.Error(t, err, "a new client waits for the lock")
+}
+
+// The lock serializes admissions only under READ COMMITTED; another isolation level is refused, not miscounted.
+func TestAdmissionRefusesOtherIsolationLevels(t *testing.T) {
+	d := pgtest.New(t, "b")
+	_, err := d.Owner.Exec("UPDATE tenants SET max_clients = 1 WHERE id = 'b'")
+	require.NoError(t, err)
+	tx, err := d.Device.BeginTxx(context.Background(), &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	var decision string
+	err = tx.Get(&decision, "SELECT decision FROM device_admit_client('b', 'c1', NULL)")
+	assert.ErrorContains(t, err, "needs READ COMMITTED")
 }
 
 // New clients of a limited tenant connecting to two processes at once: exactly max_clients are admitted.
