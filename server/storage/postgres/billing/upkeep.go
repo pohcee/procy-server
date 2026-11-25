@@ -109,9 +109,23 @@ func (u *Upkeep) organization(ctx context.Context, r *row, newest, now time.Time
 		return err
 	}
 	cu.NewestUsage = newest
+	if r.FailOpen != "" && r.FailOpenAt != nil && billing.MonthStart(*r.FailOpenAt).Equal(billing.MonthStart(now)) {
+		cu.FailedOpen = r.FailOpen // held open for the rest of the period, until an operator clears it
+	}
+	if u.Plans.Get(b.Plan) == nil {
+		u.errorf("billing upkeep: organization %s is on the plan %q, which the plans file doesn't have: the free plan's limits apply", b.Organization, b.Plan)
+	}
 	p := billing.Evaluate(b, u.Plans, cu, u.Enforce, now)
 	if p.FailOpen != "" {
 		u.errorf("billing upkeep: organization %s reached its hard cap, not applied (fail open): %s", b.Organization, p.FailOpen)
+		// the operators are told once per period
+		body := fmt.Sprintf("The organization %s reached its hard transfer cap (%s used of %s), but the cap was not applied: %s. "+
+			"Check its usage; \"rportd org lift-cap %s --clear-fail-open\" lets the cap apply again.",
+			b.Organization, billing.ByteSize(p.UsedBytes), billing.ByteSize(p.AllowanceBytes), p.FailOpen, b.Organization)
+		if err := u.notice(ctx, string(systemTenant), billing.MonthStart(now), "fail_open:"+b.Organization,
+			"Billing: hard cap not applied (fail open) for "+b.Organization, body); err != nil {
+			u.errorf("billing upkeep: %v", err)
+		}
 	}
 	err = inSystem(ctx, u.DB, func(tx *sqlx.Tx) error {
 		_, err := tx.ExecContext(ctx, "SELECT rport_billing_set_policy($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
@@ -214,7 +228,11 @@ func (u *Upkeep) transferNotices(ctx context.Context, b *billing.Billing, p bill
 		body = fmt.Sprintf("Your organization used %s of its %s transfer allowance this month (plan %s). Nothing is limited yet.", used, allowance, u.planName(p.Plan))
 	case billing.TransferOver:
 		kind, subject = "allowance_reached", "Transfer: this month's allowance is used"
-		body = fmt.Sprintf("Your organization used %s, its whole %s transfer allowance this month (plan %s). Transfer from now on is billed as overage.", used, allowance, u.planName(p.Plan))
+		then := "Transfer from now on is billed as overage."
+		if pl := u.Plans.Get(p.Plan); (pl == nil || pl.Overage == billing.OverageCap) || b.CardlessTrial() {
+			then = "Tunnels are slowed and new tunnels and uploads refused once the transfer limit is reached."
+		}
+		body = fmt.Sprintf("Your organization used %s, its whole %s transfer allowance this month (plan %s). %s", used, allowance, u.planName(p.Plan), then)
 		if p.FailOpen != "" {
 			return nil // reached the hard cap but not applied: the operators look into it first
 		}
@@ -324,7 +342,26 @@ func (u *Upkeep) currentUsage(ctx context.Context, b *billing.Billing, now time.
 		for _, n := range su.DailyDevices {
 			cu.DeviceDays += n
 		}
-		cu.Days = int64(tomorrow.Sub(from).Hours()+0.5) / 24
+		// today counts once its devices were reported (they arrive with the first flush after midnight)
+		today := billing.DayStart(now)
+		var todays int64
+		if err := tx.GetContext(ctx, &todays, "SELECT count(*) FROM usage_device_days WHERE tenant_id = $1 AND day = $2::date",
+			b.Organization, today.Format("2006-01-02")); err != nil {
+			return err
+		}
+		end := tomorrow
+		if todays == 0 {
+			end = today
+		}
+		cu.Days = int64(end.Sub(from).Hours()+0.5) / 24
+		if cu.Days <= 0 {
+			// the first day of the period, not reported yet: yesterday's devices
+			if err := tx.GetContext(ctx, &cu.DeviceDays, "SELECT count(*) FROM usage_device_days WHERE tenant_id = $1 AND day = $2::date",
+				b.Organization, today.AddDate(0, 0, -1).Format("2006-01-02")); err != nil {
+				return err
+			}
+			cu.Days = 1
+		}
 		var before int64
 		if err := tx.QueryRowxContext(ctx, `SELECT
 				coalesce(sum(value) FILTER (WHERE hour = $3), 0)::bigint,
@@ -344,7 +381,6 @@ func (u *Upkeep) currentUsage(ctx context.Context, b *billing.Billing, now time.
 
 // closePeriods closes the months of b that ended more than billing.SettleDelay ago and are not closed yet.
 func (u *Upkeep) closePeriods(ctx context.Context, b *billing.Billing, now time.Time) error {
-	plan := billing.EffectivePlan(b, u.Plans)
 	last := billing.MonthStart(now.Add(-billing.SettleDelay)).AddDate(0, -1, 0) // the newest month to close
 	first := billing.MonthStart(b.StartedAt)
 	if back := last.AddDate(0, -maxCloseBack+1, 0); first.Before(back) {
@@ -369,7 +405,10 @@ func (u *Upkeep) closePeriods(ctx context.Context, b *billing.Billing, now time.
 		if done[m] {
 			continue
 		}
-		from, _ := billing.PeriodSpan(b, m)
+		// closed with the status and plan that applied at the end of the month
+		at := b.AsOf(m.AddDate(0, 1, 0))
+		plan := billing.EffectivePlan(&at, u.Plans)
+		from, _ := billing.PeriodSpan(&at, m)
 		var pu billing.PeriodUsage
 		err := postgres.InTenantID(ctx, u.DB, tenant.ID(b.Organization), func(tx *sqlx.Tx) (err error) {
 			pu, err = spanUsage(ctx, tx, b.Organization, from, m.AddDate(0, 1, 0))
@@ -378,7 +417,7 @@ func (u *Upkeep) closePeriods(ctx context.Context, b *billing.Billing, now time.
 		if err != nil {
 			return err
 		}
-		p := billing.ClosePeriod(b, plan, m, pu, u.ReviewAboveCents, now)
+		p := billing.ClosePeriod(&at, plan, m, pu, u.ReviewAboveCents, now)
 		raw, err := json.Marshal(p)
 		if err != nil {
 			return err

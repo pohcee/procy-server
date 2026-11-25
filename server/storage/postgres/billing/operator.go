@@ -154,26 +154,44 @@ func (o *Operator) SetStatus(ctx context.Context, by billing.Actor, id string, c
 	})
 }
 
-// SetOverride implements billing.OperatorService.
+// SetOverride implements billing.OperatorService. What ov leaves out keeps its value.
 func (o *Operator) SetOverride(ctx context.Context, by billing.Actor, id string, ov billing.Override) (*billing.Account, error) {
-	var extra billing.ByteSize
+	cur, err := o.Account(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	month := billing.MonthStart(o.now())
+	until := cur.CapLiftedUntil
+	switch {
+	case ov.EndCapLift && ov.CapLiftedUntil != nil:
+		return nil, fmt.Errorf("%w: give cap_lifted_until or end_cap_lift, not both", billing.ErrInvalid)
+	case ov.EndCapLift:
+		until = nil
+	case ov.CapLiftedUntil != nil:
+		if !ov.CapLiftedUntil.After(o.now()) {
+			return nil, fmt.Errorf("%w: cap_lifted_until must be in the future", billing.ErrInvalid)
+		}
+		until = ov.CapLiftedUntil
+	}
+	var extra int64
+	if cur.ExtraTransferPeriod != nil && billing.MonthStart(*cur.ExtraTransferPeriod).Equal(month) {
+		extra = cur.ExtraTransferBytes
+	}
 	if ov.ExtraTransfer != "" {
-		var err error
-		if extra, err = billing.ParseByteSize(ov.ExtraTransfer); err != nil {
+		b, err := billing.ParseByteSize(ov.ExtraTransfer)
+		if err != nil {
 			return nil, err
 		}
-	}
-	if ov.CapLiftedUntil != nil && !ov.CapLiftedUntil.After(o.now()) {
-		return nil, fmt.Errorf("%w: cap_lifted_until must be in the future", billing.ErrInvalid)
+		extra = int64(b)
 	}
 	var period any
 	if extra > 0 {
-		period = billing.MonthStart(o.now()).Format("2006-01-02")
+		period = month.Format("2006-01-02")
 	}
 	return o.change(ctx, id, func(tx *sqlx.Tx) (bool, error) {
 		var found bool
-		if err := tx.GetContext(ctx, &found, "SELECT rport_operator_billing_override($1, $2, $3, $4::date, $5, $6)",
-			id, ov.CapLiftedUntil, int64(extra), period, o.Plans.Free, by.Username); err != nil || !found {
+		if err := tx.GetContext(ctx, &found, "SELECT rport_operator_billing_override($1, $2, $3, $4::date, $5, $6, $7)",
+			id, until, extra, period, ov.ClearFailOpen, o.Plans.Free, by.Username); err != nil || !found {
 			return found, err
 		}
 		return true, auditBoth(ctx, tx, by, billing.AuditActionOverride, id, ov)

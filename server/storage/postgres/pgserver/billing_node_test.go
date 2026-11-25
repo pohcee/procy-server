@@ -79,7 +79,10 @@ func TestBillingEndToEnd(t *testing.T) {
 	assert.Equal(t, "paying", acc["status"])
 	assert.Equal(t, "Free", acc["plan_details"].(map[string]any)["name"])
 
+	assert.Equal(t, true, acc["plan_unassigned"], "no plan chosen yet: no limits")
 	// operators change the plan and status
+	code, out = h.do(t, http.MethodPut, "/operator/organizations/a/billing/plan", op, map[string]any{"plan": "free"})
+	require.Equal(t, http.StatusOK, code, out["_raw"])
 	code, out = h.do(t, http.MethodPut, "/operator/organizations/b/billing/plan", op, map[string]any{"plan": "team"})
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Equal(t, "team", data(t, out)["plan"])

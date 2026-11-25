@@ -90,6 +90,45 @@ type Billing struct {
 	// The policy in force, written by the enforcement upkeep.
 	TransferState   TransferState `json:"transfer_state" db:"transfer_state"`
 	TransferStateAt *time.Time    `json:"transfer_state_at" db:"transfer_state_at"`
+	// FailOpenAt is when the current period first failed open (the hard cap stays open for the rest of it until
+	// an operator clears it).
+	FailOpenAt *time.Time `json:"fail_open_at" db:"fail_open_at"`
+
+	// PlanUnassigned: the record was created by the upkeep (billing turned on, or a new organization) and no plan
+	// was chosen yet: metered and shown on the free plan, with no limits, the device limit left alone.
+	PlanUnassigned bool `json:"plan_unassigned" db:"plan_unassigned"`
+	// PreviousStatus and StatusSince, PreviousPlan and PlanSince: what applied before the last change, and since
+	// when the current one applies (a period is closed with what applied at its end).
+	PreviousStatus *Status    `json:"previous_status,omitempty" db:"previous_status"`
+	StatusSince    *time.Time `json:"status_since,omitempty" db:"status_since"`
+	PreviousPlan   *string    `json:"previous_plan,omitempty" db:"previous_plan"`
+	PlanSince      *time.Time `json:"plan_since,omitempty" db:"plan_since"`
+}
+
+// AsOf returns b as it applied at t: the previous status (plan) when the current one was set at or after t.
+func (b *Billing) AsOf(t time.Time) Billing {
+	c := *b
+	if b.PreviousStatus != nil && b.StatusSince != nil && !b.StatusSince.Before(t) {
+		c.Status = *b.PreviousStatus
+		// the dates of the newer status didn't apply yet
+		switch b.Status {
+		case StatusTrial:
+			c.TrialEndsAt = nil
+		case StatusComped:
+			c.CompedUntil = nil
+		}
+	}
+	if b.PreviousPlan != nil && b.PlanSince != nil && !b.PlanSince.Before(t) {
+		c.Plan = *b.PreviousPlan
+	}
+	return c
+}
+
+// OrgView returns b without what only operators see (the operator's reason and who changed it).
+func (b Billing) OrgView() Billing {
+	b.Reason, b.UpdatedBy = "", ""
+	b.PreviousStatus, b.PreviousPlan, b.StatusSince, b.PlanSince = nil, nil, nil, nil
+	return b
 }
 
 // Charged reports whether the organization is charged on day (a UTC day): paying, a trial that ended before it, a

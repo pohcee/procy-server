@@ -323,7 +323,7 @@ var BillingProviderFunctions = []string{
 var BillingFunctions = []string{
 	"rport_operator_set_plan(text, text, integer, text)",
 	"rport_operator_set_billing(text, text, timestamptz, date, text, text, text, text)",
-	"rport_operator_billing_override(text, timestamptz, bigint, date, text, text)",
+	"rport_operator_billing_override(text, timestamptz, bigint, date, boolean, text, text)",
 	"rport_operator_approve_period(text, date, text)",
 	"rport_operator_billing(text)",
 	"rport_operator_billing_periods(text, text)",

@@ -443,10 +443,12 @@ After upgrading, run `rportd migrate --grant-to <application role>` and `--grant
 application role needs `EXECUTE` on the billing functions (it can't write the billing tables directly), the device
 role on `device_transfer_policy()`. A device process with billing on refuses to start without it.
 
-When billing is turned on, every organization without a billing record gets one on the free plan, paying, billing
-starting then, and its device limit (`tenants.max_clients`) follows the plan from then on (an unlimited one too).
-Put organizations on their plans right after enabling it (`rportd org set-plan`). A device limit an operator sets
-by hand later (`rportd org set-limit`) is kept until the plan changes.
+When billing is turned on (and for organizations created later without a plan), every organization without a
+billing record gets one on the free plan, paying, billing starting then, but with no plan chosen
+(`plan_unassigned`): it is metered and shown, without transfer limits or rates, and its device limit is left alone.
+Once an operator sets its plan (`rportd org set-plan`), the plan's limits apply and the device limit
+(`tenants.max_clients`) follows the plan; a device limit an operator sets by hand afterwards (`rportd org
+set-limit`) is kept until the plan changes.
 
 ### The plans file
 
@@ -502,7 +504,7 @@ rportd org set-plan acme team
 rportd org set-billing acme trial --trial-ends 2026-12-08
 rportd org set-billing partner exempt --reason "reseller partner" --exempt-limits none
 rportd org set-billing acme comped --comped-until 2027-03-31 --reason "launch customer"
-rportd org lift-cap acme --until 2026-12-01          # or --extra-transfer 50GiB for this month
+rportd org lift-cap acme --until 2026-12-01          # --end, --extra-transfer 50GiB, --clear-fail-open; the rest is kept
 rportd org billing [acme]                            # accounts, or one with its closed periods
 rportd org approve-period acme 2026-11               # release a held period
 ```
@@ -528,8 +530,10 @@ comped periods without a payment method are announced 14 and 3 days before they 
 
 It fails open: the hard cap is not applied while the newest usage of any organization is more than 2 hours old
 (metering stalled) or when an organization's last hour moved more than `implausible_growth_factor` times its
-average hour (at least 10 GiB); the state is `over` and `fail_open` says why (logged as an error for the
-operators). A process that can't read the states keeps the last ones for an hour, then applies only the per-tunnel
+average hour (at least 10 GiB); the state is `over` and `fail_open` says why. Once a month failed open it stays open
+for the rest of the month (the spike would otherwise become part of the average) until an operator checked it and
+clears it (`rportd org lift-cap ID --clear-fail-open`); it is logged as an error and the administrators of
+`_system` with an email address are notified once per organization and month. A process that can't read the states keeps the last ones for an hour, then applies only the per-tunnel
 rates; a cap the upkeep wrote more than an hour ago is ignored. An operator can lift the cap until a time or raise
 the month's allowance; an organization's administrators can set a spending limit (`PUT /billing/spending-limit`).
 
@@ -542,7 +546,10 @@ bill it), and the amounts at the plan's prices. The first month is prorated from
 trial or comped period ends the free part. Usage arriving after the close is shown but never billed. States:
 `ready` (to be charged), `held` (overage above `overage_review_above`, until an operator approves it),
 `not_charged` (trial or comped the whole month, or nothing to charge), `never_charged` (exempt), `reported` (set by
-the payment provider). The plan at the close applies to the whole month.
+the payment provider). A month is closed with the status and plan that applied at its end (a change made after it
+ended, before the close, is not applied to it); that plan applies to the whole month. An organization that was
+exempt and became paying during the month is billed from that day; one that became comped or exempt during the
+month is not charged for it. Setting a trial or comped organization to paying ends its free time at once.
 
 | Method | Path | For |
 |---|---|---|
