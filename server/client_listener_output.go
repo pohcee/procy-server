@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"sync"
 	"time"
+
+	"github.com/openrport/openrport/share/ws"
 )
 
 // defaultOutputWait bounds how long a job result waits for the job's output channels to end. A client sends the
@@ -92,3 +94,6 @@ func (cl *ClientListener) awaitOutput(jid string) {
 		cl.log().Debugf("job %s: output still open %s after its result; the result is sent", jid, limit)
 	}
 }
+
+// errUIStreamClosing: a write after the UI stream's close frame (the UI left, or the run ended); not an error.
+var errUIStreamClosing = ws.ErrClosing

@@ -139,6 +139,11 @@ func (ws *ConcurrentWebSocket) decLocked() {
 	}
 }
 
+// controlWriter is the part of *websocket.Conn that writes a control frame with a deadline.
+type controlWriter interface {
+	WriteControl(messageType int, data []byte, deadline time.Time) error
+}
+
 // startCloseLocked sends the close frame (once) and closes the connection after the grace period, unless CloseNow
 // does it first.
 func (ws *ConcurrentWebSocket) startCloseLocked() {
@@ -146,7 +151,15 @@ func (ws *ConcurrentWebSocket) startCloseLocked() {
 		return
 	}
 	ws.closeSent = true
-	if err := ws.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")); err != nil {
+	msg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
+	var err error
+	if cc, ok := ws.conn.(controlWriter); ok {
+		// bounded: a UI that stopped reading doesn't hold the lock (or shutdown)
+		err = cc.WriteControl(websocket.CloseMessage, msg, time.Now().Add(ws.closeGrace))
+	} else {
+		err = ws.conn.WriteMessage(websocket.CloseMessage, msg)
+	}
+	if err != nil {
 		ws.log.Debugf("ws close frame not sent: %v", err)
 		ws.closeNowLocked()
 		return
@@ -215,8 +228,14 @@ func (c *WebSocketCache) Delete(key string) {
 }
 
 func (c *WebSocketCache) CloseConnections() error {
+	c.mu.RLock()
+	conns := make([]*ConcurrentWebSocket, 0, len(c.m))
 	for _, conn := range c.m {
-		conn.Close()
+		conns = append(conns, conn)
+	}
+	c.mu.RUnlock()
+	for _, conn := range conns {
+		_ = conn.Close()
 	}
 	return nil
 }

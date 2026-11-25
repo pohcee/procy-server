@@ -359,6 +359,8 @@ func (r *Runner) RunMultiClientJob(
 		if err != nil {
 			if uiConn != nil {
 				uiConn.WriteError("Could not generate job id.", err)
+				_ = uiConn.Close()
+				AwaitUIClose(uiConn, r.log)
 			}
 			return
 		}

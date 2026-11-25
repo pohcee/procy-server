@@ -39,6 +39,9 @@ type relaySink struct {
 	ch chan relayMsg
 }
 
+// relayWait is how long a message waits for the run-job stream to take it.
+const relayWait = 10 * time.Second
+
 func newRelay(streams *ws.WebSocketCache, log *logger.Logger) *relay {
 	return &relay{streams: streams, log: log, entries: map[string]*relayEntry{}}
 }
@@ -90,19 +93,12 @@ func (r *relay) deliver(key string, msg relayMsg) {
 	if sink == nil {
 		return
 	}
-	if !msg.final {
-		select {
-		case sink.ch <- msg:
-		default:
-			r.log.Debugf("relay %s: output of job %s dropped: the api process reads too slowly", key, head.JID)
-		}
-		return
-	}
-	// the result is never dropped while the stream is open
+	// output and the result wait for a slow reader (the client's output channel then waits too); only an api process
+	// that stopped reading loses them
 	select {
 	case sink.ch <- msg:
-	case <-time.After(10 * time.Second):
-		r.log.Errorf("relay %s: result of job %s not relayed: the api process does not read", key, head.JID)
+	case <-time.After(relayWait):
+		r.log.Errorf("relay %s: output or result of job %s not relayed: the api process does not read", key, head.JID)
 	}
 }
 

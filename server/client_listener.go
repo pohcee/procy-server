@@ -882,7 +882,7 @@ func (cl *ClientListener) saveCmdResult(ctx context.Context, respBytes []byte) (
 		// the result ends the job's UI stream: its output first
 		cl.awaitOutput(resp.JID)
 		err := ws.WriteMessage(websocket.TextMessage, fwdBytes)
-		if err != nil {
+		if err != nil && !errors.Is(err, errUIStreamClosing) {
 			cl.log().Errorf("%s, failed to write message to UI Web Socket: %v", resp.LogPrefix(), err)
 			// proceed further
 		}
@@ -1002,7 +1002,7 @@ func (cl *ClientListener) handleOutputChannel(typ string, jobData []byte, client
 				}
 			}
 			err := ws.WriteNonFinalJSON(ocd)
-			if err != nil {
+			if err != nil && !errors.Is(err, errUIStreamClosing) {
 				clientLog.Errorf("Failed to write message to UI Web Socket: %v", err)
 				// proceed further
 			}

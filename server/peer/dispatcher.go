@@ -176,8 +176,8 @@ func (d *Dispatcher) RunJob(ctx context.Context, clientID string, job *models.Jo
 		defer cancel()
 		got := d.forward(key, stream)
 		stream.close()
-		if !got && started.MultiJobID != nil {
-			d.awaitStoredResult(sctx, &started)
+		if !got {
+			d.awaitStoredResult(sctx, key, &started)
 		}
 	}()
 	return resp, nil
@@ -186,18 +186,23 @@ func (d *Dispatcher) RunJob(ctx context.Context, clientID string, job *models.Jo
 // storedResultPoll is how often awaitStoredResult reads the job.
 const storedResultPoll = 2 * time.Second
 
-// awaitStoredResult signals a sequential multi-client run waiting for job whose result didn't come over the peer
-// stream (the stream broke, the device process restarted): it reads the result the device process saved, until the
-// stream's deadline (ctx), and then gives the run the job as failed, so the run goes on either way.
-func (d *Dispatcher) awaitStoredResult(ctx context.Context, job *models.Job) {
+// awaitStoredResult ends what waits for job's result when it didn't come over the peer stream (the stream broke,
+// the device process restarted): it reads the result the device process saved, until the stream's deadline (ctx),
+// or else takes the job as failed, and writes it to the UI stream (its final write, so the stream ends) and gives it
+// to a sequential multi-client run waiting for it.
+func (d *Dispatcher) awaitStoredResult(ctx context.Context, key string, job *models.Job) {
 	d.mu.RLock()
-	done, jobs := d.done, d.jobs
+	streams, done, jobs := d.streams, d.done, d.jobs
 	d.mu.RUnlock()
-	if done == nil {
-		return
+	var socket *ws.ConcurrentWebSocket
+	if streams != nil {
+		socket = streams.Get(key)
 	}
-	ch := done.Get(*job.MultiJobID)
-	if ch == nil {
+	var ch chan *models.Job
+	if done != nil && job.MultiJobID != nil {
+		ch = done.Get(*job.MultiJobID)
+	}
+	if socket == nil && ch == nil {
 		return
 	}
 	final := func() *models.Job {
@@ -224,7 +229,16 @@ func (d *Dispatcher) awaitStoredResult(ctx context.Context, job *models.Job) {
 		failed.Error = "the result did not arrive from the node holding the client"
 		final = &failed
 	}
-	go func() { ch <- final }()
+	if socket != nil {
+		if b, err := json.Marshal(final); err == nil {
+			if err := socket.WriteMessage(websocket.TextMessage, b); err != nil && !errors.Is(err, ws.ErrClosing) {
+				d.log.Errorf("job %s: failed to write the result to the UI websocket: %v", key, err)
+			}
+		}
+	}
+	if ch != nil {
+		go func() { ch <- final }()
+	}
 }
 
 // forward copies the frames of a run-job stream to the UI and the waiting run; it reports whether the result came.
@@ -251,7 +265,7 @@ func (d *Dispatcher) forward(key string, stream *jobStream) bool {
 			}
 		case frameResult:
 			if socket != nil {
-				if err := socket.WriteMessage(websocket.TextMessage, f.Data); err != nil {
+				if err := socket.WriteMessage(websocket.TextMessage, f.Data); err != nil && !errors.Is(err, ws.ErrClosing) {
 					d.log.Errorf("job %s: failed to write the result to the UI websocket: %v", key, err)
 				}
 			}
