@@ -11,10 +11,11 @@ import (
 	"github.com/openrport/openrport/share/tenant"
 )
 
-// Policy refresh and fail-open timings of the processes (Limits and protections).
+// PolicyRefresh is how often a process reads the transfer policies (a variable for tests).
+var PolicyRefresh = time.Minute
+
+// Fail-open timings of the processes (Limits and protections).
 const (
-	// PolicyRefresh is how often a process reads the transfer policies.
-	PolicyRefresh = time.Minute
 	// PolicyKeep is how long a process keeps the last policies it read while it can't read them; then it reverts
 	// to "normal" with only the plans' per-tunnel rates.
 	PolicyKeep = time.Hour

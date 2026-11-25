@@ -86,3 +86,24 @@ func TestDeviceRoleRefusesAPIAddress(t *testing.T) {
 	_, err := parseConfig(t, deviceNodeConf(t, d.DeviceURL, freeAddr(t)))
 	assert.ErrorContains(t, err, "[api] address must be empty")
 }
+
+// A device process with [billing] on reads the transfer policies through the device role; the api processes run
+// the upkeep and serve the API.
+func TestServerOptsRoleDeviceBilling(t *testing.T) {
+	d := pgtest.New(t)
+	ctx := context.Background()
+	cfg := loadConfig(t, deviceNodeConf(t, d.DeviceURL, "")+billingOn(t))
+	opts, release, err := NodeOpts(ctx, cfg, d.Device, nil, io.Discard)
+	require.NoError(t, err)
+	defer release()
+	require.NotNil(t, opts.Billing)
+	assert.Nil(t, opts.Billing.Upkeep)
+	assert.Nil(t, opts.Billing.Org)
+	_, err = opts.Billing.Policies.TransferPolicies(ctx)
+	assert.NoError(t, err)
+
+	_, err = d.Owner.ExecContext(ctx, "REVOKE EXECUTE ON FUNCTION device_transfer_policy() FROM "+pgtest.DeviceRole)
+	require.NoError(t, err)
+	_, _, err = NodeOpts(ctx, cfg, d.Device, nil, io.Discard)
+	assert.ErrorContains(t, err, "device_transfer_policy")
+}

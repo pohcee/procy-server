@@ -74,6 +74,19 @@ func TestCheckDeviceRole(t *testing.T) {
 	assert.NoError(t, postgres.CheckDeviceRole(ctx, d.Device))
 	assert.ErrorContains(t, postgres.CheckDeviceMetering(ctx, d.Device), "ingest_usage")
 
+	// likewise before billing (migration 1450): device_transfer_policy is needed only with [billing] on
+	assert.NoError(t, postgres.CheckDeviceBilling(ctx, d.Device))
+	_, err = d.Owner.ExecContext(ctx, "REVOKE EXECUTE ON FUNCTION device_transfer_policy() FROM "+pgtest.DeviceRole)
+	require.NoError(t, err)
+	assert.NoError(t, postgres.CheckDeviceRole(ctx, d.Device))
+	assert.ErrorContains(t, postgres.CheckDeviceBilling(ctx, d.Device), "device_transfer_policy")
+	// the other billing functions are not for the device role
+	_, err = d.Owner.ExecContext(ctx, "GRANT EXECUTE ON FUNCTION rport_billing_set_policy(text, text, bigint, bigint, bigint, bigint, bigint, bigint, bigint, integer, text) TO "+pgtest.DeviceRole)
+	require.NoError(t, err)
+	assert.ErrorContains(t, postgres.CheckDeviceRole(ctx, d.Device), "rport_billing_set_policy")
+	_, err = d.Owner.ExecContext(ctx, "REVOKE EXECUTE ON FUNCTION rport_billing_set_policy(text, text, bigint, bigint, bigint, bigint, bigint, bigint, bigint, integer, text) FROM "+pgtest.DeviceRole)
+	require.NoError(t, err)
+
 	// one without the grants is told to run the grant
 	_, err = d.Owner.ExecContext(ctx, "REVOKE EXECUTE ON FUNCTION ingest_audit(jsonb) FROM "+pgtest.DeviceRole)
 	require.NoError(t, err)
