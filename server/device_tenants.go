@@ -2,8 +2,8 @@ package chserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 
 	"golang.org/x/crypto/ssh"
 
@@ -18,22 +18,34 @@ type DeviceTenants interface {
 	// TenantOfClientAuth returns the tenant holding the credentials with the client auth id, and false when no
 	// tenant has them. It looks across all tenants: ctx may carry the listener's own tenant, which it must ignore.
 	TenantOfClientAuth(ctx context.Context, clientAuthID string) (tenant.ID, bool, error)
-	// DevicePolicy returns what the tenant allows its devices.
-	DevicePolicy(ctx context.Context, tid tenant.ID) (DevicePolicy, error)
+	// AdmitClient decides whether the tenant takes the device clientID now connecting: only an active tenant takes
+	// devices, a client the tenant has already is never refused, and a new one only while the tenant has fewer
+	// clients than its limit, counted across every process accepting devices (an admitted new client is counted
+	// from then on).
+	AdmitClient(ctx context.Context, tid tenant.ID, clientID string) (Admission, error)
 	// Tenants returns every tenant that can have devices (not the reserved ones). The listener loads their clients
 	// when it starts, so clients stored as connected by an earlier run are marked disconnected.
 	Tenants(ctx context.Context) ([]tenant.ID, error)
 }
 
-// DevicePolicy is what a tenant allows its devices.
-type DevicePolicy struct {
-	// Status is the tenant's status; only an active tenant's devices connect.
+// Admission is a tenant's answer to a connecting device.
+type Admission struct {
+	// Refused is why the device is refused (RefusedStatus, RefusedLimit), or "" when it is admitted.
+	Refused string
+	// Status is the tenant's status ("deleted" when the tenant doesn't exist).
 	Status string
-	// MaxClients is the most clients the tenant may have, when Limited. A client the tenant has already is never
-	// refused; a new one is refused once the tenant has MaxClients (non-obsolete) clients.
+	// Clients is the number of clients the tenant has, MaxClients its limit (with RefusedLimit).
+	Clients    int
 	MaxClients int
-	Limited    bool
 }
+
+// Reasons of a refused Admission.
+const (
+	// RefusedStatus: the tenant is not active (Admission.Status).
+	RefusedStatus = "status"
+	// RefusedLimit: a new client of a tenant that has Admission.MaxClients clients.
+	RefusedLimit = "limit"
+)
 
 // TenantStatusActive is the status of a tenant whose devices connect.
 const TenantStatusActive = "active"
@@ -48,28 +60,6 @@ func deviceTenantOf(conn *ssh.ServerConn) tenant.ID {
 		return ""
 	}
 	return tenant.ID(conn.Permissions.Extensions[permTenant])
-}
-
-// deviceAdmission serializes the admission of new clients per tenant, so two new devices of a limited tenant
-// connecting at once can't both take its last place.
-type deviceAdmission struct {
-	mu    sync.Mutex
-	locks map[tenant.ID]*sync.Mutex
-}
-
-func (a *deviceAdmission) lock(tid tenant.ID) func() {
-	a.mu.Lock()
-	if a.locks == nil {
-		a.locks = map[tenant.ID]*sync.Mutex{}
-	}
-	m := a.locks[tid]
-	if m == nil {
-		m = &sync.Mutex{}
-		a.locks[tid] = m
-	}
-	a.mu.Unlock()
-	m.Lock()
-	return m.Unlock
 }
 
 // loadDeviceTenants loads the clients of every tenant before the listener accepts devices: loading marks the
@@ -95,64 +85,40 @@ func (cl *ClientListener) loadDeviceTenants(ctx context.Context) {
 }
 
 // admitDevice decides whether the device clientID (logged in with clientAuthID) may connect to its tenant tid (ctx
-// carries it). It returns the error to answer the connection request with, which the client logs, and, when the
-// admission holds the tenant's lock, the function releasing it once the client is started. Without DeviceTenants
-// every device is admitted.
-func (cl *ClientListener) admitDevice(ctx context.Context, tid tenant.ID, clientID, clientAuthID string, clog *logger.Logger) (release func(), err error) {
-	release = func() {}
+// carries it) and returns the error to answer the connection request with, which the client logs. The tenant's
+// decision comes from DeviceTenants (the database in a cluster), never from the clients this process holds: a client
+// connected to another process counts, and a client the tenant has is known wherever it connected before. Without
+// DeviceTenants every device is admitted.
+func (cl *ClientListener) admitDevice(ctx context.Context, tid tenant.ID, clientID, clientAuthID string, clog *logger.Logger) error {
 	dt := cl.server.deviceTenants
 	if dt == nil {
-		return release, nil
+		return nil
 	}
 	if tid == "" {
 		// authUser always finds the tenant when the listener serves several; never run such a device in the
 		// listener's own tenant
 		clog.Errorf("refused client %s (client auth id %q): no tenant", clientID, clientAuthID)
-		return release, fmt.Errorf("connection refused: the organization of this client is unknown")
+		return errUnknownTenant
 	}
-	policy, err := dt.DevicePolicy(ctx, tid)
+	a, err := dt.AdmitClient(ctx, tid, clientID)
 	if err != nil {
-		clog.Errorf("client %s (client auth id %q): reading the policy of tenant %q failed: %v", clientID, clientAuthID, tid, err)
-		return release, fmt.Errorf("connection refused: the server could not check the organization of this client; try again later")
+		clog.Errorf("client %s (client auth id %q): admission to tenant %q failed: %v", clientID, clientAuthID, tid, err)
+		return fmt.Errorf("connection refused: the server could not check the organization of this client; try again later")
 	}
-	if policy.Status != TenantStatusActive {
-		clog.Infof("refused client %s (client auth id %q): tenant %q is %s", clientID, clientAuthID, tid, policy.Status)
-		return release, fmt.Errorf("connection refused: the organization of this client is %s", policy.Status)
+	switch a.Refused {
+	case "":
+		return nil
+	case RefusedLimit:
+		clog.Infof("refused new client %s (client auth id %q): tenant %q has %d of its %d clients", clientID, clientAuthID, tid, a.Clients, a.MaxClients)
+		return fmt.Errorf("%s: the organization's limit of %d clients is reached", refusedPrefix, a.MaxClients)
+	default:
+		clog.Infof("refused client %s (client auth id %q): tenant %q is %s", clientID, clientAuthID, tid, a.Status)
+		return fmt.Errorf("%s: the organization of this client is %s", refusedPrefix, a.Status)
 	}
-	if !policy.Limited {
-		return release, nil
-	}
-	// the count below must not read an empty cache because loading the tenant's clients failed
-	if err := cl.getClientService().GetRepo().LoadTenant(ctx); err != nil {
-		clog.Errorf("client %s (client auth id %q): %v", clientID, clientAuthID, err)
-		return release, fmt.Errorf("connection refused: the server could not check the organization of this client; try again later")
-	}
-	// The count is this process's cache of the tenant's clients. Clients another process admits at the same moment
-	// (a listener handing over its lease; several device nodes later) reach it through the change feed, so for a
-	// short time the tenant can exceed its limit by what the other process admitted.
-	known, err := cl.getClientService().GetByID(ctx, clientID)
-	if err != nil {
-		clog.Errorf("client %s (client auth id %q): %v", clientID, clientAuthID, err)
-		return release, fmt.Errorf("could not get client %q: %w", clientID, err)
-	}
-	if known != nil {
-		// a client the tenant has already is never refused
-		return release, nil
-	}
-	unlock := cl.admission.lock(tid)
-	// checked again under the lock: another connection of the same new client may have been admitted meanwhile
-	if known, err = cl.getClientService().GetByID(ctx, clientID); err != nil || known != nil {
-		unlock()
-		if err != nil {
-			clog.Errorf("client %s (client auth id %q): %v", clientID, clientAuthID, err)
-			return release, fmt.Errorf("could not get client %q: %w", clientID, err)
-		}
-		return release, nil
-	}
-	if n := cl.getClientService().Count(ctx); n >= policy.MaxClients {
-		unlock()
-		clog.Infof("refused new client %s (client auth id %q): tenant %q has %d of its %d clients", clientID, clientAuthID, tid, n, policy.MaxClients)
-		return release, fmt.Errorf("connection refused: the organization's limit of %d clients is reached", policy.MaxClients)
-	}
-	return unlock, nil
 }
+
+// refusedPrefix starts the reply to a device its organization refuses; the client waits longer before it retries
+// after such a reply (client.organizationRefusal).
+const refusedPrefix = "connection refused"
+
+var errUnknownTenant = errors.New(refusedPrefix + ": the organization of this client is unknown")

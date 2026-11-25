@@ -124,7 +124,6 @@ type ClientListener struct {
 	requestLogOptions *requestlog.Options
 	bannedClientAuths *security.BanList
 	bannedIPs         *security.MaxBadAttemptsBanList
-	admission         deviceAdmission
 
 	clientIndexAutoIncrement int32
 
@@ -511,14 +510,12 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	admitted, err := cl.admitDevice(ctx, tid, clientID, clientAuthID, clientLog.GetLogger())
-	if err != nil {
+	if err := cl.admitDevice(ctx, tid, clientID, clientAuthID, clientLog.GetLogger()); err != nil {
 		cl.replyConnectionError(r, err)
 		return
 	}
 
 	client, err := cl.getClientService().StartClient(ctx, clientAuthID, clientID, sshConn, clientHostname(req.Host), cl.server.config.Server.AuthMultiuseCreds, connRequest, clientLog.GetLogger())
-	admitted()
 	if err != nil {
 		cl.replyConnectionError(r, err)
 		return
