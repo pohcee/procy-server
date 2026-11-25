@@ -226,11 +226,7 @@ func (c *Client) connectionLoop(ctx context.Context, withInitialSendRequestDelay
 	//connection loop!
 	var connerr error
 	switchbackChan := make(chan *sshClientConnection, 1)
-	backoff := &backoff.Backoff{
-		Min:    MinConnectionBackoffWaitTime + time.Duration(rand.Intn(60)),
-		Max:    MaxConnectionBackoffWaitTime,
-		Jitter: true,
-	}
+	backoff := c.newConnectionBackoff()
 
 	for c.isRunning() {
 		if connerr != nil {
@@ -337,21 +333,55 @@ func (c *Client) handleConnectionError(backoff *backoff.Backoff, connerr error) 
 		return true // if so, stop trying
 	}
 
-	var d = backoff.Duration()
-	if _, ok := connerr.(comm.TimeoutError); ok {
-		c.Debugf("reseting backoff timer")
-		// Timeout means the server isn't offline, so reset the backoff and use an initial short retry duration
-		backoff.Reset()
-		rand.Seed(time.Now().UnixNano())
-		// After Reset() Attempt() is 0, and rand.Intn(0) panics; retry within (0, max] instead.
-		d = time.Duration(rand.Int63n(int64(BackoffOnServerTimeoutMaxDuration))) + time.Millisecond
-	}
+	d := c.retryDelay(backoff, connerr)
 	msg := fmt.Sprintf("Retrying in %s...", d)
 	c.Infof(msg)
 	c.watchdog.Ping(WatchdogStateReconnecting, msg)
 	chshare.SleepSignal(d)
 
 	return false
+}
+
+// newConnectionBackoff returns the backoff between connection attempts: from MinConnectionBackoffWaitTime, doubling,
+// up to [connection] max_retry_interval.
+func (c *Client) newConnectionBackoff() *backoff.Backoff {
+	maxWait := c.configHolder.Connection.MaxRetryInterval
+	if maxWait <= 0 {
+		maxWait = MaxConnectionBackoffWaitTime
+	}
+	return &backoff.Backoff{
+		Min:    min(MinConnectionBackoffWaitTime+time.Duration(rand.Intn(1000))*time.Millisecond, maxWait),
+		Max:    maxWait,
+		Jitter: true,
+	}
+}
+
+// organizationRefusal starts the server's reply when it refuses the client for its organization (suspended, client
+// limit reached); the server answers it until an operator acts.
+const organizationRefusal = "connection refused: the organization"
+
+// MinOrganizationRefusalWait is the least the client waits after its organization refused it, when
+// max_retry_interval is shorter.
+const MinOrganizationRefusalWait = time.Minute
+
+// retryDelay returns how long to wait before the next connection attempt after connerr; b counts the attempts.
+// Waits grow up to max_retry_interval. A timeout means the server is there: the next attempt follows within a
+// second. A refusal by the client's organization waits max_retry_interval, at least MinOrganizationRefusalWait
+// (with jitter down to three quarters of it), so a fleet of refused devices doesn't keep the server busy.
+func (c *Client) retryDelay(b *backoff.Backoff, connerr error) time.Duration {
+	d := b.Duration()
+	if _, ok := connerr.(comm.TimeoutError); ok {
+		c.Debugf("reseting backoff timer")
+		// Timeout means the server isn't offline, so reset the backoff and use an initial short retry duration
+		b.Reset()
+		// After Reset() Attempt() is 0, and rand.Intn(0) panics; retry within (0, max] instead.
+		return time.Duration(rand.Int63n(int64(BackoffOnServerTimeoutMaxDuration))) + time.Millisecond
+	}
+	if connerr != nil && strings.HasPrefix(connerr.Error(), organizationRefusal) {
+		wait := max(c.configHolder.Connection.MaxRetryInterval, MinOrganizationRefusalWait)
+		return wait - time.Duration(rand.Int63n(int64(wait/4)+1))
+	}
+	return d
 }
 
 func (c *Client) showConnectionError(connerr error, attempt int) {
@@ -387,6 +417,13 @@ func (c *Client) handleServerSwitchBack(switchbackCtx context.Context, switchbac
 			if err != nil {
 				c.Errorf("Switchback failed: %v", err.Error())
 				continue
+			}
+			if switchbackCtx.Err() != nil {
+				// the connection to the fallback server ended while connecting: the connection loop makes a new
+				// attempt itself and must not pick up this one later, when the server stopped waiting for its
+				// connection request
+				_ = switchbackConn.Connection.Close()
+				return
 			}
 			c.Infof("Connected to main server, switching back.")
 			switchbackChan <- switchbackConn
@@ -557,12 +594,13 @@ func (c *Client) sendConnectionRequest(ctx context.Context, sshConn ssh.Conn, mi
 	c.Debugf("Connection request has been answered within %s.", time.Since(t0))
 	if !res.replyOk {
 		msg := string(res.respBytes)
+		// a refused connection is not used again: the next attempt makes a new one
+		if closeErr := sshConn.Close(); closeErr != nil {
+			c.Debugf("closing the refused connection: %v", closeErr)
+		}
 
 		// if replied with client credentials already used - retry
 		if strings.Contains(msg, "client is already connected:") {
-			if closeErr := sshConn.Close(); closeErr != nil {
-				c.Errorf(closeErr.Error())
-			}
 			return errors.New("client is already connected or previous session was not properly closed")
 		}
 

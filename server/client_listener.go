@@ -426,7 +426,10 @@ func (cl *ClientListener) acceptSSHConnection(w http.ResponseWriter, req *http.R
 	return sshConn, chans, reqs, clog, err
 }
 
-func (cl *ClientListener) receiveClientConnectionRequest(sshConn *ssh.ServerConn, reqs <-chan *ssh.Request, clog *logger.DynamicLogger) (connRequest *chshare.ConnectionRequest, r *ssh.Request, err error) {
+// errNoConnectionRequest: the client sent no connection request (it closed the connection first, or took too long).
+var errNoConnectionRequest = errors.New("no connection request")
+
+func (cl *ClientListener) receiveClientConnectionRequest(reqs <-chan *ssh.Request, clog *logger.DynamicLogger) (connRequest *chshare.ConnectionRequest, r *ssh.Request, err error) {
 	pendingRequestTimer := time.NewTimer(ConnectionRequestTimeOut)
 
 	select {
@@ -438,31 +441,26 @@ func (cl *ClientListener) receiveClientConnectionRequest(sshConn *ssh.ServerConn
 		return nil, nil, cl.ctx.Err()
 
 	case <-pendingRequestTimer.C:
-		errMsg := fmt.Sprintf("connection request timeout exceeded %0.2f sec", ConnectionRequestTimeOut.Seconds())
-		clog.Debugf(errMsg)
-		closeErr := sshConn.Close()
-		if closeErr != nil {
-			clog.Debugf("error on SSH connection close: %s", closeErr)
-		}
-		return nil, nil, errors.New(errMsg)
+		return nil, nil, fmt.Errorf("%w within %0.2f sec", errNoConnectionRequest, ConnectionRequestTimeOut.Seconds())
 	}
 
-	// it seems that nil requests are possible, so return an error
+	// the channel is closed when the connection closes before the client sent a request
 	if r == nil {
-		return nil, nil, errors.New("received nil request from client")
+		return nil, nil, fmt.Errorf("%w: the connection was closed", errNoConnectionRequest)
 	}
 
+	// the request is returned with the errors below, so the client gets them as the reply
 	if r.Type != "new_connection" {
-		return nil, nil, errors.New("expecting connection request")
+		return nil, r, errors.New("expecting connection request")
 	}
 
 	if len(r.Payload) > int(cl.server.config.Server.MaxRequestBytesClient) {
-		return nil, nil, fmt.Errorf("request data exceeds the limit of %d bytes, actual size: %d", cl.server.config.Server.MaxRequestBytesClient, len(r.Payload))
+		return nil, r, fmt.Errorf("request data exceeds the limit of %d bytes, actual size: %d", cl.server.config.Server.MaxRequestBytesClient, len(r.Payload))
 	}
 
 	connRequest, err = chshare.DecodeConnectionRequest(r.Payload)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid connection request: %s", err)
+		return nil, r, fmt.Errorf("invalid connection request: %s", err)
 	}
 
 	return connRequest, r, nil
@@ -482,9 +480,13 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	clientLog.Debugf("Verifying configuration...")
 
 	// first request to be received must be a connection request
-	connRequest, r, err := cl.receiveClientConnectionRequest(sshConn, reqs, clientLog)
+	connRequest, r, err := cl.receiveClientConnectionRequest(reqs, clientLog)
 	if err != nil {
-		cl.replyConnectionError(r, err)
+		if r == nil {
+			// nothing to answer: a client giving up during its connection attempt, or one that never sends a request
+			clientLog.Infof("closing the connection from %s: %v", sshConn.RemoteAddr(), err)
+		}
+		cl.refuseConnection(sshConn, r, err)
 		return
 	}
 
@@ -497,7 +499,7 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 
 	clientID, err := cl.getClientID(connRequest.ID, cl.server.config, clientAuthID)
 	if err != nil {
-		cl.replyConnectionError(r, fmt.Errorf("could not get clientID: %s", err))
+		cl.refuseConnection(sshConn, r, fmt.Errorf("could not get clientID: %s", err))
 		return
 	}
 
@@ -511,13 +513,13 @@ func (cl *ClientListener) handleWebsocket(w http.ResponseWriter, req *http.Reque
 	defer cancel()
 
 	if err := cl.admitDevice(ctx, tid, clientID, clientAuthID, clientLog.GetLogger()); err != nil {
-		cl.replyConnectionError(r, err)
+		cl.refuseConnection(sshConn, r, err)
 		return
 	}
 
 	client, err := cl.getClientService().StartClient(ctx, clientAuthID, clientID, sshConn, clientHostname(req.Host), cl.server.config.Server.AuthMultiuseCreds, connRequest, clientLog.GetLogger())
 	if err != nil {
-		cl.replyConnectionError(r, err)
+		cl.refuseConnection(sshConn, r, err)
 		return
 	}
 	clientLog.Debugf("Client service started for %s (%s) within %s", client.GetID(), client.GetName(), time.Since(ts1))
@@ -606,6 +608,18 @@ func (cl *ClientListener) replyConnectionSuccess(r *ssh.Request, remotes []*mode
 	err = r.Reply(true, replyPayload)
 	if err != nil {
 		cl.log().Errorf("error during connection success reply: %w", err)
+	}
+}
+
+// refuseConnection answers the connection request r (when there is one) with err and closes the connection: a refused
+// connection is not used again (the client makes a new one for its next attempt), and left open it would hold its
+// goroutines and socket on both sides until the client stops.
+func (cl *ClientListener) refuseConnection(sshConn ssh.Conn, r *ssh.Request, err error) {
+	if r != nil {
+		cl.replyConnectionError(r, err)
+	}
+	if sshConn != nil {
+		_ = sshConn.Close()
 	}
 }
 
