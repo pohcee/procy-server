@@ -393,7 +393,7 @@ func (im *importer) writeLibrary(w *writer) error {
 		skipped
 	)
 	state := map[string]int{}
-	var nameTaken, deletedHere []string
+	var nameTaken, deletedHere, deletedTarget []string
 	err := readRows(d, "entries", entryCols, "id", func(vals []any) error {
 		ec.Read++
 		id := vals[0].(string)
@@ -401,8 +401,12 @@ func (im *importer) writeLibrary(w *writer) error {
 			if b, ok := builtins[key]; ok && b.ID != id {
 				ec.Present++
 				state[id] = asPresent
+				im.libRemap.add(id, b.ID, key)
 				if vals[11] != nil && !b.Deleted {
 					deletedHere = append(deletedHere, key)
+				}
+				if vals[11] == nil && b.Deleted {
+					deletedTarget = append(deletedTarget, key)
 				}
 				return nil
 			}
@@ -434,6 +438,12 @@ func (im *importer) writeLibrary(w *writer) error {
 	if len(nameTaken) > 0 {
 		im.rep.warnf("library entries: names a different entry of the target already uses, not imported: %s", strings.Join(nameTaken, ", "))
 	}
+	if !im.libRemap.empty() {
+		im.rep.warnf("library entries: built-ins the target has under other ids, references to them are rewritten to the target's ids: %s", im.libRemap.describe())
+	}
+	if len(deletedTarget) > 0 {
+		im.rep.warnf("library entries: built-ins deleted in the target but live in the source (schedules running them fail until they are undeleted): %s", strings.Join(deletedTarget, ", "))
+	}
 	if len(deletedHere) > 0 {
 		im.rep.warnf("library entries: built-ins deleted in the source but present in the target (delete them again if they are not wanted): %s", strings.Join(deletedHere, ", "))
 	}
@@ -463,12 +473,41 @@ func (im *importer) writeLibrary(w *writer) error {
 
 // --- schedules ---------------------------------------------------------------
 
+// writeSchedules copies the schedules, pointing those that run a built-in library entry the target has under another
+// id at the target's entry (see libraryRemap); schedules an earlier import left with the source's id are repaired.
 func (im *importer) writeSchedules(w *writer) error {
 	cols := []col{
 		c("id", kText), c("created_at", kTime), c("created_by", kText), c("name", kText), c("schedule", kText),
 		c("type", kText), c("details", kText),
 	}
-	return im.copyTable(w, entSchedules, fileJobs, "schedules", cols, names(cols), "id")
+	count := im.count(entSchedules)
+	d := im.dbs[fileJobs]
+	if d == nil {
+		return nil
+	}
+	if ok, err := hasTable(d.db, "schedules"); err != nil || !ok {
+		return err
+	}
+	b := w.batch("schedules", names(cols), onConflictNothing, count)
+	rewritten := 0
+	var remapped []string
+	err := readRows(d, "schedules", cols, "id", func(vals []any) error {
+		count.Read++
+		n := rewritten
+		im.libRemap.rewriteDetails(vals, 6, &rewritten)
+		if rewritten > n {
+			remapped = append(remapped, vals[0].(string))
+		}
+		return b.add(vals)
+	})
+	if err != nil {
+		return err
+	}
+	if err := b.flush(); err != nil {
+		return err
+	}
+	im.reportRewrites(entSchedules, rewritten)
+	return im.repairSchedules(w, remapped)
 }
 
 // --- history -----------------------------------------------------------------
@@ -538,17 +577,20 @@ func (im *importer) writeJobs(w *writer) error {
 		return nil
 	}
 	b := w.batch("multi_jobs", append(names(multiJobCols), "run_error"), onConflictNothing, mc)
+	multiRewritten, jobsRewritten := 0, 0
 	err := readRows(d, "multi_jobs", multiJobCols, "jid", func(vals []any) error {
 		mc.Read++
 		var details struct {
 			Error string `json:"error"`
 		}
 		_ = json.Unmarshal([]byte(vals[3].(string)), &details) // not JSON: no error to show
+		im.libRemap.rewriteDetails(vals, 3, &multiRewritten)
 		return b.add(append(vals, strings.ReplaceAll(details.Error, "\x00", "")))
 	})
 	if err != nil {
 		return err
 	}
+	im.reportRewrites(entMultiJobs, multiRewritten)
 	if err := b.flush(); err != nil {
 		return err
 	}
@@ -569,11 +611,13 @@ func (im *importer) writeJobs(w *writer) error {
 			orphans++
 			return nil
 		}
+		im.libRemap.rewriteDetails(vals, 7, &jobsRewritten)
 		return jb.add(vals)
 	})
 	if err != nil {
 		return err
 	}
+	im.reportRewrites(entJobs, jobsRewritten)
 	if orphans > 0 {
 		im.rep.warnf("jobs: %d jobs of multi-client jobs that don't exist, not imported", orphans)
 	}

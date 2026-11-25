@@ -83,7 +83,9 @@ type importer struct {
 	counts []*EntityCount
 	// targetUsers caches whether the target tenant has a user, for the tokens and sessions
 	targetUsers map[string]bool
-	rep         *Report
+	// libRemap maps the source ids of built-in library entries the target has under other ids onto those ids
+	libRemap libraryRemap
+	rep      *Report
 
 	dbs   map[string]*sourceDB
 	audit []*sourceDB // audit log files, oldest first
