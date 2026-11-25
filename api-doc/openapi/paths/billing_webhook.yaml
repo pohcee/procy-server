@@ -1,0 +1,32 @@
+post:
+  tags:
+    - Billing
+  summary: Receive a payment provider webhook (Stripe)
+  description: >-
+    Called by the payment provider, not by users: no session authentication. The Stripe-Signature header is
+    verified over the raw body with the endpoint's signing secret (5 minutes' tolerance) before anything is parsed;
+    each event is applied once (a repeated delivery is acknowledged and ignored). Handled: checkout.session.completed,
+    customer.subscription.created/updated/deleted/trial_will_end, invoice.paid, invoice.payment_failed. The
+    endpoint must use an API version of stripe-go's release train.
+  operationId: BillingWebhookPost
+  security: []
+  parameters:
+    - name: Stripe-Signature
+      in: header
+      required: true
+      schema:
+        type: string
+  requestBody:
+    content:
+      application/json:
+        schema:
+          type: object
+  responses:
+    '200':
+      description: Applied, or received before
+    '400':
+      description: The signature can't be verified (or the body is too large or unreadable)
+    '404':
+      description: No payment provider on this server
+    '500':
+      description: The event couldn't be applied; the provider retries

@@ -133,6 +133,10 @@ func NodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, base *chse
 			coord.Release()
 			return nil, nil, err
 		}
+		if opts.Billing.Provider, err = BillingProvider(cfg, db, opts.Billing.Plans, NewOperator(db, cfg)); err != nil {
+			coord.Release()
+			return nil, nil, err
+		}
 	}
 	opts.TenantResolver = NewResolver(db, cfg.API.JWTSecret)
 	opts.Operator = NewOperator(db, cfg)

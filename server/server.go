@@ -298,6 +298,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 		}
 	}
 	s.billingOpts = opts.Billing
+	s.pauseSchedulesWhileReadOnly(opts.Billing)
 	s.setupBilling(opts.Billing)
 	if s.enforcer != nil {
 		if p, ok := s.clientService.(*clients.ClientServiceProvider); ok {
@@ -423,6 +424,7 @@ func NewServer(ctx context.Context, config *chconfig.Config, opts *ServerOpts) (
 	if err != nil {
 		return nil, err
 	}
+	s.setBillingProviderNotifier(opts.Billing)
 
 	if s.config.CaddyEnabled() {
 		cfg := s.config

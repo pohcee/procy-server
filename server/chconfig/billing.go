@@ -27,12 +27,15 @@ type BillingConfig struct {
 	// ImplausibleGrowthFactor: the hard cap is not applied to an organization whose last hour's transfer is more
 	// than this many times its average hour of the period (a counting bug); default 20.
 	ImplausibleGrowthFactor float64 `mapstructure:"implausible_growth_factor"`
+	// BillingProviderConfig holds the payment provider's settings (billing_provider.go).
+	BillingProviderConfig `mapstructure:",squash"`
 }
 
 func (c *Config) parseAndValidateBilling() error {
 	b := &c.Billing
 	if !b.Enabled {
-		if b.Provider != "" || b.PlansFile != "" || b.EgressCostPerGiB != 0 || b.OverageReviewAbove != 0 || b.ImplausibleGrowthFactor != 0 {
+		if b.Provider != "" || b.PlansFile != "" || b.EgressCostPerGiB != 0 || b.OverageReviewAbove != 0 || b.ImplausibleGrowthFactor != 0 ||
+			b.BillingProviderConfig != (BillingProviderConfig{}) {
 			return errors.New("[billing] settings are given but enabled is false")
 		}
 		return nil
@@ -65,5 +68,5 @@ func (c *Config) parseAndValidateBilling() error {
 	if b.ImplausibleGrowthFactor != 0 && b.ImplausibleGrowthFactor < 2 {
 		return errors.New("[billing] implausible_growth_factor must be at least 2")
 	}
-	return nil
+	return b.validateProvider(b.Provider)
 }

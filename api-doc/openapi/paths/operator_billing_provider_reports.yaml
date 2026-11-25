@@ -1,0 +1,43 @@
+get:
+  tags:
+    - Operator
+    - Billing
+  summary: List the usage reported to the payment provider. Platform operators only
+  description: One row per organization, metric and closed period; mismatch rows differ from the provider's summary.
+  operationId: OperatorBillingProviderReportsGet
+  parameters:
+    - name: period
+      in: query
+      description: Only this month, YYYY-MM
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/BillingUsageReport.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No payment provider on this server (standalone, or [billing] provider "none")
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

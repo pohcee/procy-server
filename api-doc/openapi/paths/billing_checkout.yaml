@@ -1,0 +1,66 @@
+post:
+  tags:
+    - Billing
+  summary: Buy a plan
+  description: >-
+    Without a live subscription: a link to the provider's hosted checkout (subscription mode, billing cycle anchored
+    to the 1st of next month UTC with the first month prorated, Stripe Tax). With one: the subscription moves to the
+    plan's prices at once (plan_changed). Administrators only; refused for exempt organizations (409) and while
+    read-only (403, ERR_CODE_BILLING_READ_ONLY).
+  operationId: BillingCheckoutPost
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [plan]
+          properties:
+            plan:
+              type: string
+              example: starter
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  url:
+                    type: string
+                  plan_changed:
+                    type: boolean
+    '400':
+      description: No plan given
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: The organization is exempt, or the plan is not sold through the provider
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the organization or the organization is read-only
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No payment provider on this server (standalone, or [billing] provider "none")
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

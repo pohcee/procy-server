@@ -1,0 +1,33 @@
+type: object
+properties:
+  id:
+    type: string
+  number:
+    type: string
+  status:
+    type: string
+    enum: [open, paid, uncollectible, void]
+  amount_due:
+    type: integer
+    description: In cents
+  amount_paid:
+    type: integer
+  total:
+    type: integer
+  currency:
+    type: string
+    example: usd
+  created:
+    type: string
+    format: date-time
+  period_start:
+    type: string
+    format: date-time
+  period_end:
+    type: string
+    format: date-time
+  hosted_url:
+    type: string
+    description: The provider's page of the invoice
+  pdf:
+    type: string

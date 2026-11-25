@@ -1,0 +1,43 @@
+post:
+  tags:
+    - Operator
+    - Billing
+  summary: Confirm the proposed suspension of an organization. Platform operators only
+  description: >-
+    Only when suspension is proposed (read-only for the whole read-only period). Suspends the organization as
+    POST /operator/organizations/{id}/suspend does; users can't log in and devices can't connect at their next
+    connection. Audited.
+  operationId: OperatorBillingProviderConfirmSuspensionPost
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    '204':
+      description: Suspended
+    '409':
+      description: Suspension is not proposed
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No payment provider on this server (standalone, or [billing] provider "none")
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

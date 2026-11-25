@@ -1,0 +1,31 @@
+type: object
+description: An organization's state at the payment provider.
+properties:
+  provider:
+    type: string
+    example: stripe
+  plan:
+    type: string
+  status:
+    type: string
+    enum: [paying, trial, exempt, comped]
+  chargeable:
+    type: boolean
+    description: False for exempt organizations, which have no provider records and no checkout
+  has_customer:
+    type: boolean
+  has_payment_method:
+    type: boolean
+  subscription_status:
+    type: string
+    description: The provider subscription's status (incomplete, trialing, active, past_due, canceled, unpaid, paused), empty without one
+  access:
+    type: string
+    enum: [full, read_only]
+    description: read_only while a payment is overdue past the grace period; changes are refused with ERR_CODE_BILLING_READ_ONLY
+  dunning:
+    $ref: ./BillingDunning.yaml
+  read_only_from:
+    type: string
+    format: date-time
+    description: When the organization becomes read-only unless the payment succeeds (past due only)

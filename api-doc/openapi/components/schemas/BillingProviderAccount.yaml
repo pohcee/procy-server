@@ -1,0 +1,35 @@
+type: object
+description: An organization's account at the payment provider, for operators.
+allOf:
+  - $ref: ./BillingDunning.yaml
+  - type: object
+    properties:
+      organization:
+        type: string
+      provider:
+        type: string
+      customer_id:
+        type: string
+      billing_email:
+        type: string
+      subscription_id:
+        type: string
+      subscription_status:
+        type: string
+      price_ids:
+        type: array
+        items:
+          type: string
+      has_payment_method:
+        type: boolean
+      access:
+        type: string
+        enum: [full, read_only]
+      suspension_proposed:
+        type: boolean
+        description: Read-only for the whole read-only period; an operator confirms the suspension
+      updated_at:
+        type: string
+        format: date-time
+      updated_by:
+        type: string

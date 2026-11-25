@@ -249,6 +249,11 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	for _, fn := range OperatorFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
 	}
+	// the payment provider's tables (migration 1500) are read-only; they change through BillingProviderFunctions
+	stmts = append(stmts, "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON "+strings.Join(BillingProviderTables, ", ")+" FROM "+q)
+	for _, fn := range BillingProviderFunctions {
+		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+fn+" TO "+q)
+	}
 	for _, s := range stmts {
 		if _, err := db.ExecContext(ctx, s); err != nil {
 			return fmt.Errorf("migrate: grant to %s: %w", role, err)
@@ -297,6 +302,25 @@ var UsageFunctions = []string{
 	"ingest_usage(jsonb)",
 	"rport_usage_summary(timestamptz, timestamptz)",
 	"rport_usage_device_summary(date, date)",
+}
+
+// BillingProviderTables are the payment provider's tables (migration 1500), read-only for the application role.
+var BillingProviderTables = []string{"billing_provider_accounts", "billing_events", "billing_usage_reports", "billing_dunning_notices"}
+
+// BillingProviderFunctions are the SECURITY DEFINER functions through which the webhook, the usage reporting and
+// the dunning tick change the payment provider's tables (migration 1500).
+var BillingProviderFunctions = []string{
+	"rport_billing_claim_event(text, text, text, text)",
+	"rport_billing_customer_tenant(text, text)",
+	"rport_billing_account(text)",
+	"rport_billing_put_account(text, jsonb)",
+	"rport_billing_prune_events(interval)",
+	"rport_billing_accounts()",
+	"rport_billing_put_report(text, jsonb)",
+	"rport_billing_reports(timestamptz)",
+	"rport_billing_claim_dunning_notice(text, text, text)",
+	"rport_billing_provider_state(text, text, text, boolean, text, text, text)",
+	"rport_billing_period_reported(text, date)",
 }
 
 // BillingFunctions are the SECURITY DEFINER functions of billing (migration 1450) the application role may execute:
