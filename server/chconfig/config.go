@@ -350,6 +350,7 @@ type Config struct {
 	Metering      MeteringConfig       `mapstructure:"metering"`
 	Signup        SignupConfig         `mapstructure:"signup"`
 	Billing       BillingConfig        `mapstructure:"billing"`
+	OIDC          OIDCConfig           `mapstructure:"oidc"`
 }
 
 var (
@@ -400,6 +401,9 @@ func (c *Config) ParseAndValidate(mLog *logger.MemLogger) error {
 		return err
 	}
 	if err := c.parseAndValidateBilling(); err != nil {
+		return err
+	}
+	if err := c.parseAndValidateOIDC(); err != nil {
 		return err
 	}
 	if err := c.parseAndValidateSignup(); err != nil {
