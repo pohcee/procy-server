@@ -574,7 +574,7 @@ func (s *Service) Checkout(ctx context.Context, by Actor, org, orgName, planID s
 	if strings.Contains(by.Username, "@") {
 		email = by.Username
 	}
-	a, _, err := s.ensureCustomer(ctx, org, orgName, email)
+	a, b, err := s.ensureCustomer(ctx, org, orgName, email)
 	if err != nil {
 		return nil, err
 	}
@@ -591,6 +591,7 @@ func (s *Service) Checkout(ctx context.Context, by Actor, org, orgName, planID s
 		Organization: org, CustomerID: a.CustomerID, Plan: plan,
 		SuccessURL: s.returnURL("checkout=success"), CancelURL: s.returnURL("checkout=canceled"),
 		PeriodStart: MonthStartOf(s.now()).AddDate(0, 1, 0),
+		FreeUntil:   freeUntil(b, s.now()),
 	})
 	if err != nil {
 		return nil, err
@@ -599,6 +600,23 @@ func (s *Service) Checkout(ctx context.Context, by Actor, org, orgName, planID s
 		s.log.Errorf("billing: %v", err)
 	}
 	return &CheckoutResult{URL: u}, nil
+}
+
+// freeUntil is when charging starts for an organization in a trial or comped (nil: now).
+func freeUntil(b *Billing, now time.Time) *time.Time {
+	var t time.Time
+	switch {
+	case b.Status == StatusTrial && b.TrialEndsAt != nil:
+		t = *b.TrialEndsAt
+	case b.Status == StatusComped && b.CompedUntil != nil:
+		t = DayStart(*b.CompedUntil).AddDate(0, 0, 1)
+	default:
+		return nil
+	}
+	if !t.After(now) {
+		return nil
+	}
+	return &t
 }
 
 // live reports whether a subscription still bills.

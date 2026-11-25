@@ -66,6 +66,9 @@ type CheckoutRequest struct {
 	// PeriodStart is the start of the next billing period (the 1st of next month, UTC): the subscription's billing
 	// cycle is anchored there and the first, partial month is prorated.
 	PeriodStart time.Time
+	// FreeUntil, when set, is when charging starts (the end of a trial, the day after a comped date): the
+	// subscription is in its trial until then, so the card is not charged before.
+	FreeUntil *time.Time
 }
 
 // SubscriptionStatus is a provider subscription's state, normalized.

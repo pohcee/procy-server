@@ -37,6 +37,9 @@ const OrgMetadataKey = "procy_org_id"
 // planMetadataKey is the metadata key holding the plan id on subscriptions and checkout sessions.
 const planMetadataKey = "procy_plan"
 
+// minTrial is the shortest trial Checkout accepts (trial_end at least 48 hours ahead), with margin.
+const minTrial = 49 * time.Hour
+
 // WebhookTolerance is how old a webhook's signed timestamp may be.
 const WebhookTolerance = 5 * time.Minute
 
@@ -192,7 +195,18 @@ func (p *Provider) CheckoutURL(ctx context.Context, req billing.CheckoutRequest)
 			ProrationBehavior: sg.String("create_prorations"),
 		},
 	}
-	if !req.PeriodStart.IsZero() && req.PeriodStart.After(p.now()) {
+	// Checkout takes a billing cycle anchor or a trial, never both. Free time ending by the anchor: the anchor
+	// without prorations (nothing is charged before it). Free time ending later (comped for months): a trial
+	// until then; the billing cycle then runs from the trial's end, not from the 1st.
+	anchor := !req.PeriodStart.IsZero() && req.PeriodStart.After(p.now())
+	switch {
+	case req.FreeUntil != nil && anchor && !req.FreeUntil.After(req.PeriodStart):
+		params.SubscriptionData.BillingCycleAnchor = sg.Int64(req.PeriodStart.Unix())
+		params.SubscriptionData.ProrationBehavior = sg.String("none")
+	case req.FreeUntil != nil && req.FreeUntil.After(p.now().Add(minTrial)):
+		params.SubscriptionData.TrialEnd = sg.Int64(req.FreeUntil.Unix())
+		params.SubscriptionData.ProrationBehavior = nil
+	case anchor:
 		params.SubscriptionData.BillingCycleAnchor = sg.Int64(req.PeriodStart.Unix())
 	}
 	for _, id := range licensed {

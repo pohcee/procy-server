@@ -462,6 +462,29 @@ func TestCheckout(t *testing.T) {
 	assert.ErrorIs(t, err, billing.ErrNotFound)
 }
 
+func TestCheckoutDuringFreeTimeChargesNothingBeforeItEnds(t *testing.T) {
+	e := newEnv(t)
+	// a trial ending this month: anchored at the 1st without prorations
+	ends := e.now.AddDate(0, 0, 10)
+	e.records["acme"] = &billing.Billing{Organization: "acme", Status: billing.StatusTrial, TrialEndsAt: &ends}
+	_, err := e.svc.Checkout(ctx, billing.Actor{Username: "admin@acme.test"}, "acme", "Acme", "starter")
+	require.NoError(t, err)
+	form := e.fake.LastForm("/v1/checkout/sessions")
+	assert.Equal(t, "1798761600", form.Get("subscription_data[billing_cycle_anchor]"))
+	assert.Equal(t, "none", form.Get("subscription_data[proration_behavior]"))
+	assert.Empty(t, form.Get("subscription_data[trial_end]"), "Checkout takes an anchor or a trial, never both")
+
+	// comped for months: a trial until the day after the comped date
+	until := e.now.AddDate(0, 3, 0)
+	e.records["beta"] = &billing.Billing{Organization: "beta", Status: billing.StatusComped, CompedUntil: &until}
+	_, err = e.svc.Checkout(ctx, billing.Actor{Username: "admin@beta.test"}, "beta", "Beta", "starter")
+	require.NoError(t, err)
+	form = e.fake.LastForm("/v1/checkout/sessions")
+	assert.Equal(t, strconv.FormatInt(billing.DayStart(until).AddDate(0, 0, 1).Unix(), 10), form.Get("subscription_data[trial_end]"))
+	assert.Empty(t, form.Get("subscription_data[billing_cycle_anchor]"))
+	assert.Empty(t, form.Get("subscription_data[proration_behavior]"))
+}
+
 func TestExemptOrganizationsAreNeverSentToTheProvider(t *testing.T) {
 	e := newEnv(t)
 	e.records["partner"] = &billing.Billing{Organization: "partner", Status: billing.StatusExempt}
