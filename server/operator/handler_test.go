@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -25,11 +26,23 @@ type fakeService struct {
 	limit *int
 	by    Actor
 	err   error
+	// the console's data (console_test.go)
+	orgs      []OrganizationDetail
+	days      []DayUsage
+	waiting   []time.Time
+	devs      []Device
+	invs      []Invitation
+	entries   []ActivityEntry
+	activityQ ActivityQuery
 }
 
 func (f *fakeService) List(context.Context) ([]Organization, error) {
 	f.calls = append(f.calls, "list")
-	return nil, f.err
+	var out []Organization
+	for _, o := range f.orgs {
+		out = append(out, o.Organization)
+	}
+	return out, f.err
 }
 
 func (f *fakeService) Get(_ context.Context, id string) (*Organization, error) {

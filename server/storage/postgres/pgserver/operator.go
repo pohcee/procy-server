@@ -50,6 +50,8 @@ type Operator struct {
 	// oidc: [oidc] sign-in is enabled; new operators (and administrators of organizations that require it) get no
 	// password
 	oidc bool
+	// twoFAAll: the server sends a 2FA code to every login ([api] two_fa_token_delivery)
+	twoFAAll bool
 }
 
 var _ operator.Service = (*Operator)(nil)
@@ -63,6 +65,7 @@ func NewOperator(db *sqlx.DB, cfg *chconfig.Config) *Operator {
 		now:              time.Now,
 		keepDisconnected: keepDisconnectedClients(cfg),
 		oidc:             cfg.OIDC.Enabled,
+		twoFAAll:         cfg.API.IsTwoFAOn(),
 	}
 }
 
@@ -79,21 +82,13 @@ const organizationColumns = "id, name, status, created_at, max_clients, require_
 
 // List implements operator.Service.
 func (o *Operator) List(ctx context.Context) ([]operator.Organization, error) {
-	orgs := []operator.Organization{}
-	err := o.inSystem(ctx, func(tx *sqlx.Tx) error {
-		if err := tx.SelectContext(ctx, &orgs,
-			"SELECT "+organizationColumns+" FROM tenants WHERE left(id, 1) <> '_' ORDER BY created_at, id"); err != nil {
-			return err
-		}
-		for i := range orgs {
-			if err := o.counts(ctx, tx, &orgs[i]); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	ds, err := o.Organizations(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list organizations: %w", err)
+		return nil, err
+	}
+	orgs := make([]operator.Organization, 0, len(ds))
+	for _, d := range ds {
+		orgs = append(orgs, d.Organization)
 	}
 	return orgs, nil
 }
@@ -139,14 +134,18 @@ func (o *Operator) counts(ctx context.Context, tx *sqlx.Tx, org *operator.Organi
 	if _, err := tx.ExecContext(ctx, "SELECT set_config($1, $2, true)", postgres.TenantSetting, org.ID); err != nil {
 		return err
 	}
-	var cutoff *time.Time
-	if o.keepDisconnected != nil {
-		c := clientdata.Now().Add(-*o.keepDisconnected)
-		cutoff = &c
-	}
 	return tx.QueryRowxContext(ctx,
 		"SELECT (SELECT count(*) FROM rport_counted_clients($1, $2)), (SELECT count(*) FROM users WHERE tenant_id = $1)",
-		org.ID, cutoff).Scan(&org.DeviceCount, &org.UserCount)
+		org.ID, o.cutoff()).Scan(&org.DeviceCount, &org.UserCount)
+}
+
+// cutoff is the oldest disconnect of a device that still counts (keep_disconnected_clients); nil: every one.
+func (o *Operator) cutoff() *time.Time {
+	if o.keepDisconnected == nil {
+		return nil
+	}
+	c := clientdata.Now().Add(-*o.keepDisconnected)
+	return &c
 }
 
 func validLimit(limit *int) error {
@@ -364,13 +363,23 @@ func (o *Operator) Members(ctx context.Context, id string) ([]operator.Member, e
 		}
 		// getOrganization left tx in the organization's tenant
 		var rows []struct {
-			Username      string `db:"username"`
-			Organizations int    `db:"organizations"`
-			SignIn        string `db:"sign_in"`
+			Username      string     `db:"username"`
+			Organizations int        `db:"organizations"`
+			SignIn        string     `db:"sign_in"`
+			HasPassword   bool       `db:"has_password"`
+			OIDCLinked    bool       `db:"oidc_linked"`
+			TOTP          bool       `db:"totp"`
+			LastLoginAt   *time.Time `db:"last_login_at"`
 		}
-		if err := tx.SelectContext(ctx, &rows, `SELECT u.username, u.sign_in,
-				(SELECT count(*) FROM user_logins l WHERE l.username = u.username) AS organizations
-			FROM users u WHERE u.tenant_id = $1 ORDER BY u.username COLLATE "C"`, id); err != nil {
+		// the accounts of the tenant's members are visible in its transaction (row-level security of 1400); only
+		// whether a password or TOTP secret is set leaves the query
+		if err := tx.SelectContext(ctx, &rows, `SELECT u.username, u.sign_in, u.last_login_at,
+				(SELECT count(*) FROM user_logins l WHERE l.username = u.username) AS organizations,
+				coalesce(a.password <> '', false) AS has_password,
+				coalesce(a.totp_secret <> '', false) AS totp,
+				EXISTS (SELECT 1 FROM account_identities i WHERE i.username = u.username) AS oidc_linked
+			FROM users u LEFT JOIN accounts a ON a.username = u.username
+			WHERE u.tenant_id = $1 ORDER BY u.username COLLATE "C"`, id); err != nil {
 			return err
 		}
 		var groups []struct {
@@ -384,7 +393,8 @@ func (o *Operator) Members(ctx context.Context, id string) ([]operator.Member, e
 		byName := map[string]int{}
 		for _, r := range rows {
 			byName[r.Username] = len(members)
-			members = append(members, operator.Member{Username: r.Username, Groups: []string{}, Organizations: r.Organizations, SignIn: r.SignIn})
+			members = append(members, operator.Member{Username: r.Username, Groups: []string{}, Organizations: r.Organizations, SignIn: r.SignIn,
+				HasPassword: r.HasPassword, OIDCLinked: r.OIDCLinked, TwoFA: r.TOTP || o.twoFAAll, LastLoginAt: r.LastLoginAt})
 		}
 		for _, g := range groups {
 			if i, ok := byName[g.Username]; ok {
