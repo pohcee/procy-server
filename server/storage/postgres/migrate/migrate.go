@@ -306,7 +306,7 @@ var AccountFunctions = []string{
 var SignupAccountFunctions = []string{
 	"rport_account_status(text)",
 	"rport_account_verify_email(text)",
-	"rport_account_take_over(text, text)",
+	"rport_account_take_over(text, text, text)",
 }
 
 // OperatorFunctions are the SECURITY DEFINER functions through which platform operators change tenants.

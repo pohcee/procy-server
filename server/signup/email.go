@@ -3,7 +3,6 @@ package signup
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/openrport/openrport/server/operator"
 )
@@ -21,8 +20,10 @@ type EmailStatus struct {
 // organizations until confirmed).
 func (s *Service) RequestEmailConfirmation(ctx context.Context, login, remoteIP string) (*EmailStatus, error) {
 	addr, domain, err := normalizeEmail(login)
-	if err != nil || addr != strings.ToLower(login) {
-		return nil, fmt.Errorf("%w: the login is not an email address; it can't be confirmed", ErrInvalid)
+	if err != nil || addr != login {
+		// a login with capitals is not the address signup would make: it can't be proven (and can't join more
+		// organizations)
+		return nil, fmt.Errorf("%w: the login is not a lower-case email address; it can't be confirmed", ErrInvalid)
 	}
 	acct, err := s.o.Accounts.Account(ctx, login)
 	if err != nil {
@@ -61,15 +62,22 @@ func (s *Service) RequestEmailConfirmation(ctx context.Context, login, remoteIP 
 	return &EmailStatus{Login: login, Sent: true}, nil
 }
 
-// ConfirmEmail takes the token of an email confirmation link (single use) and marks the account's email verified.
-func (s *Service) ConfirmEmail(ctx context.Context, token, remoteIP string) (*EmailStatus, error) {
+// ConfirmEmail takes the token of an email confirmation link (single use), redeemed by the signed-in account login
+// that asked for it, and marks its email verified. Both are needed: the link proves the mailbox, the session the
+// account (an account someone else holds can't be confirmed by its mailbox owner clicking a link).
+func (s *Service) ConfirmEmail(ctx context.Context, login, token, remoteIP string) (*EmailStatus, error) {
 	if token == "" {
 		return nil, ErrToken
 	}
 	now := s.now()
-	row, err := s.o.Store.ClaimToken(ctx, hashToken(token), StatusVerifyEmail, now)
+	hash := hashToken(token)
+	row, err := s.o.Store.ClaimToken(ctx, hash, StatusVerifyEmail, now)
 	if err != nil {
 		return nil, err
+	}
+	if row.Email != login {
+		_ = s.o.Store.RestoreToken(ctx, row.ID, hash)
+		return nil, ErrToken
 	}
 	if err := s.o.Accounts.MarkVerified(ctx, row.Email); err != nil {
 		return nil, err

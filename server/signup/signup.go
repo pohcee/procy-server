@@ -200,8 +200,9 @@ type Account struct {
 }
 
 // TakeOver reports whether the owner of the mailbox may take the account over at signup: nobody proved to own it
-// and its generated password was never replaced (an administrator created it, and its owner never signed in).
-func (a Account) TakeOver() bool { return a.Exists && !a.Verified && a.PasswordExpired }
+// (an administrator created it). Proving the mailbox is a stronger claim to an email login than holding its
+// password; the account's memberships become invitations its owner accepts or declines.
+func (a Account) TakeOver() bool { return a.Exists && !a.Verified }
 
 // Accounts are the accounts signup creates, verifies and takes over.
 type Accounts interface {
@@ -210,12 +211,11 @@ type Accounts interface {
 	SetPasswordHash(ctx context.Context, org, login, hash string) error
 	// MarkVerified records that the owner of the mailbox login names proved it.
 	MarkVerified(ctx context.Context, login string) error
-	// TakeOver gives an account that TakeOver() allows to the mailbox owner: the password from hash, no TOTP, 2FA
-	// to the email, verified, every session and API token ended. false when the account doesn't qualify (any more).
-	TakeOver(ctx context.Context, login, hash string) (bool, error)
-	// Join makes login (an existing account with a pending invitation of org, made by AddAdmin) a member of org: the
-	// verified owner creating the organization accepts it.
-	Join(ctx context.Context, org, login string) error
+	// TakeOver gives an account that TakeOver() allows to the mailbox owner, in one transaction: it joins org (just
+	// created) as an administrator, its other memberships become invitations, its sessions and API tokens end,
+	// and it gets the password from hash, no TOTP, 2FA to the email and its email verified. false when the account
+	// doesn't qualify (any more).
+	TakeOver(ctx context.Context, login, hash, org string) (bool, error)
 }
 
 // Plans is what signup needs from billing (billing-plans stream): the plan and limits of a new organization, and

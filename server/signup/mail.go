@@ -45,9 +45,9 @@ func verifyMail(base, token, org string, ttl time.Duration, takeOver bool) mail 
 	extra := ""
 	if takeOver {
 		extra = `
-An administrator of an organization created an account with this address, and it was never used. Continuing
-makes it yours: you choose its password, its sessions end, and you stay a member of the organizations it was
-added to.
+An administrator of an organization created an account with this address, and nobody has confirmed it. Continuing
+makes it yours: you choose its password, its sessions end, and the organizations it was added to become
+invitations you can accept or decline.
 `
 	}
 	return mail{
@@ -64,30 +64,17 @@ If you didn't ask for this, ignore this email: nothing is created without the li
 	}
 }
 
-func unprovenMail(base string) mail {
-	return mail{
-		subject: "An account already uses this address",
-		body: fmt.Sprintf(`Hello,
-
-someone (hopefully you) asked to sign up with this email address. An account with this address exists already,
-but nobody has confirmed the address yet. If it is yours, sign in at %s and confirm your email address from your
-profile; then you can create organizations. If you can't sign in, ask the operators of this service.
-
-If you didn't ask for this, ignore this email.
-`, base),
-	}
-}
-
 func confirmEmailMail(base, token string, ttl time.Duration) mail {
 	return mail{
 		subject: "Confirm your email address",
 		body: fmt.Sprintf(`Hello,
 
-to confirm that this address is yours, open this link within %s:
+the account with this address asked to confirm it. Sign in to that account and open this link within %s:
 
 %s
 
-If you didn't ask for this, ignore this email.
+If you don't have an account with this address, ignore this email: nobody else can use the link. To make an
+account someone else created for this address yours, sign up with this address instead.
 `, ttl.Round(time.Minute), link(base, ConfirmEmailPath, token)),
 	}
 }

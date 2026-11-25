@@ -37,12 +37,12 @@ func (h *Handler) MountPublic(r *mux.Router) {
 	r.HandleFunc("/signup", h.request).Methods(http.MethodPost)
 	r.HandleFunc("/signup/verify", h.verify).Methods(http.MethodPost)
 	r.HandleFunc("/signup/cancel-deletion", h.cancelByToken).Methods(http.MethodPost)
-	r.HandleFunc("/signup/confirm-email", h.confirmEmail).Methods(http.MethodPost)
 }
 
 // MountAccount registers the routes of a signed-in account on r, a router behind authentication.
 func (h *Handler) MountAccount(r *mux.Router) {
 	r.HandleFunc("/me/email-confirmation", h.requestEmailConfirmation).Methods(http.MethodPost)
+	r.HandleFunc("/me/email-confirmation/confirm", h.confirmEmail).Methods(http.MethodPost)
 }
 
 func (h *Handler) requestEmailConfirmation(w http.ResponseWriter, r *http.Request) {
@@ -60,11 +60,16 @@ func (h *Handler) requestEmailConfirmation(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) confirmEmail(w http.ResponseWriter, r *http.Request) {
+	u, err := h.currentUser(r.Context())
+	if err != nil {
+		h.respond.Error(w, err)
+		return
+	}
 	var in tokenRequest
 	if !h.decode(w, r, &in) {
 		return
 	}
-	st, err := h.svc.ConfirmEmail(r.Context(), in.Token, chshare.RemoteIP(r))
+	st, err := h.svc.ConfirmEmail(r.Context(), u.Username, in.Token, chshare.RemoteIP(r))
 	if err != nil {
 		h.fail(w, err)
 		return

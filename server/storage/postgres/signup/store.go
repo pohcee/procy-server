@@ -101,7 +101,7 @@ func (s Store) ClaimToken(ctx context.Context, tokenHash, status string, now tim
 // RestoreToken implements signup.Store.
 func (s Store) RestoreToken(ctx context.Context, id, tokenHash string) error {
 	return s.inSystem(ctx, func(tx *sqlx.Tx) error {
-		_, err := tx.ExecContext(ctx, `UPDATE signups SET token_hash = $2 WHERE tenant_id = '_system' AND id = $1 AND status = 'pending' AND token_hash IS NULL`,
+		_, err := tx.ExecContext(ctx, `UPDATE signups SET token_hash = $2 WHERE tenant_id = '_system' AND id = $1 AND status IN ('pending', 'verify_email') AND token_hash IS NULL`,
 			id, tokenHash)
 		return err
 	})

@@ -58,15 +58,11 @@ func (a accounts) MarkVerified(ctx context.Context, login string) error {
 	}))
 }
 
-func (a accounts) TakeOver(ctx context.Context, login, hash string) (ok bool, err error) {
+func (a accounts) TakeOver(ctx context.Context, login, hash, org string) (ok bool, err error) {
 	err = postgres.InTenantID(ctx, a.db, operator.SystemTenant, func(tx *sqlx.Tx) error {
-		return tx.GetContext(ctx, &ok, "SELECT rport_account_take_over($1, $2)", login, hash)
+		return tx.GetContext(ctx, &ok, "SELECT rport_account_take_over($1, $2, $3)", login, hash, org)
 	})
 	return ok, grantHint(err)
-}
-
-func (a accounts) Join(ctx context.Context, org, login string) error {
-	return pgusers.New(a.db).AcceptInvitation(tenant.WithID(ctx, tenant.ID(org)), login)
 }
 
 // grantHint names the fix for an application role granted before migration 1550.

@@ -162,12 +162,9 @@ func (s *Service) Request(ctx context.Context, in Request, remoteIP string) erro
 	case acct.TakeOver():
 		// an administrator made an account of this address that nobody proved to own: the mailbox owner may take it
 		m = verifyMail(c.PublicURL, token, org, c.TokenTTL, true)
-	case acct.Verified:
-		row.Status, row.TokenHash = StatusExisting, nil
-		m = existingMail(c.PublicURL)
 	default:
 		row.Status, row.TokenHash = StatusExisting, nil
-		m = unprovenMail(c.PublicURL)
+		m = existingMail(c.PublicURL)
 	}
 	if err := s.o.Store.Insert(ctx, row); err != nil {
 		return err
@@ -262,19 +259,6 @@ func (s *Service) complete(ctx context.Context, row *Signup, by operator.Actor, 
 		_ = s.o.Store.SetStatus(ctx, row.ID, Update{Status: StatusExisting, VerifiedAt: u.VerifiedAt, DecidedAt: &now, Reason: "the email has an account", ClearPassword: true})
 		return nil, fmt.Errorf("%w: %s has an account; sign in instead", ErrConflict, row.Email)
 	}
-	if acct.Exists {
-		ok, err := s.o.Accounts.TakeOver(ctx, row.Email, row.PasswordHash)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			return nil, fmt.Errorf("%w: %s has an account; sign in instead", ErrConflict, row.Email)
-		}
-		s.o.Log.Infof("signup %s: the owner of %s took over its unproven account", row.ID, row.Email)
-		if err := s.audit(ctx, by, AuditApplicationSignup, AuditActionTakeOver, row.Email, map[string]string{"signup": row.ID}); err != nil {
-			s.o.Log.Errorf("signup %s: audit: %v", row.ID, err)
-		}
-	}
 	var org *operator.Organization
 	for range 3 {
 		id, err := organizationID(row.OrgName)
@@ -329,15 +313,30 @@ func (s *Service) complete(ctx context.Context, row *Signup, by operator.Actor, 
 	return res, nil
 }
 
-// setupOrganization makes the signup's email the administrator of org: a new account with the chosen password, or
-// the account taken over (AddAdmin invites it; its verified owner accepts).
+// setupOrganization makes the signup's email the administrator of org: a new account with the chosen password
+// (AddAdmin), or the unproven account of the address taken over (the take-over joins it, atomically).
 func (s *Service) setupOrganization(ctx context.Context, row *Signup, by operator.Actor, org string, existing bool) error {
+	if existing {
+		ok, err := s.o.Accounts.TakeOver(ctx, row.Email, row.PasswordHash, org)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %s has an account; sign in instead", ErrConflict, row.Email)
+		}
+		s.o.Log.Infof("signup %s: the owner of %s took over its unproven account", row.ID, row.Email)
+		if err := s.audit(ctx, by, AuditApplicationSignup, AuditActionTakeOver, row.Email, map[string]string{"signup": row.ID, "organization": org}); err != nil {
+			s.o.Log.Errorf("signup %s: audit: %v", row.ID, err)
+		}
+		return nil
+	}
 	a, err := s.o.Orgs.AddAdmin(ctx, by, org, operator.NewAdmin{Username: row.Email, TwoFASendTo: row.Email})
 	if err != nil {
 		return err
 	}
-	if existing || a.Pending {
-		return s.o.Accounts.Join(ctx, org, row.Email)
+	if a.Pending {
+		// an account of the address appeared meanwhile: it is not the one this signup proved
+		return fmt.Errorf("%w: %s got an account meanwhile; try again", ErrConflict, row.Email)
 	}
 	if err := s.o.Accounts.SetPasswordHash(ctx, org, row.Email, row.PasswordHash); err != nil {
 		return err
