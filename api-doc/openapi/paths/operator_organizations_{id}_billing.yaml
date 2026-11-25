@@ -1,0 +1,40 @@
+get:
+  tags:
+    - Operator
+  summary: Return the billing of an organization. Platform operators only
+  operationId: OperatorOrganizationBillingGet
+  parameters:
+    - name: id
+      in: path
+      description: Organization ID
+      required: true
+      schema:
+        type: string
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/BillingAccount.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not a platform operator
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No such organization, not the system organization, or billing is off
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

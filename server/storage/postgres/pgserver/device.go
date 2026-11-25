@@ -185,7 +185,7 @@ func deviceNodeOpts(ctx context.Context, cfg *chconfig.Config, db *sqlx.DB, opts
 		opts.Metering = &chserver.MeteringOpts{Writer: device.Usage{Outbox: ob}}
 	}
 	if cfg.Billing.Enabled {
-		// tunnels are throttled and refused here too (defence in depth); the api processes run the upkeep
+		// tunnels are throttled and refused here too (a second check); the api processes run the upkeep
 		opts.Billing = &chserver.BillingOpts{Plans: plans, Policies: pgbilling.PolicySource{DB: db}}
 	}
 	opts.SkipMigrations = false

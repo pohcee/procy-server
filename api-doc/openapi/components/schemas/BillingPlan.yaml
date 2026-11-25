@@ -1,0 +1,36 @@
+type: object
+description: A plan of the plans file. Sizes are bytes, rates bytes per second (0 is unlimited), prices USD.
+properties:
+  id:
+    type: string
+  name:
+    type: string
+  base_price:
+    type: number
+  included_devices:
+    type: integer
+  price_per_device:
+    type: number
+  max_clients:
+    type: integer
+    nullable: true
+    description: The device limit of the plan; null is unlimited
+  transfer_base:
+    type: integer
+  transfer_per_device:
+    type: integer
+  overage:
+    type: string
+    enum: [bill, cap]
+  overage_price_per_gib:
+    type: number
+  soft_cap:
+    type: integer
+    description: Percent of the allowance where the administrators are notified
+  hard_cap:
+    type: integer
+    description: Percent of the allowance where tunnels are throttled and new tunnels and uploads refused; 0 is none
+  tunnel_rate_limit:
+    type: integer
+  throttle_rate:
+    type: integer
