@@ -32,6 +32,8 @@ var vueHistoryPaths = []string{
 	"commands",
 	"scripts",
 	"settings",
+	// the platform operators' console (/operator/...)
+	"operator",
 }
 
 func (al *APIListener) initRouter() {
