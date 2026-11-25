@@ -18,4 +18,22 @@ properties:
       Where to get info on the settings required to login using a device style (e.g. CLI) app.
 
       Note: not used when using the built-in authorization.
+  max_token_lifetime:
+    type: integer
+    description: The longest session token lifetime in hours ([api] max_token_lifetime)
+  oidc:
+    type: object
+    description: >-
+      Set only when OpenID Connect sign-in (`[oidc]`, "Sign in with Google") is enabled: what the login page shows.
+      No secrets.
+    properties:
+      enabled:
+        type: boolean
+      button_label:
+        type: string
+        example: Sign in with Google
+      login_url:
+        type: string
+        description: Where the browser goes to start a sign-in (GET /oidc/login)
+        example: /api/v1/oidc/login
 description: Response returned by the `/auth/provider` endpoint

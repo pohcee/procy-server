@@ -28,3 +28,6 @@ properties:
   user_count:
     type: integer
     description: Number of users of the organization
+  require_oidc:
+    type: boolean
+    description: The organization's members sign in through OIDC ("Sign in with Google") only

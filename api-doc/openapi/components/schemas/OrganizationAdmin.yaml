@@ -20,3 +20,8 @@ properties:
   pending:
     type: boolean
     description: True for an existing account, invited to accept
+  no_password:
+    type: boolean
+    description: >-
+      True when the new login got no password: with `[oidc]` enabled, platform operators and administrators of
+      organizations that require OIDC sign in through OIDC only

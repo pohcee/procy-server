@@ -1,0 +1,38 @@
+put:
+  tags:
+    - Profile & Info
+  summary: Set how the current member signs in (Postgres servers only)
+  description: >-
+    `oidc` (Google only) needs `[oidc]` enabled and an OIDC identity pinned to the account (sign in through OIDC once
+    first, 409 otherwise); `password` is refused where the organization requires OIDC and for platform operators.
+  operationId: MeSignInPut
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - method
+          properties:
+            method:
+              type: string
+              enum:
+                - both
+                - password
+                - oidc
+  responses:
+    '204':
+      description: Changed
+    '400':
+      description: Invalid method, or not allowed here
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: OIDC sign-in is not enabled, or no OIDC identity is pinned yet
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

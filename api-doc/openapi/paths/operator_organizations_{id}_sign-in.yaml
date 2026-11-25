@@ -1,0 +1,47 @@
+put:
+  tags:
+    - Operator
+  summary: Require OIDC sign-in for an organization
+  description: >-
+    Sets whether the organization's members sign in through OIDC ("Sign in with Google") only. Requiring it needs
+    `[oidc]` enabled (409 otherwise). Written to the system organization's audit log.
+  operationId: OperatorOrganizationSignInPut
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - require_oidc
+          properties:
+            require_oidc:
+              type: boolean
+  responses:
+    '200':
+      description: The organization
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/Organization.yaml
+    '404':
+      description: No such organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: OIDC sign-in is not enabled on this server
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

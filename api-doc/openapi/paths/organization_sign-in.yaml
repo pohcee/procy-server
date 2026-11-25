@@ -1,0 +1,51 @@
+get:
+  tags:
+    - Users
+  summary: The organization's sign-in policy (administrators; Postgres servers only)
+  operationId: OrganizationSignInGet
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/OrganizationSignIn.yaml
+    '404':
+      description: Not available (standalone)
+put:
+  tags:
+    - Users
+  summary: Require OIDC sign-in ("Sign in with Google") for the organization (administrators; Postgres servers only)
+  description: >-
+    With `require_oidc` the members can no longer sign in with a password: password logins get 403
+    `oidc_required`, and password sessions stop working at their next request (other nodes within 15 seconds).
+    Requiring OIDC needs `[oidc]` enabled (409 otherwise).
+  operationId: OrganizationSignInPut
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            require_oidc:
+              type: boolean
+  responses:
+    '200':
+      description: Changed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/OrganizationSignIn.yaml
+    '409':
+      description: OIDC sign-in is not enabled on this server
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

@@ -1,0 +1,35 @@
+get:
+  tags:
+    - Login
+  summary: The provider's redirect at the end of an OpenID Connect sign-in
+  description: >-
+    Public; with `[oidc]` enabled only. The redirect URI registered with the provider (`[oidc] redirect_url`). Takes
+    the pending sign-in of `state` once, checks the browser cookie, redeems `code` with the PKCE verifier, verifies the
+    ID token (signature, issuer, audience, expiry, nonce), requires `email_verified`, applies `[oidc]
+    allowed_domains`, and maps the identity to an account: the account the identity is pinned to, else the one
+    login equal to the email ignoring case, which the identity is then pinned to. No account is ever created. Then
+    it redirects to the web UI, `<ui_url>/auth/oidc`, with a one-time sign-in code (5 minutes) in the fragment:
+    `#code=…&return_to=…`; on failure `#error=<reason>&error_description=<text>`, the reason being one of
+    `access_denied`, `invalid_state`, `email_unverified`, `domain_not_allowed`, `unknown_account`,
+    `ambiguous_account`, `account_mismatch` (the account is pinned to another identity), `oidc_not_allowed` (no
+    organization of the account allows OIDC sign-in for it) or `server_error`. Failed callbacks never count for the
+    password ban.
+  operationId: OIDCCallbackGet
+  security: []
+  parameters:
+    - name: state
+      in: query
+      schema:
+        type: string
+    - name: code
+      in: query
+      schema:
+        type: string
+    - name: error
+      in: query
+      description: Set by the provider when the sign-in was refused or cancelled
+      schema:
+        type: string
+  responses:
+    '302':
+      description: To the web UI's sign-in page with the code or the error in the fragment

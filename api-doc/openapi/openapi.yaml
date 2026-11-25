@@ -64,6 +64,12 @@ paths:
     $ref: paths/oauth_login.yaml
   /oauth/login/device:
     $ref: paths/oauth_login_device.yaml
+  /oidc/login:
+    $ref: paths/oidc_login.yaml
+  /oidc/callback:
+    $ref: paths/oidc_callback.yaml
+  /oidc/token:
+    $ref: paths/oidc_token.yaml
   /logout:
     $ref: paths/logout.yaml
   /verify-2fa:
@@ -74,12 +80,18 @@ paths:
     $ref: paths/me_ip.yaml
   /me/tokens:
     $ref: paths/me_token.yaml
+  /me/sign-in:
+    $ref: paths/me_sign-in.yaml
   /me/organizations:
     $ref: paths/me_organizations.yaml
   /me/organization:
     $ref: paths/me_organization.yaml
   /organization/members:
     $ref: paths/organization_members.yaml
+  /organization/sign-in:
+    $ref: paths/organization_sign-in.yaml
+  /users/{user_id}/oidc-identity:
+    $ref: paths/users_{user_id}_oidc-identity.yaml
   /organization/invitations:
     $ref: paths/organization_invitations.yaml
   /organization/invitations/{username}:
@@ -104,6 +116,8 @@ paths:
     $ref: paths/operator_organizations_{id}_admins.yaml
   /operator/organizations/{id}/members:
     $ref: paths/operator_organizations_{id}_members.yaml
+  /operator/organizations/{id}/sign-in:
+    $ref: paths/operator_organizations_{id}_sign-in.yaml
   /operator/organizations/{id}/usage:
     $ref: paths/operator_organizations_{id}_usage.yaml
   /operator/usage:
