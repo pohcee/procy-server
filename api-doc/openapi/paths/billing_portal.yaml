@@ -1,0 +1,46 @@
+post:
+  tags:
+    - Billing
+  summary: Return a link to the payment provider's customer portal
+  description: >-
+    Payment methods, invoices, tax ids and cancellation. Works while the organization is read-only (it is how an
+    overdue invoice is paid). The portal returns to [billing] return_url. Administrators only; refused (409) for
+    exempt organizations.
+  operationId: BillingPortalPost
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  url:
+                    type: string
+    '409':
+      description: The organization is exempt from billing
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No payment provider on this server (standalone, or [billing] provider "none")
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

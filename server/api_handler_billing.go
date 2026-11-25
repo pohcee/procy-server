@@ -22,6 +22,8 @@ type BillingAPI struct {
 	Org      billing.OrgService
 	Operator billing.OperatorService
 	Enforcer *billing.Enforcer
+	// Provider is the payment provider (nil without one).
+	Provider *billing.Service
 }
 
 // billingResponse is GET /billing: the account, the plan, the policy of the current period.

@@ -14,6 +14,7 @@ import (
 	"github.com/openrport/openrport/server/api/middleware"
 	"github.com/openrport/openrport/server/api/uploads"
 	"github.com/openrport/openrport/server/api/users"
+	"github.com/openrport/openrport/server/billing"
 	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/routes"
 	"github.com/openrport/openrport/share/security"
@@ -64,8 +65,11 @@ func (al *APIListener) initRouter() {
 	// the platform operators' tenant gets its own account routes and the operator API only
 	systemGuard := operator.SystemTenantGuard(al.responder())
 	secureAPI.Use(systemGuard)
+	secureAPI.Use(al.billingReadOnly)
+	var operatorRouter *mux.Router
 	if al.operatorAPI != nil {
-		al.operatorAPI.Mount(secureAPI.PathPrefix(operator.RoutePrefix).Subrouter())
+		operatorRouter = secureAPI.PathPrefix(operator.RoutePrefix).Subrouter()
+		al.operatorAPI.Mount(operatorRouter)
 	}
 	secureAPI.HandleFunc("/status", al.handleGetStatus).Methods(http.MethodGet)
 	if al.usage != nil {
@@ -76,6 +80,7 @@ func (al *APIListener) initRouter() {
 		secureAPI.Handle("/billing/periods", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handleGetBillingPeriods))).Methods(http.MethodGet)
 		secureAPI.Handle("/billing/spending-limit", al.wrapAdminAccessMiddleware(http.HandlerFunc(al.handlePutSpendingLimit))).Methods(http.MethodPut)
 	}
+	al.addBillingProviderRoutes(api, secureAPI, operatorRouter)
 	secureAPI.HandleFunc("/me", al.handleGetMe).Methods(http.MethodGet)
 	secureAPI.HandleFunc("/me", al.handleChangeMe).Methods(http.MethodPut)
 	secureAPI.HandleFunc("/me/ip", al.handleGetIP).Methods(http.MethodGet)
@@ -241,10 +246,10 @@ func (al *APIListener) initRouter() {
 
 	// web sockets
 	// common auth middleware is not used due to JS issue https://stackoverflow.com/questions/22383089/is-it-possible-to-use-bearer-authentication-for-websocket-upgrade-requests
-	api.HandleFunc("/ws/commands", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleCommandsWS))))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/library-entries", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleLibraryEntriesWS))))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/scripts", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleScriptsWS))))).Methods(http.MethodGet)
-	api.HandleFunc("/ws/uploads", al.wsAuth(systemGuard(al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.uploads.HandleUploadsWS))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/commands", al.wsAuth(systemGuard(al.billingReadOnly(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleCommandsWS)))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/library-entries", al.wsAuth(systemGuard(al.billingReadOnly(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleLibraryEntriesWS)))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/scripts", al.wsAuth(systemGuard(al.billingReadOnly(al.permissionsMiddleware(users.PermissionCommands)(http.HandlerFunc(al.handleScriptsWS)))))).Methods(http.MethodGet)
+	api.HandleFunc("/ws/uploads", al.wsAuth(systemGuard(al.billingReadOnly(al.permissionsMiddleware(users.PermissionUploads)(http.HandlerFunc(al.uploads.HandleUploadsWS)))))).Methods(http.MethodGet)
 
 	if al.config.API.EnableWsTestEndpoints {
 		api.HandleFunc("/test/commands/ui", al.wsCommands)
@@ -349,6 +354,9 @@ func (al *APIListener) applyMaxBytes(r *mux.Router) {
 	_ = r.Walk(func(route *mux.Route, _ *mux.Router, _ []*mux.Route) error {
 		name := route.GetName()
 		switch {
+		case name == billing.WebhookRouteName:
+			// provider events (Stripe: invoices with many lines) are larger than API requests
+			route.HandlerFunc(middleware.MaxBytes(route.GetHandler(), billing.MaxWebhookBody))
 		case name == routes.FilesUploadRouteName:
 			route.HandlerFunc(middleware.MaxBytes(route.GetHandler(), al.config.API.MaxFilePushSize))
 		case strings.HasPrefix(name, routes.LibraryEntryWriteRouteName):

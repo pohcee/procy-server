@@ -1,0 +1,20 @@
+type: object
+description: The state after a failed payment.
+properties:
+  state:
+    type: string
+    enum: [none, past_due, read_only, suspension_proposed]
+  failed_at:
+    type: string
+    format: date-time
+    nullable: true
+  read_only_at:
+    type: string
+    format: date-time
+    nullable: true
+  suspension_proposed_at:
+    type: string
+    format: date-time
+    nullable: true
+  failed_invoice:
+    type: string

@@ -21,6 +21,10 @@ type BillingOpts struct {
 	Operator billing.OperatorService
 	// Upkeep computes the policies and closes the periods, on one node at a time; nil on device processes.
 	Upkeep BillingUpkeep
+	// Provider, when set ([billing] provider = "stripe"), is the payment provider: webhooks, checkout, the portal,
+	// usage reporting, reconciliation and dunning (read-only organizations, schedules paused); nil on device
+	// processes and without a provider.
+	Provider *billing.Service
 }
 
 // BillingUpkeep is the billing upkeep (pgbilling.Upkeep).
@@ -45,7 +49,7 @@ func (s *Server) billingAPI(o *BillingOpts) *BillingAPI {
 	if o == nil || o.Org == nil {
 		return nil
 	}
-	return &BillingAPI{Org: o.Org, Operator: o.Operator, Enforcer: s.enforcer}
+	return &BillingAPI{Org: o.Org, Operator: o.Operator, Enforcer: s.enforcer, Provider: o.Provider}
 }
 
 // runBilling reads the transfer policies and, with an upkeep, runs it every billing.EnforceInterval under the
@@ -54,7 +58,16 @@ func (s *Server) runBilling(ctx context.Context, o *BillingOpts) {
 	if s.enforcer != nil {
 		go s.enforcer.Run(ctx)
 	}
-	if o == nil || o.Upkeep == nil {
+	if o == nil {
+		return
+	}
+	if o.Provider != nil {
+		// reporting, reconciliation and dunning, each on one node at a time
+		o.Provider.Run(tenant.WithID(ctx, "_system"), func(ctx context.Context, name string, ttl time.Duration) (bool, error) {
+			return s.cluster.Lease(ctx, name, "", ttl)
+		})
+	}
+	if o.Upkeep == nil {
 		return
 	}
 	if s.apiListener != nil && s.apiListener.notificationsStorage != nil {
@@ -107,4 +120,20 @@ func (n billingNotifier) Notify(ctx context.Context, tid tenant.ID, to []string,
 		ContentType: notifications.ContentTypeTextPlain,
 	})
 	return err
+}
+
+// pauseSchedulesWhileReadOnly makes the cluster claim no scheduled run of an organization read-only for an overdue
+// payment (payment provider only).
+func (s *Server) pauseSchedulesWhileReadOnly(o *BillingOpts) {
+	if o != nil && o.Provider != nil {
+		s.cluster = billing.PauseSchedules(s.cluster, o.Provider)
+	}
+}
+
+// setBillingProviderNotifier gives the payment provider the server's notifications, before the API serves the
+// first webhook.
+func (s *Server) setBillingProviderNotifier(o *BillingOpts) {
+	if o != nil && o.Provider != nil && s.apiListener != nil && s.apiListener.notificationsStorage != nil {
+		o.Provider.SetNotifier(billingNotifier{d: notifications.NewDispatcher(s.apiListener.notificationsStorage)})
+	}
 }
