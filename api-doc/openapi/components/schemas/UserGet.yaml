@@ -13,6 +13,11 @@ properties:
     description: >-
       Holds either the email or the pushover token of the user. It's used to
       deliver 2FA token to user when 2FA is enabled
+  email_verified:
+    type: boolean
+    description: >-
+      Whether the login proved it owns the mailbox its username names (Postgres servers with `[signup] enabled`
+      only; left out otherwise).
   group_permissions_enabled:
     type: boolean
     description: | 

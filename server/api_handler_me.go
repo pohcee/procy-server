@@ -51,6 +51,11 @@ func (al *APIListener) handleGetMe(w http.ResponseWriter, req *http.Request) {
 		EffectiveExtendedPermissions: eep,
 		GroupPermissionsEnabled:      al.userService.SupportsGroupPermissions(),
 	}
+	if al.signupAPI != nil {
+		if v, ok := al.signupAPI.EmailVerified(req.Context(), user.Username); ok {
+			me.EmailVerified = &v
+		}
+	}
 	response := api.NewSuccessPayload(me)
 	al.writeJSONResponse(w, http.StatusOK, response)
 }

@@ -67,6 +67,15 @@ func (r *row) account(plans *billing.Plans) *billing.Account {
 type Store struct {
 	DB    *sqlx.DB
 	Plans *billing.Plans
+	// Now is time.Now unless set (tests).
+	Now func() time.Time
+}
+
+func (s Store) now() time.Time {
+	if s.Now != nil {
+		return s.Now().UTC()
+	}
+	return time.Now().UTC()
 }
 
 var (
@@ -85,11 +94,75 @@ func (s Store) Account(ctx context.Context, tid tenant.ID) (*billing.Account, er
 		return nil, fmt.Errorf("billing: %w", err)
 	}
 	if len(rows) == 0 {
-		return billing.DefaultAccount(string(tid), s.Plans), nil
+		a := billing.DefaultAccount(string(tid), s.Plans)
+		a.CurrentPeriod = s.currentPeriod(ctx, &a.Billing, s.now())
+		return a, nil
 	}
 	a := rows[0].account(s.Plans)
+	a.CurrentPeriod = s.currentPeriod(ctx, &a.Billing, s.now())
 	a.Billing = a.Billing.OrgView()
 	return a, nil
+}
+
+// currentPeriod reads the billable and peak devices of the current period so far, from the span period close bills
+// (billing.PeriodSpan) and with the days counted as the upkeep does (today counts once its devices are reported).
+// An unreadable usage leaves it out rather than failing the account.
+func (s Store) currentPeriod(ctx context.Context, b *billing.Billing, now time.Time) *billing.CurrentPeriod {
+	month := billing.MonthStart(now)
+	from, _ := billing.PeriodSpan(b, month)
+	cp := &billing.CurrentPeriod{Start: month}
+	today := billing.DayStart(now)
+	if !from.Before(today.AddDate(0, 0, 1)) {
+		return cp // billing covers none of the period yet
+	}
+	err := postgres.InTenantID(ctx, s.DB, tenant.ID(b.Organization), func(tx *sqlx.Tx) error {
+		counts, err := dailyDevices(ctx, tx, b.Organization, from, today.AddDate(0, 0, 1))
+		if err != nil {
+			return err
+		}
+		// today counts once its devices were reported
+		end := today.AddDate(0, 0, 1)
+		if n, ok := counts[today.Format("2006-01-02")]; !ok || n == 0 {
+			end = today
+		}
+		days := int64(end.Sub(from).Hours()+0.5) / 24
+		if days <= 0 {
+			// the first day of the period, not reported yet: yesterday's devices
+			prev, err := dailyDevices(ctx, tx, b.Organization, today.AddDate(0, 0, -1), today)
+			if err != nil {
+				return err
+			}
+			counts, days = prev, 1
+		}
+		for _, n := range counts {
+			cp.DeviceDays += n
+			cp.PeakDevices = max(cp.PeakDevices, n)
+		}
+		if days > 0 {
+			cp.BillableDevices = (cp.DeviceDays + days - 1) / days
+		}
+		return nil
+	})
+	if err != nil {
+		return nil
+	}
+	return cp
+}
+
+// dailyDevices are the devices that had a session on each UTC day of [from, to), by day (YYYY-MM-DD).
+func dailyDevices(ctx context.Context, tx *sqlx.Tx, org string, from, to time.Time) (map[string]int64, error) {
+	var rows []struct {
+		Day string `db:"day"`
+		N   int64  `db:"n"`
+	}
+	err := tx.SelectContext(ctx, &rows, `SELECT to_char(day, 'YYYY-MM-DD') AS day, count(*) AS n FROM usage_device_days
+		WHERE tenant_id = $1 AND day >= $2::date AND day < $3::date GROUP BY day`,
+		org, from.Format("2006-01-02"), to.Format("2006-01-02"))
+	out := make(map[string]int64, len(rows))
+	for _, r := range rows {
+		out[r.Day] = r.N
+	}
+	return out, err
 }
 
 // Periods implements billing.OrgService: the last 36 closed periods, newest first.

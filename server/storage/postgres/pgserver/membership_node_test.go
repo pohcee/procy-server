@@ -136,9 +136,15 @@ func TestNodeAccountInTwoOrganizations(t *testing.T) {
 		map[string]any{"id": "a", "name": "a", "current": true},
 		map[string]any{"id": "b", "name": "b", "current": false},
 	}, out["data"])
+	code, out = h.do(t, http.MethodGet, "/me/organization", tokA, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, map[string]any{"id": "a", "name": "a"}, out["data"])
 	code, out = h.do(t, http.MethodPost, "/me/organization", tokA, map[string]string{"organization": "b"})
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	switched := out["data"].(map[string]any)["token"].(string)
+	code, out = h.do(t, http.MethodGet, "/me/organization", switched, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, "b", out["data"].(map[string]any)["id"])
 	code, out = h.do(t, http.MethodGet, "/me/organizations", switched, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 	assert.Equal(t, true, out["data"].([]any)[1].(map[string]any)["current"])

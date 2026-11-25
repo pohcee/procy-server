@@ -60,6 +60,9 @@ const (
 var (
 	// ErrInvalid: the input is not valid; wrapped with the reason.
 	ErrInvalid = errors.New("invalid input")
+	// ErrPassword: the password is refused (too short, too long or too guessable). Errors wrapping it are also
+	// ErrInvalid.
+	ErrPassword = errors.New("the password is not accepted")
 	// ErrCaptcha: the captcha was not solved.
 	ErrCaptcha = errors.New("the captcha check failed")
 	// ErrDomain: the email domain is not accepted.
@@ -75,6 +78,21 @@ var (
 	// ErrMail: the email could not be sent.
 	ErrMail = errors.New("the email could not be sent")
 )
+
+// Error codes of POST /signup/verify (the HTTP statuses are the ones of ErrInvalid and ErrToken).
+const (
+	// ErrCodeInvalidPassword: the password is refused; the link still works, try another password.
+	ErrCodeInvalidPassword = "ERR_CODE_INVALID_PASSWORD"
+	// ErrCodeSignupLinkInvalid: the link is unknown, used or expired.
+	ErrCodeSignupLinkInvalid = "ERR_CODE_SIGNUP_LINK_INVALID"
+)
+
+// passwordError is a refused password: it is both ErrInvalid and ErrPassword.
+type passwordError struct{ reason string }
+
+func (e passwordError) Error() string { return ErrInvalid.Error() + ": " + e.reason }
+
+func (e passwordError) Is(target error) bool { return target == ErrInvalid || target == ErrPassword }
 
 // Signup is one accepted signup request.
 type Signup struct {

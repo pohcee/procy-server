@@ -41,7 +41,10 @@ post:
               data:
                 $ref: ../components/schemas/SignupResult.yaml
     '400':
-      description: The link is unknown, used or expired
+      description: >-
+        The error code tells the cause: `ERR_CODE_INVALID_PASSWORD` (the password is refused: too short, too long
+        or too guessable; the link still works, try another password), `ERR_CODE_SIGNUP_LINK_INVALID` (the link is
+        unknown, used or expired), or no code for any other invalid input
       content:
         application/json:
           schema:

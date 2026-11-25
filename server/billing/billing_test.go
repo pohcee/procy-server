@@ -2,6 +2,7 @@ package billing
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -420,4 +421,34 @@ func TestEvaluateUnassignedAndStickyFailOpen(t *testing.T) {
 	pol = Evaluate(b, p, u, EnforceOptions{}, now)
 	assert.Equal(t, TransferOver, pol.State)
 	assert.Equal(t, "implausible transfer", pol.FailOpen)
+}
+
+// The plan catalogue has prices in cents and never the provider's price ids.
+func TestCatalogue(t *testing.T) {
+	c := plans(t).Catalogue()
+	require.Len(t, c, 3)
+	assert.Equal(t, "free", c[0].ID)
+	assert.True(t, c[0].Free)
+	assert.False(t, c[0].Trial)
+	assert.EqualValues(t, 10*GiB, c[0].TransferBaseBytes)
+	assert.Equal(t, OverageCap, c[0].Overage)
+	assert.False(t, c[0].Purchasable)
+	assert.Equal(t, 100, c[0].HardCapPercent)
+
+	st := c[1]
+	assert.EqualValues(t, 1000, st.MonthlyPriceCents)
+	assert.EqualValues(t, 10, st.IncludedDevices)
+	assert.EqualValues(t, 100, st.PricePerDeviceCents)
+	assert.EqualValues(t, 2*GiB, st.TransferPerDeviceBytes)
+	assert.Equal(t, OverageBill, st.Overage)
+	assert.EqualValues(t, 25, st.OveragePricePerGiBCents)
+	assert.True(t, st.Purchasable)
+
+	assert.True(t, c[2].Trial)
+	assert.Equal(t, 14, c[2].TrialDays)
+	assert.EqualValues(t, 4900, c[2].MonthlyPriceCents)
+	b, err := json.Marshal(c)
+	require.NoError(t, err)
+	assert.NotContains(t, string(b), "price_x")
+	assert.NotContains(t, string(b), "provider")
 }

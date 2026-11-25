@@ -13,6 +13,9 @@ import (
 // mountBilling registers the billing routes ([billing] enabled).
 func (h *Handler) mountBilling(r *mux.Router) {
 	r.HandleFunc("/billing", h.billingAccounts).Methods(http.MethodGet)
+	if h.plans != nil {
+		r.HandleFunc("/billing/plans", h.billingPlans).Methods(http.MethodGet)
+	}
 	r.HandleFunc("/billing/periods", h.billingPeriods).Methods(http.MethodGet)
 	r.HandleFunc("/organizations/{id}/billing", h.billingAccount).Methods(http.MethodGet)
 	r.HandleFunc("/organizations/{id}/billing/plan", h.billingSetPlan).Methods(http.MethodPut)
@@ -37,6 +40,10 @@ func (h *Handler) billingAccounts(w http.ResponseWriter, r *http.Request) {
 		out = []billing.Account{}
 	}
 	h.respond.JSON(w, http.StatusOK, api.NewSuccessPayload(out))
+}
+
+func (h *Handler) billingPlans(w http.ResponseWriter, _ *http.Request) {
+	h.respond.JSON(w, http.StatusOK, api.NewSuccessPayload(h.plans.Catalogue()))
 }
 
 func (h *Handler) billingAccount(w http.ResponseWriter, r *http.Request) {

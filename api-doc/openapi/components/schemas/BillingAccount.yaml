@@ -80,3 +80,19 @@ properties:
     description: The soft cap (80% of the allowance by default) or more is reached this month
   plan_details:
     $ref: BillingPlan.yaml
+  current_period:
+    type: object
+    description: >-
+      The devices of the current billing period so far, computed as the period close does (organization view
+      only): the average of the daily device counts over the days billed so far, rounded up, and the highest
+      daily count.
+    properties:
+      start:
+        type: string
+        format: date-time
+      billable_devices:
+        type: integer
+      peak_devices:
+        type: integer
+      device_days:
+        type: integer

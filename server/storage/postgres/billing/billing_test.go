@@ -95,7 +95,7 @@ func newEnv(t *testing.T, tenants ...tenant.ID) *env {
 	e := &env{d: d, plans: p, sent: &notes{}, clock: time.Date(2026, 11, 24, 12, 30, 0, 0, time.UTC)}
 	now := func() time.Time { return e.clock }
 	e.op = &Operator{DB: d.App, Plans: p, Now: now}
-	e.store = Store{DB: d.App, Plans: p}
+	e.store = Store{DB: d.App, Plans: p, Now: now}
 	e.up = &Upkeep{DB: d.App, Plans: p, Notifier: e.sent, Now: now, ReviewAboveCents: 10000}
 	return e
 }
@@ -544,4 +544,31 @@ func TestStatusChangesAndPeriods(t *testing.T) {
 	assert.Equal(t, billing.StatusPaying, ps[0].Status, "October was paying")
 	assert.Equal(t, billing.PeriodReady, ps[0].State)
 	assert.EqualValues(t, 4900, ps[0].TotalCents)
+}
+
+// GET /billing shows the devices of the current period so far as the period close counts them.
+func TestAccountShowsTheCurrentPeriodsDevices(t *testing.T) {
+	e := newEnv(t, "acme")
+	require.NoError(t, e.up.Run(ctx))
+	a, err := e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	require.NotNil(t, a.CurrentPeriod)
+	assert.EqualValues(t, 0, a.CurrentPeriod.BillableDevices)
+	assert.Equal(t, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), a.CurrentPeriod.Start)
+
+	e.startedAt(t, "acme", time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC))
+	// 3 devices on each of the 23 days so far, 5 on the 10th; today's are not reported yet
+	e.devices(t, "acme", time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), 23, 3)
+	e.devices(t, "acme", time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC), 1, 5)
+	e.devices(t, "acme", time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC), 5, 40) // last month: not counted
+	a, err = e.store.Account(ctx, "acme")
+	require.NoError(t, err)
+	assert.EqualValues(t, 4, a.CurrentPeriod.BillableDevices, "ceil(71 device days / 23 days)")
+	assert.EqualValues(t, 5, a.CurrentPeriod.PeakDevices)
+	assert.EqualValues(t, 71, a.CurrentPeriod.DeviceDays)
+
+	// the unrecorded organization (no org_billing row) gets one too
+	d, err := e.store.Account(ctx, "nobody")
+	require.NoError(t, err)
+	assert.NotNil(t, d.CurrentPeriod)
 }

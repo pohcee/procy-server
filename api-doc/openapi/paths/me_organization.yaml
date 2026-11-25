@@ -1,3 +1,35 @@
+get:
+  tags:
+    - Profile & Info
+  summary: Return the organization of the current session (Postgres servers only)
+  operationId: MeOrganizationGet
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Not available on this server (standalone), or the login is not a member of the organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
 post:
   tags:
     - Profile & Info

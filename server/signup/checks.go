@@ -57,14 +57,14 @@ type PasswordRules struct {
 
 func (p PasswordRules) check(password, user string) error {
 	if utf8.RuneCountInString(password) < p.MinLength {
-		return fmt.Errorf("%w: the password must be at least %d characters", ErrInvalid, p.MinLength)
+		return passwordError{fmt.Sprintf("the password must be at least %d characters", p.MinLength)}
 	}
 	if len(password) > maxPassword {
-		return fmt.Errorf("%w: the password must be at most %d bytes", ErrInvalid, maxPassword)
+		return passwordError{fmt.Sprintf("the password must be at most %d bytes", maxPassword)}
 	}
 	if p.MinScore >= 0 {
 		if zxcvbn.PasswordStrength(password, []string{user}).Score < p.MinScore {
-			return fmt.Errorf("%w: the password is too guessable", ErrInvalid)
+			return passwordError{"the password is too guessable"}
 		}
 	}
 	return nil
