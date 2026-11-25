@@ -14,7 +14,15 @@ import (
 type BillingPlans struct {
 	Operator billing.OperatorService
 	Plans    *billing.Plans
+	// Provider, when set ([billing] provider = "stripe"), cancels the subscription of an organization whose deletion
+	// is requested.
+	Provider SubscriptionCanceler
 	Now      func() time.Time
+}
+
+// SubscriptionCanceler cancels an organization's subscription (billing.Service).
+type SubscriptionCanceler interface {
+	CancelForDeletion(ctx context.Context, org string) error
 }
 
 func (p BillingPlans) now() time.Time {
@@ -58,9 +66,13 @@ func (p BillingPlans) StartOrganization(ctx context.Context, by operator.Actor, 
 	return &PlanStart{Plan: p.Plans.Trial.Plan, BillingStatus: string(billing.StatusTrial), TrialEndsAt: &end}, nil
 }
 
-// DeletionRequested implements Plans. The subscription is canceled by the payment provider integration (billing
-// phase 4); plans alone have nothing to close.
-func (BillingPlans) DeletionRequested(context.Context, operator.Actor, string) error { return nil }
+// DeletionRequested implements Plans: the subscription is canceled at once (with a payment provider).
+func (p BillingPlans) DeletionRequested(ctx context.Context, _ operator.Actor, org string) error {
+	if p.Provider == nil {
+		return nil
+	}
+	return p.Provider.CancelForDeletion(ctx, org)
+}
 
 // BeforeDelete implements Plans: org_billing and billing_periods have no foreign key to tenants, so they stay,
 // detached, for the accounting retention.

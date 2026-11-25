@@ -109,6 +109,9 @@ func NewSignup(cfg *chconfig.Config, db *sqlx.DB, op operator.Service, keys vaul
 	trialDays := 0
 	if bo != nil && bo.Operator != nil {
 		bp := signup.BillingPlans{Operator: bo.Operator, Plans: bo.Plans}
+		if bo.Provider != nil {
+			bp.Provider = bo.Provider
+		}
 		plans, trialDays = bp, bp.TrialDays()
 	}
 	if o := signupOverrides; o.mailer != nil || o.captcha != nil || o.lookupMX != nil || o.plans != nil {
