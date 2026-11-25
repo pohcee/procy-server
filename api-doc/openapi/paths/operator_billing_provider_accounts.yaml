@@ -1,0 +1,37 @@
+get:
+  tags:
+    - Operator
+    - Billing
+  summary: List every organization's payment provider account. Platform operators only
+  description: Customer, subscription and dunning state; suspension_proposed asks an operator to confirm.
+  operationId: OperatorBillingProviderAccountsGet
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: ../components/schemas/BillingProviderAccount.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No payment provider on this server (standalone, or [billing] provider "none")
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

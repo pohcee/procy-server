@@ -37,6 +37,11 @@ tags:
     description: >-
       Usage metering (Postgres servers with `[metering] enabled` only): what an organization used per hour, day or
       month: tunnel and upload bytes, API bytes, jobs and connected devices.
+  - name: Billing
+    description: >-
+      Payment provider (Postgres servers with `[billing] provider = "stripe"` only): checkout, the customer portal,
+      invoices, webhooks and the overdue state. An organization read-only for an overdue payment gets 403 with
+      ERR_CODE_BILLING_READ_ONLY on every change.
   - name: Operator
     description: >-
       Platform operator API (Postgres servers only): manage the organizations of the server. Available to
@@ -84,6 +89,26 @@ paths:
     $ref: paths/operator_usage.yaml
   /usage:
     $ref: paths/usage.yaml
+  /billing/webhook:
+    $ref: paths/billing_webhook.yaml
+  /billing/payment:
+    $ref: paths/billing_payment.yaml
+  /billing/invoices:
+    $ref: paths/billing_invoices.yaml
+  /billing/portal:
+    $ref: paths/billing_portal.yaml
+  /billing/checkout:
+    $ref: paths/billing_checkout.yaml
+  /operator/billing/provider/accounts:
+    $ref: paths/operator_billing_provider_accounts.yaml
+  /operator/billing/provider/reports:
+    $ref: paths/operator_billing_provider_reports.yaml
+  /operator/billing/provider/stats:
+    $ref: paths/operator_billing_provider_stats.yaml
+  /operator/billing/provider/accounts/{id}/restore:
+    $ref: paths/operator_billing_provider_accounts_{id}_restore.yaml
+  /operator/billing/provider/accounts/{id}/confirm-suspension:
+    $ref: paths/operator_billing_provider_accounts_{id}_confirm-suspension.yaml
   /clients:
     $ref: paths/clients.yaml
   /tunnels:

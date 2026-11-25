@@ -1,0 +1,46 @@
+type: object
+description: One quantity of one closed period reported to the payment provider.
+properties:
+  organization:
+    type: string
+  period_start:
+    type: string
+    format: date-time
+  period_end:
+    type: string
+    format: date-time
+  metric:
+    type: string
+    enum: [extra_devices, overage_gib]
+  identifier:
+    type: string
+    example: procy:acme:extra_devices:2026-11-01
+  customer_id:
+    type: string
+  price_id:
+    type: string
+  quantity:
+    type: integer
+  state:
+    type: string
+    enum: [sent, confirmed, mismatch, failed]
+  attempts:
+    type: integer
+  last_attempt_at:
+    type: string
+    format: date-time
+    nullable: true
+  sent_at:
+    type: string
+    format: date-time
+    nullable: true
+  confirmed_at:
+    type: string
+    format: date-time
+    nullable: true
+  provider_value:
+    type: number
+    nullable: true
+    description: What the provider's meter summary showed at the last reconciliation
+  last_error:
+    type: string
