@@ -1,0 +1,56 @@
+put:
+  tags:
+    - Billing
+  summary: Set the spending limit of the requesting user's organization. Administrators only
+  description: >-
+    On a plan that bills overage only: the most overage (USD) per month. Reaching it acts as the hard cap: tunnels
+    are throttled and new tunnels and uploads refused until the next month. Written to the organization's audit log.
+  operationId: BillingSpendingLimitPut
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - spending_limit
+          properties:
+            spending_limit:
+              type: number
+              nullable: true
+              minimum: 0
+              description: USD per month; null removes the limit
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/BillingAccount.yaml
+    '400':
+      description: Invalid amount, or the plan has no overage
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not a member of the Administrators group
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: Billing is off on this server
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

@@ -125,6 +125,14 @@ put:
         application/json:
           schema:
             $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: >-
+        The organization reached its hard transfer cap (error code ERR_CODE_TRANSFER_LIMIT, servers with `[billing]
+        enabled`): new tunnels and uploads are refused until the next month
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
     '404':
       description: specified client does not exist, already terminated ot disconnected
       content:

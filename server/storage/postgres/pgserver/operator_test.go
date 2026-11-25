@@ -243,9 +243,28 @@ func TestOperatorAddAdmin(t *testing.T) {
 	assert.NotEqual(t, a.Password, a2.Password)
 
 	_, err = o.AddAdmin(ctx, ops, "acme", operator.NewAdmin{Username: "alice@example.com"})
-	assert.ErrorContains(t, err, "already")
-	_, err = o.AddAdmin(ctx, ops, "default", operator.NewAdmin{Username: "alice@example.com"})
-	assert.ErrorContains(t, err, "already taken", "logins are unique across organizations")
+	assert.ErrorIs(t, err, operator.ErrExists)
+	// an existing account is invited, and joins with its own password when its owner accepts
+	joined, err := o.AddAdmin(ctx, ops, "default", operator.NewAdmin{Username: "alice@example.com"})
+	require.NoError(t, err)
+	assert.Equal(t, operator.Admin{Organization: "default", Username: "alice@example.com", Pending: true}, *joined)
+	ud, err := pgusers.New(d.App).GetByUsername(tenant.WithID(ctx, "default"), "alice@example.com")
+	require.NoError(t, err)
+	assert.Nil(t, ud, "not a member before accepting")
+	require.NoError(t, pgusers.New(d.App).AcceptInvitation(tenant.WithID(ctx, "default"), "alice@example.com"))
+	ud, err = pgusers.New(d.App).GetByUsername(tenant.WithID(ctx, "default"), "alice@example.com")
+	require.NoError(t, err)
+	require.NotNil(t, ud)
+	assert.Equal(t, u.Password, ud.Password, "one credential")
+	assert.Equal(t, []string{users.Administrators}, ud.Groups)
+	members, err := o.Members(ctx, "acme")
+	require.NoError(t, err)
+	assert.Equal(t, []operator.Member{
+		{Username: "alice@example.com", Groups: []string{users.Administrators}, Organizations: 2},
+		{Username: "dave", Groups: []string{users.Administrators}, Organizations: 1},
+	}, members)
+	_, err = o.Members(ctx, "nope")
+	assert.ErrorIs(t, err, operator.ErrNotFound)
 	_, err = o.AddAdmin(ctx, ops, "acme", operator.NewAdmin{Username: ""})
 	assert.Error(t, err)
 
@@ -324,4 +343,36 @@ func TestOperatorWithoutGrantSaysHowToFix(t *testing.T) {
 	require.NoError(t, err)
 	_, err = o.Create(context.Background(), ops, operator.NewOrganization{ID: "acme"})
 	assert.ErrorContains(t, err, "rportd migrate --grant-to")
+}
+
+// The device count of an organization follows the rule of its client limit: clients saved by a node with role all
+// (clients) and clients only a device process reported (client_state) count, a client disconnected for longer than
+// keep_disconnected_clients doesn't.
+func TestOperatorDeviceCountCountsDeviceProcessClients(t *testing.T) {
+	d := pgtest.New(t)
+	cfg := &chconfig.Config{API: chconfig.APIConfig{PasswordMinLength: 14}}
+	cfg.Server.PurgeDisconnectedClients = true
+	cfg.Server.KeepDisconnectedClients = time.Hour
+	o := NewOperator(d.App, cfg)
+	ctx := context.Background()
+	_, err := o.Create(ctx, ops, operator.NewOrganization{ID: "acme", DeviceLimit: intp(5)})
+	require.NoError(t, err)
+	_, err = d.Owner.Exec(`INSERT INTO clients (tenant_id, id, client_auth_id, details) VALUES ('acme', 'on-all-node', 'auth', '{}')`)
+	require.NoError(t, err)
+	reportState(t, d.Owner, "acme", "on-device-process", nil)
+	old := time.Now().Add(-2 * time.Hour)
+	reportState(t, d.Owner, "acme", "long-gone", &old)
+
+	got, err := o.Get(ctx, "acme")
+	require.NoError(t, err)
+	assert.Equal(t, 2, got.DeviceCount)
+	orgs, err := o.List(ctx)
+	require.NoError(t, err)
+	for _, org := range orgs {
+		if org.ID == "acme" {
+			assert.Equal(t, 2, org.DeviceCount)
+		}
+	}
+	_, _, all := twoDeviceProcesses(t, d, &cfg.Server.KeepDisconnectedClients)
+	assert.Equal(t, 3, admit(t, all, "acme", "a-new-one").Clients, "the admission counts the same (and the new one)")
 }

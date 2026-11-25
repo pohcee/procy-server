@@ -18,6 +18,13 @@ get:
     status response will be returned. Login using the `/auth/provider` and
     `/auth/ext/settings` or `/auth/ext/settings/device` endpoints instead.
   parameters:
+    - name: organization
+      in: query
+      description: >-
+        Postgres servers: the organization to log in to, for a login that belongs to several. Without it such a
+        login gets the list of its organizations and no token.
+      schema:
+        type: string
     - name: token-lifetime
       in: query
       description: >-
@@ -74,6 +81,8 @@ post:
 
     If fields `username`, `password` and `new_password` are provided: a new password will be set for the user, the user will be logged in and `password_expired` flag will be reset to false.
     
+    Organizations (Postgres servers only): a login that belongs to several organizations and names none gets, once its password is verified and before any 2FA, `token: null` and the list `organizations` (id, name); the client repeats the login with the query parameter `organization=<id>` (or a body field `organization`). The token is then for that organization, and the response lists `organizations` and the `organization` the token is for; switch later with `POST /me/organization`. Naming an organization the login is not a member of is refused like a wrong password. A login of one organization, and every login on a standalone server, sees no change.
+
     If time based one time passwords (TotP) are enabled (Google/Microsoft authenticator app), it returns a login token, which should be used to call `/verify-2fa` endpoint and also to create and totp secret key for the first time (see `/me/totp-secret`)
     To understand if TotP is enabled, `delivery_method` field will contain `totp_authenticator_app` value, that indicates the limited scope of the JWT token validity.
     If user has already a TotP secret key, the value of totp_key_status field will be 'pending' or 'exists' otherwise.
@@ -82,6 +91,13 @@ post:
     status response will be returned. Login using the `/auth/provider` and
     `/auth/ext/settings` endpoints instead.
   parameters:
+    - name: organization
+      in: query
+      description: >-
+        Postgres servers: the organization to log in to, for a login that belongs to several. Without it such a
+        login gets the list of its organizations and no token.
+      schema:
+        type: string
     - name: token-lifetime
       in: query
       description: |

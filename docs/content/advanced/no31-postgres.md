@@ -150,10 +150,14 @@ id a device logs in with tells the server its tenant; creating a credential whos
   connected at that moment stay connected until they reconnect.
 * `max_clients` in the `tenants` table limits how many clients a tenant may have (clients connected or disconnected
   within `keep_disconnected_clients`, as the client list shows them). Empty (the default) means no limit. A client
-  the tenant already has always reconnects; a new one is refused once the limit is reached.
+  the tenant already has always reconnects, to any node; a new one is refused once the limit is reached. The count
+  is the database's, across every node and device process accepting devices, and it is the device count the
+  operator API shows. Give every node the same `purge_disconnected_clients` and `keep_disconnected_clients`: each
+  node counts with its own.
 
 A refused device logs the reason, for example `connection refused: the organization's limit of 10 clients is
-reached`, and the server logs a line naming the client, its client auth id and the tenant.
+reached`, and the server logs a line naming the client, its client auth id and the tenant. A device refused by its
+organization retries after its `max_retry_interval`, but not sooner than a minute.
 
 ## Running several servers
 
@@ -278,12 +282,13 @@ rportd org suspend acme -c /etc/rport/rportd.conf
 rportd org activate acme -c /etc/rport/rportd.conf
 ```
 
-* `add-admin` creates a user in the organization's Administrators group with a generated password, printed once.
-  The password must be changed at the first login. Logins are unique across organizations.
+* `add-admin` adds a login to the organization's Administrators group. A new login gets a generated password,
+  printed once, that must be changed at the first login; a login that already has an account (a member of other
+  organizations) is invited and joins with its own password when it accepts (see [Members of several organizations](#members-of-several-organizations)).
 * `suspend` takes effect on the next request: the organization's users can't log in, and their sessions and API
   tokens stop working. `activate` undoes it. Organizations are not deleted.
-* The device limit is the most devices an organization may have (unlimited when not set). In this preview it is
-  stored and shown, and enforced only once devices of every organization connect (device login per organization).
+* The device limit is the most devices an organization may have (unlimited when not set), enforced when devices
+  connect (see `max_clients` above).
 
 The same actions are in the **operator API** under `/api/v1/operator` (see the API reference, tag *Operator*), for
 administrators of `_system` only: other organizations get 404, other `_system` users 403, and servers on SQLite
@@ -297,12 +302,56 @@ have no operator API.
 | `POST` | `/operator/organizations/{id}/suspend` | suspend |
 | `POST` | `/operator/organizations/{id}/activate` | reactivate |
 | `PUT` | `/operator/organizations/{id}/device-limit` | `{"device_limit": 100}` (`null`: unlimited) |
-| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; returns the generated password once |
+| `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; returns the generated password of a new login once, or invites an existing account |
+| `GET` | `/operator/organizations/{id}/members` | the members, their groups there and how many organizations each belongs to |
 
 Every change, from the API or the CLI, is written to the audit log of `_system` (application
 `operator.organization` or `operator.organization.admin`; the CLI as user `cli:<system user>`), whether or not
 the audit log is enabled in the configuration. `GET /api/v1/status` reports `capabilities.operator: true` to
 operators.
+
+### Members of several organizations
+
+A login (normally an email address) is one **account** with one password, password expiry, two-factor (TOTP)
+secret and 2FA delivery address, and can be a **member** of several organizations, with its own permission groups
+in each. An organization's administrators are the members of its Administrators group, as before.
+
+* **Login.** A login of one organization sees no change. A login of several that names no organization gets, once
+  its password is verified and before any 2FA, `"token": null` and `organizations` (id and name of each); the
+  client repeats the login with `?organization=acme` (or `"organization": "acme"` in the body). That response adds
+  `organization` (the one the token is for) and `organizations`. A login naming an organization it isn't a member
+  of is refused like a wrong password.
+* **Basic auth** with a password (sent with each request) names no organization: it works only for a login of one
+  organization. **API tokens** belong to the organization they were created in, and a request authenticating with
+  one goes there.
+* **Switching.** `GET /api/v1/me/organizations` lists the login's active organizations (`current` marks the one of
+  the request); `POST /api/v1/me/organization` with `{"organization": "acme"}` returns a session token for that
+  organization. The old token keeps working in its own organization. Only session tokens switch; there is no new
+  2FA, since the 2FA settings are the account's.
+* **Inviting.** An administrator adds a login with `POST /api/v1/organization/members`
+  (`{"username": "carol@example.com", "groups": ["Viewers"]}`). A new login gets an account with a generated
+  password, returned once, that must be changed at the first login, and is a member at once. A login that already
+  has an account gets a **pending invitation** (`"pending": true`): its owner sees it in `GET /api/v1/me/invitations`
+  and accepts it with `POST /api/v1/me/invitations/acme` (a session token, not an API token) or declines it with
+  `DELETE`. Administrators list their pending invitations with `GET /api/v1/organization/invitations` and withdraw
+  one with `DELETE /api/v1/organization/invitations/{login}`. Operators adding an existing account as an
+  administrator (`add-admin`) invite it the same way.
+* **Removing.** `DELETE /api/v1/users/{user_id}` removes the membership: its sessions and API tokens in this
+  organization stop working, its other memberships stay, and the account (with its pending invitations) goes with
+  its last membership.
+* **What an administrator can change.** The groups of any member. The password, its expiry, the 2FA address, the
+  TOTP secret and the login name of a member of other organizations too belong to its owner (`PUT /api/v1/me`, the
+  login's `new_password`, the TOTP routes): an administrator gets 403. For a member of one organization alone
+  nothing changes.
+* A suspended organization drops out of its members' lists, logins and switches.
+* Whoever holds an account's password owns it: there is no proof of email ownership yet, so the response of an
+  invitation says whether the login already had an account (`new_account`).
+
+`GET /api/v1/status` reports `capabilities.organizations: true` on Postgres servers. None of this exists on SQLite.
+`rportd migrate` turns the existing users into accounts (each login was in one organization so far). After
+upgrading, run `rportd migrate --grant-to <application role>` once more: the application role needs `EXECUTE` on
+the account and invitation functions (it can read only the accounts of its organization's members). Until then,
+password changes and invitations fail with a message naming the fix.
 
 ## Usage metering
 
@@ -374,6 +423,138 @@ Accuracy:
 * `devices_peak` is the most devices one node saw at once: with several nodes accepting devices it is the highest
   node's count, not the cluster's (device-days and `device_seconds` add up across nodes correctly).
 * Hours come from each node's clock; the count of the seconds before a sample is attributed to the sample's hour.
+
+## Billing plans and limits
+
+With `[billing]` on (it needs `[metering]`), every organization has a plan and a billing status, each calendar month
+(UTC) is closed with frozen quantities, and transfer limits apply. There is no payment provider yet
+(`provider = "none"`): plans, statuses, periods and limits work without one. Off by default; refused on SQLite.
+
+```toml
+[billing]
+  enabled = true
+  provider = "none"
+  plans_file = "/etc/rport/plans.toml"   # private: names, prices, allowances, rates
+  overage_review_above = 100.00          # hold a closed month with more overage (USD) for an operator's approval
+  # implausible_growth_factor = 20       # don't cap on an hour this many times the month's average hour
+```
+
+After upgrading, run `rportd migrate --grant-to <application role>` and `--grant-device-to <device role>` again: the
+application role needs `EXECUTE` on the billing functions (it can't write the billing tables directly), the device
+role on `device_transfer_policy()`. A device process with billing on refuses to start without it.
+
+When billing is turned on, every organization without a billing record gets one on the free plan, paying, billing
+starting then, and its device limit (`tenants.max_clients`) follows the plan from then on (an unlimited one too).
+Put organizations on their plans right after enabling it (`rportd org set-plan`). A device limit an operator sets
+by hand later (`rportd org set-limit`) is kept until the plan changes.
+
+### The plans file
+
+All numbers below are placeholders. Sizes are `B`, `KiB` … `TiB` (or `KB` … `TB`); rates are bits per second
+(`kbit`, `Mbit`, `Gbit`); prices are USD. Unknown keys are refused.
+
+```toml
+free_plan = "free"            # organizations without a record are on it; it has no price and overage = "cap"
+
+[trial]                       # what a trial without a payment method is capped at; then the free plan
+  plan = "team"
+  days = 14
+  max_clients = 25
+  transfer = "25GiB"
+
+[[plan]]
+  id = "free"
+  name = "Free"
+  max_clients = 10            # tenants.max_clients follows the plan
+  transfer_base = "10GiB"
+  overage = "cap"             # the hard cap applies at hard_cap percent (default 100)
+  tunnel_rate_limit = "2Mbit" # each tunnel connection, each direction
+  throttle_rate = "256kbit"   # past the hard cap
+
+[[plan]]
+  id = "team"
+  name = "Team"
+  base_price = 49.00          # per month, includes included_devices
+  included_devices = 50
+  price_per_device = 0.80     # each billable device above them
+  transfer_base = "250GiB"    # allowance = base + per device × billable devices
+  transfer_per_device = "5GiB"
+  overage = "bill"            # past the allowance: overage_price_per_gib; no hard cap unless a spending limit
+  overage_price_per_gib = 0.20
+  soft_cap = 80               # percent: the administrators are notified
+  provider_prices = { base = "price_…", devices = "price_…", overage = "price_…" }
+```
+
+### Billing status
+
+| Status | Charged | Notes |
+|---|---|---|
+| `paying` | yes | the default; on the free plan that is nothing |
+| `trial` | no, until `trial_ends_at` | then `paying` on the same plan with a payment method on file, otherwise `paying` on the free plan; a trial without a payment method is capped at the `[trial]` devices and transfer |
+| `exempt` | never | needs a reason; `exempt_limits = "plan"` (default) keeps the plan's limits, `"none"` lifts them; never sent to a payment provider |
+| `comped` | no, until `comped_until` (the last free day) | then as a trial that ends |
+
+Operators set plans and statuses with the API or the CLI; each change is written to the audit logs of `_system`
+and of the organization (application `billing`):
+
+```shell
+rportd org set-plan acme team
+rportd org set-billing acme trial --trial-ends 2026-12-08
+rportd org set-billing partner exempt --reason "reseller partner" --exempt-limits none
+rportd org set-billing acme comped --comped-until 2027-03-31 --reason "launch customer"
+rportd org lift-cap acme --until 2026-12-01          # or --extra-transfer 50GiB for this month
+rportd org billing [acme]                            # accounts, or one with its closed periods
+rportd org approve-period acme 2026-11               # release a held period
+```
+
+### Limits
+
+Every 5 minutes one node (lease `billing-upkeep`) computes each organization's transfer this month (tunnel bytes
+both ways and upload bytes delivered) against its allowance and writes the state:
+
+| State | When | Effect |
+|---|---|---|
+| `normal` | below the soft cap | none |
+| `soft` | at `soft_cap` percent | a notification to the administrators, `soft_cap_reached` in `GET /billing` |
+| `over` | past 100% on a plan that bills overage | a notification; overage accrues |
+| `capped` | the hard cap: `cap` plans (Free, trials without a payment method) at `hard_cap` percent, or a plan that bills overage once the organization's spending limit is reached | a notification; tunnels are throttled to `throttle_rate`, new tunnels and uploads are refused with `403 ERR_CODE_TRANSFER_LIMIT` |
+
+Device sessions are never closed and existing tunnels never cut: commands, scripts, schedules, monitoring and
+updates keep working. Every process reads the states once a minute through `device_transfer_policy()` and applies
+the plan's `tunnel_rate_limit` to each tunnel connection (a token bucket per direction; with tunnels on several
+nodes the rate applies on each). The api process refuses tunnels and uploads, and the process holding the device
+refuses them again. One notification per kind per month is sent (email, through the notifications); trials and
+comped periods without a payment method are announced 14 and 3 days before they end.
+
+It fails open: the hard cap is not applied while the newest usage of any organization is more than 2 hours old
+(metering stalled) or when an organization's last hour moved more than `implausible_growth_factor` times its
+average hour (at least 10 GiB); the state is `over` and `fail_open` says why (logged as an error for the
+operators). A process that can't read the states keeps the last ones for an hour, then applies only the per-tunnel
+rates; a cap the upkeep wrote more than an hour ago is ignored. An operator can lift the cap until a time or raise
+the month's allowance; an organization's administrators can set a spending limit (`PUT /billing/spending-limit`).
+
+### Billing periods
+
+Two hours after a month ends the upkeep closes it for every organization (`billing_periods`, kept detached when an
+organization is deleted): billable devices (the average of the daily device counts over the days billed, rounded
+up) and the peak day, transfer per kind, the allowance and the overage (in whole GiB, rounded up, on plans that
+bill it), and the amounts at the plan's prices. The first month is prorated from the day billing started, and a
+trial or comped period ends the free part. Usage arriving after the close is shown but never billed. States:
+`ready` (to be charged), `held` (overage above `overage_review_above`, until an operator approves it),
+`not_charged` (trial or comped the whole month, or nothing to charge), `never_charged` (exempt), `reported` (set by
+the payment provider). The plan at the close applies to the whole month.
+
+| Method | Path | For |
+|---|---|---|
+| `GET` | `/billing` | administrators: plan, status, allowance, used, transfer state, soft-cap flag |
+| `GET` | `/billing/periods` | administrators: the closed periods |
+| `PUT` | `/billing/spending-limit` | administrators: `{"spending_limit": 50.00}` (USD per month, `null` removes it) |
+| `GET` | `/operator/billing`, `/operator/billing/periods?state=held` | operators: every organization |
+| `GET` | `/operator/organizations/{id}/billing`, `…/billing/periods` | operators: one organization |
+| `PUT` | `/operator/organizations/{id}/billing/plan`, `…/status`, `…/override` | operators |
+| `POST` | `/operator/organizations/{id}/billing/periods/{YYYY-MM}/approve` | operators: release a held period |
+
+`GET /api/v1/status` reports `capabilities.billing: true`.
 
 ## Developing
 

@@ -86,5 +86,6 @@ type Notifier interface {
 	Notify(ctx context.Context, tid tenant.ID, recipients []string, subject, body string) error
 }
 
-// EnforceInterval is how often the billing upkeep computes the transfer policies (and closes periods).
-const EnforceInterval = 5 * time.Minute
+// EnforceInterval is how often the billing upkeep computes the transfer policies and closes periods (a variable
+// for tests).
+var EnforceInterval = 5 * time.Minute

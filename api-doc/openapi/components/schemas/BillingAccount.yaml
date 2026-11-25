@@ -1,0 +1,61 @@
+type: object
+description: An organization's billing (plan, billing status, transfer policy).
+properties:
+  organization:
+    type: string
+  plan:
+    type: string
+  status:
+    type: string
+    enum: [paying, trial, exempt, comped]
+  trial_ends_at:
+    type: string
+    format: date-time
+    nullable: true
+  comped_until:
+    type: string
+    format: date-time
+    nullable: true
+    description: The last day (UTC) a comped organization is not charged
+  reason:
+    type: string
+  exempt_limits:
+    type: string
+    enum: [plan, none]
+  spending_limit_cents:
+    type: integer
+    nullable: true
+  has_payment_method:
+    type: boolean
+  cap_lifted_until:
+    type: string
+    format: date-time
+    nullable: true
+  extra_transfer_bytes:
+    type: integer
+  extra_transfer_period:
+    type: string
+    format: date-time
+    nullable: true
+  started_at:
+    type: string
+    format: date-time
+  updated_at:
+    type: string
+    format: date-time
+  updated_by:
+    type: string
+  transfer_state:
+    type: string
+    enum: [normal, soft, over, capped]
+  transfer_state_at:
+    type: string
+    format: date-time
+    nullable: true
+  policy:
+    $ref: BillingPolicy.yaml
+  soft_cap_reached:
+    type: boolean
+    description: The soft cap (80% of the allowance by default) or more is reached this month
+  plan_details:
+    $ref: BillingPlan.yaml

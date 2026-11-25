@@ -257,7 +257,10 @@ func (s *Store) GetMultiJobSummaries(ctx context.Context, options *query.ListOpt
 			o.Sorts = []query.SortOption{{Column: "started_at", IsASC: false}, {Column: "jid", IsASC: true}}
 		}
 		o.Sorts = nullsLikeSQLite(o.Sorts, multiJobNullable)
-		q, params := s.build(tx, &o, "SELECT jid, started_at, created_by, schedule_id FROM multi_jobs WHERE tenant_id = ?", []interface{}{tid})
+		var cond string
+		var condParams []interface{}
+		o.Filters, cond, condParams = ossjobs.SplitMultiJobFilters(o.Filters)
+		q, params := s.build(tx, &o, "SELECT jid, started_at, created_by, schedule_id FROM multi_jobs WHERE tenant_id = ?"+cond, append([]interface{}{tid}, condParams...))
 		var rows []*multiJobSummaryRow
 		if err := tx.SelectContext(ctx, &rows, q, params...); err != nil {
 			return err
@@ -279,7 +282,10 @@ func (s *Store) CountMultiJobs(ctx context.Context, options *query.ListOptions) 
 		if options != nil {
 			o.Filters = options.Filters
 		}
-		q, params := s.build(tx, &o, "SELECT count(*) FROM multi_jobs WHERE tenant_id = ?", []interface{}{tid})
+		var cond string
+		var condParams []interface{}
+		o.Filters, cond, condParams = ossjobs.SplitMultiJobFilters(o.Filters)
+		q, params := s.build(tx, &o, "SELECT count(*) FROM multi_jobs WHERE tenant_id = ?"+cond, append([]interface{}{tid}, condParams...))
 		return tx.GetContext(ctx, &n, q, params...)
 	})
 	return n, err

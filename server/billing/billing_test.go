@@ -87,7 +87,7 @@ func TestParsePlans(t *testing.T) {
 	assert.Equal(t, 0, st.HardCapPercent, "bill plans have no hard cap by default")
 	assert.Equal(t, DefaultThrottleRate, st.ThrottleRate)
 	assert.Equal(t, "price_y", st.ProviderPrices["devices"])
-	assert.Equal(t, int64(25*GiB+22*2*GiB), st.Allowance(22))
+	assert.Equal(t, 25*GiB+22*2*GiB, st.Allowance(22))
 	assert.Equal(t, "team", p.Trial.Plan)
 	assert.Equal(t, 25, *p.Trial.MaxClients)
 	assert.Nil(t, p.Get("nope"))
@@ -97,7 +97,7 @@ func TestParsePlansRefusesInvalid(t *testing.T) {
 	base := "[[plan]]\nid = \"free\"\noverage = \"cap\"\n"
 	for name, in := range map[string]string{
 		"empty":           "",
-		"unknown key":     base + "colour = \"red\"\n",
+		"unknown key":     base + "color = \"red\"\n",
 		"duplicate":       base + base,
 		"bad id":          "[[plan]]\nid = \"Free!\"\n",
 		"no free plan":    "free_plan = \"x\"\n" + base,

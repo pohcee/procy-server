@@ -9,13 +9,15 @@ import (
 )
 
 // DeviceFunctions are the functions the device database role may execute: lookups on the device path and the
-// ingest functions (migration 1100), and the session registry (1200). migrate.GrantDevice grants EXECUTE on them; CheckDeviceRole requires it.
+// ingest functions (migration 1100), the session registry (1200) and the admission of devices (1350). migrate.GrantDevice grants EXECUTE on them; CheckDeviceRole requires it.
 var DeviceFunctions = []string{
 	"device_tenants()",
 	"device_client_auth(text)",
 	"device_client(text, text)",
 	"device_client_groups(text)",
 	"device_stored_tunnels(text, text)",
+	// admission of devices across the cluster (migration 1350)
+	"device_admit_client(text, text, timestamptz)",
 	"ingest_job_results(jsonb)",
 	"ingest_measurements(jsonb)",
 	"ingest_connection_events(jsonb)",

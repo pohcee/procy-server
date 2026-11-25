@@ -134,11 +134,22 @@ get:
                         description: >-
                           The operator API is available to the requesting user (a platform operator on a Postgres
                           server). Present only when true.
+                      organizations:
+                        type: boolean
+                        description: >-
+                          A login may belong to several organizations (Postgres servers): `/me/organizations`,
+                          `/me/organization`, `/me/invitations` and `/organization/members` exist. Present only when
+                          true.
                       usage:
                         type: boolean
                         description: >-
                           Usage metering is on (a Postgres server with `[metering] enabled`): `GET /usage` for
                           administrators and the operator usage routes. Present only when true.
+                      billing:
+                        type: boolean
+                        description: >-
+                          Billing plans and limits are on (a Postgres server with `[billing] enabled`): `GET /billing`
+                          for administrators and the operator billing routes. Present only when true.
               meta:
                 type: object
                 properties: {}

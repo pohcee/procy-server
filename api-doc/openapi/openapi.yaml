@@ -39,9 +39,11 @@ tags:
       month: tunnel and upload bytes, API bytes, jobs and connected devices.
   - name: Billing
     description: >-
-      Payment provider (Postgres servers with `[billing] provider = "stripe"` only): checkout, the customer portal,
-      invoices, webhooks and the overdue state. An organization read-only for an overdue payment gets 403 with
-      ERR_CODE_BILLING_READ_ONLY on every change.
+      Billing plans and limits (Postgres servers with `[billing] enabled` only): an organization's plan, billing
+      status, transfer allowance and closed monthly periods. With
+      `[billing] provider = "stripe"`, also the payment provider: checkout, the customer portal, invoices, webhooks and
+      the overdue state; an organization read-only for an overdue payment gets 403 with ERR_CODE_BILLING_READ_ONLY on
+      every change.
   - name: Operator
     description: >-
       Platform operator API (Postgres servers only): manage the organizations of the server. Available to
@@ -69,6 +71,20 @@ paths:
     $ref: paths/me_ip.yaml
   /me/tokens:
     $ref: paths/me_token.yaml
+  /me/organizations:
+    $ref: paths/me_organizations.yaml
+  /me/organization:
+    $ref: paths/me_organization.yaml
+  /organization/members:
+    $ref: paths/organization_members.yaml
+  /organization/invitations:
+    $ref: paths/organization_invitations.yaml
+  /organization/invitations/{username}:
+    $ref: paths/organization_invitations_{username}.yaml
+  /me/invitations:
+    $ref: paths/me_invitations.yaml
+  /me/invitations/{organization}:
+    $ref: paths/me_invitations_{organization}.yaml
   /status:
     $ref: paths/status.yaml
   /operator/organizations:
@@ -83,10 +99,34 @@ paths:
     $ref: paths/operator_organizations_{id}_device-limit.yaml
   /operator/organizations/{id}/admins:
     $ref: paths/operator_organizations_{id}_admins.yaml
+  /operator/organizations/{id}/members:
+    $ref: paths/operator_organizations_{id}_members.yaml
   /operator/organizations/{id}/usage:
     $ref: paths/operator_organizations_{id}_usage.yaml
   /operator/usage:
     $ref: paths/operator_usage.yaml
+  /operator/billing:
+    $ref: paths/operator_billing.yaml
+  /operator/billing/periods:
+    $ref: paths/operator_billing_periods.yaml
+  /operator/organizations/{id}/billing:
+    $ref: paths/operator_organizations_{id}_billing.yaml
+  /operator/organizations/{id}/billing/plan:
+    $ref: paths/operator_organizations_{id}_billing_plan.yaml
+  /operator/organizations/{id}/billing/status:
+    $ref: paths/operator_organizations_{id}_billing_status.yaml
+  /operator/organizations/{id}/billing/override:
+    $ref: paths/operator_organizations_{id}_billing_override.yaml
+  /operator/organizations/{id}/billing/periods:
+    $ref: paths/operator_organizations_{id}_billing_periods.yaml
+  /operator/organizations/{id}/billing/periods/{month}/approve:
+    $ref: paths/operator_organizations_{id}_billing_periods_{month}_approve.yaml
+  /billing:
+    $ref: paths/billing.yaml
+  /billing/periods:
+    $ref: paths/billing_periods.yaml
+  /billing/spending-limit:
+    $ref: paths/billing_spending-limit.yaml
   /usage:
     $ref: paths/usage.yaml
   /billing/webhook:
