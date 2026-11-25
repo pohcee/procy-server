@@ -73,11 +73,20 @@ func TestNodeAccountInTwoOrganizations(t *testing.T) {
 	code, out = h.do(t, http.MethodPost, "/organization/members", bob, map[string]any{"username": "alice"})
 	assert.Equal(t, http.StatusConflict, code, out["_raw"])
 
-	// the login lists both; with none named it goes to the first (a)
+	// a login naming no organization gets the list and no token, before 2FA
 	code, data = h.loginAs(t, map[string]string{"username": "alice", "password": testPassword})
 	require.Equal(t, http.StatusOK, code, data)
 	assert.Equal(t, []string{"a", "b"}, orgIDs(t, data["organizations"]))
+	assert.Nil(t, data["token"])
+	assert.Nil(t, data["two_fa"])
+	assert.NotContains(t, data, "organization")
+
+	// the client repeats it with the organization query parameter
+	code, out = h.do(t, http.MethodPost, "/login?organization=a", "", map[string]string{"username": "alice", "password": testPassword})
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	data = out["data"].(map[string]any)
 	assert.Equal(t, "a", data["organization"])
+	assert.Equal(t, []string{"a", "b"}, orgIDs(t, data["organizations"]))
 	tokA := data["token"].(string)
 	code, out = h.do(t, http.MethodGet, "/clients", tokA, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
@@ -95,11 +104,6 @@ func TestNodeAccountInTwoOrganizations(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, code, "not an administrator in b: %s", out["_raw"])
 	code, out = h.do(t, http.MethodGet, "/users", tokA, nil)
 	assert.Equal(t, http.StatusOK, code, "an administrator in a: %s", out["_raw"])
-
-	// b was remembered: the next login naming none goes there
-	code, data = h.loginAs(t, map[string]string{"username": "alice", "password": testPassword})
-	require.Equal(t, http.StatusOK, code, data)
-	assert.Equal(t, "b", data["organization"])
 
 	// switching from a gives a token of b; the token of a stays in a
 	code, out = h.do(t, http.MethodGet, "/me/organizations", tokA, nil)

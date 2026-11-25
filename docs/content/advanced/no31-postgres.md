@@ -312,11 +312,12 @@ A login (normally an email address) is one **account** with one password, passwo
 secret, and can be a **member** of several organizations. Each membership has its own permission groups and 2FA
 delivery address; an organization's administrators are the members of its Administrators group, as before.
 
-* **Login.** A login of one organization sees no change. A login of several goes to the organization it last picked
-  (else its first by id) unless the request names one: `POST /api/v1/login` with
-  `{"username": ..., "password": ..., "organization": "acme"}`. Its login response adds `organization` (the one the
-  token is for) and `organizations` (id and name of each). A login naming an organization it isn't a member of is
-  refused like a wrong password. Basic auth with the password goes to the last-picked organization.
+* **Login.** A login of one organization sees no change. A login of several that names no organization gets, once
+  its password is verified and before any 2FA, `"token": null` and `organizations` (id and name of each); the
+  client repeats the login with `?organization=acme` (or `"organization": "acme"` in the body). That response adds
+  `organization` (the one the token is for) and `organizations`. A login naming an organization it isn't a member
+  of is refused like a wrong password. Basic auth with the password (not a login) goes to the organization the
+  login last picked, else its first by id.
 * **Switching.** `GET /api/v1/me/organizations` lists the login's active organizations (`current` marks the one of
   the request); `POST /api/v1/me/organization` with `{"organization": "acme"}` returns a session token for that
   organization and remembers it. The old token keeps working in its own organization. Only session tokens switch.

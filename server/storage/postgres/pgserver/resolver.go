@@ -38,7 +38,8 @@ var loginPath = routes.AllRoutesPrefix + "/login"
 //   - basic auth with an API token goes to the tenant the token belongs to (api_token_logins; a token is bound to
 //     one organization);
 //   - basic auth with a password and the username of a login request are looked up in the global membership index:
-//     a login request may name the organization ("organization"), which must be one the login is a member of;
+//     a login request may name the organization ("organization", query parameter or body field), which must be one
+//     the login is a member of;
 //     otherwise the login goes to the organization it last picked (accounts.last_tenant_id), or else to its first
 //     membership by id. A login of one organization goes there, as before;
 //   - a tenant that isn't active, and everything else, resolves to Unresolved.
@@ -69,7 +70,7 @@ func (r *Resolver) Resolve(req *http.Request) (tenant.ID, error) {
 				return id, err
 			}
 		}
-		return r.fromUsername(req, user, "")
+		return r.fromUsername(req, user, loginOrganization(req, ""))
 	}
 	if tok, ok := bearer.GetBearerToken(req); ok {
 		return r.fromToken(req, tok)
@@ -79,7 +80,7 @@ func (r *Resolver) Resolve(req *http.Request) (tenant.ID, error) {
 		if err != nil || user == "" {
 			return Unresolved, nil
 		}
-		return r.fromUsername(req, user, org)
+		return r.fromUsername(req, user, loginOrganization(req, org))
 	}
 	return Unresolved, nil
 }
@@ -141,6 +142,18 @@ func (r *Resolver) active(req *http.Request, id tenant.ID) (tenant.ID, error) {
 		return Unresolved, nil
 	}
 	return id, nil
+}
+
+// loginOrganization is the organization a login request names: the "organization" query parameter, else the
+// body's (fromBody). Other requests name none.
+func loginOrganization(req *http.Request, fromBody string) string {
+	if strings.TrimSuffix(req.URL.Path, "/") != loginPath {
+		return ""
+	}
+	if org := req.URL.Query().Get("organization"); org != "" {
+		return org
+	}
+	return fromBody
 }
 
 // loginUsername reads the username and organization of a login request the way the login handler does (form or

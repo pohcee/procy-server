@@ -30,7 +30,7 @@ type loginResponse struct {
 	TwoFA *twoFAResponse `json:"two_fa"` // null if 2fa is off
 	// Organization and Organizations are set only for a login that belongs to several organizations (Postgres):
 	// the organization the token is for, and every organization the login may switch to (POST /me/organization) or
-	// name at the next login ("organization").
+	// name at login ("organization"). A login of several that names none gets Organizations and no token.
 	Organization  *string                   `json:"organization,omitempty"`
 	Organizations []membership.Organization `json:"organizations,omitempty"`
 }
@@ -60,6 +60,27 @@ func (al *APIListener) withOrganizations(ctx context.Context, username string, r
 	resp.Organization = &current
 	resp.Organizations = orgs
 	return resp, nil
+}
+
+// organizationParam names the organization of a login (query parameter, or a field of the POST body).
+const organizationParam = "organization"
+
+// answerOrganizationChoice answers the login of username with its organizations and no token, and returns true,
+// when it belongs to several and the request names none (Postgres). Otherwise it does nothing.
+func (al *APIListener) answerOrganizationChoice(w http.ResponseWriter, req *http.Request, username string) bool {
+	if al.memberships == nil || req.URL.Query().Get(organizationParam) != "" {
+		return false
+	}
+	orgs, err := al.memberships.Organizations(req.Context(), username)
+	if err != nil {
+		al.jsonError(w, err)
+		return true
+	}
+	if len(orgs) < 2 {
+		return false
+	}
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(loginResponse{Organizations: orgs}))
+	return true
 }
 
 // writeLoginResponse answers a login with resp and the organizations of username.
@@ -131,6 +152,12 @@ func (al *APIListener) handleLogin(username, pwd string, newpwd string, skipPass
 	lifetime, err := parseTokenLifetime(req)
 	if err != nil {
 		al.jsonErrorResponse(w, http.StatusBadRequest, err)
+		return
+	}
+
+	// A login of several organizations that names none gets their list and no token, before any 2FA or password
+	// change: the client repeats the login with the organization query parameter ("organization").
+	if done := al.answerOrganizationChoice(w, req, username); done {
 		return
 	}
 
@@ -287,7 +314,7 @@ func (al *APIListener) handlePostLogin(w http.ResponseWriter, req *http.Request)
 	}
 
 	// updating the Password via newPassword field is allowed with a POST or PATCH request
-	username, pwd, newPassword, err := parseLoginRequestBody(req)
+	username, pwd, newPassword, org, err := parseLoginRequestBody(req)
 
 	if err != nil {
 		// ban IP if it sends a lot of bad requests
@@ -298,38 +325,43 @@ func (al *APIListener) handlePostLogin(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	if org != "" && req.URL.Query().Get(organizationParam) == "" {
+		// the organization may come in the body too; handleLogin reads it from the query
+		q := req.URL.Query()
+		q.Set(organizationParam, org)
+		req.URL.RawQuery = q.Encode()
+	}
 	al.handleLogin(username, pwd, newPassword, false, w, req)
 }
 
-func parseLoginRequestBody(req *http.Request) (string, string, string, error) {
+func parseLoginRequestBody(req *http.Request) (username, password, newPassword, organization string, _ error) {
 	reqContentType := req.Header.Get("Content-Type")
 	if reqContentType == "application/x-www-form-urlencoded" {
 		err := req.ParseForm()
 		if err != nil {
-			return "", "", "", errors2.APIError{
+			return "", "", "", "", errors2.APIError{
 				Err:        fmt.Errorf("failed to parse form: %v", err),
 				HTTPStatus: http.StatusBadRequest,
 			}
 		}
-		return req.PostForm.Get("username"), req.PostForm.Get("password"), req.PostForm.Get("new_password"), nil
+		return req.PostForm.Get("username"), req.PostForm.Get("password"), req.PostForm.Get("new_password"), req.PostForm.Get(organizationParam), nil
 	}
 	if reqContentType == "application/json" {
 		type loginReq struct {
 			Username    string `json:"username"`
 			Password    string `json:"password"`
 			NewPassword string `json:"new_password"`
-			// Organization picks the organization of a login in several (Postgres); the tenant resolver reads it
-			// before the request gets here, so it is only accepted, not used, by the handler
+			// Organization picks the organization of a login in several (Postgres), like the query parameter
 			Organization string `json:"organization"`
 		}
 		var params loginReq
 		err := parseRequestBody(req.Body, &params)
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", "", err
 		}
-		return params.Username, params.Password, params.NewPassword, nil
+		return params.Username, params.Password, params.NewPassword, params.Organization, nil
 	}
-	return "", "", "", errors2.APIError{
+	return "", "", "", "", errors2.APIError{
 		Message:    fmt.Sprintf("unsupported content type: %s", reqContentType),
 		HTTPStatus: http.StatusBadRequest,
 	}

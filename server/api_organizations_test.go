@@ -116,3 +116,22 @@ func TestAdminsDontChangeSharedAccounts(t *testing.T) {
 	al := &APIListener{}
 	assert.False(t, al.refuseSharedAccountChange(httptest.NewRecorder(), httptest.NewRequest(http.MethodPut, "/", nil), "alice", &users.User{Password: "x"}))
 }
+
+func TestLoginOfSeveralOrganizationsNamingNoneGetsTheListOnly(t *testing.T) {
+	f := &fakeMemberships{orgs: []membership.Organization{{ID: "a", Name: "A"}, {ID: "b", Name: "B"}}}
+	al := &APIListener{memberships: f, apiServices: &apiServices{}, Logger: testLog}
+	ctx := tenant.WithID(context.Background(), "a")
+
+	w := httptest.NewRecorder()
+	require.True(t, al.answerOrganizationChoice(w, httptest.NewRequest(http.MethodPost, "/api/v1/login", nil).WithContext(ctx), "alice"))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"data":{"token":null,"two_fa":null,"organizations":[{"id":"a","name":"A"},{"id":"b","name":"B"}]}}`, w.Body.String())
+
+	assert.False(t, al.answerOrganizationChoice(httptest.NewRecorder(),
+		httptest.NewRequest(http.MethodPost, "/api/v1/login?organization=b", nil).WithContext(ctx), "alice"), "an organization named")
+	f.orgs = f.orgs[:1]
+	assert.False(t, al.answerOrganizationChoice(httptest.NewRecorder(),
+		httptest.NewRequest(http.MethodPost, "/api/v1/login", nil).WithContext(ctx), "alice"), "one organization: as before")
+	assert.False(t, (&APIListener{}).answerOrganizationChoice(httptest.NewRecorder(),
+		httptest.NewRequest(http.MethodPost, "/api/v1/login", nil), "alice"), "standalone")
+}

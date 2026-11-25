@@ -29,6 +29,7 @@ import (
 	"github.com/openrport/openrport/server/dispatch"
 	"github.com/openrport/openrport/server/jobrunner"
 	"github.com/openrport/openrport/server/library"
+	"github.com/openrport/openrport/server/membership"
 	"github.com/openrport/openrport/server/metering"
 	"github.com/openrport/openrport/server/monitoring"
 	"github.com/openrport/openrport/server/notifications"
@@ -36,7 +37,6 @@ import (
 	"github.com/openrport/openrport/server/notifications/channels/scriptRunner"
 	"github.com/openrport/openrport/server/notifications/channels/toLog"
 	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
-	"github.com/openrport/openrport/server/membership"
 	"github.com/openrport/openrport/server/operator"
 	"github.com/openrport/openrport/server/routes"
 

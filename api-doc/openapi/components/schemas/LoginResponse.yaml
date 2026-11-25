@@ -42,7 +42,8 @@ properties:
     type: array
     description: >-
       The active organizations of the login, by name. Present only for a login that belongs to several
-      organizations (Postgres servers).
+      organizations (Postgres servers). When the login named no organization, `token` and `two_fa` are null: repeat
+      the login with the query parameter `organization`.
     items:
       $ref: ./MembershipOrganization.yaml
 description: Response returned by `/login` endpoints
