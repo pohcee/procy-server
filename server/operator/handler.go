@@ -32,7 +32,7 @@ type Options struct {
 	Usage metering.Reader
 	// Billing, when set ([billing] enabled), serves the billing routes.
 	Billing billing.OperatorService
-	// Plans, with Billing, serves the plan catalogue.
+	// Plans, with Billing, serves the plan catalog.
 	Plans *billing.Plans
 	// CurrentUser returns the authenticated user of the request (an errors.APIError when there is none).
 	CurrentUser func(ctx context.Context) (*users.User, error)

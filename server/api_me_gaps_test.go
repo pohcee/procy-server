@@ -12,7 +12,7 @@ import (
 	"github.com/openrport/openrport/server/chconfig"
 )
 
-// Standalone: no email_verified on /me, and no organization, plan catalogue or billing routes.
+// Standalone: no email_verified on /me, and no organization, plan catalog or billing routes.
 func TestStandaloneHasNoPostgresOnlyFields(t *testing.T) {
 	b, err := json.Marshal(UserPayload{Username: "u"})
 	require.NoError(t, err)

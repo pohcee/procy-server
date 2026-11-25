@@ -82,14 +82,14 @@ func TestBillingEndToEnd(t *testing.T) {
 	assert.Contains(t, cp, "billable_devices")
 	assert.Contains(t, cp, "peak_devices")
 
-	// the plan catalogue: administrators and operators; prices in cents, no provider ids
+	// the plan catalog: administrators and operators; prices in cents, no provider ids
 	code, out = h.do(t, http.MethodGet, "/billing/plans", carl, nil)
 	assert.Equal(t, http.StatusForbidden, code, "administrators only: %v", out["_raw"])
 	code, out = h.do(t, http.MethodGet, "/billing/plans", alice, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
-	catalogue := out["data"].([]any)
-	require.Len(t, catalogue, 2)
-	free, team := catalogue[0].(map[string]any), catalogue[1].(map[string]any)
+	catalog := out["data"].([]any)
+	require.Len(t, catalog, 2)
+	free, team := catalog[0].(map[string]any), catalog[1].(map[string]any)
 	assert.Equal(t, "free", free["id"])
 	assert.Equal(t, true, free["free"])
 	assert.EqualValues(t, 1<<20, free["transfer_base_bytes"])

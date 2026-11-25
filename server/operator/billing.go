@@ -43,7 +43,7 @@ func (h *Handler) billingAccounts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) billingPlans(w http.ResponseWriter, _ *http.Request) {
-	h.respond.JSON(w, http.StatusOK, api.NewSuccessPayload(h.plans.Catalogue()))
+	h.respond.JSON(w, http.StatusOK, api.NewSuccessPayload(h.plans.Catalog()))
 }
 
 func (h *Handler) billingAccount(w http.ResponseWriter, r *http.Request) {

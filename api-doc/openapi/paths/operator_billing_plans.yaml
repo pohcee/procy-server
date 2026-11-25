@@ -1,7 +1,7 @@
 get:
   tags:
     - Billing
-  summary: Return the plan catalogue (operators)
+  summary: Return the plan catalog (operators)
   description: >-
     The plans of the plans file with prices in USD cents and sizes in bytes. It never has the payment provider's
     price ids. `free` marks the free plan, `trial` the plan new organizations try (for `trial_days`), `purchasable`

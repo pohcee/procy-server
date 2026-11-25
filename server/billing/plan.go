@@ -378,7 +378,7 @@ func DayStart(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
 
-// PlanInfo is a plan as the plan catalogue API shows it (GET /billing/plans): prices in USD cents, sizes in bytes.
+// PlanInfo is a plan as the plan catalog API shows it (GET /billing/plans): prices in USD cents, sizes in bytes.
 // It has no provider price ids or other secrets.
 type PlanInfo struct {
 	ID   string `json:"id"`
@@ -407,8 +407,8 @@ type PlanInfo struct {
 	Purchasable bool `json:"purchasable"`
 }
 
-// Catalogue returns the plans in the order of the plans file, as the API shows them.
-func (p *Plans) Catalogue() []PlanInfo {
+// Catalog returns the plans in the order of the plans file, as the API shows them.
+func (p *Plans) Catalog() []PlanInfo {
 	out := make([]PlanInfo, 0, len(p.List))
 	for i := range p.List {
 		pl := &p.List[i]

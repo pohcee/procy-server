@@ -82,7 +82,7 @@ var (
 // Error codes of POST /signup/verify (the HTTP statuses are the ones of ErrInvalid and ErrToken).
 const (
 	// ErrCodeInvalidPassword: the password is refused; the link still works, try another password.
-	ErrCodeInvalidPassword = "ERR_CODE_INVALID_PASSWORD"
+	ErrCodeInvalidPassword = "ERR_CODE_INVALID_PASSWORD" //nolint:gosec // an error code, not a credential
 	// ErrCodeSignupLinkInvalid: the link is unknown, used or expired.
 	ErrCodeSignupLinkInvalid = "ERR_CODE_SIGNUP_LINK_INVALID"
 )

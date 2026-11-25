@@ -423,9 +423,9 @@ func TestEvaluateUnassignedAndStickyFailOpen(t *testing.T) {
 	assert.Equal(t, "implausible transfer", pol.FailOpen)
 }
 
-// The plan catalogue has prices in cents and never the provider's price ids.
-func TestCatalogue(t *testing.T) {
-	c := plans(t).Catalogue()
+// The plan catalog has prices in cents and never the provider's price ids.
+func TestCatalog(t *testing.T) {
+	c := plans(t).Catalog()
 	require.Len(t, c, 3)
 	assert.Equal(t, "free", c[0].ID)
 	assert.True(t, c[0].Free)

@@ -59,9 +59,9 @@ func (al *APIListener) handleGetBilling(w http.ResponseWriter, req *http.Request
 	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(billingResponse{a}))
 }
 
-// handleGetBillingPlans handles GET /billing/plans: the plan catalogue (no provider ids).
+// handleGetBillingPlans handles GET /billing/plans: the plan catalog (no provider ids).
 func (al *APIListener) handleGetBillingPlans(w http.ResponseWriter, _ *http.Request) {
-	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(al.billing.Plans.Catalogue()))
+	al.writeJSONResponse(w, http.StatusOK, api.NewSuccessPayload(al.billing.Plans.Catalog()))
 }
 
 // handleGetBillingPeriods handles GET /billing/periods: the closed periods, newest first.
