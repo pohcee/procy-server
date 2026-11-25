@@ -1,0 +1,34 @@
+post:
+  tags:
+    - Operator
+  summary: Delete an organization now. Platform operators only
+  description: >-
+    Ends the hold of a pending deletion and deletes the organization at once: its vault key is shredded and every row of the tenant is deleted. Irreversible.
+  operationId: OperatorOrganizationDeletionExpeditePost
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    '204':
+      description: Deleted
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No pending deletion, or no such organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

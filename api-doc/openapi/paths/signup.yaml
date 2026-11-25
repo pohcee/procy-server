@@ -1,0 +1,97 @@
+get:
+  tags:
+    - Signup
+  summary: Signup settings for the signup page
+  description: >-
+    Public. Whether signup is on, the captcha provider and its site key, whether signups need the approval of an operator, the password length and the trial days.
+  operationId: SignupConfigGet
+  responses:
+    '200':
+      description: Settings
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  enabled: {type: boolean}
+                  captcha: {type: string, enum: ['', turnstile, hcaptcha]}
+                  captcha_site_key: {type: string}
+                  require_approval: {type: boolean}
+                  password_min_length: {type: integer}
+                  trial_days: {type: integer}
+    '404':
+      description: No signup on this server (standalone, or `[signup]` not enabled)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+post:
+  tags:
+    - Signup
+  summary: Start a signup
+  description: >-
+    Public. Checks the input, the captcha (server-side), the email domain (blocklist, allowlist, MX) and the rate limits per IP, email domain and email (per day), then emails a single-use verification link valid for `[signup] token_ttl` (24h). The link opens the web UI at `/auth/signup/verify?token=...`. The answer is the same whether or not the email already has an account; such an email gets a notice instead of a link. Audited in `_system` as `signup:<email>` with the remote IP.
+  operationId: SignupPost
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - email
+            - organization
+            - password
+          properties:
+            email:
+              type: string
+              description: The email; it becomes the login of the first administrator
+            organization:
+              type: string
+              description: The organization name (1 to 200 characters); its id is generated from it
+            password:
+              type: string
+              description: The password of the first administrator ([api] password rules)
+            captcha:
+              type: string
+              description: The response token of the captcha widget, when the server uses one
+  responses:
+    '202':
+      description: The email was sent (or a notice, for an existing account)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  status: {type: string, example: sent}
+                  message: {type: string}
+    '400':
+      description: Invalid input, captcha not solved, or the email domain is not accepted
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup on this server (standalone, or `[signup]` not enabled)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '429':
+      description: Too many signups today from this address, domain or email
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '503':
+      description: The email could not be sent
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

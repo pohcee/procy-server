@@ -41,9 +41,9 @@ func TestSignupDefaultsAndChecks(t *testing.T) {
 		"negative trial":      {Enabled: true, PublicURL: "https://x", Mail: SignupMailLog, TrialDays: &neg},
 		"negative hold":       {Enabled: true, PublicURL: "https://x", Mail: SignupMailLog, DeletionHold: -time.Hour},
 	} {
-		c := postgresConfig()
-		c.Signup = sc
-		assert.Error(t, validate(c), name)
+		cc := postgresConfig()
+		cc.Signup = sc
+		assert.Error(t, validate(cc), name)
 	}
 
 	c = postgresConfig()

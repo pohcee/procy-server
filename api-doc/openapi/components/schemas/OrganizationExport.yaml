@@ -1,0 +1,12 @@
+type: object
+properties:
+  format: {type: string, example: procy-organization-export/1}
+  exported_at: {type: string, format: date-time}
+  organization: {type: object}
+  users: {type: array, items: {type: object}}
+  user_groups: {type: array, items: {type: object}}
+  clients: {type: array, items: {type: object}}
+  client_groups: {type: array, items: {type: object}}
+  stored_tunnels: {type: array, items: {type: object}}
+  schedules: {type: array, items: {type: object}}
+  library: {type: array, items: {type: object}}

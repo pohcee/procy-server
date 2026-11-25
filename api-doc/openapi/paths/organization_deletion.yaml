@@ -1,0 +1,62 @@
+post:
+  tags:
+    - Signup
+  summary: Delete the organization
+  description: >-
+    Administrators of the organization. The organization is suspended at once (nobody can log in, devices cannot connect), its billing is closed, its administrators get an email with a link to cancel, and after `[signup] deletion_hold` (30 days) its data is deleted with its vault key shredded. The id is never given out again.
+  operationId: OrganizationDeletionPost
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - confirm
+          properties:
+            confirm:
+              type: string
+              description: The id of the organization, to confirm
+            reason:
+              type: string
+              description: Optional, at most 1000 characters
+  responses:
+    '202':
+      description: The deletion is pending
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/OrganizationDeletion.yaml
+    '400':
+      description: confirm is not the id of the organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator, or in the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup on this server (standalone, or `[signup]` not enabled)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: A deletion is pending already
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

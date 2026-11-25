@@ -1,0 +1,50 @@
+post:
+  tags:
+    - Operator
+  summary: Deny a signup. Platform operators only
+  description: >-
+    Refuses a pending or awaiting signup; an awaiting one is told by email.
+  operationId: OperatorSignupDenyPost
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  requestBody:
+    required: false
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            reason:
+              type: string
+              description: Optional
+  responses:
+    '204':
+      description: Denied
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup or operator API on this server, the request is not from the system organization, or no such signup or organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: The signup is not pending or awaiting approval
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

@@ -1,0 +1,35 @@
+get:
+  tags:
+    - Signup
+  summary: Export the organization
+  description: >-
+    Administrators of the organization. Its configuration as JSON: users (login, groups, 2FA address), user groups, clients, client groups, stored tunnels, schedules and library entries (active version). No secrets: no passwords, TOTP secrets, API tokens, client credentials or vault values, and JSON members named like a password, secret or token are removed. Audited in `_system`.
+  operationId: OrganizationExportGet
+  responses:
+    '200':
+      description: The export
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/OrganizationExport.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator, or in the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup on this server (standalone, or `[signup]` not enabled)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

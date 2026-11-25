@@ -64,7 +64,8 @@ func (s *SiteVerify) Verify(ctx context.Context, response, remoteIP string) erro
 	if remoteIP != "" {
 		form.Set("remoteip", remoteIP)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.URL, strings.NewReader(form.Encode()))
+	// s.URL is one of the provider constants (or a test server), never request input
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.URL, strings.NewReader(form.Encode())) //nolint:gosec // G704: see above
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrCaptcha, err)
 	}
@@ -73,7 +74,7 @@ func (s *SiteVerify) Verify(ctx context.Context, response, remoteIP string) erro
 	if c == nil {
 		c = &http.Client{Timeout: captchaTimeout}
 	}
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec // G704: the provider's fixed URL
 	if err != nil {
 		return fmt.Errorf("%w: the provider could not be reached", ErrCaptcha)
 	}

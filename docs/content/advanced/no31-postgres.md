@@ -375,6 +375,82 @@ Accuracy:
   node's count, not the cluster's (device-days and `device_seconds` add up across nodes correctly).
 * Hours come from each node's clock; the count of the seconds before a sample is attributed to the sample's hour.
 
+## Self-service signup
+
+With `[signup]` on, visitors create their own organization: they give an email, an organization name and a
+password, confirm the email with a link, and become the organization's first administrator. Off by default;
+refused on SQLite. Turning it off closes signup without touching existing organizations.
+
+```toml
+[signup]
+  enabled = true
+  public_url = "https://rport.example.com"   # the web UI the links in the emails point to
+  trial_plan = "team"                        # reported to the UI; trial_days = 14 (0: no trial, default_plan)
+  trial_device_limit = 25                    # the device limit until a payment method is on file
+  captcha = "turnstile"                      # or "hcaptcha", or "" (none)
+  captcha_secret_file = "/run/secrets/turnstile"
+  captcha_site_key = "0x4AAAA..."            # public, given to the UI
+  blocked_domains_file = "/etc/rportd/disposable-domains.txt"
+  # allowed_domains_file = ""                # only these domains (private clusters)
+  # check_mx = false                         # refuse domains without a mail server
+  max_per_ip_per_day = 3                     # a negative value turns a limit off
+  max_per_domain_per_day = 10
+  max_per_email_per_day = 3
+  # require_approval = false                 # hold verified signups for an operator
+  # token_ttl = "24h"
+  # deletion_hold = "720h"
+  # mail = "smtp"                            # "log": only log the emails and their links (development)
+```
+
+The emails go through `[smtp]`. After upgrading, run `rportd migrate --grant-to <application role>` once more:
+the application role needs `EXECUTE` on `rport_signup_delete_tenant` (migration 1550).
+
+The flow:
+
+1. `POST /api/v1/signup {email, organization, password, captcha}` (public). The input, the password rules of
+   `[api]`, the captcha (checked with the provider, server-side, before any email), the domain lists and the rate
+   limits are checked; then a single-use link valid for `token_ttl` is emailed
+   (`<public_url>/auth/signup/verify?token=...`). The token is stored only as a SHA-256 hash, the password only as
+   a bcrypt hash until the organization exists. The answer (202) is the same whether or not the email already has
+   an account; an existing account gets a notice to sign in instead of a link. The rate limits count the signups of
+   the last 24 hours in the database, so they hold across nodes; refused requests count for nothing.
+2. `POST /api/v1/signup/verify {token}` (public) creates the organization through the operator service: its id is
+   a slug of the name with a random suffix (`acme-corp-x7k2m9`), never chosen freely; the user is its administrator
+   with the password they chose; the device limit is `trial_device_limit`. The answer has the organization id, the
+   plan and `checkout_required` (false for a trial). With `require_approval` it answers 202
+   `awaiting_approval` instead and an operator approves or denies.
+3. Every step is in the audit log of `_system`, with the actor `signup:<email>` and the remote IP.
+
+Signups expire after `token_ttl` (verified ones waiting for approval after 30 days); the upkeep (every 5 minutes,
+one node at a time) clears their password hashes.
+
+Leaving:
+
+* `GET /api/v1/organization/export` (administrators): the organization's configuration as JSON — users (login,
+  groups, 2FA address), user groups, clients, client groups, stored tunnels, schedules and the active versions of
+  the library entries. No passwords, TOTP secrets, API tokens, client credentials or vault values; JSON members
+  named like a password, secret or token are removed.
+* `POST /api/v1/organization/deletion {confirm: "<organization id>", reason}` (administrators): the organization
+  is suspended at once (nobody signs in, devices can't connect), its administrators get an email with a link to
+  cancel (`POST /api/v1/signup/cancel-deletion {token}`, public, since they can't sign in), and after
+  `deletion_hold` the upkeep deletes it: its vault key is shredded (managed vault keys), the tenant row is deleted
+  and every table cascades. The id goes to `deleted_tenant_ids` and is never given out again. An operator who
+  reactivates the organization during the hold calls the deletion off.
+
+Operators (`/api/v1/operator`, audited):
+
+| Method | Path | |
+|---|---|---|
+| `GET` | `/signups?status&limit` | recent signups, newest first |
+| `POST` | `/signups/{id}/approve`, `/signups/{id}/deny {reason}` | with `require_approval` |
+| `GET` | `/deletions?state&limit` | pending, canceled and done deletions |
+| `GET` | `/organizations/{id}/export` | any organization's export |
+| `POST`, `DELETE` | `/organizations/{id}/deletion` | start or cancel a deletion |
+| `POST` | `/organizations/{id}/deletion/expedite` | delete now (irreversible) |
+
+`GET /api/v1/status` reports `capabilities.signup: true`; `GET /api/v1/signup` (public) gives the signup page the
+captcha provider and site key, `require_approval`, the password length and the trial days.
+
 ## Developing
 
 `go run ./server/storage/postgres/pgtest/devdb` starts a throwaway Postgres without Docker and prints a `[storage]`

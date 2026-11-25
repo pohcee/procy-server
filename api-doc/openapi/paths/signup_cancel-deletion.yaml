@@ -1,0 +1,44 @@
+post:
+  tags:
+    - Signup
+  summary: Cancel the deletion of an organization
+  description: >-
+    Public. Takes the token of the link mailed to the administrators when the deletion was requested (they cannot log in to the suspended organization). The organization gets back the status it had.
+  operationId: SignupCancelDeletionPost
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - token
+          properties:
+            token:
+              type: string
+              description: The token from the link
+  responses:
+    '200':
+      description: Canceled
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  organization: {type: string}
+                  state: {type: string, example: canceled}
+    '400':
+      description: The link is unknown, used, or the deletion is no longer pending
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup on this server (standalone, or `[signup]` not enabled)
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

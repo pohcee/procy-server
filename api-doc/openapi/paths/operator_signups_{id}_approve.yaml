@@ -1,0 +1,47 @@
+post:
+  tags:
+    - Operator
+  summary: Approve a signup. Platform operators only
+  description: >-
+    Creates the organization of a signup awaiting approval (`[signup] require_approval`) and emails the user.
+  operationId: OperatorSignupApprovePost
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    '201':
+      description: Created
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/SignupResult.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No signup or operator API on this server, the request is not from the system organization, or no such signup or organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '409':
+      description: The signup is not awaiting approval
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
