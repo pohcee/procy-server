@@ -70,7 +70,9 @@ To accept an invitation, your account's email address must be confirmed. If it i
 
 ## How members sign in
 
-Members can sign in with a password, with Google, or both. A Google account is linked to a login the first time
+Organizations created by signing up on procy.sh require Google sign-in from the start (see
+[below](#require-google-sign-in)), so their members always sign in with Google. In other organizations, members can
+sign in with a password, with Google, or both. A Google account is linked to a login the first time
 someone signs in with Google using the login's email address. The Users list shows **Google linked** for those
 members.
 

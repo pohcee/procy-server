@@ -20,17 +20,14 @@ Hosted Procy is in preview. Features and plans may change.
 3. Choose **Continue with Google**. Google confirms your email address, so no confirmation link is sent. This works
    with Gmail and Google Workspace addresses.
 
-   If you can't use a Google account, enter your **Work email** instead and choose **Create organization**. We email
-   you a link to confirm the address and set a password. The link works once and expires after a day. If nothing
-   arrives, check your spam folder.
-
 You become the organization's first administrator. Every organization starts with a free trial, and no payment
 method is needed to start. See [Billing and usage](/docs/hosted/billing-and-usage/) for what happens when the trial
 ends.
 
-{{< hint type=tip >}}
-Sign in with Google if you can. You don't have to manage a password, and your administrator can later
-[require Google sign-in](/docs/hosted/organizations/#require-google-sign-in) for the whole organization.
+{{< hint type=note >}}
+Signup on procy.sh is Google-only for now, and new organizations
+[require Google sign-in](/docs/hosted/organizations/#require-google-sign-in): nobody in them has a Procy password.
+Sign-in with Microsoft accounts is planned.
 {{< /hint >}}
 
 ## 2. Wait for the review
