@@ -34,7 +34,7 @@ To quickly generate certificates, follow [this guide](/docs/get-started/securing
 
 * Create the doc root folder. Usually `/var/lib/rport/docroot` is used.
 * Download the latest release of the web UI from [GitHub](https://github.com/pohcee/procy-ui/releases/latest)
-  (`openrport-frontend-<version>.zip`).
+  (`procy-ui-<version>.zip`).
 * Unpack to the doc root folder.
 
 ```bash
@@ -42,7 +42,7 @@ sudo mkdir /var/lib/rport/docroot
 cd /var/lib/rport/docroot
 UI_TAG=$(curl -fsSL https://api.github.com/repos/pohcee/procy-ui/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
 sudo curl -fsSL -o procy-ui.zip \
-  "https://github.com/pohcee/procy-ui/releases/download/${UI_TAG}/openrport-frontend-${UI_TAG#v}.zip"
+  "https://github.com/pohcee/procy-ui/releases/download/${UI_TAG}/procy-ui-${UI_TAG#v}.zip"
 sudo unzip -qq procy-ui.zip && sudo rm -f procy-ui.zip
 cd ~
 sudo chown -R rport:rport /var/lib/rport/docroot
