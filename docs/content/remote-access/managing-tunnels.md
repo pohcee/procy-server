@@ -48,9 +48,9 @@ You can start from the **Tunnels** page (pick the device under **New tunnel**) o
    * **No restrictions (anyone can access)**: anyone who finds the port can reach the device. You must tick
      **I am aware of the risk**. Avoid this for anything sensitive.
 4. **Close automatically**:
-   * **After inactivity of _N_ min** (on by default, 5 minutes): the tunnel closes when no data has passed for that
+   * **After inactivity of *N* min** (on by default, 5 minutes): the tunnel closes when no data has passed for that
      long. Untick it to keep the tunnel open while idle.
-   * **Destroy after _h_ h _m_ min**: closes the tunnel after a fixed time, whether it is used or not (at most 31
+   * **Destroy after *h* h *m* min**: closes the tunnel after a fixed time, whether it is used or not (at most 31
      days).
 5. Optionally tick **Store in library for later re-use** and give it a name. The tunnel's settings are saved on the
    device's **Tunnels** tab under **Stored tunnels and service forwarding**.
@@ -68,7 +68,7 @@ targets tunnels may reach with `tunnel_allowed` in its `rport.conf`; a tunnel ou
 ## Connect
 
 Active tunnels are listed on the **Tunnels** page and on the device's **Tunnels** tab, with the server port, who is
-allowed to connect and when the tunnel closes. Select a tunnel on the Tunnels page to see **Connect to _device_**
+allowed to connect and when the tunnel closes. Select a tunnel on the Tunnels page to see **Connect to *device***
 with a ready-made command and a **Copy** button. The **Connect** (or **Open**) button launches a client for you:
 
 * **SSH**: asks for the username on the device, then opens your system's SSH client through an `ssh://` link, or
@@ -216,7 +216,7 @@ curl -s -u "$CREDS" -X PUT "$PROCY/clients/$CLIENT_ID/tunnels/1/acl" \
   --data-raw '{"acl": "203.0.113.7,198.51.100.0/24"}'
 ```
 
-### Close a tunnel
+### Close a tunnel through the API
 
 ```shell
 curl -s -u "$CREDS" -X DELETE "$PROCY/clients/$CLIENT_ID/tunnels/1"

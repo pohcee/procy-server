@@ -75,8 +75,8 @@ Print the server's status as JSON (`GET /status`).
 Open an SSH session on a device, or run one command there:
 
 ```text
-$ procy-ssh client-01
-$ procy-ssh client-01 "ls -l /tmp"
+procy-ssh client-01
+procy-ssh client-01 "ls -l /tmp"
 ```
 
 `-v` prints what it does, for troubleshooting. Host key checks are skipped, because the tunnel's host and port are
@@ -87,8 +87,8 @@ reused for different devices.
 Copy files to or from a device. Write the remote side as `<device name>:<path>`:
 
 ```text
-$ procy-scp local-file.txt client-01:/tmp/remote-file.txt
-$ procy-scp client-01:/var/log/syslog ./
+procy-scp local-file.txt client-01:/tmp/remote-file.txt
+procy-scp client-01:/var/log/syslog ./
 ```
 
 ### procy-rsync
@@ -97,8 +97,8 @@ Sync files or folders with rsync over SSH. `-d` deletes files at the destination
 (`rsync --delete`):
 
 ```text
-$ procy-rsync ./site/ client-01:/var/www/site/
-$ procy-rsync -d client-01:/etc/nginx/ ./nginx-backup/
+procy-rsync ./site/ client-01:/var/www/site/
+procy-rsync -d client-01:/etc/nginx/ ./nginx-backup/
 ```
 
 ### procy-sshfs
@@ -106,7 +106,7 @@ $ procy-rsync -d client-01:/etc/nginx/ ./nginx-backup/
 Mount a folder of a device locally with SSHFS:
 
 ```text
-$ procy-sshfs client-01:/home/admin /mnt/client-01
+procy-sshfs client-01:/home/admin /mnt/client-01
 ```
 
 ### procy-tunnel

@@ -72,9 +72,9 @@ shows "Updated with Procy _version_"). Click **Duplicate** to make your own edit
 
 | Entry | What it does | Linux | Windows |
 | --- | --- | --- | --- |
-| **Client update** | Updates the Procy client to the latest stable version if it is newer, and rolls back if the client doesn't reconnect. | sh, sudo | PowerShell |
+| **Client update** | Updates the client to the latest stable version if newer; rolls back if it doesn't reconnect. | sh, sudo | PowerShell |
 | **OS updates** | Installs all pending OS updates and restarts the host if needed. | sh, sudo, 30 min | PowerShell, 60 min |
-| **Switch server** | Points the client at the server's connect addresses (the first as server, the others as fallbacks), and rolls back if it doesn't reconnect. | sh, sudo | PowerShell |
+| **Switch server** | Points the client at the server's connect addresses; rolls back if it doesn't reconnect. | sh, sudo | PowerShell |
 
 **OS updates** on Linux works with apt (Debian, Ubuntu, Proxmox VE), dnf or yum (RHEL family) and zypper (SUSE). It
 waits for automatic updates that are already running, respects package holds and keeps local configuration files. A
@@ -143,10 +143,10 @@ curl -s -u "$CREDS" -X POST "$PROCY/library/entries/$ENTRY_ID/run" \
 
 | Method and path | What it does |
 | --- | --- |
-| `GET /library/entries` | List entries. Filters `filter[name]`, `filter[tags]`, `filter[os]`, `filter[builtin]`, `filter[deleted]=true`; `sort=name` or `sort=-updated_at`; `page[limit]`, `page[offset]`. |
+| `GET /library/entries` | List entries. Filters `filter[name]`, `filter[tags]`, `filter[os]`, `filter[builtin]`, `filter[deleted]=true`; `sort`; paging. |
 | `POST /library/entries` | Create an entry (version 1). |
 | `GET /library/entries/{id}` | One entry with its implementations. |
-| `PUT /library/entries/{id}` | Save a new version. Send the whole entry plus `base_version`, the version you edited; if it isn't the active version any more, the answer is `409 Conflict`. Optional `message`. |
+| `PUT /library/entries/{id}` | Save a new version: the whole entry plus `base_version`; `409 Conflict` if that isn't the active version. Optional `message`. |
 | `DELETE /library/entries/{id}` | Delete. `409` with the schedules that use it, if any. |
 | `POST /library/entries/{id}/undelete` | Undelete. |
 | `GET /library/entries/{id}/used-by` | The schedules that run the entry. |
