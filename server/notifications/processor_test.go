@@ -91,9 +91,9 @@ func (suite *ProcessorTestSuite) TestProcessNotificationStateDone() {
 }
 
 func (suite *ProcessorTestSuite) TestProcessNotificationStateError() {
-	queued := suite.SendMail()
-
+	// fail before queuing: the processor runs concurrently and may take the mail at once
 	suite.consumer.fail.Store(true)
+	queued := suite.SendMail()
 
 	suite.awaitNotificationsProcessed()
 
