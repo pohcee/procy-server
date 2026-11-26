@@ -1,11 +1,23 @@
 name: Build docs
 # Builds the docs site served at https://procy.sh/docs/ (Hugo site in docs/, API reference at
-# /docs/api/). The site is uploaded as the "procy-docs" artifact. To publish it, unpack it into a
-# folder on the Procy server and link that folder as <doc_root>/docs.
+# /docs/api/) and uploads it as the "procy-docs" artifact. On main (push or a manual run) the
+# publish job then syncs it into the production static bucket under docs/, which the load
+# balancer serves at procy.sh/docs/. Pull requests only build.
+#
+# Publishing authenticates with Workload Identity Federation (no key): the provider only admits
+# pohcee/procy-server on refs/heads/main, and the service account can write only docs/ in the
+# bucket. Both are defined in pohcee/procy control/infra/terraform/envs/prod/docs_publish.tf
+# (`terraform output docs_publish`); the values below are names, not secrets.
 on:
   push:
     branches:
       - main
+    paths:
+      - 'docs/**'
+      - 'api-doc/**'
+      - 'README.md'
+      - '.github/workflows/build-docs.yml'
+  pull_request:
     paths:
       - 'docs/**'
       - 'api-doc/**'
@@ -43,3 +55,42 @@ jobs:
           name: procy-docs
           path: docs/public
           retention-days: 30
+
+  publish:
+    name: Publish docs
+    needs: docs
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    # One sync at a time; a newer push waits for the running one instead of racing it.
+    concurrency:
+      group: publish-docs
+      cancel-in-progress: false
+    env:
+      DEST: gs://procyon-callidus-procy-prod-static/docs
+    steps:
+      - name: Download the site
+        uses: actions/download-artifact@v4
+        with:
+          name: procy-docs
+          path: site
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/1072829012060/locations/global/workloadIdentityPools/procy-prod-github/providers/github-actions
+          service_account: procy-docs-publisher@procyon-callidus.iam.gserviceaccount.com
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Sync to the bucket
+        run: |
+          test -f site/index.html
+          gcloud storage rsync -r --delete-unmatched-destination-objects site "$DEST"
+
+      - name: Set cache headers
+        # Public objects are cached for an hour by default; pages and the stylesheet change in place.
+        run: gcloud storage objects update "$DEST/**.html" "$DEST/custom.css" --cache-control="public, max-age=300"
