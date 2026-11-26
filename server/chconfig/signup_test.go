@@ -64,3 +64,10 @@ func TestSignupNotifyEmailAndNotice(t *testing.T) {
 	c.Signup = SignupConfig{Enabled: true, PublicURL: "https://x", Mail: SignupMailLog, EmailNotice: strings.Repeat("x", 1001)}
 	assert.ErrorContains(t, validate(c), "email_notice")
 }
+
+// oidc_only refuses signups by email, so it needs [oidc]: without it nobody could sign up.
+func TestSignupOIDCOnlyNeedsOIDC(t *testing.T) {
+	c := postgresConfig()
+	c.Signup = SignupConfig{Enabled: true, PublicURL: "https://x", Mail: SignupMailLog, OIDCOnly: true}
+	assert.ErrorContains(t, validate(c), "[signup] oidc_only needs [oidc]")
+}

@@ -78,6 +78,8 @@ var (
 	ErrConflict = errors.New("conflict")
 	// ErrMail: the email could not be sent.
 	ErrMail = errors.New("the email could not be sent")
+	// ErrEmailSignupOff: [signup] oidc_only refuses signups by email (and links mailed before it was set).
+	ErrEmailSignupOff = errors.New("signup by email is off: continue with Google")
 	// ErrAccountExists: the proven email has an account already (sign in instead). It is also ErrConflict.
 	ErrAccountExists = fmt.Errorf("%w: this email address has an account; sign in instead", ErrConflict)
 )
