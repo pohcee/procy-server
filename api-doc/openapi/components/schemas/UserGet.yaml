@@ -42,7 +42,7 @@ properties:
     description: | 
       Are group permissions enabled. 
       Requires a database for the user authentication and a `group_details` table.
-      [read more](https://procy.sh/docs/get-started/api-authentication/#database)
+      [read more](https://procy.sh/docs/self-hosting/user-authentication/#database)
   effective_user_permissions:
       type: object
       description: The effective user right inherited from the group permissions

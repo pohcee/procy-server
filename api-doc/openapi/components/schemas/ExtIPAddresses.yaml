@@ -1,7 +1,7 @@
 type: object
 description: >-
   External IP addresses of the client fetched from an IP API.
-  [Read More](https://procy.sh/docs/advanced/ip-address-determination/)
+  [Read More](https://procy.sh/docs/devices/ip-address-determination/)
 properties:
   ipv4:
     type: string

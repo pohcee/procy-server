@@ -1,23 +1,508 @@
-/* Procy theming: the header uses the brand navy (app-nav) in every theme. */
-:root {
-    --header-background: #10161F;
-    --header-font-color: #E6EBF2;
-}
+/* Procy docs theme, layered on hugo-geekdoc. Colors and type follow the web UI (ui/assets/css/tailwind.css):
+   brand navy header, blue accent, Inter for text, JetBrains Mono for code. */
 
-:root[color-theme="light"],
-:root[color-theme="dark"] {
-    --header-background: #10161F;
-    --header-font-color: #E6EBF2;
-}
-
-/* Black body text in light mode only. A bare :root rule here would also win
-   over the theme's automatic dark palette and put black text on dark ground. */
+/* ---------- Palette ---------- */
+:root,
 :root[color-theme="light"] {
-    --body-font-color: black;
+    --procy-bg: #ffffff;
+    --procy-surface: #f5f6f8;
+    --procy-muted: #f1f3f6;
+    --procy-border: #e3e6eb;
+    --procy-border-strong: #d5dae1;
+    --procy-text: #14171c;
+    --procy-text-2: #3b4452;
+    --procy-text-3: #5b6472;
+    --procy-accent: #2563eb;
+    --procy-accent-soft: #dbeafe;
+    --procy-link: #1d4ed8;
+
+    --header-background: #10161f;
+    --header-font-color: #e6ebf2;
+    --body-background: var(--procy-bg);
+    --body-font-color: var(--procy-text);
+    --link-color: var(--procy-link);
+    --link-color-visited: var(--procy-link);
+    --accent-color: var(--procy-border);
+    --accent-color-lite: var(--procy-surface);
+    --mark-color: #fde68a;
+    --button-background: var(--procy-accent);
+    --button-border-color: var(--procy-accent);
+    --control-icons: var(--procy-text-3);
+    --footer-background: #10161f;
+    --footer-font-color: #c2cad6;
+    --footer-link-color: #e6ebf2;
+    --footer-link-color-visited: #e6ebf2;
+    --code-background: var(--procy-muted);
+    --code-accent-color: #e7eaef;
+    --code-accent-color-lite: var(--procy-surface);
+    --code-font-color: #1f2937;
+    --code-copy-background: var(--procy-bg);
+    --code-copy-font-color: var(--procy-text-3);
+    --code-copy-border-color: var(--procy-border-strong);
 }
 
-@media (prefers-color-scheme: light) {
-    :root:not([color-theme="dark"]) {
-        --body-font-color: black;
+:root[color-theme="dark"] {
+    --procy-bg: #0b0f14;
+    --procy-surface: #121821;
+    --procy-muted: #1a222d;
+    --procy-border: #232c38;
+    --procy-border-strong: #2e3947;
+    --procy-text: #e6ebf2;
+    --procy-text-2: #c2cad6;
+    --procy-text-3: #8e99a8;
+    --procy-accent: #3b82f6;
+    --procy-accent-soft: #142544;
+    --procy-link: #7db2ff;
+
+    --header-background: #10161f;
+    --header-font-color: #e6ebf2;
+    --body-background: var(--procy-bg);
+    --body-font-color: var(--procy-text-2);
+    --link-color: var(--procy-link);
+    --link-color-visited: var(--procy-link);
+    --accent-color: var(--procy-border);
+    --accent-color-lite: var(--procy-surface);
+    --mark-color: #a16207;
+    --button-background: var(--procy-accent);
+    --button-border-color: var(--procy-accent);
+    --control-icons: var(--procy-text-3);
+    --footer-background: #10161f;
+    --footer-font-color: #8e99a8;
+    --footer-link-color: #c2cad6;
+    --footer-link-color-visited: #c2cad6;
+    --code-background: var(--procy-surface);
+    --code-accent-color: #0f141b;
+    --code-accent-color-lite: var(--procy-muted);
+    --code-font-color: #d1d8e2;
+    --code-copy-background: var(--procy-muted);
+    --code-copy-font-color: var(--procy-text-3);
+    --code-copy-border-color: var(--procy-border-strong);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([color-theme="light"]) {
+        --procy-bg: #0b0f14;
+        --procy-surface: #121821;
+        --procy-muted: #1a222d;
+        --procy-border: #232c38;
+        --procy-border-strong: #2e3947;
+        --procy-text: #e6ebf2;
+        --procy-text-2: #c2cad6;
+        --procy-text-3: #8e99a8;
+        --procy-accent: #3b82f6;
+        --procy-accent-soft: #142544;
+        --procy-link: #7db2ff;
+
+        --body-background: var(--procy-bg);
+        --body-font-color: var(--procy-text-2);
+        --link-color: var(--procy-link);
+        --link-color-visited: var(--procy-link);
+        --accent-color: var(--procy-border);
+        --accent-color-lite: var(--procy-surface);
+        --mark-color: #a16207;
+        --control-icons: var(--procy-text-3);
+        --footer-font-color: #8e99a8;
+        --footer-link-color: #c2cad6;
+        --footer-link-color-visited: #c2cad6;
+        --code-background: var(--procy-surface);
+        --code-accent-color: #0f141b;
+        --code-accent-color-lite: var(--procy-muted);
+        --code-font-color: #d1d8e2;
+        --code-copy-background: var(--procy-muted);
+        --code-copy-font-color: var(--procy-text-3);
+        --code-copy-border-color: var(--procy-border-strong);
     }
+}
+
+/* ---------- Type ---------- */
+html {
+    letter-spacing: normal;
+}
+
+body,
+.gdoc-header {
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+    background: var(--body-background);
+}
+
+code,
+pre,
+kbd,
+.gdoc-markdown code,
+.gdoc-markdown pre {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.gdoc-markdown {
+    font-size: 1rem;
+    line-height: 1.7;
+    max-width: 50rem;
+}
+
+.gdoc-markdown h1,
+.gdoc-markdown h2,
+.gdoc-markdown h3,
+.gdoc-markdown h4 {
+    color: var(--procy-text);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.25;
+}
+
+.gdoc-markdown h1 {
+    font-size: 2.1rem;
+    letter-spacing: -0.025em;
+    margin: 0.5rem 0 1rem;
+}
+
+.gdoc-markdown h2 {
+    font-size: 1.45rem;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--procy-border);
+}
+
+.gdoc-markdown h3 {
+    font-size: 1.15rem;
+    margin-top: 2rem;
+}
+
+.gdoc-markdown h4 {
+    font-size: 1rem;
+}
+
+.gdoc-markdown h1 > code,
+.gdoc-markdown h2 > code,
+.gdoc-markdown h3 > code,
+.gdoc-markdown h4 > code {
+    border-top: 0;
+}
+
+.gdoc-markdown p,
+.gdoc-markdown li {
+    color: var(--body-font-color);
+}
+
+.gdoc-markdown a,
+.gdoc-markdown a:visited {
+    color: var(--link-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.gdoc-markdown a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.gdoc-markdown img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ---------- Header ---------- */
+.gdoc-header {
+    border-bottom: 1px solid #1f2a38;
+}
+
+.gdoc-header .container {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+}
+
+.gdoc-brand {
+    font-size: 1.15rem;
+    line-height: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.gdoc-brand__img {
+    width: 1.75rem;
+    height: 1.75rem;
+    margin-right: 0.6rem;
+}
+
+.procy-brand__docs {
+    margin-left: 0.6rem;
+    padding-left: 0.6rem;
+    border-left: 1px solid #2e3947;
+    font-weight: 500;
+    color: #8e99a8;
+}
+
+.gdoc-menu-header__items {
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.procy-header-links {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-right: 0.5rem;
+}
+
+.procy-header-link {
+    padding: 0.35rem 0.7rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #c2cad6 !important;
+    text-decoration: none !important;
+}
+
+.procy-header-link:hover {
+    background: #1a2330;
+    color: #ffffff !important;
+}
+
+.procy-header-link--button {
+    background: #2563eb;
+    color: #ffffff !important;
+}
+
+.procy-header-link--button:hover {
+    background: #1d4ed8;
+}
+
+@media (max-width: 45rem) {
+    .procy-header-links {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* ---------- Sidebar ---------- */
+.gdoc-nav {
+    flex: 0 0 17rem;
+    font-size: 0.9rem;
+    padding-right: 1.5rem;
+}
+
+.gdoc-nav nav {
+    position: sticky;
+    top: 1rem;
+}
+
+.gdoc-nav__list {
+    line-height: 1.4;
+}
+
+/* Section titles: small caps-style labels. */
+.gdoc-nav--main > ul > li > span > .gdoc-nav__entry,
+.gdoc-nav--main > ul > li > label > span > .gdoc-nav__entry,
+.gdoc-nav--main > ul > li > span,
+.gdoc-nav--main > ul > li > label > span {
+    font-weight: 600;
+    color: var(--procy-text);
+}
+
+.gdoc-nav--main > ul > li {
+    margin-top: 1rem;
+}
+
+.gdoc-nav__list ul {
+    margin-top: 0.25rem;
+    padding-left: 0;
+    border-left: 1px solid var(--procy-border);
+}
+
+.gdoc-nav__list ul li {
+    padding: 0;
+}
+
+.gdoc-nav__list ul .gdoc-nav__entry {
+    display: block;
+    padding: 0.3rem 0.75rem;
+    margin-left: -1px;
+    border-left: 2px solid transparent;
+    color: var(--procy-text-3);
+}
+
+.gdoc-nav__entry,
+.gdoc-nav__entry:visited {
+    color: var(--procy-text-2);
+    text-decoration: none !important;
+}
+
+.gdoc-nav__entry:hover {
+    color: var(--procy-text);
+}
+
+.gdoc-nav__entry.is-active,
+.gdoc-nav__list ul .gdoc-nav__entry.is-active {
+    color: var(--procy-accent);
+    font-weight: 600;
+    border-left-color: var(--procy-accent);
+}
+
+/* Search box. */
+.gdoc-search input {
+    border: 1px solid var(--procy-border-strong);
+    border-radius: 8px;
+    background: var(--procy-bg);
+    color: var(--procy-text);
+    padding: 0.5rem 0.75rem 0.5rem 2rem;
+    font-family: inherit;
+}
+
+.gdoc-search input:focus {
+    outline: 2px solid var(--procy-accent);
+    outline-offset: 1px;
+}
+
+/* ---------- Content blocks ---------- */
+.gdoc-page {
+    padding: 1.5rem 0 2rem 1rem;
+}
+
+.gdoc-markdown code {
+    border-radius: 5px;
+    padding: 0.15em 0.35em;
+    font-size: 0.85em;
+}
+
+.gdoc-markdown pre,
+.gdoc-markdown .highlight pre {
+    border: 1px solid var(--procy-border);
+    border-radius: 10px;
+}
+
+.gdoc-markdown pre code {
+    font-size: 0.82rem;
+    padding: 1rem 1.1rem;
+    background: transparent;
+}
+
+.gdoc-markdown table:not(.lntable):not(.highlight) {
+    border: 1px solid var(--procy-border);
+    border-radius: 10px;
+    border-collapse: separate;
+    overflow: hidden;
+    font-size: 0.92rem;
+}
+
+.gdoc-markdown table:not(.lntable):not(.highlight) thead {
+    border-bottom: 0;
+    background: var(--procy-surface);
+}
+
+.gdoc-markdown table:not(.lntable):not(.highlight) th {
+    font-weight: 600;
+    color: var(--procy-text);
+    border-bottom: 1px solid var(--procy-border);
+}
+
+.gdoc-markdown table:not(.lntable):not(.highlight) tr {
+    border-bottom: 0;
+}
+
+.gdoc-markdown table:not(.lntable):not(.highlight) td {
+    border-top: 1px solid var(--procy-border);
+    vertical-align: top;
+}
+
+.gdoc-markdown table:not(.lntable):not(.highlight) tbody tr:first-child td {
+    border-top: 0;
+}
+
+.gdoc-markdown table:not(.lntable):not(.highlight) tr:nth-child(2n) {
+    background: transparent;
+}
+
+/* Hints: soft cards with a colored edge, readable in both themes. */
+.gdoc-hint,
+:root[color-theme="dark"] .gdoc-markdown .gdoc-hint {
+    filter: none !important;
+    border-left-width: 3px;
+    border-radius: 8px;
+    background-color: var(--procy-surface) !important;
+    color: var(--body-font-color) !important;
+}
+
+.gdoc-hint.note,
+.gdoc-hint.info {
+    border-left-color: var(--procy-accent);
+    background-color: var(--procy-accent-soft) !important;
+}
+
+.gdoc-hint.tip,
+.gdoc-hint.ok {
+    border-left-color: #16a34a;
+}
+
+.gdoc-hint.important {
+    border-left-color: #d97706;
+}
+
+.gdoc-hint.caution,
+.gdoc-hint.warning,
+.gdoc-hint.danger {
+    border-left-color: #dc2626;
+}
+
+.gdoc-hint__title,
+:root[color-theme="dark"] .gdoc-markdown .gdoc-hint__title {
+    background-color: transparent !important;
+    color: var(--procy-text) !important;
+    padding-top: 0.6rem;
+}
+
+.gdoc-hint__text {
+    padding-bottom: 0.6rem;
+}
+
+/* Buttons from the button shortcode. */
+.gdoc-button {
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+.gdoc-button__link,
+.gdoc-button__link:visited {
+    color: #ffffff !important;
+}
+
+/* Table of contents at the top of a page. */
+.gdoc-toc {
+    font-size: 0.9rem;
+    border: 1px solid var(--procy-border);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    background: var(--procy-surface);
+    max-width: 50rem;
+}
+
+.gdoc-toc ul {
+    margin: 0;
+}
+
+/* ---------- Footer ---------- */
+.gdoc-footer {
+    font-size: 0.85rem;
+}
+
+/* ---------- Small cleanups ---------- */
+.gdoc-nav--main > h2 {
+    display: none;
+}
+
+.gdoc-page__header {
+    background: transparent;
+    padding: 0;
+    font-size: 0.85rem;
+    max-width: 50rem;
+}
+
+.gdoc-page__header a,
+.gdoc-page__header a:visited {
+    color: var(--procy-text-3);
+}
+
+.gdoc-toc hr {
+    display: none;
 }
