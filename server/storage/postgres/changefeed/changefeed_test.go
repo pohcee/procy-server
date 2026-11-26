@@ -310,8 +310,14 @@ func TestFollowerResetsWhenBehindRetention(t *testing.T) {
 	from, err := changefeed.Head(ctx, d.App)
 	require.NoError(t, err)
 	exec(t, d.App, "a", "INSERT INTO users (tenant_id, username) VALUES ('a', 'missed')")
-	_, err = changefeed.Prune(ctx, d.App, 0)
-	require.NoError(t, err)
+	// Prune only removes rows older than every transaction running anywhere on the Postgres server
+	// (pg_snapshot_xmin is cluster-wide): with other test packages sharing the server (CI), one prune may remove
+	// nothing yet. Retry until the row is gone, so the follower is really behind retention.
+	require.Eventually(t, func() bool {
+		n, err := changefeed.Prune(ctx, d.App, 0)
+		require.NoError(t, err)
+		return n > 0
+	}, 30*time.Second, 50*time.Millisecond)
 
 	r := &recorder{}
 	f := &changefeed.Follower{DB: d.App, From: &from, OnChanges: r.onChanges, OnReset: r.onReset, PollInterval: 50 * time.Millisecond}
