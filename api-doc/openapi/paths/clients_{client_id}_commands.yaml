@@ -92,7 +92,7 @@ post:
   description: >-
     NOTE: if command limitation is enabled by a Procy client then a full path
     command can be required to use. See
-    https://procy.sh/docs/get-started/command-execution/ for more details
+    https://procy.sh/docs/automation/command-execution/ for more details
   parameters:
     - name: client_id
       in: path
@@ -113,7 +113,7 @@ post:
                 remote command to execute by the Procy client. NOTE: if command
                 limitation is enabled by a Procy client then a full path
                 command can be required to use. See
-                https://procy.sh/docs/get-started/command-execution/ for more
+                https://procy.sh/docs/automation/command-execution/ for more
                 details
             interpreter:
               type: string

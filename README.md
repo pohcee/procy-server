@@ -64,7 +64,7 @@ tunnel and remote access tool we decided is a feature, not a bug.
 ## Install
 
 Download the server and client packages from the [latest release](https://github.com/pohcee/procy-server/releases/latest),
-then follow the [quick start](https://procy.sh/docs/get-started/quick-start/).
+then follow the [quick start](https://procy.sh/docs/self-hosting/quick-start/).
 
 ### Client pairing
 
@@ -78,7 +78,7 @@ Pairing (the "Install client" one-liners in the web UI) is built into `rportd`. 
 ```
 
 and restart the server: `sudo systemctl restart rportd.service`. See
-[pairing clients](https://procy.sh/docs/get-started/client-pairing/) for how to serve the client packages and all options.
+[pairing clients](https://procy.sh/docs/devices/client-pairing/) for how to serve the client packages and all options.
 
 ## 📖 Documentation
 
