@@ -31,6 +31,10 @@ func (al *APIListener) handlePostClientGroups(w http.ResponseWriter, req *http.R
 		al.jsonErrorResponseWithError(w, http.StatusBadRequest, "Invalid client group.", err)
 		return
 	}
+	if group.Params == nil {
+		// No params given (absent or null): the group starts without rules.
+		group.Params = &cgroups.ClientParams{}
+	}
 
 	if err := al.clientGroupProvider.Create(req.Context(), &group); err != nil {
 		al.jsonErrorResponseWithError(w, http.StatusInternalServerError, "Failed to persist a new client group.", err)
@@ -70,6 +74,22 @@ func (al *APIListener) handlePutClientGroup(w http.ResponseWriter, req *http.Req
 	if err := validateInputClientGroup(group); err != nil {
 		al.jsonErrorResponseWithError(w, http.StatusBadRequest, "Invalid client group.", err)
 		return
+	}
+
+	// Params is a pointer, so it is nil exactly when the body has no "params" key or sends null; an explicit {} is
+	// non-nil and clears the rules. Without params the stored ones are kept, so a client that edits only the
+	// description or the allowed user groups does not wipe the group's rules.
+	if group.Params == nil {
+		existing, err := al.clientGroupProvider.Get(req.Context(), id)
+		if err != nil {
+			al.jsonErrorResponseWithError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to find client group[id=%q].", id), err)
+			return
+		}
+		if existing != nil && existing.Params != nil {
+			group.Params = existing.Params
+		} else {
+			group.Params = &cgroups.ClientParams{}
+		}
 	}
 
 	if err := al.clientGroupProvider.Update(req.Context(), &group); err != nil {

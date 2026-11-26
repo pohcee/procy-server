@@ -47,7 +47,12 @@ put:
   tags:
     - Client Groups
   summary: Save a client group. Require admin access
-  description: Update an existing client group or save a new client group
+  description: >-
+    Update an existing client group or save a new client group. The body
+    replaces the description and the allowed user groups. When the body has no
+    `params` (the key is left out or is null), the group keeps its stored
+    params, so its devices stay in it; a new group then starts without params.
+    Send `params: {}` to clear the rules.
   operationId: ClientgroupPut
   parameters:
     - name: group_id
