@@ -308,14 +308,14 @@ have no operator API.
 | `POST` | `/operator/organizations/{id}/activate` | reactivate |
 | `PUT` | `/operator/organizations/{id}/device-limit` | `{"device_limit": 100}` (`null`: unlimited) |
 | `POST` | `/operator/organizations/{id}/admins` | `{"username": "alice@example.com"}`; a new login's generated password (once), or invites an account |
-| `GET` | `/operator/organizations/{id}/members` | the members, their groups there, how many organizations each belongs to, password/Google/2FA and last sign-in |
-| `GET` | `/operator/overview` | the console's home page: organizations, devices, transfer, signups and invitations waiting, what needs attention, 30 days per day |
-| `GET` | `/operator/organizations?stats=30d` | the list with each organization's devices online, transfer in and out, jobs, last activity and source (`7d`, `30d`, `90d`) |
+| `GET` | `/operator/organizations/{id}/members` | the members: groups, organization count, password/Google/2FA, last sign-in |
+| `GET` | `/operator/overview` | the console home: organizations, devices, transfer, signups, invitations, attention, 30 days |
+| `GET` | `/operator/organizations?stats=30d` | the list with devices online, transfer in/out, jobs, last activity, source (`7d`, `30d`, `90d`) |
 | `GET` | `/operator/organizations/{id}/stats` | the usage report with every hour or day present and transfer in/out and devices per period |
 | `GET` | `/operator/organizations/{id}/devices` | the devices (name, online, node, version, OS, last and first seen), counts by version and OS |
 | `GET` | `/operator/organizations/{id}/activity` | its audit log and the operators' entries about it, metadata only (`kind=sign_in` or `admin`) |
 | `GET` | `/operator/invitations` | the pending invitations of every organization (`?organization=` for one) |
-| `POST` / `DELETE` | `/operator/organizations/{id}/invitations/{login}[/resend]` | renew (no email: the invitee sees it after signing in) or revoke an invitation |
+| `POST` / `DELETE` | `/operator/organizations/{id}/invitations/{login}[/resend]` | renew (no email; seen at next sign-in) or revoke an invitation |
 
 The console's reads are **metadata only**: counts, usage, names, versions and OS of devices, audit log
 application, action, user and address. Never device contents, command output, files, vault values, device
