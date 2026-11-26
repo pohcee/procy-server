@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -38,9 +39,26 @@ func leaseSeconds(d time.Duration) int {
 	return s
 }
 
-// Heartbeat records the node's region and peer address and that it is up.
+// maxVersion is the longest version the registry keeps (migration 1800).
+const maxVersion = 64
+
+// Heartbeat records the node's region, peer address, version, roles and process start, and that it is up.
 func (s *Store) Heartbeat(ctx context.Context, node peer.NodeInfo) error {
-	_, err := s.db.ExecContext(ctx, "SELECT rport_node_heartbeat($1, $2, $3)", node.NodeID, node.Region, node.PeerAddress)
+	var started *time.Time
+	if !node.StartedAt.IsZero() {
+		started = &node.StartedAt
+	}
+	version := node.Version
+	if len(version) > maxVersion {
+		// the registry takes 64 characters; the heartbeat must not fail on a long build tag
+		version = strings.ToValidUTF8(version[:maxVersion], "")
+	}
+	roles := node.Roles
+	if roles == nil {
+		roles = []string{}
+	}
+	_, err := s.db.ExecContext(ctx, "SELECT rport_node_heartbeat($1, $2, $3, $4, $5::text[], $6)",
+		node.NodeID, node.Region, node.PeerAddress, version, roles, started)
 	if err != nil {
 		return fmt.Errorf("registry: heartbeat: %w", err)
 	}

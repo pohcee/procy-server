@@ -1,0 +1,35 @@
+type: object
+properties:
+  node:
+    $ref: ./OperatorNode.yaml
+  daily:
+    type: array
+    description: Every UTC day of the period, oldest first, days without data included (zeros)
+    items:
+      type: object
+      properties:
+        day: {type: string, format: date}
+        in: {type: integer, format: int64}
+        out: {type: integer, format: int64}
+        connects: {type: integer, format: int64}
+        disconnects: {type: integer, format: int64}
+  organizations:
+    type: array
+    description: The organizations with live sessions on the node, most devices first
+    items:
+      type: object
+      properties:
+        organization: {type: string}
+        organization_name: {type: string}
+        online_devices: {type: integer, format: int64}
+  events:
+    type: array
+    description: The node's newest 50 connection events, newest first
+    items:
+      type: object
+      properties:
+        at: {type: string, format: date-time}
+        organization: {type: string}
+        client_id: {type: string}
+        device_name: {type: string}
+        event: {type: string, enum: [connected, disconnected]}

@@ -20,7 +20,7 @@ const (
 )
 
 // Retention is how long the usage tables are kept: Hourly for usage_hourly and usage_client_daily, Daily for
-// usage_daily and usage_device_days. Zero fields take the defaults.
+// usage_daily, usage_device_days and usage_node_daily. Zero fields take the defaults.
 type Retention struct {
 	Hourly, Daily time.Duration
 	// Monitoring records the monitoring rows gauge (nodes with [metering] on).
@@ -59,6 +59,11 @@ func Upkeep(ctx context.Context, db *sqlx.DB, r Retention) error {
 		if err := upkeepTenant(ctx, db, tenant.ID(id), r); err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("usage upkeep of tenant %s: %w", id, err)
 		}
+	}
+	// the transfer per node (migration 1800), every tenant together, kept as long as usage_daily
+	if _, err := db.ExecContext(ctx, "DELETE FROM usage_node_daily WHERE day < ((now() - make_interval(secs => $1)) AT TIME ZONE 'UTC')::date",
+		r.Daily.Seconds()); err != nil && firstErr == nil {
+		firstErr = fmt.Errorf("usage upkeep of the transfer per node: %w", err)
 	}
 	return firstErr
 }

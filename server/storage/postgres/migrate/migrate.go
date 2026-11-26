@@ -227,6 +227,8 @@ func GrantApp(ctx context.Context, db *sqlx.DB, role string) error {
 	for _, f := range RegistryFunctions {
 		stmts = append(stmts, "GRANT EXECUTE ON FUNCTION "+f+" TO "+q)
 	}
+	// the transfer per node (migration 1800) is written only by ingest_usage; the usage upkeep prunes it
+	stmts = append(stmts, "REVOKE INSERT, UPDATE, TRUNCATE ON usage_node_daily FROM "+q)
 	// usage metering (migration 1300): nodes without a device process write their usage through ingest_usage,
 	// and the operator API reads every tenant's usage through the summary functions
 	for _, fn := range UsageFunctions {
@@ -296,6 +298,8 @@ func GrantDevice(ctx context.Context, db *sqlx.DB, role string) error {
 // storage role "all") and a device role.
 var RegistryFunctions = []string{
 	"rport_node_heartbeat(text, text, text)",
+	// with the version, roles and process start (migration 1800); the 3-argument form stays for the previous release
+	"rport_node_heartbeat(text, text, text, text, text[], timestamptz)",
 	"rport_register_session(text, text, text, text, integer)",
 	"rport_renew_sessions(text, jsonb, integer)",
 	"rport_end_session(text)",
@@ -387,6 +391,13 @@ var OperatorFunctions = []string{
 	"rport_operator_organization_counts(timestamptz)",
 	"rport_operator_invitations(text)",
 	"rport_operator_usage_days(date, date)",
+	// the per-node view (migration 1800)
+	"rport_operator_nodes(date, date)",
+	"rport_operator_unassigned_sessions()",
+	"rport_operator_node_days(text, date, date)",
+	"rport_operator_node_organizations(text)",
+	"rport_operator_node_events(text, integer)",
+	"rport_operator_node_devices(text, integer, integer)",
 }
 
 func quoteIdent(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }

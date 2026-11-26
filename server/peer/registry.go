@@ -35,6 +35,11 @@ type NodeInfo struct {
 	NodeID      string
 	Region      string
 	PeerAddress string
+	// Version is the build version of the process, Roles its [storage] role ("all" or "device"), StartedAt when
+	// it started: shown to operators.
+	Version   string
+	Roles     []string
+	StartedAt time.Time
 }
 
 // SessionStore is the registry as a device process writes it.

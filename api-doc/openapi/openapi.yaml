@@ -140,6 +140,12 @@ paths:
     $ref: paths/operator_organizations_{id}_invitations_{username}_resend.yaml
   /operator/usage:
     $ref: paths/operator_usage.yaml
+  /operator/nodes:
+    $ref: paths/operator_nodes.yaml
+  /operator/nodes/{node_id}:
+    $ref: paths/operator_nodes_{node_id}.yaml
+  /operator/nodes/{node_id}/devices:
+    $ref: paths/operator_nodes_{node_id}_devices.yaml
   /operator/billing:
     $ref: paths/operator_billing.yaml
   /operator/billing/plans:

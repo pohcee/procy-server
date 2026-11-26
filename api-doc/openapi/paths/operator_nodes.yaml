@@ -1,0 +1,66 @@
+get:
+  tags:
+    - Operator
+  summary: List the cluster's nodes with what they serve. Platform operators only
+  description: >-
+    Every node of the cluster registry (live first, then stale, then gone), with its devices online, organizations,
+    connection events of the last 24 hours and transfer today and over the period. Counts only. Transfer is counted
+    per node with usage metering on, from the release that added this endpoint.
+  operationId: OperatorNodesGet
+  parameters:
+    - name: days
+      in: query
+      description: The period, in UTC days up to today (1 to 90)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 90
+        default: 30
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: ../components/schemas/OperatorNode.yaml
+                  totals:
+                    type: object
+                    properties:
+                      online_devices: {type: integer, format: int64, description: Every live session (the nodes' and the unassigned ones)}
+                      transfer_period:
+                        $ref: ../components/schemas/OperatorTransfer.yaml
+                  unassigned_online: {type: integer, format: int64, description: Live sessions whose node is not in the registry}
+                  days: {type: integer}
+    '400':
+      description: Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

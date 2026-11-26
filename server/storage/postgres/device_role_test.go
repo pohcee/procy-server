@@ -398,3 +398,21 @@ func TestCheckDeviceRoleRefusesMembership(t *testing.T) {
 	t.Cleanup(func() { _, _ = d.Owner.Exec("REVOKE pg_read_server_files FROM " + pgtest.DeviceRole) })
 	assert.ErrorContains(t, postgres.CheckDeviceRole(ctx, d.Device), "member of pg_read_server_files")
 }
+
+// A device process of the previous release (whose role check knows DeviceFunctions without the 6-argument
+// heartbeat of migration 1800) still starts: the device role has no SECURITY DEFINER function it doesn't know.
+func TestDeviceRoleOfPreviousReleaseStillPasses(t *testing.T) {
+	d := pgtest.New(t)
+	var known []string
+	for _, f := range append(append(append([]string(nil), postgres.DeviceFunctions...), postgres.MeteringDeviceFunctions...), postgres.BillingDeviceFunctions...) {
+		if f != "rport_node_heartbeat(text, text, text, text, text[], timestamptz)" {
+			known = append(known, f)
+		}
+	}
+	var extra []string
+	require.NoError(t, d.Device.Select(&extra, `SELECT p.oid::regprocedure::text FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+		WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND p.prorettype <> 'trigger'::regtype
+			AND has_function_privilege(current_user, p.oid, 'EXECUTE')
+			AND p.oid <> ALL (SELECT unnest($1::text[])::regprocedure::oid)`, known))
+	assert.Empty(t, extra)
+}

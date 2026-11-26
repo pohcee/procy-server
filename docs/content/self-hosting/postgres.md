@@ -352,6 +352,8 @@ send a user's requests to the same one (session affinity) for:
   the change feed, whose transaction ids come from the old server. Nodes refuse to start until then.
 * **When the database is down**, connected devices keep their sessions and tunnels and device processes queue results
   in their outbox. New device connections are refused and retried, and the UI and API return errors.
+* **Which node serves what.** The operator console's **Servers** page lists the nodes with a client listener, their
+  status, version, devices online and traffic ([Organizations](/docs/self-hosting/multi-tenancy/)).
 
 ## Organizations, signup and billing
 

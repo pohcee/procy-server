@@ -14,6 +14,9 @@ GET /operator/organizations/{id}/activity
 GET /operator/invitations
 POST /operator/organizations/{id}/invitations/{username}/resend
 DELETE /operator/organizations/{id}/invitations/{username}
+GET /operator/nodes
+GET /operator/nodes/{node_id}
+GET /operator/nodes/{node_id}/devices
 GET /operator/organizations/{id}/usage
 GET /operator/usage
 GET /operator/billing

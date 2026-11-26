@@ -1,0 +1,45 @@
+type: object
+description: >-
+  A node of the cluster registry (a process with a client listener, written by its heartbeat) with what it serves.
+  Counts only; no device or organization data.
+properties:
+  node_id: {type: string, example: usc1-1}
+  region: {type: string, example: us-central1}
+  peer_address:
+    type: string
+    description: Where other processes reach the node; empty when it answers no peer calls
+  roles:
+    type: array
+    description: The storage role of the node's process (`all` or `device`); empty for a release that doesn't report it
+    items: {type: string}
+    example: [device]
+  version:
+    type: string
+    description: The build version of the node's process; empty for a release that doesn't report it
+    example: 0.17.0
+  started_at: {type: string, format: date-time, nullable: true, description: When the node's process started}
+  heartbeat_at: {type: string, format: date-time}
+  status:
+    type: string
+    enum: [live, stale, gone]
+    description: >-
+      From the age of the last heartbeat: `live` up to three heartbeat intervals (60 s), `stale` up to a day,
+      `gone` after that
+  online_devices: {type: integer, format: int64, description: Live sessions on the node}
+  organizations: {type: integer, format: int64, description: Organizations of those sessions}
+  connects_24h:
+    type: integer
+    format: int64
+    description: Connection events of the last 24 hours (device processes record them)
+  disconnects_24h: {type: integer, format: int64}
+  transfer_today:
+    $ref: ./OperatorTransfer.yaml
+  transfer_period:
+    $ref: ./OperatorTransfer.yaml
+  metered_since:
+    type: string
+    format: date
+    nullable: true
+    description: >-
+      The first UTC day with transfer counted for the node (usage metering on); transfer before that (or before the
+      server counted transfer per node) isn't attributed to a node
