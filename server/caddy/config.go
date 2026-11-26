@@ -10,7 +10,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/openrport/openrport/share/files"
+	"github.com/pohcee/procy-server/share/files"
 
 	"github.com/aidarkhanov/nanoid/v2"
 )

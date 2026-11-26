@@ -3,7 +3,7 @@ package chserver
 import (
 	"context"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // userBanKey is the ban-list key of a username: banned users are kept per tenant, so a ban in one tenant

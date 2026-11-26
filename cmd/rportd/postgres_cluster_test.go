@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/peer"
+	"github.com/pohcee/procy-server/server/peer"
 )
 
 func TestClusterCertIssuesRoleBoundCertificate(t *testing.T) {

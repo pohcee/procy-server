@@ -7,9 +7,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/clientsauth"
-	"github.com/openrport/openrport/server/repotest"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	"github.com/pohcee/procy-server/server/repotest"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // The admin-defined client auth table serves only the default tenant.

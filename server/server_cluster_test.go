@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/cluster"
+	"github.com/pohcee/procy-server/server/cluster"
 )
 
 func TestOrderedChangesDedupedSessionsFirst(t *testing.T) {

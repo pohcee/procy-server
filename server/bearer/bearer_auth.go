@@ -11,10 +11,10 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 
-	"github.com/openrport/openrport/server/api/session"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/session"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 const (

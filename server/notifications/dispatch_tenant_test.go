@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/share/refs"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/refs"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type recordingDispatcher struct{ got []tenant.ID }

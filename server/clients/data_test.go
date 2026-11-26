@@ -4,10 +4,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 var (

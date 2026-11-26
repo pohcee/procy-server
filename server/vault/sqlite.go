@@ -8,15 +8,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/query"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var ErrDatabaseNotInitialised = errors2.APIError{

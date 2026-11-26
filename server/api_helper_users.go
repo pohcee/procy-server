@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/api/users"
+	"github.com/pohcee/procy-server/server/api"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/users"
 )
 
 // TODO: remove

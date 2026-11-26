@@ -7,11 +7,11 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/notifications"
-	db "github.com/openrport/openrport/server/notifications/repository/sqlite"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/notifications"
+	db "github.com/pohcee/procy-server/server/notifications/repository/sqlite"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type CleanerTestSuite struct {

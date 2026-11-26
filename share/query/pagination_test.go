@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 func TestValidatePagination(t *testing.T) {

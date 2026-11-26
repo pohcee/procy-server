@@ -8,11 +8,11 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/membership"
-	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/membership"
+	pgusers "github.com/pohcee/procy-server/server/storage/postgres/users"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Memberships is the Postgres membership.Service: accounts shared by several organizations (migration 1400).

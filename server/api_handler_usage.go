@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/metering"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/metering"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // handleGetUsage handles GET /usage?from&to&granularity: the usage report of the request's organization, for its

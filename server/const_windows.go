@@ -3,7 +3,7 @@
 
 package chserver
 
-import "github.com/openrport/openrport/server/chconfig"
+import "github.com/pohcee/procy-server/server/chconfig"
 
 // Contains constants applicable only to windows OS.
 const (

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/server/dispatch"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/server/dispatch"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 // ErrNotConnected is what every NotConnectedDispatcher call returns. It wraps dispatch.ErrClientNotConnected, so the

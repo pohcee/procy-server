@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 // defaultOutputWait bounds how long a job result waits for the job's output channels to end. A client sends the

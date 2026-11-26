@@ -16,14 +16,14 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/membership"
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/membership"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // organizationID is what operators may name an organization: the tenants id format without a leading "_"

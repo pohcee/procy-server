@@ -1,8 +1,8 @@
 package transformers
 
 import (
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/clientupdates"
-	rportclients "github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/clientupdates"
+	rportclients "github.com/pohcee/procy-server/server/clients/clientdata"
 )
 
 func TransformRportClientToClientUpdate(rc *rportclients.Client) (cl *clientupdates.Client, err error) {

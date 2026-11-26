@@ -18,7 +18,7 @@ import (
 
 	"github.com/shirou/gopsutil/v3/process"
 
-	"github.com/openrport/openrport/client/monitoring/helper"
+	"github.com/pohcee/procy-server/client/monitoring/helper"
 )
 
 var errorProcessTerminated = fmt.Errorf("Process was terminated")

@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openrport/openrport/server/api/message"
-	"github.com/openrport/openrport/server/caddy"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/api/message"
+	"github.com/pohcee/procy-server/server/caddy"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/share/logger"
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/stretchr/testify/assert"

@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/chconfig"
+	"github.com/pohcee/procy-server/server/chconfig"
 )
 
 // A standalone server (no [signup]) has none of the signup routes and reports no signup capability.

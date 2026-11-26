@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/membership"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/membership"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // A server without a membership service (standalone) has no organization routes, reports no organizations

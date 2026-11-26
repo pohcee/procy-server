@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/openrport/openrport/server/api/message"
-	auditlog "github.com/openrport/openrport/server/auditlog/config"
+	"github.com/pohcee/procy-server/server/api/message"
+	auditlog "github.com/pohcee/procy-server/server/auditlog/config"
 )
 
 // The defaults rportd applies to its config file (SetDefaults).

@@ -10,13 +10,13 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/metering"
-	"github.com/openrport/openrport/server/routes"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/metering"
+	"github.com/pohcee/procy-server/server/routes"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // RoutePrefix is where the operator API is mounted, below routes.AllRoutesPrefix.

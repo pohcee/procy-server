@@ -9,11 +9,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	chshare "github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/types"
+	chshare "github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/types"
 )
 
 var testLog = chshare.NewLogger("monitoring", chshare.LogOutput{File: os.Stdout}, chshare.LogLevelDebug)

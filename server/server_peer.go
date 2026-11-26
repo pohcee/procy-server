@@ -3,10 +3,10 @@ package chserver
 import (
 	"context"
 
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/dispatch"
-	"github.com/openrport/openrport/server/jobrunner"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/dispatch"
+	"github.com/pohcee/procy-server/server/jobrunner"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 // PeerNode runs what a process of a cluster needs besides the listeners once the server is built: the peer listener

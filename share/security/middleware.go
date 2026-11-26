@@ -5,7 +5,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 func RejectBannedIPs(bannedIPs *MaxBadAttemptsBanList) mux.MiddlewareFunc {

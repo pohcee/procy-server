@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/clientsauth"
-	pgclientauth "github.com/openrport/openrport/server/storage/postgres/clientauth"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	pgclientauth "github.com/pohcee/procy-server/server/storage/postgres/clientauth"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 const nodePlans = `

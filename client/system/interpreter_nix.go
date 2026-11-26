@@ -3,7 +3,7 @@
 
 package system
 
-import chshare "github.com/openrport/openrport/share"
+import chshare "github.com/pohcee/procy-server/share"
 
 func (i Interpreter) Get() string {
 	if i.InterpreterAliases != nil && i.InterpreterNameFromInput != "" {

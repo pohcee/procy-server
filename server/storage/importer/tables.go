@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openrport/openrport/server/clientsauth"
+	"github.com/pohcee/procy-server/server/clientsauth"
 )
 
 // Entity names in the report.

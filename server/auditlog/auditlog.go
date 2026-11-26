@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/auditlog/config"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/auditlog/config"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 var (

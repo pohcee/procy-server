@@ -28,9 +28,9 @@ import (
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/tenant"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // DefaultTTL is how long an unwrapped DEK stays in memory when Config.TTL is 0.

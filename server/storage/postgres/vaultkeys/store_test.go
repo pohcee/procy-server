@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/repotest"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/repotest"
+	"github.com/pohcee/procy-server/share/tenant"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	"github.com/openrport/openrport/server/storage/postgres/vaultkeys"
-	"github.com/openrport/openrport/server/vault/vaultkms"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/server/storage/postgres/vaultkeys"
+	"github.com/pohcee/procy-server/server/vault/vaultkms"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m) }

@@ -12,18 +12,18 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"github.com/openrport/openrport/cmd/rportd/servicemanagement"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/cmd/rportd/servicemanagement"
+	"github.com/pohcee/procy-server/share/logger"
 
 	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	chserver "github.com/openrport/openrport/server"
-	"github.com/openrport/openrport/server/chconfig"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/files"
+	chserver "github.com/pohcee/procy-server/server"
+	"github.com/pohcee/procy-server/server/chconfig"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/files"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // SqliteProvider stores API tokens. Every method is scoped to the tenant carried by its context

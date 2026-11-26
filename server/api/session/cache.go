@@ -10,7 +10,7 @@ import (
 
 	"github.com/patrickmn/go-cache"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Cache keeps the live API sessions in memory, keyed by tenant and session ID, in front of the storage.

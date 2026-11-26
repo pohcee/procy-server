@@ -8,10 +8,10 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/cgroups"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/cgroups"
+	"github.com/pohcee/procy-server/share/query"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // Store is a cgroups.ClientGroupProvider on the client_groups table. Every method is scoped to the tenant carried by

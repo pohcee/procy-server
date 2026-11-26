@@ -17,9 +17,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding"
 
-	"github.com/openrport/openrport/client/system"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/client/system"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 var (

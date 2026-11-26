@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/oidc"
-	"github.com/openrport/openrport/server/oidc/oidcfake"
-	pgoidc "github.com/openrport/openrport/server/storage/postgres/oidc"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/oidc"
+	"github.com/pohcee/procy-server/server/oidc/oidcfake"
+	pgoidc "github.com/pohcee/procy-server/server/storage/postgres/oidc"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	pgusers "github.com/pohcee/procy-server/server/storage/postgres/users"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m) }

@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/share/enc"
+	"github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/share/enc"
 )
 
 func TestInvalidPasswords(t *testing.T) {

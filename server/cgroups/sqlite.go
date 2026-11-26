@@ -7,8 +7,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type ClientGroupProvider interface {

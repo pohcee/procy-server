@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/oidc/oidcfake"
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/oidc/oidcfake"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	pgusers "github.com/pohcee/procy-server/server/storage/postgres/users"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // oidcRedirect is the callback the nodes register; tests send the browser to whichever node they want instead.

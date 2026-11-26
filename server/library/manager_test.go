@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apierrors "github.com/openrport/openrport/server/api/errors"
+	apierrors "github.com/pohcee/procy-server/server/api/errors"
 )
 
 func newTestManager(t *testing.T) (*Manager, *SQLiteStore) {

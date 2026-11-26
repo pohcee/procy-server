@@ -18,7 +18,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3" // registers the sqlite3 driver
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Kind is what an item is; each kind is shipped through its own ingest function.

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/notifications/channels/rmailer"
+	"github.com/pohcee/procy-server/server/notifications/channels/rmailer"
 )
 
 // fakeSMTP accepts one connection and reports the first thing the client did that tells its TLS mode: "tls" (a

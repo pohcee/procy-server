@@ -4,11 +4,11 @@
 ## The scripts creates a initial configuration and connects the client to your server.
 ##
 ## Documentation: https://procy.sh/docs/
-## Issues: https://github.com/pohcee/openrport/issues
+## Issues: https://github.com/pohcee/procy-server/issues
 ##
 ## Copyright cloudradar GmbH, Potsdam Germany, 2022
 ## Maintainer openrport, Lille, France, 2023
 ## Maintainer Procy, https://procy.sh, 2026
 ## Released under the MIT open-source license.
-## https://github.com/pohcee/openrport/blob/main/LICENSE
+## https://github.com/pohcee/procy-server/blob/main/LICENSE
 ##

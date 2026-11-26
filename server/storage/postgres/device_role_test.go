@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/server/storage/postgres/migrate"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres/migrate"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
 )
 
 const fakeHash = "$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGFzaGhhc2g"

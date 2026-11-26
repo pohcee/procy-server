@@ -8,11 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/plus/license"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/logger"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/plus/license"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/share/files"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 var defaultValidMinServerConfig = chconfig.ServerConfig{

@@ -9,13 +9,13 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/billing/stripe"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/operator"
-	pgbilling "github.com/openrport/openrport/server/storage/postgres/billing"
-	"github.com/openrport/openrport/server/storage/postgres/billingprovider"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/billing/stripe"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/operator"
+	pgbilling "github.com/pohcee/procy-server/server/storage/postgres/billing"
+	"github.com/pohcee/procy-server/server/storage/postgres/billingprovider"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // BillingProvider returns the payment provider service of [billing] provider on db (nil for "none"): Stripe with

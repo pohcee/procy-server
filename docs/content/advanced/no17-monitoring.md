@@ -33,7 +33,7 @@ file outside the data dir.
 ## Client configuration options
 
 If you client configuration after an update does not contain a `[monitoring]` section, copy it from the
-[rport.example.conf](https://github.com/pohcee/openrport/blob/main/rport.example.conf).
+[rport.example.conf](https://github.com/pohcee/procy-server/blob/main/rport.example.conf).
 To save bandwidth and disk space on the server, you can disable the monitoring for clients completely.
 Please refer to the documentation inside the configuration example to explore all options of the monitoring.
 

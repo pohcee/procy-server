@@ -3,9 +3,9 @@ package chserver
 import (
 	"net/http"
 
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/plus/capabilities/status"
-	"github.com/openrport/openrport/server/api"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/plus/capabilities/status"
+	"github.com/pohcee/procy-server/server/api"
 )
 
 // handleOAuthAuthorizationCode takes a request containing the OAuth authorization code parameters

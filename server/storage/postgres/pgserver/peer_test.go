@@ -20,17 +20,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	chclient "github.com/openrport/openrport/client"
-	chserver "github.com/openrport/openrport/server"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clientsauth"
-	"github.com/openrport/openrport/server/peer"
-	pgclientauth "github.com/openrport/openrport/server/storage/postgres/clientauth"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	chclient "github.com/pohcee/procy-server/client"
+	chserver "github.com/pohcee/procy-server/server"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	"github.com/pohcee/procy-server/server/peer"
+	pgclientauth "github.com/pohcee/procy-server/server/storage/postgres/clientauth"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/files"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 const (

@@ -3,8 +3,8 @@ package clientsauth
 import (
 	"context"
 
-	"github.com/openrport/openrport/share/enums"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/share/enums"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 // Provider serves client authentication credentials. The file, database and single providers read storage

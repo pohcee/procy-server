@@ -10,10 +10,10 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/server/metering"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/server/metering"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 var udpReadTimeout = time.Second

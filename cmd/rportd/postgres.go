@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
-	chserver "github.com/openrport/openrport/server"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/storage/postgres/pgserver"
-	"github.com/openrport/openrport/share/logger"
+	chserver "github.com/pohcee/procy-server/server"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgserver"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // notPostgresMsg ends the errors of the options that work only on a Postgres node.

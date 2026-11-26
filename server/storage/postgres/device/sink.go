@@ -13,7 +13,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/storage/outbox"
+	"github.com/pohcee/procy-server/server/storage/outbox"
 )
 
 // ingestFunctions are the database functions items of each kind are shipped through.

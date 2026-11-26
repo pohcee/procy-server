@@ -3,7 +3,7 @@ package ptr
 import (
 	"time"
 
-	"github.com/openrport/openrport/share/types"
+	"github.com/pohcee/procy-server/share/types"
 )
 
 func Time(t time.Time) *time.Time {

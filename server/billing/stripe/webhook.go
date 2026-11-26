@@ -10,7 +10,7 @@ import (
 	sg "github.com/stripe/stripe-go/v87"
 	"github.com/stripe/stripe-go/v87/webhook"
 
-	"github.com/openrport/openrport/server/billing"
+	"github.com/pohcee/procy-server/server/billing"
 )
 
 // ParseWebhook implements billing.Provider: the Stripe-Signature header is verified over the raw body with the

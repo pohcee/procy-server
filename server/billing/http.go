@@ -12,9 +12,9 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Routes of the payment provider integration, below the API prefix (/api/v1).

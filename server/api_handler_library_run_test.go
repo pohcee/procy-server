@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	librarymigration "github.com/openrport/openrport/db/migration/library"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/test"
+	librarymigration "github.com/pohcee/procy-server/db/migration/library"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 type libraryRunEnv struct {

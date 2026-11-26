@@ -3,7 +3,7 @@ package clients
 import (
 	"context"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
 )
 
 // AdminFieldsSaver is a ClientStore shared by several server instances that can write only the fields admins set on

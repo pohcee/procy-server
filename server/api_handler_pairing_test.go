@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/pairing"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/security"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/pairing"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/security"
 )
 
 var pairingDepositBody = map[string]string{

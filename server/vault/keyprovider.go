@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/openrport/openrport/share/enc"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/enc"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // KeySize is the length in bytes of the key a KeyProvider returns (AES-256).

@@ -11,17 +11,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/comm"
-	errors3 "github.com/openrport/openrport/share/errors"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/test"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/comm"
+	errors3 "github.com/pohcee/procy-server/share/errors"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 var testLog = logger.NewLogger("dispatch-test", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug)

@@ -11,7 +11,7 @@ Tunnels that a client opens on start, with `remotes` in `rport.conf`, are always
 sit unused, and each keeps a port open on the internet. Instead, clients can connect without a tunnel and wait. You open
 a tunnel from the server only when you need it, and close it when you are done.
 
-![On-demand tunnels: the client connects out and waits; you request a tunnel through the API; the server opens a port and tells the client over the existing connection; you connect to that port and land on the client's port 22](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-on-demand-tunnel.svg)
+![On-demand tunnels: the client connects out and waits; you request a tunnel through the API; the server opens a port and tells the client over the existing connection; you connect to that port and land on the client's port 22](https://raw.githubusercontent.com/pohcee/procy-server/main/docs/static/images/procy-on-demand-tunnel.svg)
 
 ## Activate the API
 

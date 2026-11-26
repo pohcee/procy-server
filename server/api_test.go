@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/db/migration/api_sessions"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/api/session"
-	"github.com/openrport/openrport/server/bearer"
-	chshare "github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/migration/api_sessions"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/api/session"
+	"github.com/pohcee/procy-server/server/bearer"
+	chshare "github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var testLog = chshare.NewLogger("chserver-test", chshare.LogOutput{File: os.Stdout}, chshare.LogLevelDebug)

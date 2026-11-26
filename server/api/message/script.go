@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"regexp"
 
-	email2 "github.com/openrport/openrport/share/email"
+	email2 "github.com/pohcee/procy-server/share/email"
 )
 
 const stderrLimit = 1024

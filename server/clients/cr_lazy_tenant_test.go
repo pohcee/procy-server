@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // flakyStore wraps a ClientStore, counts the GetAll calls and fails them while failing is set.

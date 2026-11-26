@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/session"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/session"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // APISessions checks a session.StorageProvider (API sessions).

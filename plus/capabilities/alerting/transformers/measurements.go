@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/models"
 
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/measures"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/measures"
 )
 
 type RawMountPointsInfo map[string]uint64

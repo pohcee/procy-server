@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openrport/openrport/server/dispatch"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/dispatch"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Default timings of a Tracker: sessions are renewed (and the node's heartbeat written) every RenewInterval, and a

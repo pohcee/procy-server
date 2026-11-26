@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/share/logger"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // Storage backends ([storage] backend).

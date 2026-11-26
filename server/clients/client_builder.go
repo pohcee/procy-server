@@ -13,17 +13,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/logger"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	chshare "github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/random"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	chshare "github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 var clientsNow, _ = time.ParseInLocation(time.RFC3339, "2020-08-19T13:09:23+03:00", nil)

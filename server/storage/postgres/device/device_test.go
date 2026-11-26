@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/clientsauth"
-	"github.com/openrport/openrport/server/repotest"
-	"github.com/openrport/openrport/server/storage/outbox"
-	"github.com/openrport/openrport/server/storage/postgres"
-	pgjobs "github.com/openrport/openrport/server/storage/postgres/jobs"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	"github.com/pohcee/procy-server/server/repotest"
+	"github.com/pohcee/procy-server/server/storage/outbox"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	pgjobs "github.com/pohcee/procy-server/server/storage/postgres/jobs"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m) }

@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/openrport/openrport/server/oidc"
-	"github.com/openrport/openrport/server/signup"
-	chshare "github.com/openrport/openrport/share"
+	"github.com/pohcee/procy-server/server/oidc"
+	"github.com/pohcee/procy-server/server/signup"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 // Signup with Google ([signup] and [oidc]; operator console design, Part 3): the Google account's verified email

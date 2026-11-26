@@ -17,10 +17,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 
-	"github.com/openrport/openrport/server/acme"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/security"
+	"github.com/pohcee/procy-server/server/acme"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/security"
 )
 
 //go:embed css/tunnel-proxy.css

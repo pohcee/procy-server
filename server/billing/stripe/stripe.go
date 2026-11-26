@@ -28,7 +28,7 @@ import (
 
 	sg "github.com/stripe/stripe-go/v87"
 
-	"github.com/openrport/openrport/server/billing"
+	"github.com/pohcee/procy-server/server/billing"
 )
 
 // OrgMetadataKey is the metadata key holding the organization id on Stripe customers, subscriptions and checkout

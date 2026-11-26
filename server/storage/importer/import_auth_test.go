@@ -11,16 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/clientsauth"
-	"github.com/openrport/openrport/server/repotest"
-	pgclientauth "github.com/openrport/openrport/server/storage/postgres/clientauth"
-	"github.com/openrport/openrport/server/storage/postgres/pgserver"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	"github.com/pohcee/procy-server/server/repotest"
+	pgclientauth "github.com/pohcee/procy-server/server/storage/postgres/clientauth"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgserver"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	pgusers "github.com/pohcee/procy-server/server/storage/postgres/users"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 func hash(t *testing.T, pass string) string {

@@ -7,11 +7,11 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/server/vault"
+	"github.com/pohcee/procy-server/server/api"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/server/vault"
 )
 
 func (al *APIListener) handleGetVaultStatus(w http.ResponseWriter, req *http.Request) {

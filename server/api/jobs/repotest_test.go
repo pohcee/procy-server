@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	jobsmigration "github.com/openrport/openrport/db/migration/jobs"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/repotest"
-	"github.com/openrport/openrport/share/logger"
+	jobsmigration "github.com/pohcee/procy-server/db/migration/jobs"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/repotest"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 func TestRepositoryContract(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 const activeConnectionTimeout = 15 * time.Second

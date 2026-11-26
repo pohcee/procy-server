@@ -6,10 +6,10 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/clients/storedtunnels"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/clients/storedtunnels"
+	"github.com/pohcee/procy-server/share/query"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // Store is a storedtunnels.Provider on the stored_tunnels table. Every method is scoped to the tenant carried by its

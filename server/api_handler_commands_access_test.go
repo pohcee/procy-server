@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	jobsmigration "github.com/openrport/openrport/db/migration/jobs"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/server/test/jb"
-	"github.com/openrport/openrport/share/tenant"
+	jobsmigration "github.com/pohcee/procy-server/db/migration/jobs"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/server/test/jb"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // multiJobAccessFixture stores a multi-client job created by "alice" with one job result per client.

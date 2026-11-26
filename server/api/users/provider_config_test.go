@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/share/enums"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/share/enums"
 )
 
 func TestNewProviderFromConfigStatic(t *testing.T) {

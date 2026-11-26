@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/billing/stripe/stripetest"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/billing/stripe/stripetest"
 )
 
 func TestCancelForDeletion(t *testing.T) {

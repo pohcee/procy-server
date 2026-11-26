@@ -3,7 +3,7 @@ package notifications
 import (
 	"fmt"
 
-	"github.com/openrport/openrport/share/refs"
+	"github.com/pohcee/procy-server/share/refs"
 )
 
 // ContentType represents a content type for the Msg

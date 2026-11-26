@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // LoadInitialClients returns an initial Client Repository state populated with clients from the internal storage.

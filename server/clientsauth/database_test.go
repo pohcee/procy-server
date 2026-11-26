@@ -3,13 +3,13 @@ package clientsauth
 import (
 	"testing"
 
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/share/query"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/share/enums"
+	"github.com/pohcee/procy-server/share/enums"
 )
 
 func TestDatabaseProvider(t *testing.T) {

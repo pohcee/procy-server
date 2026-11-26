@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/openrport/openrport/server/notifications"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/notifications"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 const ScriptTimeout = time.Second * 20

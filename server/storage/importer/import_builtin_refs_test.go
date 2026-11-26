@@ -8,17 +8,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	jobsmigration "github.com/openrport/openrport/db/migration/jobs"
-	librarymigration "github.com/openrport/openrport/db/migration/library"
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/api/jobs/schedule"
-	"github.com/openrport/openrport/server/library"
-	pgjobs "github.com/openrport/openrport/server/storage/postgres/jobs"
-	pglibrary "github.com/openrport/openrport/server/storage/postgres/library"
-	"github.com/openrport/openrport/server/storage/postgres/pgserver"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
+	jobsmigration "github.com/pohcee/procy-server/db/migration/jobs"
+	librarymigration "github.com/pohcee/procy-server/db/migration/library"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/api/jobs/schedule"
+	"github.com/pohcee/procy-server/server/library"
+	pgjobs "github.com/pohcee/procy-server/server/storage/postgres/jobs"
+	pglibrary "github.com/pohcee/procy-server/server/storage/postgres/library"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgserver"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // builtinRefsSource is a data dir whose schedules and jobs run built-in library entries (and one customer entry),

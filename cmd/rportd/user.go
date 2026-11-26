@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/openrport/openrport/cmd/rportd/usercli"
-	"github.com/openrport/openrport/share/enums"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/cmd/rportd/usercli"
+	"github.com/pohcee/procy-server/share/enums"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 const (

@@ -8,7 +8,7 @@ Pairing installs a client with a one-liner. You create a pairing code on the ser
 device, and the installer sets up `rport` with the right server address, fingerprint and credentials. The pairing
 service is built into `rportd`; it's what the "Install client" dialog of the web UI uses.
 
-![Pairing: create a code in the web UI, run the one-liner on the device, the installer sets up rport, and the client connects](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-pairing.svg)
+![Pairing: create a code in the web UI, run the one-liner on the device, the installer sets up rport, and the client connects](https://raw.githubusercontent.com/pohcee/procy-server/main/docs/static/images/procy-pairing.svg)
 
 ## Enable pairing
 

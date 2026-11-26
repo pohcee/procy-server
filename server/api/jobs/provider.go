@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 const (

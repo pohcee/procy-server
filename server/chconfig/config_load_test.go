@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 func TestLoadingExampleConf(t *testing.T) {

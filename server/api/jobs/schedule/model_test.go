@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/ptr"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/ptr"
 )
 
 func TestToLastExecution(t *testing.T) {

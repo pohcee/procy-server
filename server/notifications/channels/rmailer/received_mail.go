@@ -5,7 +5,7 @@ import (
 
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 
-	"github.com/openrport/openrport/share/simpleops"
+	"github.com/pohcee/procy-server/share/simpleops"
 )
 
 type ReceivedMail struct {

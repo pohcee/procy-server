@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openrport/openrport/server/cgroups"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/cgroups"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // ClientRepository is an in-memory cache of clients backed by a ClientStore. Its state is kept per tenant:

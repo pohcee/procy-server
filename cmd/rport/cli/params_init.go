@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	chclient "github.com/openrport/openrport/client"
+	chclient "github.com/pohcee/procy-server/client"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"

@@ -9,12 +9,12 @@ import (
 	zxcvbn "github.com/trustelem/zxcvbn"
 	"golang.org/x/crypto/bcrypt"
 
-	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/api/message"
-	"github.com/openrport/openrport/server/chconfig"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/enums"
+	extperm "github.com/pohcee/procy-server/plus/capabilities/extendedpermission"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/message"
+	"github.com/pohcee/procy-server/server/chconfig"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/enums"
 )
 
 type Provider interface {

@@ -16,17 +16,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/caddy"
-	"github.com/openrport/openrport/server/cgroups"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/caddy"
+	"github.com/pohcee/procy-server/server/cgroups"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 type mockClientGroupProvider struct {

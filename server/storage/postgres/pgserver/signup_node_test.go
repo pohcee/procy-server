@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/signup"
-	pgsignup "github.com/openrport/openrport/server/storage/postgres/signup"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/signup"
+	pgsignup "github.com/pohcee/procy-server/server/storage/postgres/signup"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // mailSink records the signup emails.

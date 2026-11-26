@@ -1,9 +1,9 @@
 package vault
 
 import (
-	"github.com/openrport/openrport/db/migration/vaults"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/db/migration/vaults"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 func openTestSqliteProvider(c Config, l *logger.Logger) (*SqliteProvider, error) {

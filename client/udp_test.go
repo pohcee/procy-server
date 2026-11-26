@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 func TestUDPHandler(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/api/message"
+	"github.com/pohcee/procy-server/server/api/message"
 )
 
 func TestScriptServiceValidateReceiver(t *testing.T) {

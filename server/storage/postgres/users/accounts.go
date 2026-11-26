@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // JoinAccountSetting is the transaction setting that lets a users row join the existing account of its login

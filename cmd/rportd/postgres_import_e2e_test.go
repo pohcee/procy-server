@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
 )
 
 // importCounts parses the table "rportd import" prints: entity name → [read, added, present, skipped].

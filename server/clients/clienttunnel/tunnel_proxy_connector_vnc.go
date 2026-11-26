@@ -8,7 +8,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 
-	"github.com/openrport/openrport/server/api/middleware"
+	"github.com/pohcee/procy-server/server/api/middleware"
 )
 
 //go:embed novnc/index.html

@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type Entry struct {

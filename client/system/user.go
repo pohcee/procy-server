@@ -5,7 +5,7 @@ import (
 	"os/user"
 	"strconv"
 
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 type SysUserLookup interface {

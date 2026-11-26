@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openrport/openrport/db/sqlite"
+	"github.com/pohcee/procy-server/db/sqlite"
 
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 const (

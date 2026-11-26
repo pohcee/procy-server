@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/openrport/openrport/server/bearer"
+	"github.com/pohcee/procy-server/server/bearer"
 )
 
 func (al *APIListener) handleDeleteLogout(w http.ResponseWriter, req *http.Request) {

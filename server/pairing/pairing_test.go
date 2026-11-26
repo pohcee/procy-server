@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 const (
@@ -275,7 +275,7 @@ func TestMissingDownloadBaseFailsClearly(t *testing.T) {
 // Generated scripts must only download from and point to the configured sites:
 // no upstream download, package repository, pairing or support addresses.
 func TestScriptsHaveNoUpstreamAddresses(t *testing.T) {
-	upstream := []string{"openrport.io", "rport.io", "github.com/openrport/openrport/releases", "discussions", "pairing.openrport"}
+	upstream := []string{"openrport.io", "rport.io", "github.com/pohcee/procy-server/releases", "discussions", "pairing.openrport"}
 	cfg := scriptSettings{DownloadsURL: dlURL, PairingURL: publicURL + "/pairing"}
 	for _, os := range []string{osLinux, osWindows} {
 		installer, _, err := renderInstaller(os, testDeposit, cfg)

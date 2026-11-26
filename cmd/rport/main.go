@@ -13,16 +13,16 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/openrport/openrport/cmd/rport/servicemanagement"
+	"github.com/pohcee/procy-server/cmd/rport/servicemanagement"
 
 	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
 
-	"github.com/openrport/openrport/cmd/rport/cli"
-	"github.com/openrport/openrport/share/files"
+	"github.com/pohcee/procy-server/cmd/rport/cli"
+	"github.com/pohcee/procy-server/share/files"
 
-	chclient "github.com/openrport/openrport/client"
-	chshare "github.com/openrport/openrport/share"
+	chclient "github.com/pohcee/procy-server/client"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 var (

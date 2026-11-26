@@ -13,7 +13,7 @@ import (
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
-	"github.com/openrport/openrport/server/chconfig"
+	"github.com/pohcee/procy-server/server/chconfig"
 )
 
 // ErrNonce: the ID token does not carry the nonce of the sign-in (a replayed or substituted token).

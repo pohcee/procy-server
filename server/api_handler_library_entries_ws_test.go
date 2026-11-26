@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 func (e *libraryRunEnv) dialLibraryWS(t *testing.T) *websocket.Conn {

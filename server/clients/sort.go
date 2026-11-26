@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
 )
 
 func SortByID(a []*clientdata.CalculatedClient, desc bool) {

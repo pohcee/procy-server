@@ -8,16 +8,16 @@ import (
 	"strconv"
 	"time"
 
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/bearer"
-	"github.com/openrport/openrport/server/membership"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/server/api"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/bearer"
+	"github.com/pohcee/procy-server/server/membership"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type twoFAResponse struct {

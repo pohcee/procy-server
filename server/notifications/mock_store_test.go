@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/openrport/openrport/server/notifications"
+	"github.com/pohcee/procy-server/server/notifications"
 )
 
 type MockStore struct {

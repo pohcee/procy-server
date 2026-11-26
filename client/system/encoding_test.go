@@ -9,7 +9,7 @@ import (
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
 
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 func TestDetectCmdOutputEncoding(t *testing.T) {

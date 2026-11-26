@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/migration/auditlog"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/db/migration/auditlog"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 func TestSqliteSave(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 const (

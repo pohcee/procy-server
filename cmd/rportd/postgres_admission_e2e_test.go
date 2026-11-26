@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/server/storage/postgres/pgserver"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgserver"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
 )
 
 // TestPostgresDeviceProcessesShareTheClientLimit runs an api process and two device processes on one database, as

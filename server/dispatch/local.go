@@ -6,16 +6,16 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/server/metering"
-	"github.com/openrport/openrport/share/comm"
-	errors3 "github.com/openrport/openrport/share/errors"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/server/metering"
+	"github.com/pohcee/procy-server/share/comm"
+	errors3 "github.com/pohcee/procy-server/share/errors"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // LocalClients is what Local needs from the client service: the clients connected to this process

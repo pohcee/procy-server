@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/peer"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/peer"
 )
 
 var (

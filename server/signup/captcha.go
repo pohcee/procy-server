@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/server/chconfig"
+	"github.com/pohcee/procy-server/server/chconfig"
 )
 
 // Server-side verification endpoints of the captcha providers.

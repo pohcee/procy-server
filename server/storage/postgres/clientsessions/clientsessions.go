@@ -13,8 +13,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/peer"
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/peer"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // Store is the registry on db.

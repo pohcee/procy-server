@@ -1,8 +1,8 @@
 package rportplus
 
 import (
-	"github.com/openrport/openrport/plus/capabilities/oauth"
-	"github.com/openrport/openrport/plus/license"
+	"github.com/pohcee/procy-server/plus/capabilities/oauth"
+	"github.com/pohcee/procy-server/plus/license"
 )
 
 // PluginConfig contains the config related to the plugin itself

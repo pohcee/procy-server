@@ -8,16 +8,16 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/validations"
-	"github.com/openrport/openrport/server/alerts"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/validations"
+	"github.com/pohcee/procy-server/server/alerts"
 
-	rportplus "github.com/openrport/openrport/plus"
-	alertingcap "github.com/openrport/openrport/plus/capabilities/alerting"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/rules"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/templates"
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/query"
+	rportplus "github.com/pohcee/procy-server/plus"
+	alertingcap "github.com/pohcee/procy-server/plus/capabilities/alerting"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/rules"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/templates"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 func (al *APIListener) getAlertingService() (as alertingcap.Service, statusCode int, err error) {

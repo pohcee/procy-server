@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 type Service interface {

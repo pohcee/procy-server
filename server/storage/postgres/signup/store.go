@@ -15,11 +15,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/signup"
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/signup"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Store is the Postgres signup.Store, on the application connection.

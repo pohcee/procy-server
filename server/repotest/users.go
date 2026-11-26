@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/share/tenant"
+	extperm "github.com/pohcee/procy-server/plus/capabilities/extendedpermission"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // UsersOptions adjusts the Users suite to the provider under test.

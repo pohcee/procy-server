@@ -3,7 +3,7 @@ package jobrunner
 import (
 	"sync"
 
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 // DoneChannels maps the ID of a running sequential multi-client job to the channel its next

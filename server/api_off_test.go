@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	chclient "github.com/openrport/openrport/client"
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/test"
+	chclient "github.com/pohcee/procy-server/client"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/files"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 // listeningSockets counts the TCP sockets of this process that are in the LISTEN state.

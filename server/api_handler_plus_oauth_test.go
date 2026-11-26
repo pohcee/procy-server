@@ -10,16 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/plus/capabilities/oauth"
-	"github.com/openrport/openrport/plus/capabilities/oauth/oauthmock"
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/authorization"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/security"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/plus/capabilities/oauth"
+	"github.com/pohcee/procy-server/plus/capabilities/oauth/oauthmock"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/authorization"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/security"
 )
 
 const (

@@ -3,8 +3,8 @@
 package capabilities
 
 import (
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/server/chconfig"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/server/chconfig"
 )
 
 // Capabilities is reported as "capabilities" by GET /api/v1/status. A field is

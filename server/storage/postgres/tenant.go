@@ -6,7 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // TenantSetting is the transaction-local setting the row-level security policies compare tenant_id with.

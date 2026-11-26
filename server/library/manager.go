@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	apierrors "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/share/random"
+	apierrors "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 const (

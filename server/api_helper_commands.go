@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/jobrunner"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/server/validation"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/jobrunner"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/server/validation"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 func (al *APIListener) handleCommandsExecutionWS(

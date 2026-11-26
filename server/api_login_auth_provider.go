@@ -3,10 +3,10 @@ package chserver
 import (
 	"net/http"
 
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/plus/capabilities/oauth"
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/routes"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/plus/capabilities/oauth"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/routes"
 )
 
 const BuiltInAuthProviderName = "built-in"

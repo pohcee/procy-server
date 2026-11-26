@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // vaultT0 has a fraction of a second: values are stored with second precision.

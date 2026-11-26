@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
-	chshare "github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
+	chshare "github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 type mockPackageManager struct {

@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/clientsauth"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // ClientAuthOptions adjusts the ClientAuth suite to the provider under test.

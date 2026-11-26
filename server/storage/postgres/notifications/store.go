@@ -12,13 +12,13 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/notifications"
-	ossqlite "github.com/openrport/openrport/server/notifications/repository/sqlite"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/refs"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/notifications"
+	ossqlite "github.com/pohcee/procy-server/server/notifications/repository/sqlite"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/refs"
+	"github.com/pohcee/procy-server/share/tenant"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // The queue and size limits are the SQLite repository's.

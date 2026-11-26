@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/migration/client_groups"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/migration/client_groups"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 func newTestProvider(t *testing.T) *SqliteProvider {

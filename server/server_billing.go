@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/notifications"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/refs"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/notifications"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/refs"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // BillingOpts turn billing plans and limits on (Postgres nodes with [billing] enabled).

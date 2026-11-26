@@ -4,14 +4,14 @@ import (
 	"context"
 	"sync"
 
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/server/dispatch"
-	"github.com/openrport/openrport/server/jobrunner"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/server/dispatch"
+	"github.com/pohcee/procy-server/server/jobrunner"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 // liveClients is al's client service as it is when a request is dispatched: tests often set or

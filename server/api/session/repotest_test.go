@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/migration/api_sessions"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/api/session"
-	"github.com/openrport/openrport/server/repotest"
+	"github.com/pohcee/procy-server/db/migration/api_sessions"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/api/session"
+	"github.com/pohcee/procy-server/server/repotest"
 )
 
 func TestSqliteProviderContract(t *testing.T) {

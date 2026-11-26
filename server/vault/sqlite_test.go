@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
-	chshare "github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/query"
+	chshare "github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/query"
 
 	"github.com/jmoiron/sqlx"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 // testCtx carries the default tenant, as requests on a standalone server do.

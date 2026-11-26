@@ -11,9 +11,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 var (

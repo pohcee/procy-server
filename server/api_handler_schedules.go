@@ -7,11 +7,11 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/api/jobs/schedule"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/api"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/jobs/schedule"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
 )
 
 func (al *APIListener) handleListSchedules(w http.ResponseWriter, req *http.Request) {

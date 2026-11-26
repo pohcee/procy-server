@@ -7,8 +7,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // DeviceTenants tells a client listener shared by several tenants which tenant a connecting device belongs to and

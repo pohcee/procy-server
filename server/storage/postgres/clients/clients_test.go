@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ossclients "github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/repotest"
-	"github.com/openrport/openrport/share/logger"
+	ossclients "github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/repotest"
+	"github.com/pohcee/procy-server/share/logger"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m) }

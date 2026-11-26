@@ -19,7 +19,7 @@ import (
 
 	zxcvbn "github.com/trustelem/zxcvbn"
 
-	"github.com/openrport/openrport/share/email"
+	"github.com/pohcee/procy-server/share/email"
 )
 
 const (

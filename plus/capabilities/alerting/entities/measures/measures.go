@@ -3,7 +3,7 @@ package measures
 import (
 	"time"
 
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 type Measure struct {

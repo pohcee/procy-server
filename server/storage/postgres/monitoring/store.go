@@ -11,12 +11,12 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/monitoring"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/monitoring"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // MaxDeletedEntries is how many distinct measurement times one DeleteMeasurementsBefore removes at most, as in

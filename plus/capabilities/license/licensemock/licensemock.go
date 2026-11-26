@@ -3,9 +3,9 @@ package licensemock
 import (
 	"plugin"
 
-	licensecap "github.com/openrport/openrport/plus/capabilities/license"
-	"github.com/openrport/openrport/plus/validator"
-	"github.com/openrport/openrport/share/logger"
+	licensecap "github.com/pohcee/procy-server/plus/capabilities/license"
+	"github.com/pohcee/procy-server/plus/validator"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 const (

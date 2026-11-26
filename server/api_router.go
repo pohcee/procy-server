@@ -9,16 +9,16 @@ import (
 	"github.com/jpillora/requestlog"
 	"github.com/rs/cors"
 
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/plus/capabilities/oauth"
-	"github.com/openrport/openrport/server/api/middleware"
-	"github.com/openrport/openrport/server/api/uploads"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/security"
-	"github.com/openrport/openrport/share/tenant"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/plus/capabilities/oauth"
+	"github.com/pohcee/procy-server/server/api/middleware"
+	"github.com/pohcee/procy-server/server/api/uploads"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/security"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // define which URL paths vue aka the frontend is using. Listed paths are rewritten to / aka returning index.html

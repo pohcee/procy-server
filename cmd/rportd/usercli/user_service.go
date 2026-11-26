@@ -8,12 +8,12 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/storage/postgres"
-	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
-	"github.com/openrport/openrport/share/enums"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	pgusers "github.com/pohcee/procy-server/server/storage/postgres/users"
+	"github.com/pohcee/procy-server/share/enums"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type UserInput struct {

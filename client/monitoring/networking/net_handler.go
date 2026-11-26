@@ -1,8 +1,8 @@
 package networking
 
 import (
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 type NetHandler struct {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
 )
 
 func TestValidateFilterOptions(t *testing.T) {

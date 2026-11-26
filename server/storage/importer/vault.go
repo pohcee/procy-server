@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // vaultSource is the source vault, read before anything is written.

@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	auditlogmigration "github.com/openrport/openrport/db/migration/auditlog"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/auditlog/config"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	auditlogmigration "github.com/pohcee/procy-server/db/migration/auditlog"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/auditlog/config"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var tenantTestLog = logger.NewLogger("auditlog", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug)

@@ -22,24 +22,24 @@ import (
 
 	"github.com/xhit/go-str2duration/v2"
 
-	"github.com/openrport/openrport/db/sqlite"
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/server/caddy"
+	"github.com/pohcee/procy-server/db/sqlite"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/server/caddy"
 
-	"github.com/openrport/openrport/share/files"
+	"github.com/pohcee/procy-server/share/files"
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/jpillora/requestlog"
 	"github.com/pkg/errors"
 
-	"github.com/openrport/openrport/server/api/message"
-	auditlog "github.com/openrport/openrport/server/auditlog/config"
-	"github.com/openrport/openrport/server/bearer"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/server/ports"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/email"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/api/message"
+	auditlog "github.com/pohcee/procy-server/server/auditlog/config"
+	"github.com/pohcee/procy-server/server/bearer"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/server/ports"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/email"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 type APIConfig struct {

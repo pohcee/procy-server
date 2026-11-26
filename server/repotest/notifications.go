@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/notifications"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/refs"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/notifications"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/refs"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // NotificationsCleanable is the method the notifications cleaner needs; the Notifications suite checks it when the

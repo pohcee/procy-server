@@ -6,7 +6,7 @@ package system
 import (
 	"os"
 
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 func ValidateScriptDirOS(fileInfo os.FileInfo, scriptDir string) error {

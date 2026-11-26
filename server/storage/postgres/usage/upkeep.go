@@ -7,8 +7,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Default retention of the usage tables (billing and metering design).

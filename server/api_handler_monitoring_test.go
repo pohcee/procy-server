@@ -9,12 +9,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/monitoring"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/monitoring"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 func TestHandleRefreshUpdatesStatus(t *testing.T) {

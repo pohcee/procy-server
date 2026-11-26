@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // A job result sent by a device is saved in the tenant of the device's client context.

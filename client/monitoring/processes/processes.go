@@ -6,8 +6,8 @@ import (
 
 	"github.com/shirou/gopsutil/v3/mem"
 
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 type ProcessHandler struct {

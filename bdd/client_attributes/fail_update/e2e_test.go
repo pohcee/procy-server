@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/openrport/openrport/bdd/helpers"
+	"github.com/pohcee/procy-server/bdd/helpers"
 )
 
 type TagsAndLabels struct {

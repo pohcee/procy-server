@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	errors2 "github.com/openrport/openrport/share/errors"
+	errors2 "github.com/pohcee/procy-server/share/errors"
 
-	"github.com/openrport/openrport/client/system"
+	"github.com/pohcee/procy-server/client/system"
 
 	"github.com/pkg/sftp"
 
@@ -18,9 +18,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/files"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 type SourceFileProvider interface {

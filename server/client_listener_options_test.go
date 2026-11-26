@@ -10,13 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clientsauth"
-	"github.com/openrport/openrport/server/dispatch"
-	"github.com/openrport/openrport/server/jobrunner"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	"github.com/pohcee/procy-server/server/dispatch"
+	"github.com/pohcee/procy-server/server/jobrunner"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // freeAddr returns a local address nothing listens on.

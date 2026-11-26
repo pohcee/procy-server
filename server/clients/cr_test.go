@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openrport/openrport/server/cgroups"
+	"github.com/pohcee/procy-server/server/cgroups"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 type UserMock struct {

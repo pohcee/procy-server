@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/openrport/openrport/server/notifications"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/notifications"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 type consumer struct {

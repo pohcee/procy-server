@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // UserCache is in memory user cache with thread-safe loading. Users are kept per tenant: a lookup in one tenant

@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/openrport/openrport/server/notifications"
-	"github.com/openrport/openrport/share/refs"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/notifications"
+	"github.com/pohcee/procy-server/share/refs"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type DispatcherTestSuite struct {

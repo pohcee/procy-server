@@ -10,7 +10,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // The tenants the suites use. A Factory must return a repository in which both exist.

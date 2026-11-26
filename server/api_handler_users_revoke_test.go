@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/authorization"
-	"github.com/openrport/openrport/server/api/session"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/authorization"
+	"github.com/pohcee/procy-server/server/api/session"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // deletableUsersService accepts Delete, which the single-user provider doesn't support.

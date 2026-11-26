@@ -5,7 +5,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Report is the outcome of an import: per entity, how many rows were read from the source and what became of them.

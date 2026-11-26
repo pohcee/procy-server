@@ -9,7 +9,7 @@ aliases:
 ---
 {{< toc >}}
 Procy comes with a web-based user interface, distributed as a separate bundle. Like the server and client, it is open
-source: the code is in the [openrport-ui repository](https://github.com/pohcee/openrport-ui) and released under the
+source: the code is in the [openrport-ui repository](https://github.com/pohcee/procy-ui) and released under the
 GNU Affero General Public License v3.
 
 ## Installing the web UI
@@ -33,16 +33,16 @@ To quickly generate certificates, follow [this guide](/docs/get-started/securing
 {{< /hint >}}
 
 * Create the doc root folder. Usually `/var/lib/rport/docroot` is used.
-* Download the latest release of the web UI from [GitHub](https://github.com/pohcee/openrport-ui/releases/latest)
+* Download the latest release of the web UI from [GitHub](https://github.com/pohcee/procy-ui/releases/latest)
   (`openrport-frontend-<version>.zip`).
 * Unpack to the doc root folder.
 
 ```bash
 sudo mkdir /var/lib/rport/docroot
 cd /var/lib/rport/docroot
-UI_TAG=$(curl -fsSL https://api.github.com/repos/pohcee/openrport-ui/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+UI_TAG=$(curl -fsSL https://api.github.com/repos/pohcee/procy-ui/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
 sudo curl -fsSL -o procy-ui.zip \
-  "https://github.com/pohcee/openrport-ui/releases/download/${UI_TAG}/openrport-frontend-${UI_TAG#v}.zip"
+  "https://github.com/pohcee/procy-ui/releases/download/${UI_TAG}/openrport-frontend-${UI_TAG#v}.zip"
 sudo unzip -qq procy-ui.zip && sudo rm -f procy-ui.zip
 cd ~
 sudo chown -R rport:rport /var/lib/rport/docroot

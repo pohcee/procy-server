@@ -10,17 +10,17 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/server/validation"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/server/api"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/server/validation"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 type jobPayload struct {

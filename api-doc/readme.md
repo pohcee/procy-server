@@ -3,7 +3,7 @@
 This folder contains the sources of rportd API documentation following the openapi 3.0.1 standard.
 
 The entry point is [openapi/openapi.yaml](./openapi/openapi.yaml).
-For those preferring swagger-style rendering, use [this link](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/pohcee/openrport/main/api-doc/openapi/openapi.yaml#/)
+For those preferring swagger-style rendering, use [this link](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/pohcee/procy-server/main/api-doc/openapi/openapi.yaml#/)
 
 ## Build the documentation from the sources
 

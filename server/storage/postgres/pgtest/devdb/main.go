@@ -13,9 +13,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/server/storage/postgres/migrate"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres/migrate"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
 )
 
 func main() {

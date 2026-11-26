@@ -10,11 +10,11 @@ This page walks you through a manual installation of the Procy server (`rportd`)
 also shows what happens behind the scenes, so it's a good read even if you later install clients with
 [pairing](/docs/get-started/client-pairing/) or run everything from the web UI.
 
-![Quick start: install the server, start it and copy the fingerprint, connect a client, then SSH through the tunnel](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-quick-start.svg)
+![Quick start: install the server, start it and copy the fingerprint, connect a client, then SSH through the tunnel](https://raw.githubusercontent.com/pohcee/procy-server/main/docs/static/images/procy-quick-start.svg)
 
 ## Get the binaries
 
-Download the server and client from the [latest release](https://github.com/pohcee/openrport/releases/latest). Each
+Download the server and client from the [latest release](https://github.com/pohcee/procy-server/releases/latest). Each
 release has `tar.gz` archives for Linux, macOS and other platforms, a `zip` for Windows, and DEB and RPM packages.
 
 To build from source (Linux or macOS), run `make build`. The `rport` and `rportd` binaries appear in the current
@@ -25,8 +25,8 @@ directory. `make docker-goreleaser` builds the binaries for all supported platfo
 To see Procy work, run the server from any unprivileged account:
 
 ```shell
-VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rportd_${VERSION}_linux_x86_64.tar.gz"
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/procy-server/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -LO "https://github.com/pohcee/procy-server/releases/download/${VERSION}/rportd_${VERSION}_linux_x86_64.tar.gz"
 tar vxzf rportd_${VERSION}_linux_x86_64.tar.gz rportd
 KEY=$(openssl rand -hex 18)
 CLIENT_PASSWORD=$(openssl rand -hex 12)
@@ -55,8 +55,8 @@ Use a machine on the public internet, ideally with a DNS name. Below it's called
 {{< /hint >}}
 
 ```bash
-VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rportd_${VERSION}_linux_x86_64.tar.gz"
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/procy-server/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -LO "https://github.com/pohcee/procy-server/releases/download/${VERSION}/rportd_${VERSION}_linux_x86_64.tar.gz"
 sudo tar vxzf rportd_${VERSION}_linux_x86_64.tar.gz -C /usr/local/bin/ rportd
 sudo useradd -d /var/lib/rport -m -U -r -s /bin/false rport
 sudo mkdir /etc/rport/
@@ -126,8 +126,8 @@ take over your tunnels. You can put a TLS reverse proxy in front to get SSH over
 On the client, here `client1.example.com`, install the binary:
 
 ```shell
-VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rport_${VERSION}_linux_x86_64.tar.gz"
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/procy-server/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -LO "https://github.com/pohcee/procy-server/releases/download/${VERSION}/rport_${VERSION}_linux_x86_64.tar.gz"
 sudo tar vxzf rport_${VERSION}_linux_x86_64.tar.gz -C /usr/local/bin/ rport
 ```
 
@@ -145,8 +145,8 @@ sits behind a firewall.
 For a permanent installation:
 
 ```shell
-VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
-curl -LO "https://github.com/pohcee/openrport/releases/download/${VERSION}/rport_${VERSION}_linux_x86_64.tar.gz"
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/procy-server/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+curl -LO "https://github.com/pohcee/procy-server/releases/download/${VERSION}/rport_${VERSION}_linux_x86_64.tar.gz"
 sudo tar vxzf rport_${VERSION}_linux_x86_64.tar.gz -C /usr/local/bin/ rport
 sudo useradd -d /var/lib/rport -U -m -r -s /bin/false rport
 sudo mkdir /etc/rport/
@@ -179,7 +179,7 @@ sudo systemctl enable rport
 
 ### Run a Windows client
 
-Download `rport_<version>_windows_x86_64.zip` from the [latest release](https://github.com/pohcee/openrport/releases/latest)
+Download `rport_<version>_windows_x86_64.zip` from the [latest release](https://github.com/pohcee/procy-server/releases/latest)
 and extract it to `C:\Program Files\rport`. Rename `rport.example.conf` to `rport.conf` and edit it. A minimal
 configuration:
 
@@ -225,8 +225,8 @@ rportd -c /etc/rport/rportd.conf
 rport -c /etc/rport/rport.conf
 ```
 
-The commented examples `rportd.example.conf` ([view online](https://github.com/pohcee/openrport/blob/main/rportd.example.conf))
-and `rport.example.conf` ([view online](https://github.com/pohcee/openrport/blob/main/rport.example.conf)) are in the
+The commented examples `rportd.example.conf` ([view online](https://github.com/pohcee/procy-server/blob/main/rportd.example.conf))
+and `rport.example.conf` ([view online](https://github.com/pohcee/procy-server/blob/main/rport.example.conf)) are in the
 release archives. Command line options and environment variables override values from the config file.
 
 ## Next steps

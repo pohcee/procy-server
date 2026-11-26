@@ -13,7 +13,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Session is one client connection held by a device process.

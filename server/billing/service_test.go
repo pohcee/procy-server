@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/billing/billingtest"
-	"github.com/openrport/openrport/server/billing/stripe"
-	"github.com/openrport/openrport/server/billing/stripe/stripetest"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/billing/billingtest"
+	"github.com/pohcee/procy-server/server/billing/stripe"
+	"github.com/pohcee/procy-server/server/billing/stripe/stripetest"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var ctx = context.Background()

@@ -10,13 +10,13 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/cgroups"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/ptr"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/types"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/cgroups"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/ptr"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/types"
 )
 
 func (al *APIListener) handlePostClientGroups(w http.ResponseWriter, req *http.Request) {

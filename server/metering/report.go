@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Granularity is the length of the periods of a usage report.

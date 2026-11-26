@@ -7,11 +7,11 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/clientsauth"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 const (

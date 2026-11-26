@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // ErrNotFound: no such organization, or no such period.

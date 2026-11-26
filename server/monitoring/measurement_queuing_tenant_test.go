@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/monitoring"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/monitoring"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type savedCall struct {

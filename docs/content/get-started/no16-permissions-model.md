@@ -5,7 +5,7 @@ slug: "permissions-model"
 ---
 {{< toc >}}
 
-![The permissions model: administrators can do everything; other users need a function permission from one of their user groups and access to the client, per client or per client group](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-permissions.svg)
+![The permissions model: administrators can do everything; other users need a function permission from one of their user groups and access to the client, per client or per client group](https://raw.githubusercontent.com/pohcee/procy-server/main/docs/static/images/procy-permissions.svg)
 
 ## Admin users
 

@@ -1,5 +1,5 @@
 <!-- markdownlint-disable -->
-![Procy: the clever raccoon sneaking a secure tunnel under a firewall to a server](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-hero.svg)
+![Procy: the clever raccoon sneaking a secure tunnel under a firewall to a server](https://raw.githubusercontent.com/pohcee/procy-server/main/docs/static/images/procy-hero.svg)
 
 > Procy continues the open-source rport project, originally built by CloudRadar and carried on by the community as
 > [OpenRPort](https://github.com/openrport/openrport) after rport moved to a commercial licence. The programs, packages and config files still
@@ -33,7 +33,7 @@ From a technological perspective, [Ngrok](https://ngrok.com/) and [openport.io](
 products. Procy differs from them in many aspects.
 
 * Procy is 100% open source. Client and Server. Remote management is a matter of trust and security. Procy is fully transparent.
-* Procy comes with a [web UI](https://github.com/pohcee/openrport-ui) that makes managing remote systems easy.
+* Procy comes with a [web UI](https://github.com/pohcee/procy-ui) that makes managing remote systems easy.
 * Procy is made for all operating systems with native and small binaries. No need for Python or similar heavyweights.
 * Procy lets you self-host the server.
 * Procy lets clients wait in standby mode without an active tunnel. Tunnels can be requested on demand by the user remotely.
@@ -44,7 +44,7 @@ and Microsoft Windows.
 Also, the server can run on any operating system supported by the golang compiler. At the moment we provide server
 binaries only for Linux X64 because this is the ideal platform for running it securely and cost-effective.
 
-![How Procy works: admins and users reach the Procy server over HTTPS; clients on private networks dial out to it through their firewall, and tunnels ride that connection](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-principle.svg)
+![How Procy works: admins and users reach the Procy server over HTTPS; clients on private networks dial out to it through their firewall, and tunnels ride that connection](https://raw.githubusercontent.com/pohcee/procy-server/main/docs/static/images/procy-principle.svg)
 
 ## Why Procy?
 
@@ -63,7 +63,7 @@ tunnel and remote access tool we decided is a feature, not a bug.
 
 ## Install
 
-Download the server and client packages from the [latest release](https://github.com/pohcee/openrport/releases/latest),
+Download the server and client packages from the [latest release](https://github.com/pohcee/procy-server/releases/latest),
 then follow the [quick start](https://procy.sh/docs/get-started/quick-start/).
 
 ### Client pairing
@@ -94,23 +94,23 @@ To make it a success, please share your feedback.
 ### Report bugs
 
 If you encounter errors while installing or using Procy, please let us know.
-[File an issue report](https://github.com/pohcee/openrport/issues) here on GitHub.
+[File an issue report](https://github.com/pohcee/procy-server/issues) here on GitHub.
 
 ### Ask question
 
 If you have difficulties installing or using Procy, don't hesitate to ask us anything. Often questions give us a hint
 on how to improve the documentation. Do not use issue reports for asking questions.
-Use the [discussion forum](https://github.com/pohcee/openrport/discussions) instead.
+Use the [discussion forum](https://github.com/pohcee/procy-server/discussions) instead.
 
 ### Positive Feedback
 
 Please share positive feedback also. Give us a star. Write a review. Share our project page on your social media.
-Contribute to the [discussion](https://github.com/pohcee/openrport/discussions). Is Procy suitable for your
+Contribute to the [discussion](https://github.com/pohcee/procy-server/discussions). Is Procy suitable for your
 needs? What is missing?
 
 ### Stay tuned
 
-Click on the Watch button in the top right corner of the [Repository Page](https://github.com/pohcee/openrport).
+Click on the Watch button in the top right corner of the [Repository Page](https://github.com/pohcee/procy-server).
 This way you won't miss any updates and the upcoming features.
 
 ## Credits

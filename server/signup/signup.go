@@ -15,8 +15,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Signup statuses.

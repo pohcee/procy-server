@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/share/random"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/random"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 const legacyImportKey = "legacy_import"

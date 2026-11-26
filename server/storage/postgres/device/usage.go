@@ -3,8 +3,8 @@ package device
 import (
 	"context"
 
-	"github.com/openrport/openrport/server/metering"
-	"github.com/openrport/openrport/server/storage/outbox"
+	"github.com/pohcee/procy-server/server/metering"
+	"github.com/pohcee/procy-server/server/storage/outbox"
 )
 
 // Usage is the metering.Writer of a device process: each record goes into the outbox (kind "usage", never

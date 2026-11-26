@@ -15,9 +15,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // systemTenant is the platform operators' tenant (operator.SystemTenant; not imported to keep this package free of

@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/openrport/openrport/server/dispatch"
+	"github.com/pohcee/procy-server/server/dispatch"
 )
 
 // Client makes peer calls to device processes. It keeps one HTTP/2 connection pool per node.

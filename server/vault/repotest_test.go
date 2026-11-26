@@ -6,11 +6,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/migration/vaults"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/repotest"
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/db/migration/vaults"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/repotest"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 func TestSqliteProviderContract(t *testing.T) {

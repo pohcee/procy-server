@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	apierrors "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/validation"
+	apierrors "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/validation"
 )
 
 func badRequest(format string, args ...interface{}) error {

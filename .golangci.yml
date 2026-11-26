@@ -91,4 +91,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/openrport/openrport
+        - github.com/pohcee/procy-server

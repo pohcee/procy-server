@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/api/jobs/schedule"
-	"github.com/openrport/openrport/server/test/jb"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/api/jobs/schedule"
+	"github.com/pohcee/procy-server/server/test/jb"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // SchedulesRepos is a schedule provider with the jobs provider on the same storage: a schedule's last run, its

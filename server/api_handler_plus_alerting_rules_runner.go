@@ -6,11 +6,11 @@ import (
 
 	"github.com/gorilla/mux"
 
-	rportplus "github.com/openrport/openrport/plus"
-	alertingcap "github.com/openrport/openrport/plus/capabilities/alerting"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/rundata"
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/routes"
+	rportplus "github.com/pohcee/procy-server/plus"
+	alertingcap "github.com/pohcee/procy-server/plus/capabilities/alerting"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/rundata"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/routes"
 )
 
 func (al *APIListener) getAlertingCapability() (capEx alertingcap.CapabilityEx, statusCode int, err error) {

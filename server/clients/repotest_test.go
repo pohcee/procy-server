@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	migration "github.com/openrport/openrport/db/migration/clients"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/repotest"
+	migration "github.com/pohcee/procy-server/db/migration/clients"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/repotest"
 )
 
 func TestSQLiteClientStoreContract(t *testing.T) {

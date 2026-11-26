@@ -11,7 +11,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // SQLiteStore is the SQLite Repository, kept in library.db.

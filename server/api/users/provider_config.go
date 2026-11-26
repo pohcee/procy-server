@@ -5,9 +5,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/share/logger"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // NewProviderFromConfig selects the user provider the config asks for: an auth file, a static user, or the

@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openrport/openrport/db/sqlite"
+	"github.com/pohcee/procy-server/db/sqlite"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var DataSourceOptions = sqlite.DataSourceOptions{WALEnabled: false}

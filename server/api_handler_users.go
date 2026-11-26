@@ -9,15 +9,15 @@ import (
 
 	"github.com/gorilla/mux"
 
-	rportplus "github.com/openrport/openrport/plus"
-	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
-	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/bearer"
-	"github.com/openrport/openrport/server/oidc"
-	"github.com/openrport/openrport/server/routes"
+	rportplus "github.com/pohcee/procy-server/plus"
+	extperm "github.com/pohcee/procy-server/plus/capabilities/extendedpermission"
+	"github.com/pohcee/procy-server/server/api"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/bearer"
+	"github.com/pohcee/procy-server/server/oidc"
+	"github.com/pohcee/procy-server/server/routes"
 )
 
 var (

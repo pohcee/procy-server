@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	chserver "github.com/openrport/openrport/server"
-	"github.com/openrport/openrport/server/storage/postgres/clientauth"
-	"github.com/openrport/openrport/server/storage/postgres/migrate"
-	"github.com/openrport/openrport/server/storage/postgres/pgserver"
-	"github.com/openrport/openrport/share/logger"
+	chserver "github.com/pohcee/procy-server/server"
+	"github.com/pohcee/procy-server/server/storage/postgres/clientauth"
+	"github.com/pohcee/procy-server/server/storage/postgres/migrate"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgserver"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 var migrateCmd = &cobra.Command{

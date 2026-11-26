@@ -4,7 +4,7 @@
 package system
 
 import (
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 func getCmdBuildTestcases() []cmdBuildTestCase {

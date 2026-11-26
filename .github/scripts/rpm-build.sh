@@ -61,7 +61,7 @@ Summary:        Remote management client for the Procy server
 
 License:        MIT
 URL:            https://procy.sh/docs/
-Source0:        https://github.com/pohcee/openrport/releases/tag/${GITHUB_REF_NAME}
+Source0:        https://github.com/pohcee/procy-server/releases/tag/${GITHUB_REF_NAME}
 
 Requires:       passwd
 
@@ -116,7 +116,7 @@ systemctl stop rport.service || true
 %changelog
 * $(date) Procy maintainers <maintainers@procy.sh> - ${VERSION}-1
 - RPM created by GitHub Action
-- Full changelog https://github.com/pohcee/openrport/releases/tag/${GITHUB_REF_NAME}
+- Full changelog https://github.com/pohcee/procy-server/releases/tag/${GITHUB_REF_NAME}
 EOF
 rpmlint ~/rpmbuild/SPECS/rport.spec
 echo "👷 Building RPM package now ..."

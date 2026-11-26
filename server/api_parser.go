@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
 )
 
 func parseRequestBody(reqBody io.ReadCloser, dest interface{}) error {

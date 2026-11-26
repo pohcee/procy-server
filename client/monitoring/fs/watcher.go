@@ -8,8 +8,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/shirou/gopsutil/v3/disk"
 
-	"github.com/openrport/openrport/client/monitoring/helper"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/client/monitoring/helper"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 func DefaultMetrics() []string {

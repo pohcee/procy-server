@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 // Behind a trusted load balancer the client's address comes from X-Forwarded-For (webhook logs, audit actors).

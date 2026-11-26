@@ -1,8 +1,8 @@
 package jobs
 
 import (
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 type MultiJobRequest struct {

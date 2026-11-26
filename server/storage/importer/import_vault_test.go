@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	vaultsmigration "github.com/openrport/openrport/db/migration/vaults"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	pgvault "github.com/openrport/openrport/server/storage/postgres/vault"
-	"github.com/openrport/openrport/server/vault"
+	vaultsmigration "github.com/pohcee/procy-server/db/migration/vaults"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	pgvault "github.com/pohcee/procy-server/server/storage/postgres/vault"
+	"github.com/pohcee/procy-server/server/vault"
 )
 
 const vaultPass = "source-pass"

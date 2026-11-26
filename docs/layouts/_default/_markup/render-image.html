@@ -1,7 +1,7 @@
 {{- /* The README links images by their raw GitHub URL so they show on github.com.
        On the site, serve the same files from static/ instead. */ -}}
 {{- $src := .Destination -}}
-{{- $raw := "https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/" -}}
+{{- $raw := "https://raw.githubusercontent.com/pohcee/procy-server/main/docs/static/" -}}
 {{- if hasPrefix $src $raw -}}{{- $src = strings.TrimPrefix $raw $src | relURL -}}{{- end -}}
 <img
   src="{{ $src | safeURL }}"

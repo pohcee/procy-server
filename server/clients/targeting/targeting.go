@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"net/http"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/cgroups"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/models"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/cgroups"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 const (

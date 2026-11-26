@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // PolicyRefresh is how often a process reads the transfer policies (a variable for tests).

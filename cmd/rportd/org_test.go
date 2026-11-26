@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	pgusers "github.com/pohcee/procy-server/server/storage/postgres/users"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 func org(t *testing.T, fn orgCommand, args ...string) (string, error) {

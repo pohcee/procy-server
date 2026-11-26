@@ -9,10 +9,10 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
 
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 
-	"github.com/openrport/openrport/share/enums"
+	"github.com/pohcee/procy-server/share/enums"
 )
 
 const mysqlDuplicateEntryErrorCode = 1062

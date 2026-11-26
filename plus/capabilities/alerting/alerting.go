@@ -7,14 +7,14 @@ import (
 
 	"go.etcd.io/bbolt"
 
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/clientupdates"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/measures"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/rules"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/rundata"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/templates"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/validations"
-	"github.com/openrport/openrport/server/notifications"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/clientupdates"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/measures"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/rules"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/rundata"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/templates"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/validations"
+	"github.com/pohcee/procy-server/server/notifications"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 const NoLimit = -1

@@ -10,11 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/query"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/share/tenant"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var supportedFields = map[string]bool{

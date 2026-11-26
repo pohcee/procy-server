@@ -8,7 +8,7 @@ import (
 
 	cron "github.com/robfig/cron/v3"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // cronKey identifies a cron entry: schedule IDs are unique per tenant only.

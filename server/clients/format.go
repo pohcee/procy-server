@@ -3,7 +3,7 @@ package clients
 import (
 	"fmt"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
 )
 
 func FormatConnectionState(client *clientdata.Client) string {

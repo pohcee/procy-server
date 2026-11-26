@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // WrappedKey is a tenant's data encryption key (DEK) as stored: encrypted by a Cloud KMS key.

@@ -14,9 +14,9 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3" // the SQLite driver rportd uses
 
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // sourceDB is one SQLite file of the standalone server, opened without ever writing to it.

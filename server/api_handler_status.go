@@ -3,9 +3,9 @@ package chserver
 import (
 	"net/http"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/capabilities"
-	chshare "github.com/openrport/openrport/share"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/capabilities"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 func (al *APIListener) handleGetStatus(w http.ResponseWriter, req *http.Request) {

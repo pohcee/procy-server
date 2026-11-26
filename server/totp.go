@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/server/api/users"
+	"github.com/pohcee/procy-server/server/api/users"
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"

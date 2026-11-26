@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/bearer"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/share/security"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/bearer"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/share/security"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // twoFAServiceWithCode returns a service holding a valid code for username.

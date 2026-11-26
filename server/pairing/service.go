@@ -10,8 +10,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/logger"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 const (

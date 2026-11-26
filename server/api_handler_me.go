@@ -8,15 +8,15 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/authorization"
-	users "github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/routes"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/ptr"
-	"github.com/openrport/openrport/share/random"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/authorization"
+	users "github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/routes"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/ptr"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 // handleGetMe returns the currently logged-in user and the groups the user belongs to.

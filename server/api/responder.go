@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/share/logger"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // Responder writes the API's JSON responses and error payloads. Handler packages use it so their

@@ -3,9 +3,9 @@ package rules
 import (
 	"errors"
 
-	"github.com/openrport/openrport/plus/capabilities/alerting/actions"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/severity"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/templates"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/actions"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/severity"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/templates"
 )
 
 const (

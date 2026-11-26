@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	librarymigration "github.com/openrport/openrport/db/migration/library"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/share/tenant"
+	librarymigration "github.com/pohcee/procy-server/db/migration/library"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 func defaultTenantRequest(method, target string) *http.Request {

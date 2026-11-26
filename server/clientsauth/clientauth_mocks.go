@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/share/query"
 
 	"github.com/jmoiron/sqlx"
 

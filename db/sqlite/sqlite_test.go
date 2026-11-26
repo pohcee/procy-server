@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/migration/dummy"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/db/migration/dummy"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 func TestSqliteWALEnabled(t *testing.T) {

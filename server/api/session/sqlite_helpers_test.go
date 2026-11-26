@@ -1,8 +1,8 @@
 package session
 
 import (
-	"github.com/openrport/openrport/db/migration/api_sessions"
-	"github.com/openrport/openrport/db/sqlite"
+	"github.com/pohcee/procy-server/db/migration/api_sessions"
+	"github.com/pohcee/procy-server/db/sqlite"
 )
 
 func openTestSqliteProvider(dbPath string, dataSourceOptions sqlite.DataSourceOptions) (*SqliteProvider, error) {

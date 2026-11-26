@@ -10,10 +10,10 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/server/vault/vaultkms"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/vault/vaultkms"
 )
 
 // Store is a vaultkms.WrappedKeyStore on Postgres. Its methods take the tenant explicitly (not from the context)

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	apierrors "github.com/openrport/openrport/server/api/errors"
+	apierrors "github.com/pohcee/procy-server/server/api/errors"
 )
 
 func validContent() Content {

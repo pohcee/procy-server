@@ -4,9 +4,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 // libraryRunWSRequest is the first message of /ws/library-entries: the usual

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/openrport/openrport/server/cluster"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/cluster"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // PauseSchedules wraps a cluster coordinator so that no node starts a scheduled run of an organization that is

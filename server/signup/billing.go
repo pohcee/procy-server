@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/operator"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/operator"
 )
 
 // BillingPlans is Plans on billing ([billing] enabled): a new organization gets the trial of the plans file

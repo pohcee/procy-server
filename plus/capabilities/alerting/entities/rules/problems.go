@@ -3,7 +3,7 @@ package rules
 import (
 	"time"
 
-	"github.com/openrport/openrport/share/types"
+	"github.com/pohcee/procy-server/share/types"
 )
 
 type ProblemID string

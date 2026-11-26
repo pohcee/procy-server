@@ -9,8 +9,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 // relay carries what the client listener of a device process writes to the UI job stream of a job (live output and

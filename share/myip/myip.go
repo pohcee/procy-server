@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 const (

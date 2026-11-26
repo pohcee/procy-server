@@ -3,7 +3,7 @@ package chserver
 import (
 	"net/http"
 
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 func (al *APIListener) handleBannedIPs(r *http.Request, authorized bool) (ok bool) {

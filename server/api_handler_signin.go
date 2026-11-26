@@ -7,14 +7,14 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/bearer"
-	"github.com/openrport/openrport/server/oidc"
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/bearer"
+	"github.com/pohcee/procy-server/server/oidc"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // The sign-in settings: an organization's OIDC requirement (administrators), the sign-in method of members

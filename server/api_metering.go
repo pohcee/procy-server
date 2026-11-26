@@ -9,8 +9,8 @@ import (
 
 	"github.com/felixge/httpsnoop"
 
-	"github.com/openrport/openrport/server/metering"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/metering"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // meterResponses counts the bytes of every response (websockets included, through the hijacked connection) as

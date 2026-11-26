@@ -5,16 +5,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/auditlog/config"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/auditlog/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/migration/auditlog"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/migration/auditlog"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var DataSourceOptions = sqlite.DataSourceOptions{WALEnabled: false}

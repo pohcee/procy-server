@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/billing"
+	"github.com/pohcee/procy-server/server/billing"
 )
 
 var updateRoutes = flag.Bool("update-routes", false, "rewrite testdata/operator_routes.txt")

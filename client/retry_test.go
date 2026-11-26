@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/client/system"
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/client/system"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 func retryTestClient(maxRetry time.Duration) *Client {

@@ -12,10 +12,10 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/metering"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/metering"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // The operator console's routes: the platform overview, organizations with their stats, and per organization its

@@ -8,10 +8,10 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	chserver "github.com/openrport/openrport/server"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/storage/postgres/clientauth"
-	"github.com/openrport/openrport/share/tenant"
+	chserver "github.com/pohcee/procy-server/server"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/storage/postgres/clientauth"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // DeviceTenants lets devices of every tenant connect to a node: the tenant of a device is the one holding its client

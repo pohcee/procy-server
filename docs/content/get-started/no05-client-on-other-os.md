@@ -15,9 +15,9 @@ aliases:
 Open the terminal and as an unprivileged user download the binary and put it in `/usr/local/bin`
 
 ```shell
-VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/openrport/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+VERSION=$(curl -fsSL https://api.github.com/repos/pohcee/procy-server/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
 curl -L -o rport-mac.tar.gz \
-  "https://github.com/pohcee/openrport/releases/download/${VERSION}/rport_${VERSION}_darwin_$(uname -m).tar.gz"
+  "https://github.com/pohcee/procy-server/releases/download/${VERSION}/rport_${VERSION}_darwin_$(uname -m).tar.gz"
 test -e /usr/local/bin/||sudo mkdir /usr/local/bin
 sudo tar xzf rport-mac.tar.gz -C /usr/local/bin/ rport
 rport --version

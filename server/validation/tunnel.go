@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
 )
 
 const idleTimeoutDefault = time.Minute * 5

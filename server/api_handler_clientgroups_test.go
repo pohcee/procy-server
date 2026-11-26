@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/cgroups"
+	"github.com/pohcee/procy-server/server/cgroups"
 )
 
 func TestValidateInputClientGroup(t *testing.T) {

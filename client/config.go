@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/share/files"
+	"github.com/pohcee/procy-server/share/files"
 
-	"github.com/openrport/openrport/client/system"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/client/system"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 const DefaultMonitoringInterval = 60 * time.Second

@@ -9,15 +9,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	jobsmigration "github.com/openrport/openrport/db/migration/jobs"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/server/test/jb"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	jobsmigration "github.com/pohcee/procy-server/db/migration/jobs"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/server/test/jb"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type fakeProvider struct {

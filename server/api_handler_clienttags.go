@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 var (

@@ -7,8 +7,8 @@ import (
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/ianaindex"
 
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/clientconfig"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/clientconfig"
 )
 
 var (

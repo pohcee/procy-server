@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type APIToken struct {

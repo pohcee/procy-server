@@ -6,11 +6,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	monitoringmigration "github.com/openrport/openrport/db/migration/monitoring"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/monitoring"
-	"github.com/openrport/openrport/server/repotest"
-	"github.com/openrport/openrport/share/logger"
+	monitoringmigration "github.com/pohcee/procy-server/db/migration/monitoring"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/monitoring"
+	"github.com/pohcee/procy-server/server/repotest"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 func TestSqliteProviderContract(t *testing.T) {

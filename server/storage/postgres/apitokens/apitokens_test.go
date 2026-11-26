@@ -7,11 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/authorization"
-	"github.com/openrport/openrport/server/repotest"
+	"github.com/pohcee/procy-server/server/api/authorization"
+	"github.com/pohcee/procy-server/server/repotest"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m) }

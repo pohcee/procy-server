@@ -6,8 +6,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/routes"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/routes"
 )
 
 // billingProvider is the payment provider of the API; nil without one (standalone, [billing] provider "none").

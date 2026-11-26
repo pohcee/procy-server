@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/enc"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/enc"
 )
 
 func TestExportedValueEncryption(t *testing.T) {

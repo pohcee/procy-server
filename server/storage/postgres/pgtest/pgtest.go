@@ -26,9 +26,9 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/server/storage/postgres/migrate"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres/migrate"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // EnvDatabaseURL names a Postgres superuser URL to test against, or Embedded.

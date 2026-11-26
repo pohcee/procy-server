@@ -14,17 +14,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/jobs/schedule"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/server/test/jb"
-	"github.com/openrport/openrport/share/security"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/jobs/schedule"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/server/test/jb"
+	"github.com/pohcee/procy-server/share/security"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Users of the runs fixture (password = username):

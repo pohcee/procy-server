@@ -11,17 +11,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	jobsmigration "github.com/openrport/openrport/db/migration/jobs"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/server/dispatch"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
+	jobsmigration "github.com/pohcee/procy-server/db/migration/jobs"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/server/dispatch"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var testLog = logger.NewLogger("jobrunner-test", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug)

@@ -3,7 +3,7 @@ package notifications
 import (
 	"context"
 
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 // Repository stores the notification log. Every method is scoped to the tenant carried by its context and fails with

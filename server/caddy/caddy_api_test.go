@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/caddy"
-	"github.com/openrport/openrport/server/chconfig"
+	"github.com/pohcee/procy-server/server/caddy"
+	"github.com/pohcee/procy-server/server/chconfig"
 )
 
 func TestShouldAddRouteToCaddyServer(t *testing.T) {

@@ -11,9 +11,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/signup"
-	"github.com/openrport/openrport/server/storage/postgres"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/signup"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // exportQueries read each section of an export as one JSON array. Secret columns are never selected (passwords,

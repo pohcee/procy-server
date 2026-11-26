@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openrport/openrport/server/cluster"
-	"github.com/openrport/openrport/server/library"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/cluster"
+	"github.com/pohcee/procy-server/server/library"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // builtinsLeaseTTL keeps other nodes of the same version from syncing the built-ins again while they start.

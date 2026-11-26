@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/bearer"
+	"github.com/pohcee/procy-server/server/api"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/bearer"
 )
 
 func (al *APIListener) handlePostVerify2FAToken() http.Handler {

@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 func TestAutoClose(t *testing.T) {

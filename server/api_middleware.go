@@ -9,16 +9,16 @@ import (
 
 	"github.com/gorilla/mux"
 
-	rportplus "github.com/openrport/openrport/plus"
-	"github.com/openrport/openrport/server/api"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/api/session"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/bearer"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/enums"
-	"github.com/openrport/openrport/share/logger"
+	rportplus "github.com/pohcee/procy-server/plus"
+	"github.com/pohcee/procy-server/server/api"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/session"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/bearer"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/enums"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 func (al *APIListener) wrapStaticPassModeMiddleware(next http.HandlerFunc) http.HandlerFunc {

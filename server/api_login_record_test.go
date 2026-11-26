@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/auditlog"
-	auditconfig "github.com/openrport/openrport/server/auditlog/config"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/security"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/auditlog"
+	auditconfig "github.com/pohcee/procy-server/server/auditlog/config"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/security"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type fakeLoginRecorder struct {

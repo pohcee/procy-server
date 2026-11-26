@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/dispatch"
+	"github.com/pohcee/procy-server/server/dispatch"
 )
 
 func TestNotConnectedDispatcherEveryMethod(t *testing.T) {

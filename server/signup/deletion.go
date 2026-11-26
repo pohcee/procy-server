@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/server/operator"
+	"github.com/pohcee/procy-server/server/operator"
 )
 
 // maxReason bounds the reason given for a deletion or a denial.

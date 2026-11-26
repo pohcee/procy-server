@@ -9,14 +9,14 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/cgroups"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/random"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/cgroups"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 func CopyAttrsToClient(attributes models.Attributes, client *Client) {

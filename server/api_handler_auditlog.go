@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/openrport/openrport/server/auditlog"
+	"github.com/pohcee/procy-server/server/auditlog"
 )
 
 // handleListAuditLog handles GET /auditlog

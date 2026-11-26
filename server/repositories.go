@@ -1,21 +1,21 @@
 package chserver
 
 import (
-	"github.com/openrport/openrport/server/api/authorization"
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/api/jobs/schedule"
-	"github.com/openrport/openrport/server/api/session"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/cgroups"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clients/storedtunnels"
-	"github.com/openrport/openrport/server/clientsauth"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/server/monitoring"
-	"github.com/openrport/openrport/server/notifications"
-	"github.com/openrport/openrport/server/oidc"
-	"github.com/openrport/openrport/server/vault"
+	"github.com/pohcee/procy-server/server/api/authorization"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/api/jobs/schedule"
+	"github.com/pohcee/procy-server/server/api/session"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/cgroups"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clients/storedtunnels"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/server/monitoring"
+	"github.com/pohcee/procy-server/server/notifications"
+	"github.com/pohcee/procy-server/server/oidc"
+	"github.com/pohcee/procy-server/server/vault"
 )
 
 // Repositories is the storage the server runs on, one repository per data domain. Pass it in

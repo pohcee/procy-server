@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apisessions "github.com/openrport/openrport/db/migration/api_sessions"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/oidc"
-	"github.com/openrport/openrport/server/oidc/oidcfake"
+	apisessions "github.com/pohcee/procy-server/db/migration/api_sessions"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/oidc"
+	"github.com/pohcee/procy-server/server/oidc/oidcfake"
 )
 
 func TestSQLiteStore(t *testing.T) {

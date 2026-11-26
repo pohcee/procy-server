@@ -1,7 +1,7 @@
 package users
 
 import (
-	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
+	extperm "github.com/pohcee/procy-server/plus/capabilities/extendedpermission"
 )
 
 const (

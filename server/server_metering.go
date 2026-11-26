@@ -3,10 +3,10 @@ package chserver
 import (
 	"context"
 
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/metering"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/metering"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // MeteringOpts turn usage metering on (Postgres nodes with [metering] enabled).

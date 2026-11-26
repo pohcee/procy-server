@@ -5,11 +5,11 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/middleware"
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/pairing"
-	"github.com/openrport/openrport/share/security"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/middleware"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/pairing"
+	"github.com/pohcee/procy-server/share/security"
 )
 
 func (al *APIListener) initPairing() {

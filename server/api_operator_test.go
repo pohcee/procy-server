@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/chconfig"
+	"github.com/pohcee/procy-server/server/chconfig"
 )
 
 // A server without an operator service (standalone) has no operator routes and reports no operator capability.

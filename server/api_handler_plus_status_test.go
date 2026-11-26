@@ -10,16 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	rportplus "github.com/openrport/openrport/plus"
-	licensecap "github.com/openrport/openrport/plus/capabilities/license"
-	"github.com/openrport/openrport/plus/capabilities/license/licensemock"
-	"github.com/openrport/openrport/plus/capabilities/status"
-	"github.com/openrport/openrport/plus/capabilities/status/statusmock"
-	"github.com/openrport/openrport/server/api/authorization"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/security"
+	rportplus "github.com/pohcee/procy-server/plus"
+	licensecap "github.com/pohcee/procy-server/plus/capabilities/license"
+	"github.com/pohcee/procy-server/plus/capabilities/license/licensemock"
+	"github.com/pohcee/procy-server/plus/capabilities/status"
+	"github.com/pohcee/procy-server/plus/capabilities/status/statusmock"
+	"github.com/pohcee/procy-server/server/api/authorization"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/security"
 )
 
 const (

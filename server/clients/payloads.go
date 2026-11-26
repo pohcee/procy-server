@@ -4,11 +4,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 type ClientPayload struct {

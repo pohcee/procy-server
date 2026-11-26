@@ -18,12 +18,12 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	ossjobs "github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	ossjobs "github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 var _ ossjobs.Provider = (*Store)(nil)

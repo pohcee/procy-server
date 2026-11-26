@@ -6,9 +6,9 @@ import (
 	"plugin"
 	"time"
 
-	"github.com/openrport/openrport/plus/capabilities/oauth"
-	"github.com/openrport/openrport/plus/validator"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/plus/capabilities/oauth"
+	"github.com/pohcee/procy-server/plus/validator"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 type MockCapabilityProvider struct {

@@ -3,7 +3,7 @@ package clientupdates
 import (
 	"time"
 
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/measures"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/measures"
 )
 
 type Client struct {

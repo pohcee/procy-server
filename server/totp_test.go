@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openrport/openrport/server/api/users"
+	"github.com/pohcee/procy-server/server/api/users"
 
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"

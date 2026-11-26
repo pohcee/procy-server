@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openrport/openrport/share/errors"
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/share/errors"
+	"github.com/pohcee/procy-server/share/files"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

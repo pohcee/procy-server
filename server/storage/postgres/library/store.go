@@ -13,10 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/share/tenant"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // Store keeps the library in the tables library_entries, library_entry_versions and library_meta.

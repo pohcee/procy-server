@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clients/storedtunnels"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/types"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clients/storedtunnels"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/types"
 )
 
 // StoredTunnelRepos is a stored tunnel provider and the client store on the same storage, which holds the clients

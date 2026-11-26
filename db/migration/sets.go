@@ -4,16 +4,16 @@ package migration
 import (
 	"io/fs"
 
-	"github.com/openrport/openrport/db/migration/api_sessions"
-	"github.com/openrport/openrport/db/migration/api_token"
-	"github.com/openrport/openrport/db/migration/auditlog"
-	"github.com/openrport/openrport/db/migration/client_groups"
-	"github.com/openrport/openrport/db/migration/clients"
-	"github.com/openrport/openrport/db/migration/jobs"
-	"github.com/openrport/openrport/db/migration/library"
-	"github.com/openrport/openrport/db/migration/monitoring"
-	"github.com/openrport/openrport/db/migration/vaults"
-	notifications "github.com/openrport/openrport/server/notifications/repository/sqlite"
+	"github.com/pohcee/procy-server/db/migration/api_sessions"
+	"github.com/pohcee/procy-server/db/migration/api_token"
+	"github.com/pohcee/procy-server/db/migration/auditlog"
+	"github.com/pohcee/procy-server/db/migration/client_groups"
+	"github.com/pohcee/procy-server/db/migration/clients"
+	"github.com/pohcee/procy-server/db/migration/jobs"
+	"github.com/pohcee/procy-server/db/migration/library"
+	"github.com/pohcee/procy-server/db/migration/monitoring"
+	"github.com/pohcee/procy-server/db/migration/vaults"
+	notifications "github.com/pohcee/procy-server/server/notifications/repository/sqlite"
 )
 
 // Set is the migrations of one database, named after the database.

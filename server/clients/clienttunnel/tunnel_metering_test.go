@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/metering"
+	"github.com/pohcee/procy-server/server/metering"
 )
 
 type rwc struct {

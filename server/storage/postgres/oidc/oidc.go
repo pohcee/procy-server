@@ -11,8 +11,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/oidc"
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/oidc"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // Store is the Postgres oidc.Store and oidc.Policies, on the application connection.

@@ -101,13 +101,13 @@ cat <<EOF | gzip -n --best -c >${PKG_ROOT}/usr/share/doc/${PKG_NAME}/changelog.D
 rport (${VERSION}); urgency=low
 
   * new version created by GitHub action
-  * Full changelog https://github.com/pohcee/openrport/releases/tag/${GITHUB_REF_NAME}
+  * Full changelog https://github.com/pohcee/procy-server/releases/tag/${GITHUB_REF_NAME}
 EOF
 chmod 0644 ${PKG_ROOT}/usr/share/doc/${PKG_NAME}/changelog.Debian.gz
 
 cat <<EOF >${PKG_ROOT}/usr/share/doc/${PKG_NAME}/copyright
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Source: https://github.com/pohcee/openrport/releases/tag/${GITHUB_REF_NAME}
+Source: https://github.com/pohcee/procy-server/releases/tag/${GITHUB_REF_NAME}
 Copyright: $(date +%Y)
 License: MIT
 

@@ -12,11 +12,11 @@ import (
 	"github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var _ Provider = (*SqliteProvider)(nil)

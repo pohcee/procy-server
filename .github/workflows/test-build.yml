@@ -23,7 +23,7 @@ jobs:
           BRANCH=$(git status|grep "On branch"|cut -d" " -f3|tr '/' _)
           export VERSION=$(date -u +%y.%m%d.%H%M)-${BRANCH}
           # $(git rev-parse HEAD)
-          go build -v -ldflags="-X 'github.com/openrport/openrport/share.BuildVersion=$VERSION'"  -o ./ ./cmd/...
+          go build -v -ldflags="-X 'github.com/pohcee/procy-server/share.BuildVersion=$VERSION'"  -o ./ ./cmd/...
           echo "✅ Successfully build rport"
           echo "$VERSION $(git rev-parse HEAD)" > version.txt
 

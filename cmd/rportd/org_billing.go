@@ -14,10 +14,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/openrport/openrport/server/billing"
-	pgbilling "github.com/openrport/openrport/server/storage/postgres/billing"
-	"github.com/openrport/openrport/server/storage/postgres/pgserver"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/billing"
+	pgbilling "github.com/pohcee/procy-server/server/storage/postgres/billing"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgserver"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 var (

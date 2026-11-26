@@ -7,10 +7,10 @@ import (
 	"math"
 	"net/http"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/billing"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/billing"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // ErrCodeTransferLimit is the error code of a tunnel or upload refused at the hard transfer cap.

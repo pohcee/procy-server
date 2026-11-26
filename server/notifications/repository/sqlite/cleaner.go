@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/random"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 type Closeable interface {

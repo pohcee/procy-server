@@ -10,14 +10,14 @@ import (
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/notifications"
-	"github.com/openrport/openrport/server/notifications/channels/rmailer"
-	"github.com/openrport/openrport/server/notifications/channels/scriptRunner"
-	notificationsrepo "github.com/openrport/openrport/server/notifications/repository/sqlite"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/simpleops"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/notifications"
+	"github.com/pohcee/procy-server/server/notifications/channels/rmailer"
+	"github.com/pohcee/procy-server/server/notifications/channels/scriptRunner"
+	notificationsrepo "github.com/pohcee/procy-server/server/notifications/repository/sqlite"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/simpleops"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var testLog = logger.NewLogger("client", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug)

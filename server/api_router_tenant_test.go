@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 func TestRouterSetsDefaultTenant(t *testing.T) {

@@ -1,9 +1,9 @@
 package monitoring
 
 import (
-	"github.com/openrport/openrport/db/migration/monitoring"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/db/migration/monitoring"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 func openTestSqliteProvider(dbPath string, dataSourceOptions sqlite.DataSourceOptions, l *logger.Logger) (DBProvider, error) {

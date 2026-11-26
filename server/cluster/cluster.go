@@ -10,7 +10,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Ops of a Change.

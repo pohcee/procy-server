@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/openrport/openrport/server/monitoring"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/server/monitoring"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 var testLog = logger.NewLogger("measurement-queue", logger.LogOutput{File: os.Stdout}, logger.LogLevelDebug)

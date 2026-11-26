@@ -4,7 +4,7 @@ import (
 	"context"
 	"os/exec"
 
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 type CmdExecutorContext struct {

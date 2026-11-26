@@ -7,7 +7,7 @@ import (
 
 	"github.com/patrickmn/go-cache"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type APISession struct {

@@ -1,9 +1,9 @@
 package chserver
 
 import (
-	"github.com/openrport/openrport/server/api/jobs"
-	"github.com/openrport/openrport/server/jobrunner"
-	"github.com/openrport/openrport/share/random"
+	"github.com/pohcee/procy-server/server/api/jobs"
+	"github.com/pohcee/procy-server/server/jobrunner"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 // generateNewJobID makes the job IDs the API assigns (single-client jobs, websocket runs); tests

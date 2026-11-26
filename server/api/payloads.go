@@ -3,7 +3,7 @@ package api
 import (
 	"errors"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
 )
 
 // SuccessPayload represents a uniform format for all successful API responses.

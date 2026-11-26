@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/message"
+	"github.com/pohcee/procy-server/server/api/message"
 )
 
 func TestURLService(t *testing.T) {

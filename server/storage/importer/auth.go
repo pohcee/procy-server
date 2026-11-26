@@ -12,7 +12,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/api/users"
+	"github.com/pohcee/procy-server/server/api/users"
 )
 
 // clientCred is one client authentication credential. Passwords are copied as stored (plaintext in every standalone

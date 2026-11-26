@@ -10,14 +10,14 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	chserver "github.com/openrport/openrport/server"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/cluster"
-	"github.com/openrport/openrport/server/peer"
-	pgclients "github.com/openrport/openrport/server/storage/postgres/clients"
-	"github.com/openrport/openrport/server/storage/postgres/clientsessions"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	chserver "github.com/pohcee/procy-server/server"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/cluster"
+	"github.com/pohcee/procy-server/server/peer"
+	pgclients "github.com/pohcee/procy-server/server/storage/postgres/clients"
+	"github.com/pohcee/procy-server/server/storage/postgres/clientsessions"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // sweepInterval is how often clients stored as connected without a live session are marked disconnected (one node

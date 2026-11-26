@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/oidc"
-	"github.com/openrport/openrport/server/oidc/oidcfake"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/oidc"
+	"github.com/pohcee/procy-server/server/oidc/oidcfake"
 )
 
 const redirect = "http://127.0.0.1:1/api/v1/oidc/callback"

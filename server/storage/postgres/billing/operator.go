@@ -7,7 +7,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/billing"
+	"github.com/pohcee/procy-server/server/billing"
 )
 
 // Operator is the billing.OperatorService on the application connection: it works in a transaction of the system

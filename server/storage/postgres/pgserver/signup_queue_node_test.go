@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/oidc/oidcfake"
-	"github.com/openrport/openrport/server/operator"
+	"github.com/pohcee/procy-server/server/oidc/oidcfake"
+	"github.com/pohcee/procy-server/server/operator"
 )
 
 const signupNotice = "Preview: we're just starting out; features and plans may change."

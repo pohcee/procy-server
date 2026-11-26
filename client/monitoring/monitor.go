@@ -8,14 +8,14 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/client/monitoring/fs"
-	"github.com/openrport/openrport/client/monitoring/networking"
-	"github.com/openrport/openrport/client/monitoring/processes"
-	"github.com/openrport/openrport/client/system"
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/client/monitoring/fs"
+	"github.com/pohcee/procy-server/client/monitoring/networking"
+	"github.com/pohcee/procy-server/client/monitoring/processes"
+	"github.com/pohcee/procy-server/client/system"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 type Monitor struct {

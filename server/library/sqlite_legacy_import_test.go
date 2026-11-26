@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/migration/library"
-	"github.com/openrport/openrport/db/sqlite"
+	"github.com/pohcee/procy-server/db/migration/library"
+	"github.com/pohcee/procy-server/db/sqlite"
 )
 
 func newLegacyDB(t *testing.T) (*sqlx.DB, *SQLiteStore) {

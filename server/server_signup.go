@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/openrport/openrport/server/cluster"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/cluster"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // signupUpkeepInterval is how often expired signups are closed and organizations whose deletion is due are deleted.

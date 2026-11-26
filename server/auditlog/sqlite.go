@@ -8,10 +8,10 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/db/migration/auditlog"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/migration/auditlog"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // SQLiteProvider stores audit log entries. Save, List and Count are scoped to the tenant carried by their context

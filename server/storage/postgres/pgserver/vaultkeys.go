@@ -8,9 +8,9 @@ import (
 	kms "cloud.google.com/go/kms/apiv1"
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/storage/postgres/vaultkeys"
-	"github.com/openrport/openrport/server/vault/vaultkms"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/storage/postgres/vaultkeys"
+	"github.com/pohcee/procy-server/server/vault/vaultkms"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // KMSVaultKeys returns the managed vault key provider that wraps every tenant's vault key with the Cloud KMS

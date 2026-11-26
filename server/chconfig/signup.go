@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/share/email"
+	"github.com/pohcee/procy-server/share/email"
 )
 
 // Signup defaults.

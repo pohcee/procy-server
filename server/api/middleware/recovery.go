@@ -3,7 +3,7 @@ package middleware
 import (
 	"fmt"
 
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 type RecoveryLogger struct {

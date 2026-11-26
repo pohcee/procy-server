@@ -5,8 +5,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 func IsAllowed(remote string, conn ssh.Conn, l *logger.Logger) (bool, error) {

@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/cgroups"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/cgroups"
 )
 
 func NewTestClient(id string, address string, hostname string, clientAuthID string, connection ssh.Conn) (c *Client) {

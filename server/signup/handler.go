@@ -10,11 +10,11 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/operator"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/operator"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 const maxBody = 16 << 10

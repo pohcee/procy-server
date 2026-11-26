@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/sqlite"
+	"github.com/pohcee/procy-server/db/sqlite"
 )
 
 // A manual downgrade (schema version set back to 4) followed by a re-upgrade

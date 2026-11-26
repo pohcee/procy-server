@@ -11,10 +11,10 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/query"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // Store is a vault.DbProvider on Postgres.

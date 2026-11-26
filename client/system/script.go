@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/text/encoding"
 
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/random"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 const DefaultFileMode = os.FileMode(0540)

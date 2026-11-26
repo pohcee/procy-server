@@ -6,10 +6,10 @@ import (
 	"os"
 	"testing"
 
-	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
-	chshare "github.com/openrport/openrport/share/logger"
+	extperm "github.com/pohcee/procy-server/plus/capabilities/extendedpermission"
+	chshare "github.com/pohcee/procy-server/share/logger"
 
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/share/test"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"

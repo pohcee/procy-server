@@ -10,7 +10,7 @@ aliases:
 Via the API you can execute a command on connected clients.
 The command and the response travel over the connection the client already holds. A tunnel is not needed.
 
-![Running commands: you post a command for a client group; the server creates a job per client; each client checks the command against its own rules, runs it and sends back the result](https://raw.githubusercontent.com/pohcee/openrport/main/docs/static/images/procy-commands.svg)
+![Running commands: you post a command for a client group; the server creates a job per client; each client checks the command against its own rules, runs it and sends back the result](https://raw.githubusercontent.com/pohcee/procy-server/main/docs/static/images/procy-commands.svg)
 
 Command can be executed via:
 

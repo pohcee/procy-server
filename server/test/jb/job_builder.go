@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/random"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 type JobBuilder struct {

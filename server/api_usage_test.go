@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/metering"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/metering"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type fakeUsage struct{ asked []tenant.ID }

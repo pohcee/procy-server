@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/share/clientconfig"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/clientconfig"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 func getDefaultValidMinConfig() ClientConfigHolder {

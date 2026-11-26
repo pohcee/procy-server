@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/share/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

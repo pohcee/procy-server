@@ -8,14 +8,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ossstoredtunnels "github.com/openrport/openrport/server/clients/storedtunnels"
-	"github.com/openrport/openrport/server/repotest"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	ossstoredtunnels "github.com/pohcee/procy-server/server/clients/storedtunnels"
+	"github.com/pohcee/procy-server/server/repotest"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 
-	"github.com/openrport/openrport/server/storage/postgres"
-	pgclients "github.com/openrport/openrport/server/storage/postgres/clients"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	pgclients "github.com/pohcee/procy-server/server/storage/postgres/clients"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
 )
 
 func TestMain(m *testing.M) { pgtest.Main(m) }

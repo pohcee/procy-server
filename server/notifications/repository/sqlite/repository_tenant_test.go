@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/notifications"
-	repo "github.com/openrport/openrport/server/notifications/repository/sqlite"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/notifications"
+	repo "github.com/pohcee/procy-server/server/notifications/repository/sqlite"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 func ctxFor(id tenant.ID) context.Context { return tenant.WithID(context.Background(), id) }

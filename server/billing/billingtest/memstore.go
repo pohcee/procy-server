@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openrport/openrport/server/billing"
+	"github.com/pohcee/procy-server/server/billing"
 )
 
 var _ billing.Store = (*MemStore)(nil)

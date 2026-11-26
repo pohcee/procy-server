@@ -9,14 +9,14 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/api/command"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/server/script"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/api/command"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/server/script"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 const (

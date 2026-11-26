@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	email2 "github.com/openrport/openrport/share/email"
+	email2 "github.com/pohcee/procy-server/share/email"
 )
 
 type URLService struct {

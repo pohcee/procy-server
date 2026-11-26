@@ -7,7 +7,7 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/shirou/gopsutil/v3/net"
 
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 type PortDistributor struct {

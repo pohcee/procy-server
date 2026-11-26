@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/jobs/schedule"
-	"github.com/openrport/openrport/server/auditlog"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clients/targeting"
-	"github.com/openrport/openrport/server/jobrunner"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/server/monitoring"
-	"github.com/openrport/openrport/share/files"
+	"github.com/pohcee/procy-server/server/api/jobs/schedule"
+	"github.com/pohcee/procy-server/server/auditlog"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clients/targeting"
+	"github.com/pohcee/procy-server/server/jobrunner"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/server/monitoring"
+	"github.com/pohcee/procy-server/share/files"
 )
 
 // The API listener is built from its options alone: no Server and no client listener. Work on

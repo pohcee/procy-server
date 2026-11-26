@@ -9,11 +9,11 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/models"
 
-	chclient "github.com/openrport/openrport/client"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/clientconfig"
+	chclient "github.com/pohcee/procy-server/client"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/clientconfig"
 )
 
 func readAttributesFile(cfgPath string) (models.Attributes, error) {

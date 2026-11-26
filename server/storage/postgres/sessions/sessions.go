@@ -11,9 +11,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/api/session"
+	"github.com/pohcee/procy-server/server/api/session"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // Store is a session.StorageProvider on Postgres.

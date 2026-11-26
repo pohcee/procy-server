@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/openrport/openrport/server/api/errors"
-	errors2 "github.com/openrport/openrport/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/errors"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
 )
 
 type Pagination struct {

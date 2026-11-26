@@ -3,8 +3,8 @@ package clients
 import (
 	"time"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // StoredClient is a client in the form a ClientStore keeps it: the columns a store queries, and every other

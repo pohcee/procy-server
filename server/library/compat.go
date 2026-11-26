@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/openrport/openrport/server/api/command"
-	"github.com/openrport/openrport/server/script"
-	"github.com/openrport/openrport/share/types"
+	"github.com/pohcee/procy-server/server/api/command"
+	"github.com/pohcee/procy-server/server/script"
+	"github.com/pohcee/procy-server/share/types"
 )
 
 // This file serves the /library/scripts and /library/commands APIs as views

@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/ports"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/ports"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 func TestStartClientRecordsConnectedHost(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/monitoring"
-	"github.com/openrport/openrport/server/routes"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/server/monitoring"
+	"github.com/pohcee/procy-server/server/routes"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 // handleRefreshUpdatesStatus handles GET /clients/{client_id}/updates-status

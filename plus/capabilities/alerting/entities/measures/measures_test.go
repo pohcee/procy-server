@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 func TestShouldCloneProcess(t *testing.T) {

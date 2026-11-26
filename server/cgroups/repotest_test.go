@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/migration/client_groups"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/cgroups"
-	"github.com/openrport/openrport/server/repotest"
+	"github.com/pohcee/procy-server/db/migration/client_groups"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/cgroups"
+	"github.com/pohcee/procy-server/server/repotest"
 )
 
 func TestSQLiteClientGroupsContract(t *testing.T) {

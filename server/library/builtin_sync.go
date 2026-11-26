@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openrport/openrport/share/random"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 const builtinAuthor = "procy"

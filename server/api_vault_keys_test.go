@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/capabilities"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/capabilities"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/files"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // staticVaultKeys is a managed vault key provider with one key for every tenant.

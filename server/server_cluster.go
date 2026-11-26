@@ -5,14 +5,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/openrport/openrport/server/api/jobs/schedule"
-	"github.com/openrport/openrport/server/api/session"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/cluster"
-	notificationsSQLite "github.com/openrport/openrport/server/notifications/repository/sqlite"
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/jobs/schedule"
+	"github.com/pohcee/procy-server/server/api/session"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/cluster"
+	notificationsSQLite "github.com/pohcee/procy-server/server/notifications/repository/sqlite"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // newScheduleManager returns the schedule manager. Standalone it holds the schedules of ctx's tenant, as always. In

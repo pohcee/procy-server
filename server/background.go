@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openrport/openrport/server/cluster"
-	"github.com/openrport/openrport/server/scheduler"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/cluster"
+	"github.com/pohcee/procy-server/server/scheduler"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // minLeaseMargin is the least a lease outlives the interval of its task, so the holder renews it before it expires.

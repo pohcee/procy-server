@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/share/enc"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/share/enc"
 )
 
 const (

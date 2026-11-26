@@ -1,13 +1,13 @@
 package rundata
 
 import (
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/clientupdates"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/measures"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/rules"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/templates"
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/validations"
-	"github.com/openrport/openrport/server/notifications"
-	"github.com/openrport/openrport/share/refs"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/clientupdates"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/measures"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/rules"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/templates"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/validations"
+	"github.com/pohcee/procy-server/server/notifications"
+	"github.com/pohcee/procy-server/share/refs"
 )
 
 type RunData struct {

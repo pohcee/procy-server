@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	chserver "github.com/openrport/openrport/server"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/server/storage/postgres/changefeed"
-	pgclients "github.com/openrport/openrport/server/storage/postgres/clients"
-	"github.com/openrport/openrport/server/storage/postgres/pgtest"
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/tenant"
+	chserver "github.com/pohcee/procy-server/server"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/server/storage/postgres/changefeed"
+	pgclients "github.com/pohcee/procy-server/server/storage/postgres/clients"
+	"github.com/pohcee/procy-server/server/storage/postgres/pgtest"
+	"github.com/pohcee/procy-server/share/files"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // twoNodes runs nodes A and B (role api) on one database with the seeded tenants.

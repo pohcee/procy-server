@@ -6,19 +6,19 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	chserver "github.com/openrport/openrport/server"
+	chserver "github.com/pohcee/procy-server/server"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/notifications/channels/rmailer"
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/signup"
-	"github.com/openrport/openrport/server/storage/postgres"
-	pgsignup "github.com/openrport/openrport/server/storage/postgres/signup"
-	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/notifications/channels/rmailer"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/signup"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	pgsignup "github.com/pohcee/procy-server/server/storage/postgres/signup"
+	pgusers "github.com/pohcee/procy-server/server/storage/postgres/users"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // signupOverrides replace the mailer, the captcha and the MX lookup of the signup service (tests).

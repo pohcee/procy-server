@@ -9,8 +9,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 type Conn interface {

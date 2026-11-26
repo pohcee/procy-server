@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 func (i Interpreter) Get() string {

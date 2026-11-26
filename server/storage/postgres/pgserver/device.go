@@ -11,16 +11,16 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	chserver "github.com/openrport/openrport/server"
-	"github.com/openrport/openrport/server/billing"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/cluster"
-	"github.com/openrport/openrport/server/storage/outbox"
-	"github.com/openrport/openrport/server/storage/postgres"
-	pgbilling "github.com/openrport/openrport/server/storage/postgres/billing"
-	"github.com/openrport/openrport/server/storage/postgres/device"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	chserver "github.com/pohcee/procy-server/server"
+	"github.com/pohcee/procy-server/server/billing"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/cluster"
+	"github.com/pohcee/procy-server/server/storage/outbox"
+	"github.com/pohcee/procy-server/server/storage/postgres"
+	pgbilling "github.com/pohcee/procy-server/server/storage/postgres/billing"
+	"github.com/pohcee/procy-server/server/storage/postgres/device"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // OutboxFile is the outbox of a device process, in its data directory.

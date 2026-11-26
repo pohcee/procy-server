@@ -46,7 +46,7 @@ goversioninfo.exe
 Set-Location ../../
 
 Write-Output "[*] Building rport.exe for windows"
-go build -ldflags "-s -w -X github.com/openrport/openrport/share.BuildVersion=$major.$minor.$patch" -o rport.exe ./cmd/rport
+go build -ldflags "-s -w -X github.com/pohcee/procy-server/share.BuildVersion=$major.$minor.$patch" -o rport.exe ./cmd/rport
 Get-ChildItem -File *.exe
 .\rport.exe --version
 

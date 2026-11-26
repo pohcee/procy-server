@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/openrport/openrport/plus/capabilities/alerting/entities/rules"
-	"github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/share/query"
+	"github.com/pohcee/procy-server/plus/capabilities/alerting/entities/rules"
+	"github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/share/query"
 )
 
 var SupportedProblemsListFields = map[string][]string{

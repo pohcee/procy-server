@@ -1,4 +1,4 @@
-module github.com/openrport/openrport
+module github.com/pohcee/procy-server
 
 go 1.26.10
 

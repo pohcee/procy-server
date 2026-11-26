@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/dispatch"
-	"github.com/openrport/openrport/share/test"
+	"github.com/pohcee/procy-server/server/dispatch"
+	"github.com/pohcee/procy-server/share/test"
 )
 
 // startSFTP serves the device file server over an in-memory pipe and returns a client connected to it.

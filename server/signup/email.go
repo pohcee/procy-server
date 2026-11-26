@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openrport/openrport/server/operator"
+	"github.com/pohcee/procy-server/server/operator"
 )
 
 // EmailStatus is whether the email of a signed-in account is confirmed.

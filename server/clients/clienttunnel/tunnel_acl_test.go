@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/openrport/openrport/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
 )
 
 func TestParseTunnelACL(t *testing.T) {

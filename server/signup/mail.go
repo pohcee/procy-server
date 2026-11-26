@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/server/notifications/channels/rmailer"
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/server/notifications/channels/rmailer"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // Paths of the web UI the links in the emails open (below [signup] public_url). The UI reads the token from the

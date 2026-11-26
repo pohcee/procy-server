@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/library"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/library"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var libT0 = time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)

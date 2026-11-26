@@ -17,12 +17,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openrport/openrport/server/dispatch"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/server/dispatch"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 // maxCallBody bounds the JSON body of a peer call (uploads stream their file separately).

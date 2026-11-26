@@ -12,14 +12,14 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/openrport/openrport/server/clients/clienttunnel"
-	"github.com/openrport/openrport/server/dispatch"
-	"github.com/openrport/openrport/server/jobrunner"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/tenant"
-	"github.com/openrport/openrport/share/ws"
+	"github.com/pohcee/procy-server/server/clients/clienttunnel"
+	"github.com/pohcee/procy-server/server/dispatch"
+	"github.com/pohcee/procy-server/server/jobrunner"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/tenant"
+	"github.com/pohcee/procy-server/share/ws"
 )
 
 // Dispatcher is the dispatch.Dispatcher of a process in a cluster: it finds the node holding the client in the

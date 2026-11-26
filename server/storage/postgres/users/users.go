@@ -18,13 +18,13 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jmoiron/sqlx"
 
-	extperm "github.com/openrport/openrport/plus/capabilities/extendedpermission"
-	apierrors "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/share/enums"
-	"github.com/openrport/openrport/share/tenant"
+	extperm "github.com/pohcee/procy-server/plus/capabilities/extendedpermission"
+	apierrors "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/share/enums"
+	"github.com/pohcee/procy-server/share/tenant"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // Store is a users.Provider on Postgres.

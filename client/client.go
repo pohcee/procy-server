@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	ipAddresses "github.com/openrport/openrport/client/ip_addresses"
+	ipAddresses "github.com/pohcee/procy-server/client/ip_addresses"
 
-	"github.com/openrport/openrport/share/random"
+	"github.com/pohcee/procy-server/share/random"
 
 	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
@@ -28,14 +28,14 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/proxy"
 
-	"github.com/openrport/openrport/client/monitoring"
-	"github.com/openrport/openrport/client/system"
-	"github.com/openrport/openrport/client/updates"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/client/monitoring"
+	"github.com/pohcee/procy-server/client/system"
+	"github.com/pohcee/procy-server/client/updates"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/files"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 const DialTimeout = 5 * 60 * time.Second

@@ -3,8 +3,8 @@ package notifications
 import (
 	"context"
 
-	"github.com/openrport/openrport/share/refs"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/refs"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type ProcessingState string

@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/notifications"
-	repo "github.com/openrport/openrport/server/notifications/repository/sqlite"
-	"github.com/openrport/openrport/server/repotest"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/notifications"
+	repo "github.com/pohcee/procy-server/server/notifications/repository/sqlite"
+	"github.com/pohcee/procy-server/server/repotest"
 )
 
 var _ repotest.NotificationsCleanable = repo.Cleanable(nil)

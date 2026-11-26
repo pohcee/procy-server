@@ -3,7 +3,7 @@ package chserver
 import (
 	"net/http"
 
-	"github.com/openrport/openrport/server/api"
+	"github.com/pohcee/procy-server/server/api"
 )
 
 // responder writes responses like every handler of the API.

@@ -7,9 +7,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/billing"
-	pgbilling "github.com/openrport/openrport/server/storage/postgres/billing"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/billing"
+	pgbilling "github.com/pohcee/procy-server/server/storage/postgres/billing"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // Records reads the billing statuses from org_billing (migration 1450) for the provider service.

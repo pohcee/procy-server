@@ -3,8 +3,8 @@ package chserver
 import (
 	"context"
 
-	"github.com/openrport/openrport/server/clients/clientdata"
-	"github.com/openrport/openrport/server/clients/targeting"
+	"github.com/pohcee/procy-server/server/clients/clientdata"
+	"github.com/pohcee/procy-server/server/clients/targeting"
 )
 
 // The targeting names under their old names.

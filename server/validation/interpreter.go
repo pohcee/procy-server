@@ -3,7 +3,7 @@ package validation
 import (
 	"fmt"
 
-	chshare "github.com/openrport/openrport/share"
+	chshare "github.com/pohcee/procy-server/share"
 )
 
 var validInputInterpreter = []string{chshare.CmdShell, chshare.PowerShell, chshare.Tacoscript}

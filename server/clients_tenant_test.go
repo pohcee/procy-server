@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/server/clients"
-	"github.com/openrport/openrport/server/clientsauth"
-	"github.com/openrport/openrport/share/comm"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/models"
-	"github.com/openrport/openrport/share/security"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/server/clients"
+	"github.com/pohcee/procy-server/server/clientsauth"
+	"github.com/pohcee/procy-server/share/comm"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/models"
+	"github.com/pohcee/procy-server/share/security"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // clientsTestCtx is the context of standalone server work: it carries the default tenant.

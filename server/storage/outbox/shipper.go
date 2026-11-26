@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openrport/openrport/share/logger"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 // Status is what the database did with a shipped item.

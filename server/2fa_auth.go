@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openrport/openrport/server/api/users"
+	"github.com/pohcee/procy-server/server/api/users"
 
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/api/message"
-	"github.com/openrport/openrport/share/security"
-	"github.com/openrport/openrport/share/tenant"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/api/message"
+	"github.com/pohcee/procy-server/share/security"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 type TwoFAService struct {

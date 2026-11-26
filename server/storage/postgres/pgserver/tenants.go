@@ -8,12 +8,12 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/api/users"
-	"github.com/openrport/openrport/server/library"
-	pglibrary "github.com/openrport/openrport/server/storage/postgres/library"
-	pgusers "github.com/openrport/openrport/server/storage/postgres/users"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/server/api/users"
+	"github.com/pohcee/procy-server/server/library"
+	pglibrary "github.com/pohcee/procy-server/server/storage/postgres/library"
+	pgusers "github.com/pohcee/procy-server/server/storage/postgres/users"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // AddTenant creates a tenant and gives it the built-in library entries. db must be allowed to write the tenants

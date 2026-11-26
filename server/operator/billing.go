@@ -6,8 +6,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/server/billing"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/server/billing"
 )
 
 // mountBilling registers the billing routes ([billing] enabled).

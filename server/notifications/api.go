@@ -1,7 +1,7 @@
 package notifications
 
 import (
-	"github.com/openrport/openrport/share/refs"
+	"github.com/pohcee/procy-server/share/refs"
 )
 
 type NotificationID refs.Identifiable

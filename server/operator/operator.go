@@ -8,7 +8,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 // SystemTenant is the reserved tenant of the platform operators. It has users but never devices, and through the

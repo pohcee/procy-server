@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/server/api/command"
-	"github.com/openrport/openrport/server/script"
+	"github.com/pohcee/procy-server/server/api/command"
+	"github.com/pohcee/procy-server/server/script"
 )
 
 func TestScriptViewUpdateKeepsOtherOS(t *testing.T) {

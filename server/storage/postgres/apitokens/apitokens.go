@@ -10,9 +10,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/api/authorization"
+	"github.com/pohcee/procy-server/server/api/authorization"
 
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // Store is an authorization.DbProvider on Postgres.

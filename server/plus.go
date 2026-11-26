@@ -5,16 +5,16 @@ import (
 	"errors"
 	"fmt"
 
-	rportplus "github.com/openrport/openrport/plus"
-	alertingcap "github.com/openrport/openrport/plus/capabilities/alerting"
-	"github.com/openrport/openrport/plus/capabilities/extendedpermission"
-	licensecap "github.com/openrport/openrport/plus/capabilities/license"
-	"github.com/openrport/openrport/plus/capabilities/oauth"
-	"github.com/openrport/openrport/plus/capabilities/status"
-	"github.com/openrport/openrport/plus/license"
-	"github.com/openrport/openrport/server/chconfig"
-	"github.com/openrport/openrport/share/files"
-	"github.com/openrport/openrport/share/logger"
+	rportplus "github.com/pohcee/procy-server/plus"
+	alertingcap "github.com/pohcee/procy-server/plus/capabilities/alerting"
+	"github.com/pohcee/procy-server/plus/capabilities/extendedpermission"
+	licensecap "github.com/pohcee/procy-server/plus/capabilities/license"
+	"github.com/pohcee/procy-server/plus/capabilities/oauth"
+	"github.com/pohcee/procy-server/plus/capabilities/status"
+	"github.com/pohcee/procy-server/plus/license"
+	"github.com/pohcee/procy-server/server/chconfig"
+	"github.com/pohcee/procy-server/share/files"
+	"github.com/pohcee/procy-server/share/logger"
 )
 
 var (

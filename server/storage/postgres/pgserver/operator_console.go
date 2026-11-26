@@ -11,8 +11,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"github.com/openrport/openrport/server/operator"
-	"github.com/openrport/openrport/server/storage/postgres"
+	"github.com/pohcee/procy-server/server/operator"
+	"github.com/pohcee/procy-server/server/storage/postgres"
 )
 
 // The reads of the operator console. Reads across organizations go through the SECURITY DEFINER functions of

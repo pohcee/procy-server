@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openrport/openrport/db/migration/vaults"
-	"github.com/openrport/openrport/db/sqlite"
-	errors2 "github.com/openrport/openrport/server/api/errors"
-	"github.com/openrport/openrport/server/vault"
-	"github.com/openrport/openrport/share/logger"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/migration/vaults"
+	"github.com/pohcee/procy-server/db/sqlite"
+	errors2 "github.com/pohcee/procy-server/server/api/errors"
+	"github.com/pohcee/procy-server/server/vault"
+	"github.com/pohcee/procy-server/share/logger"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 var testLog = logger.NewLogger("vault", logger.LogOutput{File: os.Stdout}, logger.LogLevelInfo)

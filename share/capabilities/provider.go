@@ -1,9 +1,9 @@
 package capabilities
 
 import (
-	"github.com/openrport/openrport/server/chconfig"
-	chshare "github.com/openrport/openrport/share"
-	"github.com/openrport/openrport/share/models"
+	"github.com/pohcee/procy-server/server/chconfig"
+	chshare "github.com/pohcee/procy-server/share"
+	"github.com/pohcee/procy-server/share/models"
 )
 
 func NewServerCapabilities(cfg *chconfig.MonitoringConfig) *models.Capabilities {

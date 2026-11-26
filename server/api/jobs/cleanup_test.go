@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/openrport/openrport/db/migration/jobs"
-	"github.com/openrport/openrport/db/sqlite"
-	"github.com/openrport/openrport/server/test/jb"
-	"github.com/openrport/openrport/share/tenant"
+	"github.com/pohcee/procy-server/db/migration/jobs"
+	"github.com/pohcee/procy-server/db/sqlite"
+	"github.com/pohcee/procy-server/server/test/jb"
+	"github.com/pohcee/procy-server/share/tenant"
 )
 
 func TestCleanupJobsMultiJobs(t *testing.T) {

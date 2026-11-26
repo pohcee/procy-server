@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/openrport/openrport/server/api"
-	"github.com/openrport/openrport/share/query"
-	"github.com/openrport/openrport/share/random"
+	"github.com/pohcee/procy-server/server/api"
+	"github.com/pohcee/procy-server/share/query"
+	"github.com/pohcee/procy-server/share/random"
 )
 
 var (
