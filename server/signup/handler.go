@@ -338,6 +338,8 @@ func (h *Handler) fail(w http.ResponseWriter, err error) {
 		status = http.StatusNotFound
 	case errors.Is(err, ErrConflict), errors.Is(err, operator.ErrNotActive), errors.Is(err, operator.ErrExists):
 		status = http.StatusConflict
+	case errors.Is(err, ErrEmailSignupOff):
+		status = http.StatusForbidden
 	case errors.Is(err, ErrMail):
 		status = http.StatusServiceUnavailable
 	}

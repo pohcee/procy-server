@@ -35,6 +35,9 @@ type SignupConfig struct {
 	PublicURL string `mapstructure:"public_url"`
 	// RequireApproval holds verified signups until an operator approves them.
 	RequireApproval bool `mapstructure:"require_approval"`
+	// OIDCOnly: signups only through OIDC ("Continue with Google"; needs [oidc]). The email form is refused, and
+	// every organization a signup creates requires OIDC sign-in for its members.
+	OIDCOnly bool `mapstructure:"oidc_only"`
 	// Captcha is "turnstile", "hcaptcha" or "" (none). The secret is read from CaptchaSecretFile; the site key is
 	// public and given to the UI.
 	Captcha           string `mapstructure:"captcha"`
@@ -103,6 +106,9 @@ func (c *Config) parseAndValidateSignup() error {
 		return errors.New("[signup] public_url must be the http(s) address of the web UI (the links in the signup emails point to it)")
 	}
 	s.PublicURL = strings.TrimRight(s.PublicURL, "/")
+	if s.OIDCOnly && !c.OIDC.Enabled {
+		return errors.New("[signup] oidc_only needs [oidc]: without it nobody could sign up")
+	}
 	switch s.Captcha {
 	case "":
 	case SignupCaptchaTurnstile, SignupCaptchaHCaptcha:

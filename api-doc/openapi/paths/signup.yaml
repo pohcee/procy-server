@@ -22,9 +22,16 @@ get:
                   require_approval: {type: boolean}
                   password_min_length: {type: integer}
                   trial_days: {type: integer}
+                  email_signup: {type: boolean, description: 'The email form is offered (off with `[signup] oidc_only`)'}
                   google_signup: {type: boolean, description: '"Continue with Google" is offered ([oidc] on)'}
                   google_signup_url: {type: string, example: /api/v1/oidc/signup}
                   google_button_label: {type: string, example: Continue with Google}
+    '403':
+      description: Signup by email is off (`[signup] oidc_only`); sign up with Google instead
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
     '404':
       description: No signup on this server (standalone, or `[signup]` not enabled)
       content:

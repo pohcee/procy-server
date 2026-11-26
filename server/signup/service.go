@@ -72,6 +72,8 @@ type PublicConfig struct {
 	RequireApproval   bool   `json:"require_approval"`
 	PasswordMinLength int    `json:"password_min_length"`
 	TrialDays         int    `json:"trial_days"`
+	// EmailSignup: the page offers the email form (off with [signup] oidc_only).
+	EmailSignup bool `json:"email_signup"`
 	// GoogleSignup: the page offers "Continue with Google" (GET GoogleSignupURL?organization=…): the Google account's
 	// verified email replaces the emailed link.
 	GoogleSignup      bool   `json:"google_signup"`
@@ -92,6 +94,7 @@ func (s *Service) PublicConfig() PublicConfig {
 		RequireApproval:   c.RequireApproval,
 		PasswordMinLength: s.o.Passwords.MinLength,
 		TrialDays:         s.o.TrialDays,
+		EmailSignup:       !c.OIDCOnly,
 	}
 	if s.o.GoogleSignup {
 		pc.GoogleSignup, pc.GoogleSignupURL, pc.GoogleButtonLabel = true, GoogleSignupURL, "Continue with Google"
@@ -175,6 +178,9 @@ func checkOrgName(name string) (string, error) {
 // already a user (that one gets a notice instead of a link), and both take the same work, so it doesn't reveal
 // accounts.
 func (s *Service) Request(ctx context.Context, in Request, remoteIP string) error {
+	if s.o.Config.OIDCOnly {
+		return ErrEmailSignupOff
+	}
 	addr, domain, org, err := admit(in.Email, in.Organization)
 	if err != nil {
 		return err
@@ -262,6 +268,9 @@ type Result struct {
 // Verify takes the token of a verification link (single use) and the password the user chooses, and creates the
 // organization, or holds it for an operator with [signup] require_approval.
 func (s *Service) Verify(ctx context.Context, token, password, remoteIP string) (*Result, error) {
+	if s.o.Config.OIDCOnly {
+		return nil, ErrEmailSignupOff
+	}
 	if token == "" {
 		return nil, ErrToken
 	}
@@ -341,7 +350,12 @@ func (s *Service) complete(ctx context.Context, row *Signup, by operator.Actor, 
 	if org == nil {
 		return nil, errors.New("signup: no free organization id")
 	}
-	if err := s.setupOrganization(ctx, row, by, org.ID, acct.Exists); err != nil {
+	err = s.setupOrganization(ctx, row, by, org.ID, acct.Exists)
+	if err == nil && s.o.Config.OIDCOnly {
+		// before anyone can sign in: the organization never accepts a password
+		_, err = s.o.Orgs.SetRequireOIDC(ctx, by, org.ID, true)
+	}
+	if err != nil {
 		s.o.Log.Errorf("signup %s: organization %s created but not set up, deleting it: %v", row.ID, org.ID, err)
 		if derr := s.discard(ctx, by, org.ID); derr != nil {
 			s.o.Log.Errorf("signup %s: delete the organization %s: %v", row.ID, org.ID, derr)

@@ -218,3 +218,49 @@ func TestSignupWithGoogleNoApproval(t *testing.T) {
 	code, out := h.do(t, http.MethodGet, "/me", ned, nil)
 	require.Equal(t, http.StatusOK, code, out["_raw"])
 }
+
+// With oidc_only the signup page offers Google only: the email form is refused, a link mailed earlier no longer
+// works, and the organization a signup creates requires OIDC sign-in.
+func TestSignupOIDCOnly(t *testing.T) {
+	h, _, fake, op := startGoogleSignupNode(t, "oidc_only = true\n")
+
+	code, out := h.do(t, http.MethodGet, "/signup", "", nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	cfg := data(t, out)
+	assert.Equal(t, false, cfg["email_signup"])
+	assert.Equal(t, true, cfg["google_signup"])
+
+	code, out = h.do(t, http.MethodPost, "/signup", "", signupBody("lee@corp.example", "Lee"))
+	assert.Equal(t, http.StatusForbidden, code, out["_raw"])
+	code, out = h.do(t, http.MethodPost, "/signup/verify", "", map[string]string{"token": "any", "password": signupPassword})
+	assert.Equal(t, http.StatusForbidden, code, out["_raw"])
+
+	fake.SignInAs(oidcfake.User{Subject: "google-ned", Email: "ned@corp.example", EmailVerified: true, HostedDomain: "corp.example"})
+	_, frag := googleSignup(t, h, "Corp")
+	require.Equal(t, "completed", frag.Get("status"), frag)
+	org := frag.Get("organization")
+	require.NotEmpty(t, org)
+
+	code, out = h.do(t, http.MethodGet, "/operator/organizations/"+org, op, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, true, data(t, out)["require_oidc"], "the new organization requires OIDC sign-in")
+
+	ned := h.oidcLogin(t, fake, "google-ned", "ned@corp.example")
+	code, out = h.do(t, http.MethodGet, "/me", ned, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+}
+
+// Without oidc_only the email form stays and new organizations don't require OIDC.
+func TestSignupEmailStillOnByDefault(t *testing.T) {
+	h, _, fake, op := startGoogleSignupNode(t, "")
+	code, out := h.do(t, http.MethodGet, "/signup", "", nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, true, data(t, out)["email_signup"])
+
+	fake.SignInAs(oidcfake.User{Subject: "google-ned", Email: "ned@corp.example", EmailVerified: true, HostedDomain: "corp.example"})
+	_, frag := googleSignup(t, h, "Corp")
+	require.Equal(t, "completed", frag.Get("status"), frag)
+	code, out = h.do(t, http.MethodGet, "/operator/organizations/"+frag.Get("organization"), op, nil)
+	require.Equal(t, http.StatusOK, code, out["_raw"])
+	assert.Equal(t, false, data(t, out)["require_oidc"])
+}
