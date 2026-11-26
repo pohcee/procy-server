@@ -77,6 +77,7 @@ func (h *Handler) Mount(r *mux.Router) {
 	r.HandleFunc("/organizations/{id}/members", h.members).Methods(http.MethodGet)
 	r.HandleFunc("/organizations/{id}/sign-in", h.setSignIn).Methods(http.MethodPut)
 	h.mountConsole(r)
+	h.mountNodes(r)
 	if h.usage != nil {
 		r.HandleFunc("/organizations/{id}/usage", h.organizationUsage).Methods(http.MethodGet)
 		r.HandleFunc("/usage", h.usageSummary).Methods(http.MethodGet)
@@ -249,7 +250,7 @@ func (h *Handler) fail(w http.ResponseWriter, err error) {
 		status = http.StatusBadRequest
 	case errors.Is(err, billing.ErrNotFound):
 		status = http.StatusNotFound
-	case errors.Is(err, ErrNotFound):
+	case errors.Is(err, ErrNotFound), errors.Is(err, ErrNodeNotFound):
 		status = http.StatusNotFound
 	case errors.Is(err, ErrExists):
 		status = http.StatusConflict

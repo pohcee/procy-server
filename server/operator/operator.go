@@ -264,6 +264,17 @@ type Service interface {
 	// Activity returns a page of the organization's audit log, metadata only, newest first: its own entries and
 	// the operators' entries about it.
 	Activity(ctx context.Context, id string, q ActivityQuery) ([]ActivityEntry, error)
+
+	// Nodes returns every node of the cluster registry with its stats, today being the UTC day before to and the
+	// period the UTC days [from, to), and the live sessions whose node is not in the registry.
+	Nodes(ctx context.Context, from, to time.Time) ([]Node, int64, error)
+	// Node returns the node id with its stats as Nodes does, its days in [from, to) that have transfer or
+	// connection events, the organizations with live sessions on it and its newest NodeEventsLimit connection
+	// events. ErrNodeNotFound.
+	Node(ctx context.Context, id string, from, to time.Time) (*NodeDetail, error)
+	// NodeDevices returns a page of the devices with a live session on node id, by organization and name, and how
+	// many there are. ErrNodeNotFound.
+	NodeDevices(ctx context.Context, id string, limit, offset int) ([]NodeDevice, int, error)
 }
 
 // AuditApplicationOrganizationInvitation is an operator's change of an organization's invitation.

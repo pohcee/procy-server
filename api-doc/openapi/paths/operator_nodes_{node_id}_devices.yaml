@@ -1,0 +1,83 @@
+get:
+  tags:
+    - Operator
+  summary: List the devices with a live session on a node. Platform operators only
+  description: >-
+    By organization, then name. Metadata only, as the organization's device list: no addresses, tags, labels or
+    attributes. `meta.count` is how many there are.
+  operationId: OperatorNodeDevicesGet
+  parameters:
+    - name: node_id
+      in: path
+      description: Node ID
+      required: true
+      schema:
+        type: string
+    - name: page[limit]
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 50
+    - name: page[offset]
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    organization: {type: string}
+                    organization_name: {type: string}
+                    id: {type: string}
+                    name: {type: string}
+                    online: {type: boolean}
+                    node_id: {type: string}
+                    version: {type: string}
+                    os: {type: string, example: Ubuntu 24.04}
+                    os_family: {type: string}
+                    connected_at: {type: string, format: date-time}
+                    last_seen_at: {type: string, format: date-time, description: Now}
+                    first_seen_at: {type: string, format: date-time, nullable: true}
+              meta:
+                type: object
+                properties:
+                  count: {type: integer}
+    '400':
+      description: Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization, or the node is not in the registry
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

@@ -25,6 +25,8 @@ var DeviceFunctions = []string{
 	"report_client_state(jsonb)",
 	// the session registry (migration 1200, migrate.RegistryFunctions)
 	"rport_node_heartbeat(text, text, text)",
+	// with the version, roles and process start (migration 1800; not SECURITY DEFINER, it calls the 3-argument form)
+	"rport_node_heartbeat(text, text, text, text, text[], timestamptz)",
 	"rport_register_session(text, text, text, text, integer)",
 	"rport_renew_sessions(text, jsonb, integer)",
 	"rport_end_session(text)",

@@ -16,6 +16,7 @@ import (
 	"github.com/pohcee/procy-server/server/peer"
 	pgclients "github.com/pohcee/procy-server/server/storage/postgres/clients"
 	"github.com/pohcee/procy-server/server/storage/postgres/clientsessions"
+	chshare "github.com/pohcee/procy-server/share"
 	"github.com/pohcee/procy-server/share/logger"
 	"github.com/pohcee/procy-server/share/tenant"
 )
@@ -23,6 +24,9 @@ import (
 // sweepInterval is how often clients stored as connected without a live session are marked disconnected (one node
 // per tenant at a time).
 const sweepInterval = 30 * time.Second
+
+// processStart is when the process started, as its node's heartbeat reports it.
+var processStart = time.Now()
 
 // clusterProcess is the peer side of a Postgres node (chserver.PeerNode): the session tracker of a process with a
 // client listener, the peer listener of a process that answers peer calls, the cluster dispatcher of a process that
@@ -91,6 +95,7 @@ func newClusterProcess(cfg *chconfig.Config, db *sqlx.DB, coord cluster.Coordina
 	if hasListener {
 		p.tracker = peer.NewTracker(registry, peer.NodeInfo{
 			NodeID: cfg.Cluster.NodeID, Region: cfg.Cluster.Region, PeerAddress: cfg.Cluster.PeerAddress,
+			Version: chshare.BuildVersion, Roles: []string{cfg.Storage.Role}, StartedAt: processStart,
 		}, 0, 0, p.log.Fork("sessions"))
 		opts.ClientSessions = p.tracker
 	}

@@ -69,7 +69,15 @@ rportd org add-admin _system ops@example.com -c /etc/rport/rportd.conf
 
 With `[oidc]` on, the operator gets no password at all. They open the UI, choose **Sign in with Google**, and find the
 **Operator console**: an overview, the organizations with their members, devices, usage and activity, pending signups
-and invitations, deletions, platform usage and billing, and the operators' audit log.
+and invitations, deletions, platform usage and billing, the servers of a cluster, and the operators' audit log.
+
+**Servers** lists the nodes of a [cluster](/docs/self-hosting/postgres/#run-several-nodes) that hold device
+connections: each node's status from its heartbeat (*live* up to a minute, *stale* up to a day, *gone* after that,
+still listed at the bottom), version, role, devices online and their organizations, connects and disconnects of the
+last 24 hours, and its traffic today and over the period. A node's page adds a daily chart, the organizations on it,
+its devices and its recent connections. Traffic is counted per node with [usage
+metering](/docs/self-hosting/payment-provider/) on, from the release that added this view; older traffic isn't
+attributed to a node. A node on an older release shows no version or role until it is upgraded.
 
 ### Manage organizations
 

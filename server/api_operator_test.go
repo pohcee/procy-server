@@ -27,6 +27,9 @@ func TestNoOperatorAPIWithoutOperatorService(t *testing.T) {
 		{http.MethodPost, "/api/v1/operator/organizations/acme/suspend"},
 		{http.MethodPut, "/api/v1/operator/organizations/acme/device-limit"},
 		{http.MethodPost, "/api/v1/operator/organizations/acme/admins"},
+		{http.MethodGet, "/api/v1/operator/nodes"},
+		{http.MethodGet, "/api/v1/operator/nodes/n1"},
+		{http.MethodGet, "/api/v1/operator/nodes/n1/devices"},
 	} {
 		w := httptest.NewRecorder()
 		al.router.ServeHTTP(w, httptest.NewRequest(rt.method, rt.path, nil))

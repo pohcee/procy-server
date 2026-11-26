@@ -1,0 +1,55 @@
+get:
+  tags:
+    - Operator
+  summary: Show a node with its daily series, organizations and connection events. Platform operators only
+  operationId: OperatorNodeGet
+  parameters:
+    - name: node_id
+      in: path
+      description: Node ID
+      required: true
+      schema:
+        type: string
+    - name: days
+      in: query
+      description: The period, in UTC days up to today (1 to 90)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 90
+        default: 30
+  responses:
+    '200':
+      description: Successful Operation
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: ../components/schemas/OperatorNodeDetail.yaml
+    '400':
+      description: Invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '401':
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '403':
+      description: Not an administrator of the system organization
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml
+    '404':
+      description: No operator API on this server (standalone), the request is not from the system organization, or the node is not in the registry
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ErrorPayload.yaml

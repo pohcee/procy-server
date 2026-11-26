@@ -285,3 +285,41 @@ func TestDaysNotRolledUpYetAreReadFromHours(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []metering.TenantRow{{Tenant: "a", Metric: "api_bytes_out", Value: 11}}, rows)
 }
+
+// ingest_usage adds the transfer metrics of a record with a node id to usage_node_daily once (a replayed record
+// adds nothing), leaves other metrics, records without a node and invalid node ids out; the upkeep prunes it.
+func TestIngestCountsTransferPerNode(t *testing.T) {
+	d := pgtest.New(t, repotest.TenantA, repotest.TenantB)
+	w := Writer{DB: d.App}
+	h := thisHour()
+	r1 := rec(repotest.TenantA, "k1",
+		metering.Delta{Hour: h, Metric: metering.TunnelBytesToUser, Value: 1000},
+		metering.Delta{Hour: h, Metric: metering.TunnelBytesToDevice, Value: 100},
+		metering.Delta{Hour: h, Metric: metering.JobsCommand, Value: 2})
+	r2 := rec(repotest.TenantB, "k1", metering.Delta{Hour: h, Metric: metering.TunnelBytesToUser, Value: 1})
+	noNode := metering.Record{Tenant: repotest.TenantA, Key: "k2", Deltas: []metering.Delta{{Hour: h, Metric: metering.APIBytesOut, Value: 50}}}
+	badNode := metering.Record{Tenant: repotest.TenantA, Node: "../x", Key: "k3", Deltas: []metering.Delta{{Hour: h, Metric: metering.APIBytesOut, Value: 50}}}
+	require.NoError(t, w.WriteUsage(ctx, []metering.Record{r1, r2, noNode, badNode}))
+	require.NoError(t, w.WriteUsage(ctx, []metering.Record{r1}), "replayed")
+
+	var rows []struct {
+		Node   string `db:"node_id"`
+		Metric string `db:"metric"`
+		Value  int64  `db:"value"`
+	}
+	require.NoError(t, d.Owner.Select(&rows, "SELECT node_id, metric, value FROM usage_node_daily WHERE day = $1::date ORDER BY metric", today()))
+	require.Len(t, rows, 2, "%v", rows)
+	assert.Equal(t, "n1", rows[0].Node)
+	assert.Equal(t, "tunnel_bytes_to_device", rows[0].Metric)
+	assert.EqualValues(t, 100, rows[0].Value)
+	assert.Equal(t, "tunnel_bytes_to_user", rows[1].Metric)
+	assert.EqualValues(t, 1001, rows[1].Value, "every tenant together")
+	assert.EqualValues(t, 100, hourly(t, d)["a/api_bytes_out"], "the records without a valid node still count for the tenant")
+
+	_, err := d.Owner.Exec("INSERT INTO usage_node_daily (node_id, day, metric, value) VALUES ('n1', $1, 'api_bytes_out', 1)", today().AddDate(-3, 0, 0))
+	require.NoError(t, err)
+	require.NoError(t, Upkeep(ctx, d.App, Retention{}))
+	var n int
+	require.NoError(t, d.Owner.Get(&n, "SELECT count(*) FROM usage_node_daily"))
+	assert.Equal(t, 2, n, "days past 25 months are pruned")
+}

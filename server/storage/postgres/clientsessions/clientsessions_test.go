@@ -3,6 +3,7 @@ package clientsessions
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -206,4 +207,75 @@ func TestRenewRestoresConnectedState(t *testing.T) {
 	var connected bool
 	require.NoError(t, d.Owner.Get(&connected, "SELECT disconnected_at IS NULL FROM clients WHERE id = 'c1'"))
 	assert.True(t, connected)
+}
+
+type nodeReport struct {
+	Version   *string    `db:"version"`
+	Roles     *string    `db:"roles"`
+	StartedAt *time.Time `db:"started_at"`
+}
+
+func reportOf(t *testing.T, d *pgtest.DB, node string) nodeReport {
+	t.Helper()
+	var r nodeReport
+	require.NoError(t, d.Owner.Get(&r, "SELECT version, array_to_string(roles, ',') AS roles, started_at FROM nodes WHERE node_id = $1", node))
+	return r
+}
+
+// The heartbeat of this release reports the version, roles and process start, also with the device role; the
+// 3-argument heartbeat of the previous release clears them.
+func TestHeartbeatReportsVersionRolesAndStart(t *testing.T) {
+	d := pgtest.New(t)
+	ctx := context.Background()
+	started := time.Date(2026, 11, 26, 8, 0, 0, 0, time.UTC)
+	s := New(d.Device)
+	require.NoError(t, s.Heartbeat(ctx, peer.NodeInfo{NodeID: "n1", Region: "r1", PeerAddress: "10.0.0.1:7443",
+		Version: "0.17.0", Roles: []string{"device"}, StartedAt: started}))
+	r := reportOf(t, d, "n1")
+	require.NotNil(t, r.Version)
+	assert.Equal(t, "0.17.0", *r.Version)
+	require.NotNil(t, r.Roles)
+	assert.Equal(t, "device", *r.Roles)
+	require.NotNil(t, r.StartedAt)
+	assert.True(t, started.Equal(*r.StartedAt))
+
+	// a node of the previous release (rolling upgrade, rollback)
+	_, err := d.Device.Exec("SELECT rport_node_heartbeat('n1', 'r1', '10.0.0.1:7443')")
+	require.NoError(t, err)
+	assert.Equal(t, nodeReport{}, reportOf(t, d, "n1"))
+
+	// nothing reported: NULLs, the heartbeat still counts
+	require.NoError(t, New(d.App).Heartbeat(ctx, peer.NodeInfo{NodeID: "n2"}))
+	r = reportOf(t, d, "n2")
+	assert.Nil(t, r.Version)
+	assert.Nil(t, r.StartedAt)
+
+	// a long build version is cut, not refused (the heartbeat must go on)
+	require.NoError(t, s.Heartbeat(ctx, peer.NodeInfo{NodeID: "n3", Version: strings.Repeat("v", 70)}))
+	r = reportOf(t, d, "n3")
+	require.NotNil(t, r.Version)
+	assert.Len(t, *r.Version, 64)
+	_, err = d.Device.Exec("SELECT rport_node_heartbeat('n1', '', '', $1, '{}', NULL)", strings.Repeat("v", 65))
+	assert.Error(t, err, "the database refuses more")
+
+	for _, bad := range []peer.NodeInfo{
+		{NodeID: "n1", Roles: []string{"Bad Role"}},
+		{NodeID: "n1", Roles: []string{"a", "b", "c", "d", "e", "f", "g", "h", "i"}},
+		{NodeID: "bad node"},
+	} {
+		assert.Error(t, s.Heartbeat(ctx, bad), "%+v", bad)
+	}
+}
+
+// The 6-argument heartbeat is not SECURITY DEFINER (it calls the 3-argument one), so the device role of the
+// previous release, whose check refuses any SECURITY DEFINER function it doesn't know, still passes it.
+func TestHeartbeatAddsNoSecurityDefinerFunction(t *testing.T) {
+	d := pgtest.New(t)
+	var definer, may bool
+	require.NoError(t, d.Owner.Get(&definer, "SELECT prosecdef FROM pg_proc WHERE oid = 'rport_node_heartbeat(text, text, text, text, text[], timestamptz)'::regprocedure"))
+	assert.False(t, definer)
+	require.NoError(t, d.Owner.Get(&may, "SELECT has_function_privilege($1, 'rport_node_heartbeat(text, text, text, text, text[], timestamptz)', 'EXECUTE')", pgtest.DeviceRole))
+	assert.True(t, may)
+	require.NoError(t, d.Owner.Get(&may, "SELECT has_function_privilege('public', 'rport_node_heartbeat(text, text, text, text, text[], timestamptz)', 'EXECUTE')"))
+	assert.False(t, may, "not for PUBLIC")
 }
