@@ -9,7 +9,7 @@ aliases:
 ---
 {{< toc >}}
 Procy comes with a web-based user interface, distributed as a separate bundle. Like the server and client, it is open
-source: the code is in the [openrport-ui repository](https://github.com/pohcee/procy-ui) and released under the
+source: the code is in the [procy-ui repository](https://github.com/pohcee/procy-ui) and released under the
 GNU Affero General Public License v3.
 
 ## Installing the web UI
