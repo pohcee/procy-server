@@ -94,6 +94,6 @@ changelog:
 release:
   github:
     owner: pohcee
-    name: openrport
+    name: procy-server
   draft: false
   prerelease: auto
