@@ -49,6 +49,10 @@ type Coordinator struct {
 	holder string
 	log    *logger.Logger
 
+	// listenerTTL and listenerRenew are clientListenerTTL and clientListenerRenew when the coordinator was made: its
+	// renewal goroutine reads these, never the package variables (which tests change and restore).
+	listenerTTL, listenerRenew time.Duration
+
 	follower *changefeed.Follower
 
 	// noRuns: this node can't do work on clients (role api, phase 2), so it leaves scheduled runs to the node that
@@ -83,7 +87,8 @@ func NewCoordinator(ctx context.Context, db *sqlx.DB, nodeID string, log *logger
 	if err != nil {
 		return nil, err
 	}
-	c := &Coordinator{db: db, nodeID: nodeID, holder: nodeID + "/" + hex.EncodeToString(suffix), log: log}
+	c := &Coordinator{db: db, nodeID: nodeID, holder: nodeID + "/" + hex.EncodeToString(suffix), log: log,
+		listenerTTL: clientListenerTTL, listenerRenew: clientListenerRenew}
 	c.follower = &changefeed.Follower{
 		DB:        db,
 		From:      &head,
@@ -182,7 +187,7 @@ func (c *Coordinator) LeaveScheduledRuns() { c.noRuns = true }
 // the node holding it. The holder is the node id, so the same node restarting takes it back at once. It is renewed
 // from now on, until Run ends or Release is called.
 func (c *Coordinator) AcquireClientListener(ctx context.Context) error {
-	ok, err := c.lease(ctx, ClientListenerLease, "", c.nodeID, clientListenerTTL)
+	ok, err := c.lease(ctx, ClientListenerLease, "", c.nodeID, c.listenerTTL)
 	if err != nil {
 		return err
 	}
@@ -264,14 +269,14 @@ func (c *Coordinator) Run(ctx context.Context) error {
 }
 
 func (c *Coordinator) renewClientListener(ctx context.Context) {
-	tick := time.NewTicker(clientListenerRenew)
+	tick := time.NewTicker(c.listenerRenew)
 	defer tick.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			ok, err := c.lease(ctx, ClientListenerLease, "", c.nodeID, clientListenerTTL)
+			ok, err := c.lease(ctx, ClientListenerLease, "", c.nodeID, c.listenerTTL)
 			if err != nil {
 				c.log.Errorf("cluster: renew the client listener lease: %v", err)
 			} else if !ok {
