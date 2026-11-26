@@ -22,11 +22,6 @@ filters the list by group.
 
 Which devices belong to a group is defined by its `params`, which you set through the API (below).
 
-{{< hint type=caution >}}
-Editing a group in the web interface currently saves it without its `params`, which removes all its devices. Change
-groups that have rules through the API.
-{{< /hint >}}
-
 ## Rules
 
 The `params` of a group decide which devices belong to it. Each parameter takes a list of values:
@@ -89,7 +84,8 @@ curl -s -u admin@example.com:$TOKEN -X POST https://procy.sh/api/v1/client-group
 
 ### Change a group
 
-A change replaces the whole group, so always send every field, including `params` and `allowed_user_groups`:
+A change replaces the description and the allowed user groups. Leave out `params` to keep the group's rules as they
+are, or send `"params": {}` to remove them. This change sets all three:
 
 ```shell
 curl -s -u admin@example.com:$TOKEN -X PUT https://procy.sh/api/v1/client-groups/qa-linux \
